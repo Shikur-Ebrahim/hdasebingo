@@ -155,6 +155,8 @@ export default function BingoGame() {
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(urlRoom || null);
   const [selectedStake, setSelectedStake] = useState<number | null>(urlStake ? Number(urlStake) : null);
   const [roomsRefreshing, setRoomsRefreshing] = useState(false);
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [roomSortFilter, setRoomSortFilter] = useState<'all' | 'most_players' | 'most_games' | 'newest'>('all');
   const [showStakeDropdown, setShowStakeDropdown] = useState(false);
   const [maxPlayers, setMaxPlayers] = useState<number>(150);
   const [maxCartelasPerUser, setMaxCartelasPerUser] = useState<number>(2);
@@ -206,6 +208,21 @@ export default function BingoGame() {
       return params;
     });
   };
+
+  // Filter/sort rooms in BingoGame rooms page
+  const filteredRooms = [...rooms].sort((a, b) => {
+    if (roomSortFilter === 'most_players') return (b.total_players || 0) - (a.total_players || 0);
+    if (roomSortFilter === 'most_games') return (b.total_games || 0) - (a.total_games || 0);
+    if (roomSortFilter === 'newest') return 0; // already ordered by created_at from API
+    return 0; // 'all' — keep original order
+  });
+
+  const BINGO_FILTER_OPTIONS = [
+    { key: 'all', label: language === 'am' ? 'ሁሉም ክፍሎች' : 'All Rooms', icon: '🏠' },
+    { key: 'most_players', label: language === 'am' ? 'ተጫዋቾች (ከፍተኛ)' : 'Most Players', icon: '👥' },
+    { key: 'most_games', label: language === 'am' ? 'ጨዋታዎች (ከፍተኛ)' : 'Most Games', icon: '🎮' },
+    { key: 'newest', label: language === 'am' ? 'አዲስ ክፍሎች' : 'Newest Rooms', icon: '✨' },
+  ] as const;
 
   // Fetch and listen for active derash & status on stake selection screen
   useEffect(() => {
@@ -756,7 +773,7 @@ export default function BingoGame() {
             </div>
           </div>
 
-          {/* Navigation Bar: Back & Refresh */}
+          {/* Navigation Bar: Back & Filter */}
           <div className="px-4 pt-3 pb-2 flex items-center justify-between shrink-0 bg-white">
             <button
               onClick={() => navigate('/')}
@@ -775,23 +792,93 @@ export default function BingoGame() {
                 {language === 'am' ? 'ክፍል ይምረጡና ይጫወቱ' : 'Select an active room to play'}
               </p>
             </div>
-            <button
-              onClick={handleRefreshRooms}
-              className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200/60 flex items-center justify-center text-slate-600 active:scale-95 transition-all shadow-2xs"
-            >
-              <RefreshCw size={14} className={roomsRefreshing ? 'animate-spin text-amber-500' : ''} />
-            </button>
+            {/* Advanced Filter Button */}
+            <div className="relative">
+              <button
+                onClick={() => setShowFilterDropdown(v => !v)}
+                className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl border text-xs font-bold active:scale-95 transition-all shadow-2xs ${
+                  roomSortFilter !== 'all'
+                    ? 'bg-amber-500 border-amber-500 text-white'
+                    : 'bg-slate-100 border-slate-200/60 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <span>
+                  {BINGO_FILTER_OPTIONS.find(o => o.key === roomSortFilter)?.icon ?? '🔽'}
+                </span>
+                <span className="hidden xs:inline">
+                  {roomSortFilter === 'all' ? (language === 'am' ? 'ፍጥን' : 'Filter') : BINGO_FILTER_OPTIONS.find(o => o.key === roomSortFilter)?.label}
+                </span>
+                <ChevronDown size={12} className={showFilterDropdown ? 'rotate-180 transition-transform' : 'transition-transform'} />
+              </button>
+
+              {/* Dropdown */}
+              {showFilterDropdown && (
+                <div className="absolute right-0 top-full mt-1.5 z-50 bg-white rounded-2xl shadow-xl border border-slate-200/80 overflow-hidden min-w-[180px]">
+                  <div className="px-3 pt-2.5 pb-1">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      {language === 'am' ? 'ክፍሎች ተለይ' : 'Sort Rooms By'}
+                    </p>
+                  </div>
+                  {BINGO_FILTER_OPTIONS.map(opt => (
+                    <button
+                      key={opt.key}
+                      onClick={() => { setRoomSortFilter(opt.key); setShowFilterDropdown(false); }}
+                      className={`w-full flex items-center space-x-2.5 px-3 py-2.5 text-left active:bg-slate-50 transition-colors ${
+                        roomSortFilter === opt.key
+                          ? 'bg-amber-50 text-amber-700'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="text-base leading-none">{opt.icon}</span>
+                      <span className="text-xs font-bold leading-tight">{opt.label}</span>
+                      {roomSortFilter === opt.key && (
+                        <span className="ml-auto text-amber-500 text-xs font-black">✓</span>
+                      )}
+                    </button>
+                  ))}
+                  <div className="border-t border-slate-100 px-3 py-2">
+                    <button
+                      onClick={handleRefreshRooms}
+                      className="w-full flex items-center justify-center space-x-2 py-2 bg-slate-100 rounded-xl text-slate-600 text-xs font-bold active:scale-95 transition-all hover:bg-slate-200"
+                    >
+                      <RefreshCw size={12} className={roomsRefreshing ? 'animate-spin text-amber-500' : ''} />
+                      <span>{language === 'am' ? 'አድስ' : 'Refresh Rooms'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Filter chips row (quick inline buttons, shows active filter) */}
+          <div className="px-4 pb-1 flex space-x-1.5 overflow-x-auto shrink-0" style={{ scrollbarWidth: 'none' }}>
+            {BINGO_FILTER_OPTIONS.map(opt => (
+              <button
+                key={opt.key}
+                onClick={() => setRoomSortFilter(opt.key)}
+                className={`shrink-0 flex items-center space-x-1 px-3 py-1 rounded-full text-[11px] font-bold border active:scale-95 transition-all ${
+                  roomSortFilter === opt.key
+                    ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
+                    : 'bg-white border-slate-200 text-slate-500 hover:border-amber-300 hover:text-amber-600'
+                }`}
+              >
+                <span>{opt.icon}</span>
+                <span>{opt.label}</span>
+              </button>
+            ))}
           </div>
 
           {/* Rooms Grid (Mobile friendly, strictly real rooms from DB) */}
-          <div className="px-4 flex-1 overflow-y-auto pb-4 pt-2" style={{ scrollbarWidth: 'none' }}>
+          <div className="px-4 flex-1 overflow-y-auto pb-4 pt-2" style={{ scrollbarWidth: 'none' }}
+            onClick={() => showFilterDropdown && setShowFilterDropdown(false)}
+          >
             <div className="flex items-center justify-between mb-2.5">
               <div className="flex items-center space-x-1.5">
                 <span className="text-xs font-black text-slate-700 uppercase tracking-wide">
                   {language === 'am' ? 'ክፍት ክፍሎች' : 'Available Rooms'}
                 </span>
                 <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold">
-                  {rooms.length}
+                  {filteredRooms.length}
                 </span>
               </div>
               <span className="text-[10px] text-slate-400 font-bold">
@@ -799,7 +886,7 @@ export default function BingoGame() {
               </span>
             </div>
 
-            {rooms.length === 0 ? (
+            {filteredRooms.length === 0 ? (
               <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-8 text-center space-y-2 mt-2">
                 <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
                   <DoorOpen size={28} />
@@ -819,7 +906,7 @@ export default function BingoGame() {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3 pb-2">
-                {rooms.map((room, idx) => {
+                {filteredRooms.map((room, idx) => {
                   const gradient = ROOM_GRADIENTS[idx % ROOM_GRADIENTS.length];
                   return (
                     <div
@@ -1005,22 +1092,6 @@ export default function BingoGame() {
             })}
           </div>
 
-          {/* Bottom Action: Back to Rooms */}
-          <div className="pb-3 flex justify-center shrink-0 relative z-10 mt-1">
-            <button
-              onClick={() => {
-                setSelectedRoomId(null);
-                setSearchParams(params => {
-                  params.delete('room');
-                  return params;
-                });
-              }}
-              className="px-6 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-full text-slate-600 text-xs font-bold uppercase tracking-widest active:scale-95 shadow-sm transition-colors flex items-center space-x-1.5"
-            >
-              <RotateCcw size={12} className="text-amber-600" />
-              <span>{language === 'am' ? 'ወደ ክፍሎች ተመለስ (ክፍል ቀይር)' : '← Back to Rooms'}</span>
-            </button>
-          </div>
         </div>
       </div>
     );

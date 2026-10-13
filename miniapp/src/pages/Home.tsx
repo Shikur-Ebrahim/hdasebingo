@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
-import { Gift, ArrowDownToLine, Share2, PlusCircle, Info, MessageCircle, DoorOpen, Users, Gamepad2, RefreshCw } from 'lucide-react';
+import { Gift, ArrowDownToLine, Share2, PlusCircle, Info, MessageCircle, DoorOpen, Users, Gamepad2, RefreshCw, ChevronDown } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { supabase } from '../lib/supabase';
@@ -40,6 +40,8 @@ export default function Home() {
 
   // Manual refresh spinner
   const [manualRefreshing, setManualRefreshing] = useState(false);
+  const [homeRoomSortFilter, setHomeRoomSortFilter] = useState<'all' | 'most_players' | 'most_games' | 'newest'>('all');
+  const [showHomeFilterDropdown, setShowHomeFilterDropdown] = useState(false);
 
   // Support banner state
   const [showSupportBanner, setShowSupportBanner] = useState(false);
@@ -346,9 +348,9 @@ export default function Home() {
       </div>
 
       {/* ══════════ ROOMS SECTION ══════════ */}
-      <div className="px-4 flex-1">
+      <div className="px-4 flex-1" onClick={() => showHomeFilterDropdown && setShowHomeFilterDropdown(false)}>
         {/* Section header */}
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-2">
             <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-sm">
               <DoorOpen size={14} className="text-white" />
@@ -360,67 +362,146 @@ export default function Home() {
               </p>
             </div>
           </div>
-          <button
-            onClick={handleManualRefresh}
-            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 active:bg-slate-200 transition-colors"
-          >
-            <RefreshCw size={13} className={manualRefreshing ? 'animate-spin text-indigo-500' : ''} />
-          </button>
+
+          {/* Advanced Filter Button */}
+          <div className="relative">
+            <button
+              onClick={e => { e.stopPropagation(); setShowHomeFilterDropdown(v => !v); }}
+              className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl border text-xs font-bold active:scale-95 transition-all shadow-sm ${
+                homeRoomSortFilter !== 'all'
+                  ? 'bg-indigo-500 border-indigo-500 text-white'
+                  : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              <span>
+                {homeRoomSortFilter === 'all' ? '🔽' : homeRoomSortFilter === 'most_players' ? '👥' : homeRoomSortFilter === 'most_games' ? '🎮' : '✨'}
+              </span>
+              <span>{homeRoomSortFilter === 'all' ? 'Filter' : homeRoomSortFilter === 'most_players' ? 'Players' : homeRoomSortFilter === 'most_games' ? 'Games' : 'Newest'}</span>
+              <ChevronDown size={11} className={showHomeFilterDropdown ? 'rotate-180 transition-transform' : 'transition-transform'} />
+            </button>
+
+            {showHomeFilterDropdown && (
+              <div className="absolute right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200/80 dark:border-slate-700 overflow-hidden min-w-[175px]">
+                <div className="px-3 pt-2.5 pb-1">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sort Rooms By</p>
+                </div>
+                {[
+                  { key: 'all', label: 'All Rooms', icon: '🏠' },
+                  { key: 'most_players', label: 'Most Players', icon: '👥' },
+                  { key: 'most_games', label: 'Most Games', icon: '🎮' },
+                  { key: 'newest', label: 'Newest Rooms', icon: '✨' },
+                ].map(opt => (
+                  <button
+                    key={opt.key}
+                    onClick={() => { setHomeRoomSortFilter(opt.key as typeof homeRoomSortFilter); setShowHomeFilterDropdown(false); }}
+                    className={`w-full flex items-center space-x-2.5 px-3 py-2.5 text-left transition-colors ${
+                      homeRoomSortFilter === opt.key
+                        ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <span className="text-base leading-none">{opt.icon}</span>
+                    <span className="text-xs font-bold">{opt.label}</span>
+                    {homeRoomSortFilter === opt.key && <span className="ml-auto text-indigo-500 text-xs font-black">✓</span>}
+                  </button>
+                ))}
+                <div className="border-t border-slate-100 dark:border-slate-800 px-3 py-2">
+                  <button
+                    onClick={() => { handleManualRefresh(); setShowHomeFilterDropdown(false); }}
+                    className="w-full flex items-center justify-center space-x-2 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300 text-xs font-bold active:scale-95 transition-all hover:bg-slate-200 dark:hover:bg-slate-700"
+                  >
+                    <RefreshCw size={12} className={manualRefreshing ? 'animate-spin text-indigo-500' : ''} />
+                    <span>Refresh Rooms</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Filter chips row */}
+        <div className="flex space-x-1.5 overflow-x-auto mb-3" style={{ scrollbarWidth: 'none' }}>
+          {[
+            { key: 'all', label: 'All Rooms', icon: '🏠' },
+            { key: 'most_players', label: 'Most Players', icon: '👥' },
+            { key: 'most_games', label: 'Most Games', icon: '🎮' },
+            { key: 'newest', label: 'Newest', icon: '✨' },
+          ].map(opt => (
+            <button
+              key={opt.key}
+              onClick={() => setHomeRoomSortFilter(opt.key as typeof homeRoomSortFilter)}
+              className={`shrink-0 flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-bold border active:scale-95 transition-all ${
+                homeRoomSortFilter === opt.key
+                  ? 'bg-indigo-500 border-indigo-500 text-white shadow-sm'
+                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-indigo-300 hover:text-indigo-600'
+              }`}
+            >
+              <span>{opt.icon}</span>
+              <span>{opt.label}</span>
+            </button>
+          ))}
         </div>
 
         {/* Room cards — 2-column grid (only real rooms from DB, zero loading delay) */}
-        {rooms.length === 0 ? (
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 p-8 text-center space-y-2">
-            <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto">
-              <DoorOpen size={28} className="text-slate-300 dark:text-slate-600" />
+        {(() => {
+          const filteredHomeRooms = [...rooms].sort((a, b) => {
+            if (homeRoomSortFilter === 'most_players') return (b.total_players || 0) - (a.total_players || 0);
+            if (homeRoomSortFilter === 'most_games') return (b.total_games || 0) - (a.total_games || 0);
+            return 0;
+          });
+          return filteredHomeRooms.length === 0 ? (
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 p-8 text-center space-y-2">
+              <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto">
+                <DoorOpen size={28} className="text-slate-300 dark:text-slate-600" />
+              </div>
+              <p className="text-xs font-black text-slate-500 dark:text-slate-400">No active rooms yet</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500">Rooms will appear here once agents create them</p>
             </div>
-            <p className="text-xs font-black text-slate-500 dark:text-slate-400">No active rooms yet</p>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500">Rooms will appear here once agents create them</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {rooms.map((room, idx) => {
-              const gradient = ROOM_GRADIENTS[idx % ROOM_GRADIENTS.length];
-              return (
-                <div
-                  key={room.id}
-                  onClick={() => {
-                    fetch(`${API_URL}/player/rooms/${room.id}/enter`, { method: 'POST' }).catch(() => {});
-                    navigate(`/bingo/live?room=${room.id}`);
-                  }}
-                  className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all"
-                >
-                  {/* Gradient header with room name */}
-                  <div className={`h-16 bg-gradient-to-br ${gradient} flex flex-col items-center justify-center relative px-2 text-center`}>
-                    <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-300 animate-pulse shadow-sm" />
-                    <span className="text-white font-black text-sm drop-shadow-sm leading-tight line-clamp-2 px-1">
-                      {room.room_name}
-                    </span>
-                  </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {filteredHomeRooms.map((room, idx) => {
+                const gradient = ROOM_GRADIENTS[idx % ROOM_GRADIENTS.length];
+                return (
+                  <div
+                    key={room.id}
+                    onClick={() => {
+                      fetch(`${API_URL}/player/rooms/${room.id}/enter`, { method: 'POST' }).catch(() => {});
+                      navigate(`/bingo/live?room=${room.id}`);
+                    }}
+                    className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all"
+                  >
+                    {/* Gradient header with room name */}
+                    <div className={`h-16 bg-gradient-to-br ${gradient} flex flex-col items-center justify-center relative px-2 text-center`}>
+                      <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-300 animate-pulse shadow-sm" />
+                      <span className="text-white font-black text-sm drop-shadow-sm leading-tight line-clamp-2 px-1">
+                        {room.room_name}
+                      </span>
+                    </div>
 
-                  {/* Players / Total Games — 2 columns */}
-                  <div className="w-full bg-slate-50 dark:bg-slate-800/50 border-b border-gray-100 dark:border-slate-800 flex h-[38px] shrink-0">
-                    <div className="flex-1 flex flex-col items-center justify-center border-r border-gray-100 dark:border-slate-800">
-                      <span className="text-slate-400 dark:text-slate-500 text-[8px] font-bold uppercase tracking-wider">Players</span>
-                      <span className="text-[11px] font-black text-emerald-600 dark:text-emerald-400">{room.total_players}</span>
+                    {/* Players / Total Games — 2 columns */}
+                    <div className="w-full bg-slate-50 dark:bg-slate-800/50 border-b border-gray-100 dark:border-slate-800 flex h-[38px] shrink-0">
+                      <div className="flex-1 flex flex-col items-center justify-center border-r border-gray-100 dark:border-slate-800">
+                        <span className="text-slate-400 dark:text-slate-500 text-[8px] font-bold uppercase tracking-wider">Players</span>
+                        <span className="text-[11px] font-black text-emerald-600 dark:text-emerald-400">{room.total_players}</span>
+                      </div>
+                      <div className="flex-1 flex flex-col items-center justify-center">
+                        <span className="text-slate-400 dark:text-slate-500 text-[8px] font-bold uppercase tracking-wider">Total Games</span>
+                        <span className="text-[11px] font-black text-violet-600 dark:text-violet-400">{room.total_games}</span>
+                      </div>
                     </div>
-                    <div className="flex-1 flex flex-col items-center justify-center">
-                      <span className="text-slate-400 dark:text-slate-500 text-[8px] font-bold uppercase tracking-wider">Total Games</span>
-                      <span className="text-[11px] font-black text-violet-600 dark:text-violet-400">{room.total_games}</span>
-                    </div>
-                  </div>
 
-                  {/* Join Room button */}
-                  <div className="p-2 text-center">
-                    <div className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2 rounded-lg text-xs transition-colors flex items-center justify-center">
-                      Join Room
+                    {/* Join Room button */}
+                    <div className="p-2 text-center">
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2 rounded-lg text-xs transition-colors flex items-center justify-center">
+                        Join Room
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
       {/* ══════════════════════════════════ */}
 
