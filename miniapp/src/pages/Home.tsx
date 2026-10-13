@@ -1,10 +1,31 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
-import { Gift, ArrowDownToLine, Share2, PlusCircle, Info, MessageCircle } from 'lucide-react';
+import { Gift, ArrowDownToLine, Share2, PlusCircle, Info, MessageCircle, DoorOpen, Users, Gamepad2, RefreshCw } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { supabase } from '../lib/supabase';
+
+const API_URL = import.meta.env.VITE_API_URL || '/api';
+
+interface Room {
+  id: string;
+  room_name: string;
+  agent_id: string;
+  agent_name?: string;
+  total_players: number;
+  total_games: number;
+  status: string;
+}
+
+const ROOM_GRADIENTS = [
+  'from-blue-500 to-indigo-600',
+  'from-emerald-500 to-teal-600',
+  'from-violet-500 to-purple-600',
+  'from-rose-500 to-pink-600',
+  'from-amber-500 to-orange-600',
+  'from-cyan-500 to-sky-600',
+];
 
 export default function Home() {
   const { user, language } = useGameStore();
@@ -16,6 +37,10 @@ export default function Home() {
   const [announcement, setAnnouncement] = useState<{ message: string; maxViews: number } | null>(null);
   const [showAnnouncement, setShowAnnouncement] = useState(false);
   const announcementShownRef = useRef(false);
+
+  // Rooms state
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [roomsLoading, setRoomsLoading] = useState(false);
 
   // Support banner state
   const [showSupportBanner, setShowSupportBanner] = useState(false);
@@ -39,36 +64,55 @@ export default function Home() {
     } catch { /* ignore if audio blocked */ }
   };
 
-  // Show banner 2s after each visit to home — cooldown 30s between re-shows
+  // Fetch rooms from API
+  const fetchRooms = async () => {
+    setRoomsLoading(true);
+    try {
+      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+      const res = await fetch(`${API_URL}/player/rooms`, {
+        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRooms(data.rooms || []);
+      }
+    } catch (e) {
+      console.error('Failed to load rooms', e);
+    } finally {
+      setRoomsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRooms();
+    const interval = setInterval(fetchRooms, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Show banner 2s after each visit to home
   useEffect(() => {
     if (location.pathname !== '/') return;
     if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
     setShowSupportBanner(false);
 
-    const lastShown = parseInt(sessionStorage.getItem('support_banner_ts') || '0', 10);
-    const cooldown = 30 * 1000; // 30 seconds cooldown between re-shows
-    const now = Date.now();
-    const delay = (now - lastShown < cooldown) ? 2000 : 2000; // always 2s delay
-
     bannerTimerRef.current = setTimeout(() => {
       setShowSupportBanner(true);
       sessionStorage.setItem('support_banner_ts', String(Date.now()));
       playPopSound();
-    }, delay);
+    }, 2000);
 
     return () => { if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current); };
   }, [location.pathname]);
 
   useEffect(() => {
     let isMounted = true;
-    
+
     const fetchPools = async () => {
       const { data } = await supabase.from('bingo_games').select('id, stake, prize_pool, start_at, status').in('status', ['waiting', 'calling']);
       if (data && isMounted) {
         const p: Record<number, any> = {};
         data.forEach(g => { p[g.stake] = { pool: g.prize_pool, start_at: g.start_at, status: g.status, players: 0, _id: g.id }; });
 
-        // Fetch unique player counts for each active game
         const ids = data.map(g => g.id);
         if (ids.length > 0) {
           const { data: playerRows } = await supabase
@@ -78,15 +122,11 @@ export default function Home() {
           if (playerRows) {
             const uniquePlayersMap: Record<string, Set<string>> = {};
             playerRows.forEach((r: any) => {
-              if (!uniquePlayersMap[r.game_id]) {
-                uniquePlayersMap[r.game_id] = new Set();
-              }
+              if (!uniquePlayersMap[r.game_id]) uniquePlayersMap[r.game_id] = new Set();
               uniquePlayersMap[r.game_id].add(r.telegram_id);
             });
             data.forEach(g => {
-              if (p[g.stake]) {
-                p[g.stake].players = uniquePlayersMap[g.id] ? uniquePlayersMap[g.id].size : 0;
-              }
+              if (p[g.stake]) p[g.stake].players = uniquePlayersMap[g.id] ? uniquePlayersMap[g.id].size : 0;
             });
           }
         }
@@ -106,7 +146,6 @@ export default function Home() {
 
   useEffect(() => {
     const update = () => {
-      // Skip updates when the page is hidden — prevents callback flood on resume
       if (document.visibilityState === 'hidden') return;
       setHomeTimeLeft(prev => {
         const next: Record<number, number> = {};
@@ -123,11 +162,9 @@ export default function Home() {
     return () => clearInterval(id);
   }, [homeGames]);
 
-  const handleInvite = () => {
-    navigate('/invite');
-  };
+  const handleInvite = () => navigate('/invite');
 
-    // ---- ANNOUNCEMENT POPUP LOGIC ----
+  // ---- ANNOUNCEMENT POPUP LOGIC ----
   useEffect(() => {
     if (announcementShownRef.current) return;
     const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
@@ -155,9 +192,9 @@ export default function Home() {
 
   const handleHelp = async () => {
     const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
-    const API_URL = import.meta.env.VITE_API_URL || '/api';
+    const API_URL_H = import.meta.env.VITE_API_URL || '/api';
     try {
-      const res = await fetch(`${API_URL}/player/support-contact`, {
+      const res = await fetch(`${API_URL_H}/player/support-contact`, {
         headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData }
       });
       const data = await res.json();
@@ -174,13 +211,11 @@ export default function Home() {
   };
 
   const initial = user?.first_name ? user.first_name.charAt(0).toUpperCase() : 'U';
-
-  const formatMoney = (amount: number | undefined) => {
-    return (amount || 0).toLocaleString('en-US');
-  };
+  const formatMoney = (amount: number | undefined) => (amount || 0).toLocaleString('en-US');
 
   return (
     <div className="flex flex-col min-h-screen pb-20 space-y-4">
+
       {/* ANNOUNCEMENT POPUP */}
       {showAnnouncement && announcement && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowAnnouncement(false)}>
@@ -217,7 +252,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* HEADER SECTION */}
+      {/* HEADER */}
       <div className="bg-white dark:bg-slate-900 px-4 py-4 rounded-b-2xl shadow-sm border-b border-gray-100 dark:border-slate-800 flex items-center justify-between transition-colors">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-lg shadow-sm">
@@ -232,7 +267,6 @@ export default function Home() {
             )}
           </div>
         </div>
-
         <div className="flex items-center space-x-4 text-right">
           <div className="flex flex-col items-center">
             <div className="flex items-center space-x-1 text-purple-500 dark:text-purple-400 mb-0.5">
@@ -240,7 +274,6 @@ export default function Home() {
             </div>
             <p className="text-xs font-bold text-slate-700 dark:text-slate-300">{formatMoney(user?.bonus_balance)} ETB</p>
           </div>
-          
           <div className="flex flex-col items-end">
             <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">{t[language].home.wallet}</p>
             <p className="text-sm font-bold text-green-600 dark:text-green-400">{formatMoney(user?.main_balance)} ETB</p>
@@ -248,14 +281,13 @@ export default function Home() {
         </div>
       </div>
 
-      {/* SUPPORT BANNER — fixed floating above bottom nav */}
+      {/* SUPPORT BANNER */}
       {showSupportBanner && (
         <div
           className="fixed bottom-[74px] left-0 right-0 z-50 flex justify-center pointer-events-none px-4"
           style={{ animation: 'slideUp 0.4s cubic-bezier(0.34,1.56,0.64,1)' }}
         >
           <div className="flex items-center bg-white border border-violet-300 rounded-full p-1 shadow-[0_4px_28px_rgba(109,40,217,0.3)] pointer-events-auto max-w-fit">
-            {/* Clickable area */}
             <button
               onClick={() => { setShowSupportBanner(false); navigate('/support'); }}
               className="flex items-center gap-2 active:bg-violet-50 transition-colors rounded-full px-3 py-1.5"
@@ -264,7 +296,6 @@ export default function Home() {
               <MessageCircle size={15} className="text-violet-600 flex-shrink-0" />
               <span className="text-violet-800 font-bold text-[13px] leading-tight">{t[language].home.supportBanner}</span>
             </button>
-            {/* Dismiss X */}
             <button
               onClick={(e) => { e.stopPropagation(); setShowSupportBanner(false); }}
               className="w-7 h-7 ml-1 mr-0.5 rounded-full flex items-center justify-center text-slate-400 active:bg-slate-100 transition-colors flex-shrink-0 text-lg"
@@ -274,25 +305,27 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* ACTION BUTTONS */}
       <div className="px-4 grid grid-cols-3 gap-3">
         <Link to="/deposit" className="flex items-center justify-center space-x-1.5 bg-yellow-400 hover:bg-yellow-500 text-yellow-950 py-2 rounded-xl font-bold text-xs shadow-sm transition-colors">
           <PlusCircle size={16} />
           <span>{t[language].home.deposit}</span>
         </Link>
-        <Link to="/withdraw" className="flex items-center justify-center space-x-1.5 bg-white dark:bg-slate-900 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 py-2 rounded-xl font-bold text-xs shadow-sm transition-colors">
+        <Link to="/withdraw" className="flex items-center justify-center space-x-1.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 py-2 rounded-xl font-bold text-xs shadow-sm transition-colors">
           <ArrowDownToLine size={16} />
           <span>{t[language].home.withdraw}</span>
         </Link>
-        <button 
+        <button
           onClick={handleInvite}
-          className="flex items-center justify-center space-x-1.5 bg-white dark:bg-slate-900 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 py-2 rounded-xl font-bold text-xs shadow-sm transition-colors"
+          className="flex items-center justify-center space-x-1.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 py-2 rounded-xl font-bold text-xs shadow-sm transition-colors"
         >
           <Share2 size={16} />
           <span>{t[language].home.invite}</span>
         </button>
       </div>
 
-      {/* ACTIVE GAMES */}
+      {/* ACTIVE GAMES / LIVE BINGO BANNER */}
       <div className="px-4">
         <div className="flex items-center justify-between mb-2">
           <h2 className="font-bold text-slate-500 dark:text-slate-400 tracking-wider text-xs">{t[language].home.activeGames}</h2>
@@ -301,83 +334,128 @@ export default function Home() {
             <span>{t[language].home.help}</span>
           </button>
         </div>
-        
+
         <Link to="/bingo/live" className="block relative rounded-2xl overflow-hidden shadow-sm h-52 bg-gradient-to-br from-[#1a1a3e] to-[#0d0d1f] flex flex-col items-center justify-center border border-indigo-900/50">
           <div className="absolute inset-0 opacity-20">
             <div className="grid grid-cols-10 gap-2 p-3 h-full">
-              {Array.from({length: 40}).map((_, i) => <div key={i} className="bg-white rounded-sm opacity-50" />)}
+              {Array.from({ length: 40 }).map((_, i) => <div key={i} className="bg-white rounded-sm opacity-50" />)}
             </div>
           </div>
-          
           <div className="relative z-10 flex flex-col items-center text-center">
-            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1 flex items-center"><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-1"></span> {t[language].home.liveBingo}</span>
+            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1 flex items-center">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-1" /> {t[language].home.liveBingo}
+            </span>
             <span className="text-yellow-400 font-black text-3xl mb-1">{t[language].home.joinNextGame}</span>
             <span className="text-white/60 text-xs font-semibold mb-4">{t[language].home.pickCartela}</span>
-            <div className="bg-yellow-400 text-yellow-950 px-8 py-2 rounded-full font-black text-sm shadow-[0_0_15px_rgba(250,204,21,0.4)]">{t[language].home.openCartela}</div>
+            <div className="bg-yellow-400 text-yellow-950 px-8 py-2 rounded-full font-black text-sm shadow-[0_0_15px_rgba(250,204,21,0.4)]">
+              {t[language].home.openCartela}
+            </div>
           </div>
         </Link>
       </div>
 
-      {/* MEDEB (STAKES) */}
+      {/* ══════════ ROOMS SECTION ══════════ */}
       <div className="px-4 flex-1">
-        <h2 className="font-bold text-slate-500 dark:text-slate-400 tracking-wider text-xs mb-2">{t[language].home.selectMedeb}</h2>
-        
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { amount: 10, color: 'from-blue-400 to-blue-600' },
-            { amount: 20, color: 'from-emerald-400 to-emerald-600' },
-            { amount: 50, color: 'from-purple-400 to-purple-600' },
-            { amount: 100, color: 'from-rose-400 to-rose-600' }
-          ].map((stake) => {
-            const hg = homeGames[stake.amount];
-            const pool = hg?.pool || 0;
-            const players = hg?.players || 0;
-            const hasGame = pool > 0;
-            const isWaiting = hg?.status === 'waiting';
-            const isCalling = hg?.status === 'calling';
-            const tl = homeTimeLeft[stake.amount] || 0;
-            
-            let statusTxt = t[language].home.waiting;
-            let statusCls = "text-orange-500";
-            if (isWaiting && tl <= 86400 && tl > 0) {
-              statusTxt = `${tl}s`;
-            } else if (isCalling) {
-              statusTxt = t[language].home.active;
-              statusCls = "text-emerald-500";
-            }
-
-            return (
-            <div key={stake.amount} onClick={() => navigate(`/bingo/live?stake=${stake.amount}`)} className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all">
-              <div className={`h-16 bg-gradient-to-br ${stake.color} flex items-center justify-center relative`}>
-                <span className="text-white font-black text-3xl drop-shadow-sm">{stake.amount}</span>
-                <span className="absolute top-1.5 right-1.5 bg-white/20 px-1.5 py-0.5 rounded text-[8px] font-bold text-white uppercase tracking-wider">{t[language].home.etb}</span>
-              </div>
-              
-              {/* Derash / Players / Status — 3 columns */}
-              <div className="w-full bg-slate-50 dark:bg-slate-800/50 border-b border-gray-100 dark:border-slate-800 flex h-[35px] shrink-0">
-                <div className="flex-1 flex flex-col items-center justify-center border-r border-gray-100 dark:border-slate-800">
-                  <span className="text-slate-400 dark:text-slate-500 text-[7px] font-bold uppercase tracking-wider">{t[language].home.derash}</span>
-                  <span className={`text-[10px] font-black text-yellow-600 dark:text-yellow-400 ${hasGame ? 'animate-pulse' : ''}`}>{pool} ETB</span>
-                </div>
-                <div className="flex-1 flex flex-col items-center justify-center border-r border-gray-100 dark:border-slate-800">
-                  <span className="text-slate-400 dark:text-slate-500 text-[7px] font-bold uppercase tracking-wider">{t[language].home.players}</span>
-                  <span className="text-[10px] font-black text-emerald-500">{players}</span>
-                </div>
-                <div className="flex-1 flex flex-col items-center justify-center">
-                  <span className="text-slate-400 dark:text-slate-500 text-[7px] font-bold uppercase tracking-wider">{t[language].home.status}</span>
-                  <span className={`text-[10px] font-black ${statusCls}`}>{statusTxt}</span>
-                </div>
-              </div>
-
-              <div className="p-2 text-center">
-                <div className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2 rounded-lg text-xs transition-colors flex items-center justify-center">
-                  {isWaiting ? t[language].home.joinMatch : t[language].home.joinRoom}
-                </div>
-              </div>
+        {/* Section header */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-2">
+            <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-sm">
+              <DoorOpen size={14} className="text-white" />
             </div>
-          )})}
+            <div>
+              <h2 className="font-black text-slate-800 dark:text-slate-100 text-sm leading-tight">ROOMS</h2>
+              <p className="text-[9px] text-slate-400 dark:text-slate-500 font-semibold leading-none">
+                {rooms.length > 0 ? `${rooms.length} room${rooms.length > 1 ? 's' : ''} active` : 'No rooms yet'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={fetchRooms}
+            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 active:bg-slate-200 transition-colors"
+          >
+            <RefreshCw size={13} className={roomsLoading ? 'animate-spin text-indigo-500' : ''} />
+          </button>
         </div>
+
+        {/* Loading skeleton */}
+        {roomsLoading && rooms.length === 0 && (
+          <div className="grid grid-cols-3 gap-2.5">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm animate-pulse">
+                <div className="h-[72px] bg-slate-200 dark:bg-slate-700" />
+                <div className="h-[46px] bg-slate-100 dark:bg-slate-800" />
+                <div className="p-1.5">
+                  <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!roomsLoading && rooms.length === 0 && (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 p-8 text-center space-y-2">
+            <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto">
+              <DoorOpen size={28} className="text-slate-300 dark:text-slate-600" />
+            </div>
+            <p className="text-xs font-black text-slate-500 dark:text-slate-400">No active rooms yet</p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500">Rooms will appear here once agents create them</p>
+          </div>
+        )}
+
+        {/* Room cards — 3-column grid */}
+        {rooms.length > 0 && (
+          <div className="grid grid-cols-3 gap-2.5">
+            {rooms.map((room, idx) => {
+              const gradient = ROOM_GRADIENTS[idx % ROOM_GRADIENTS.length];
+              return (
+                <div
+                  key={room.id}
+                  onClick={() => {
+                    fetch(`${API_URL}/player/rooms/${room.id}/enter`, { method: 'POST' }).catch(() => {});
+                    navigate(`/bingo/live?room=${room.id}`);
+                  }}
+                  className="bg-white dark:bg-slate-900 rounded-2xl shadow-md border border-gray-100 dark:border-slate-800 overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all duration-150"
+                >
+                  {/* Gradient header with room name */}
+                  <div className={`bg-gradient-to-br ${gradient} px-2 pt-2.5 pb-2 flex flex-col items-center justify-center relative min-h-[72px]`}>
+                    {/* Live pulse dot */}
+                    <div className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-300 animate-pulse shadow-sm shadow-emerald-400" />
+                    <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center mb-1">
+                      <DoorOpen size={16} className="text-white" />
+                    </div>
+                    <span className="text-white font-black text-[9px] text-center leading-snug drop-shadow-sm line-clamp-2 px-0.5">
+                      {room.room_name}
+                    </span>
+                  </div>
+
+                  {/* Stats row */}
+                  <div className="flex border-b border-gray-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
+                    <div className="flex-1 flex flex-col items-center justify-center py-1.5 border-r border-gray-100 dark:border-slate-700">
+                      <Users size={9} className="text-emerald-500 mb-0.5" />
+                      <span className="text-[8px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wide">Players</span>
+                      <span className="text-[11px] font-black text-emerald-600 dark:text-emerald-400">{room.total_players}</span>
+                    </div>
+                    <div className="flex-1 flex flex-col items-center justify-center py-1.5">
+                      <Gamepad2 size={9} className="text-violet-500 mb-0.5" />
+                      <span className="text-[8px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wide">Games</span>
+                      <span className="text-[11px] font-black text-violet-600 dark:text-violet-400">{room.total_games}</span>
+                    </div>
+                  </div>
+
+                  {/* Join button */}
+                  <div className="p-1.5">
+                    <div className={`w-full bg-gradient-to-r ${gradient} text-white font-black py-1.5 rounded-xl text-[9px] text-center shadow-sm tracking-wide`}>
+                      Join Room
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
+      {/* ══════════════════════════════════ */}
 
     </div>
   );

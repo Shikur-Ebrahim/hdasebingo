@@ -52,6 +52,8 @@ export default function AdminAgents() {
   const [editingRoom, setEditingRoom] = useState<AgentRoom | null>(null);
   const [editRoomName, setEditRoomName] = useState('');
   const [editRoomStatus, setEditRoomStatus] = useState<'active' | 'inactive'>('active');
+  const [editRoomPlayers, setEditRoomPlayers] = useState('0');
+  const [editRoomGames, setEditRoomGames] = useState('0');
   const [savingEdit, setSavingEdit] = useState(false);
 
   const getHeaders = () => ({
@@ -211,6 +213,8 @@ export default function AdminAgents() {
     setEditingRoom(room);
     setEditRoomName(room.room_name);
     setEditRoomStatus(room.status === 'active' ? 'active' : 'inactive');
+    setEditRoomPlayers(String(room.total_players || 0));
+    setEditRoomGames(String(room.total_games || 0));
   };
 
   const handleSaveEditRoom = async () => {
@@ -222,7 +226,9 @@ export default function AdminAgents() {
         headers: getHeaders(),
         body: JSON.stringify({
           room_name: editRoomName.trim(),
-          status: editRoomStatus
+          status: editRoomStatus,
+          total_players: Number(editRoomPlayers) || 0,
+          total_games: Number(editRoomGames) || 0,
         })
       });
       if (res.ok) {
@@ -516,6 +522,29 @@ export default function AdminAgents() {
                 >
                   Inactive
                 </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Players</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editRoomPlayers}
+                  onChange={e => setEditRoomPlayers(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-sky-500"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Total Games</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editRoomGames}
+                  onChange={e => setEditRoomGames(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-sky-500"
+                />
               </div>
             </div>
 

@@ -358,6 +358,7 @@ class BingoEngine {
         
       await notify(w.telegram_id, msg);
       console.log(`🏆 Game #${gameLabel}: Single winner ${w.first_name} — ${finalPrize} ETB`);
+      await this.incrementActiveRoomsGames();
       return;
     }
 
@@ -395,6 +396,7 @@ class BingoEngine {
         );
       }
       console.log(`🤝 Game #${gameLabel}: 2-way tie — ${w1.first_name} & ${w2.first_name} — ${splitPrize} ETB each`);
+      await this.incrementActiveRoomsGames();
       return;
     }
 
@@ -428,7 +430,24 @@ class BingoEngine {
         `🔄 REMATCH! ${winners.length} players hit BINGO at the same time on Game #${gameLabel}. Your ${stake} ETB stake has been refunded. A new game is starting!`
       );
     }
+    await this.incrementActiveRoomsGames();
     // Engine will auto-create a new game for this stake on next tick
+  }
+
+  private async incrementActiveRoomsGames() {
+    try {
+      const { data: rooms } = await supabase.from('rooms').select('id, total_games').eq('status', 'active');
+      if (rooms && rooms.length > 0) {
+        for (const r of rooms) {
+          await supabase.from('rooms').update({
+            total_games: Number(r.total_games || 0) + 1,
+            updated_at: new Date().toISOString()
+          }).eq('id', r.id);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to increment rooms total_games', e);
+    }
   }
 }
 
