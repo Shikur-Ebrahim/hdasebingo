@@ -1,0 +1,22 @@
+{
+  "headers": [
+    {
+      "source": "/audio/(.*)",
+      "headers": [
+        { "key": "Content-Type", "value": "audio/mpeg" },
+        { "key": "Accept-Ranges", "value": "bytes" },
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "http://169.58.138.229:3002/api/:path*"
+    },
+    {
+      "source": "/((?!assets/|audio/|.*\\.(?:ico|png|jpg|jpeg|svg|mp3|wav|ogg|json|webp|webmanifest)).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

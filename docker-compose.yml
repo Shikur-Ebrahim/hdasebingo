@@ -1,0 +1,22 @@
+services:
+  hdasebingo-bot:
+    build:
+      context: ./bot
+      dockerfile: Dockerfile
+    container_name: hdasebingo-bot
+    restart: unless-stopped
+    env_file:
+      - ./bot/.env
+    depends_on:
+      - hdasebingo-api
+
+  hdasebingo-api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: hdasebingo-api
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    env_file:
+      - ./api/.env

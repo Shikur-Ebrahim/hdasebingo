@@ -1,0 +1,13 @@
+# Environment files - NEVER commit these
+.env
+.env.local
+.env.production
+
+# Dependencies
+node_modules/
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+adwabingo.tar.gz
