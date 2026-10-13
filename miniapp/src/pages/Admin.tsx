@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
-import { Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Landmark, CreditCard, Gamepad2, Receipt, Settings2, Search, Radio } from 'lucide-react';
+import { Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Landmark, CreditCard, Gamepad2, Receipt, Settings2, Search, Radio, Building2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 
@@ -37,6 +37,7 @@ export default function Admin() {
     { id: 'withdrawals', title: 'Withdrawals', icon: ArrowUpFromLine, color: 'text-rose-600', bg: 'bg-rose-100', show: isAdmin || perms.withdrawals },
     { id: 'users', title: 'Users', icon: Users, color: 'text-indigo-600', bg: 'bg-indigo-100', show: isAdmin || perms.users },
     { id: 'workers', title: 'Workers', icon: UserCog, color: 'text-orange-600', bg: 'bg-orange-100', show: isAdmin },
+    { id: 'agents', title: 'Agent Rooms', icon: Building2, color: 'text-sky-600', bg: 'bg-sky-100', show: isAdmin },
     { id: 'bingo_games', title: 'Bingo Games', icon: Gamepad2, color: 'text-yellow-600', bg: 'bg-yellow-100', show: isAdmin || perms.games },
     { id: 'user_audit', title: 'User Audit', icon: Search, color: 'text-cyan-600', bg: 'bg-cyan-100', show: isAdmin || perms.reports },
     { id: 'tx_report', title: 'Transaction Report', icon: Receipt, color: 'text-teal-600', bg: 'bg-teal-100', show: isAdmin || perms.reports },
@@ -128,6 +129,7 @@ export default function Admin() {
           const routeMap: Record<string, string> = {
             users: '/admin/users',
             workers: '/admin/workers',
+            agents: '/admin/agents',
               bingo_games: '/admin/bingo-games',
             user_audit: '/admin/user-audit',
             tx_report: '/admin/tx-report',

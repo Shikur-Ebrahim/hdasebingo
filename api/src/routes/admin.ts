@@ -966,4 +966,164 @@ router.get('/user-audit/:telegramId', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+// ─── AGENTS & ROOMS ──────────────────────────────────────────────────────────
+
+// GET /admin/agents — list all agents and their rooms
+router.get('/agents', async (_req, res) => {
+  try {
+    const { data: agents, error: aErr } = await supabase
+      .from('users')
+      .select('id, telegram_id, username, first_name, role, status, main_balance, bonus_balance, total_wins, created_at')
+      .eq('role', 'agent')
+      .order('created_at', { ascending: false });
+
+    if (aErr) throw aErr;
+
+    const { data: rooms, error: rErr } = await supabase.from('rooms').select('*');
+    if (rErr && !rErr.message.includes('does not exist')) throw rErr;
+
+    const roomMap = new Map((rooms || []).map((r: any) => [r.agent_id, r]));
+
+    const result = (agents || []).map((a: any) => ({
+      ...a,
+      room: roomMap.get(a.telegram_id) || null,
+    }));
+
+    res.json({ agents: result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /admin/agents/search/:telegramId — search user and their assigned room
+router.get('/agents/search/:telegramId', async (req, res) => {
+  try {
+    const { data: user, error: uErr } = await supabase
+      .from('users')
+      .select('id, telegram_id, username, first_name, role, status, main_balance, bonus_balance, total_wins, created_at')
+      .eq('telegram_id', req.params.telegramId)
+      .maybeSingle();
+
+    if (uErr) throw uErr;
+    if (!user) {
+      res.status(404).json({ error: 'User not found with this Telegram ID' });
+      return;
+    }
+
+    const { data: room } = await supabase
+      .from('rooms')
+      .select('*')
+      .eq('agent_id', req.params.telegramId)
+      .maybeSingle();
+
+    res.json({ user, room: room || null });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/agents/assign-room — assign or create a room for an agent
+router.post('/agents/assign-room', async (req, res) => {
+  try {
+    const { telegramId, roomName, stake, status } = req.body;
+    if (!telegramId) {
+      res.status(400).json({ error: 'telegramId is required' });
+      return;
+    }
+
+    // Check user
+    const { data: user, error: uErr } = await supabase
+      .from('users')
+      .select('id, telegram_id, username, first_name, role')
+      .eq('telegram_id', telegramId)
+      .maybeSingle();
+
+    if (uErr) throw uErr;
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // Ensure user has agent role (promote if user/worker)
+    if (user.role !== 'agent' && user.role !== 'admin') {
+      await supabase.from('users').update({ role: 'agent' }).eq('telegram_id', telegramId);
+    }
+
+    const assignedRoomName = roomName?.trim() || `${user.first_name || user.username || 'Agent'}'s Room`;
+    const roomStake = stake !== undefined && !isNaN(Number(stake)) ? Number(stake) : 10;
+    const roomStatus = status || 'active';
+
+    const { data: room, error: rErr } = await supabase
+      .from('rooms')
+      .upsert({
+        agent_id: telegramId,
+        room_name: assignedRoomName,
+        agent_name: user.first_name || user.username || 'Agent',
+        total_players: 0,
+        total_games: 0,
+        status: roomStatus,
+        stake: roomStake,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'agent_id' })
+      .select()
+      .single();
+
+    if (rErr) throw rErr;
+
+    res.json({ success: true, room });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /admin/rooms — get all rooms
+router.get('/rooms', async (_req, res) => {
+  try {
+    const { data: rooms, error } = await supabase
+      .from('rooms')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    res.json({ rooms: rooms || [] });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /admin/rooms/:id — update room details
+router.put('/rooms/:id', async (req, res) => {
+  try {
+    const updates: any = { updated_at: new Date().toISOString() };
+    if (req.body.room_name !== undefined) updates.room_name = req.body.room_name;
+    if (req.body.status !== undefined) updates.status = req.body.status;
+    if (req.body.stake !== undefined) updates.stake = Number(req.body.stake);
+    if (req.body.total_players !== undefined) updates.total_players = Number(req.body.total_players);
+    if (req.body.total_games !== undefined) updates.total_games = Number(req.body.total_games);
+
+    const { data: room, error } = await supabase
+      .from('rooms')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ success: true, room });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /admin/rooms/:id — delete a room
+router.delete('/rooms/:id', async (req, res) => {
+  try {
+    const { error } = await supabase.from('rooms').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
