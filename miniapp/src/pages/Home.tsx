@@ -379,13 +379,13 @@ export default function Home() {
 
         {/* Loading skeleton */}
         {roomsLoading && rooms.length === 0 && (
-          <div className="grid grid-cols-3 gap-2.5">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm animate-pulse">
-                <div className="h-[72px] bg-slate-200 dark:bg-slate-700" />
-                <div className="h-[46px] bg-slate-100 dark:bg-slate-800" />
-                <div className="p-1.5">
-                  <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded-xl" />
+          <div className="grid grid-cols-2 gap-3">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="bg-white dark:bg-slate-900 rounded-xl overflow-hidden shadow-sm animate-pulse border border-gray-100 dark:border-slate-800">
+                <div className="h-16 bg-slate-200 dark:bg-slate-700" />
+                <div className="h-[38px] bg-slate-100 dark:bg-slate-800" />
+                <div className="p-2">
+                  <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded-lg" />
                 </div>
               </div>
             ))}
@@ -403,9 +403,9 @@ export default function Home() {
           </div>
         )}
 
-        {/* Room cards — 3-column grid */}
+        {/* Room cards — 2-column grid */}
         {rooms.length > 0 && (
-          <div className="grid grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-2 gap-3">
             {rooms.map((room, idx) => {
               const gradient = ROOM_GRADIENTS[idx % ROOM_GRADIENTS.length];
               return (
@@ -415,37 +415,31 @@ export default function Home() {
                     fetch(`${API_URL}/player/rooms/${room.id}/enter`, { method: 'POST' }).catch(() => {});
                     navigate(`/bingo/live?room=${room.id}`);
                   }}
-                  className="bg-white dark:bg-slate-900 rounded-2xl shadow-md border border-gray-100 dark:border-slate-800 overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all duration-150"
+                  className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all"
                 >
                   {/* Gradient header with room name */}
-                  <div className={`bg-gradient-to-br ${gradient} px-2 pt-2.5 pb-2 flex flex-col items-center justify-center relative min-h-[72px]`}>
-                    {/* Live pulse dot */}
-                    <div className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-300 animate-pulse shadow-sm shadow-emerald-400" />
-                    <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center mb-1">
-                      <DoorOpen size={16} className="text-white" />
-                    </div>
-                    <span className="text-white font-black text-[9px] text-center leading-snug drop-shadow-sm line-clamp-2 px-0.5">
+                  <div className={`h-16 bg-gradient-to-br ${gradient} flex flex-col items-center justify-center relative px-2 text-center`}>
+                    <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-300 animate-pulse shadow-sm" />
+                    <span className="text-white font-black text-sm drop-shadow-sm leading-tight line-clamp-2 px-1">
                       {room.room_name}
                     </span>
                   </div>
 
-                  {/* Stats row */}
-                  <div className="flex border-b border-gray-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
-                    <div className="flex-1 flex flex-col items-center justify-center py-1.5 border-r border-gray-100 dark:border-slate-700">
-                      <Users size={9} className="text-emerald-500 mb-0.5" />
-                      <span className="text-[8px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wide">Players</span>
+                  {/* Players / Total Games — 2 columns */}
+                  <div className="w-full bg-slate-50 dark:bg-slate-800/50 border-b border-gray-100 dark:border-slate-800 flex h-[38px] shrink-0">
+                    <div className="flex-1 flex flex-col items-center justify-center border-r border-gray-100 dark:border-slate-800">
+                      <span className="text-slate-400 dark:text-slate-500 text-[8px] font-bold uppercase tracking-wider">Players</span>
                       <span className="text-[11px] font-black text-emerald-600 dark:text-emerald-400">{room.total_players}</span>
                     </div>
-                    <div className="flex-1 flex flex-col items-center justify-center py-1.5">
-                      <Gamepad2 size={9} className="text-violet-500 mb-0.5" />
-                      <span className="text-[8px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wide">Games</span>
+                    <div className="flex-1 flex flex-col items-center justify-center">
+                      <span className="text-slate-400 dark:text-slate-500 text-[8px] font-bold uppercase tracking-wider">Total Games</span>
                       <span className="text-[11px] font-black text-violet-600 dark:text-violet-400">{room.total_games}</span>
                     </div>
                   </div>
 
-                  {/* Join button */}
-                  <div className="p-1.5">
-                    <div className={`w-full bg-gradient-to-r ${gradient} text-white font-black py-1.5 rounded-xl text-[9px] text-center shadow-sm tracking-wide`}>
+                  {/* Join Room button */}
+                  <div className="p-2 text-center">
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2 rounded-lg text-xs transition-colors flex items-center justify-center">
                       Join Room
                     </div>
                   </div>
