@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ChevronDown, Gift, RefreshCw, Users, Clock, Trophy, Volume2, VolumeX, RotateCcw, LayoutGrid, Wand2, Hand } from "lucide-react";
+import { ArrowLeft, ChevronDown, Gift, RefreshCw, Users, Clock, Trophy, Volume2, VolumeX, RotateCcw, LayoutGrid, Wand2, Hand, DoorOpen, Gamepad2, Flame } from "lucide-react";
 import WebApp from "@twa-dev/sdk";
 import { supabase } from "../lib/supabase";
-import { useGameStore } from "../store/gameStore";
+import { useGameStore, Room } from "../store/gameStore";
 import { t } from '../lib/translations';
 
 const API = import.meta.env.VITE_API_URL || "/api";
@@ -34,6 +34,15 @@ const STAKE_OPTIONS = [
   { value: 20, label: "20 ETB", color: "from-teal-500 to-teal-700" },
   { value: 50, label: "50 ETB", color: "from-purple-500 to-purple-700" },
   { value: 100, label: "100 ETB", color: "from-rose-500 to-rose-700" },
+];
+
+const ROOM_GRADIENTS = [
+  'from-blue-600 via-indigo-600 to-violet-700',
+  'from-emerald-500 via-teal-600 to-cyan-700',
+  'from-violet-600 via-purple-600 to-fuchsia-700',
+  'from-rose-500 via-pink-600 to-red-600',
+  'from-amber-500 via-orange-600 to-amber-700',
+  'from-cyan-500 via-sky-600 to-blue-700',
 ];
 
 const BINGO_LETTERS = ['B', 'I', 'N', 'G', 'O'];
@@ -138,11 +147,14 @@ const getWinningPatternTitle = (matrix: number[][], called: number[]): string =>
 
 export default function BingoGame() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { user, fetchUser: refreshUser, subscribeToBalance, language } = useGameStore();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { user, fetchUser: refreshUser, subscribeToBalance, language, rooms, fetchRooms, subscribeToRooms } = useGameStore();
 
   const urlStake = searchParams.get("stake");
+  const urlRoom = searchParams.get("room");
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(urlRoom || null);
   const [selectedStake, setSelectedStake] = useState<number | null>(urlStake ? Number(urlStake) : null);
+  const [roomsRefreshing, setRoomsRefreshing] = useState(false);
   const [showStakeDropdown, setShowStakeDropdown] = useState(false);
   const [maxPlayers, setMaxPlayers] = useState<number>(150);
   const [maxCartelasPerUser, setMaxCartelasPerUser] = useState<number>(2);
@@ -156,6 +168,51 @@ export default function BingoGame() {
   const [volume, setVolume] = useState(1.0);
   const [autoMark, setAutoMark] = useState(true); // default: auto-mark called numbers
   const [manuallyMarked, setManuallyMarked] = useState<Set<number>>(new Set());
+
+  // Subscribe and ensure rooms are loaded
+  useEffect(() => {
+    if (rooms.length === 0) {
+      fetchRooms();
+    }
+    const unsub = subscribeToRooms();
+    return () => { unsub(); };
+  }, [fetchRooms, subscribeToRooms, rooms.length]);
+
+  // Keep selectedRoomId in sync if URL query changes
+  useEffect(() => {
+    const r = searchParams.get("room");
+    if (r) {
+      setSelectedRoomId(r);
+    }
+  }, [searchParams]);
+
+  const handleRefreshRooms = async () => {
+    setRoomsRefreshing(true);
+    try {
+      await fetchRooms();
+    } finally {
+      setTimeout(() => setRoomsRefreshing(false), 400);
+    }
+  };
+
+  const selectedRoom = rooms.find(r => r.id === selectedRoomId) || (selectedRoomId ? { id: selectedRoomId, room_name: 'Live Room', total_players: 0, total_games: 0, status: 'active' } : null);
+
+  const handleSelectRoom = (room: Room) => {
+    initWebAudio();
+    fetch(`${API}/player/rooms/${room.id}/enter`, { method: 'POST', headers: hdrs() }).catch(() => {});
+    setSelectedRoomId(room.id);
+    setSearchParams(params => {
+      params.set('room', room.id);
+      return params;
+    });
+  };
+
+  // Aggregated platform and room statistics for the horizontal top explanation section
+  const totalRoomsCount = rooms.length;
+  const totalPlayersInRooms = rooms.reduce((acc, r) => acc + (Number(r.total_players) || 0), 0);
+  const totalGamesInRooms = rooms.reduce((acc, r) => acc + (Number(r.total_games) || 0), 0);
+  const livePlayingAcrossStakes = Object.values(homeGames).reduce((acc, g) => acc + (Number(g.players) || 0), 0);
+  const totalActivePool = Object.values(homeGames).reduce((acc, g) => acc + (Number(g.pool) || 0), 0);
 
   // Fetch and listen for active derash & status on stake selection screen
   useEffect(() => {
@@ -670,6 +727,298 @@ export default function BingoGame() {
     </div>
   );
 
+  // ── 1. ROOMS SELECTION SCREEN (Shown before stake is chosen) ──
+  if (!selectedRoomId) {
+    return (
+      <div className="h-[calc(100dvh-80px)] w-full bg-white flex flex-col select-none overflow-hidden relative" onClick={initWebAudio}>
+        {/* Subtle background grid pattern */}
+        <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.03]" style={{ display: 'grid', gridTemplateColumns: 'repeat(15, minmax(0, 1fr))', gap: '2px', padding: '2px' }}>
+          {Array.from({ length: 150 }, (_, i) => (
+            <div key={i} className="flex items-center justify-center bg-black rounded-[3px] text-black font-black" style={{ fontSize: '6px' }}>{i + 1}</div>
+          ))}
+        </div>
+
+        <div className="relative z-10 flex flex-col h-full">
+          {/* Top user profile & wallet header */}
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white shadow-2xs">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-black text-lg shadow-xs">{initial}</div>
+              <div>
+                <p className="font-black text-sm uppercase tracking-wider text-slate-800 leading-tight">{user?.first_name || "USER"}</p>
+                <div className="flex items-center space-x-1 mt-0.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[10px] font-bold text-slate-400">Online</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center space-x-4 text-right">
+              <div className="flex flex-col items-center">
+                <Gift size={14} className="text-purple-600 mb-0.5" />
+                <p className="text-xs font-bold text-slate-700">{fm(user?.bonus_balance)} ETB</p>
+              </div>
+              <div className="flex flex-col items-end">
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{t[language].bingo.wallet}</p>
+                <p className="text-sm font-black text-emerald-600">{fm(user?.main_balance)} ETB</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Navigation Bar: Back & Refresh */}
+          <div className="px-4 pt-3 pb-2 flex items-center justify-between shrink-0 bg-white">
+            <button
+              onClick={() => navigate('/')}
+              className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200/60 flex items-center justify-center text-slate-600 active:scale-95 transition-all shadow-2xs"
+            >
+              <ArrowLeft size={16} />
+            </button>
+            <div className="text-center">
+              <div className="flex items-center justify-center space-x-1.5">
+                <DoorOpen size={16} className="text-amber-500" />
+                <h2 className="font-black text-base text-slate-800 tracking-wide">
+                  {language === 'am' ? 'የቢንጎ ክፍሎች' : 'BINGO ROOMS'}
+                </h2>
+              </div>
+              <p className="text-[10px] text-amber-600 font-bold">
+                {language === 'am' ? 'ክፍል ይምረጡና ይጫወቱ' : 'Select an active room to play'}
+              </p>
+            </div>
+            <button
+              onClick={handleRefreshRooms}
+              className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200/60 flex items-center justify-center text-slate-600 active:scale-95 transition-all shadow-2xs"
+            >
+              <RefreshCw size={14} className={roomsRefreshing ? 'animate-spin text-amber-500' : ''} />
+            </button>
+          </div>
+
+          {/* Top Section: Advanced Horizontal Explanation & Stats Cards */}
+          <div className="px-4 py-2 space-y-2 shrink-0">
+            {/* Explanatory Banner */}
+            <div className="bg-gradient-to-r from-amber-500/10 via-yellow-400/15 to-indigo-500/10 border border-amber-300/40 rounded-2xl p-3 flex items-center justify-between shadow-2xs">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center shadow-md text-white font-black shrink-0">
+                  <Gamepad2 size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-1.5">
+                    <span className="text-[9px] font-black uppercase tracking-wider text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-full">
+                      🔥 LIVE MULTIPLAYER
+                    </span>
+                  </div>
+                  <p className="text-xs font-black text-slate-800 mt-0.5">
+                    {language === 'am' ? 'ክፍል ይምረጡ • የደራሽ ቢንጎ ይጫወቱ' : 'Select Room • Play Live Bingo'}
+                  </p>
+                  <p className="text-[9px] text-slate-500 font-medium leading-tight mt-0.5">
+                    {language === 'am'
+                      ? 'የሚፈልጉትን ክፍል ይምረጡ፤ ከዚያም የመጫወቻ መጠን (10-100 ETB) ይመርጣሉ'
+                      : 'Pick any room below to enter, choose your stake (10-100 ETB) and win!'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Horizontal Scrollable Stats Cards */}
+            <div className="flex space-x-2 overflow-x-auto pb-1 pt-0.5 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
+              {/* Card 1: Active Rooms */}
+              <div className="shrink-0 w-28 bg-white border border-slate-200 rounded-xl p-2 shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
+                    {language === 'am' ? 'ክፍሎች' : 'Rooms'}
+                  </span>
+                  <div className="w-4 h-4 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <DoorOpen size={10} />
+                  </div>
+                </div>
+                <div className="mt-1">
+                  <span className="text-base font-black text-slate-800 leading-none">{totalRoomsCount}</span>
+                  <p className="text-[8px] text-emerald-600 font-bold mt-0.5 flex items-center">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse" />
+                    {language === 'am' ? 'ንቁ' : 'Live'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Card 2: Total Players */}
+              <div className="shrink-0 w-28 bg-white border border-slate-200 rounded-xl p-2 shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
+                    {language === 'am' ? 'ተጫዋች' : 'Players'}
+                  </span>
+                  <div className="w-4 h-4 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                    <Users size={10} />
+                  </div>
+                </div>
+                <div className="mt-1">
+                  <span className="text-base font-black text-emerald-600 leading-none">{totalPlayersInRooms}</span>
+                  <p className="text-[8px] text-slate-400 font-medium mt-0.5 truncate">
+                    {language === 'am' ? 'በሁሉም' : 'All rooms'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Card 3: Total Games Played */}
+              <div className="shrink-0 w-28 bg-white border border-slate-200 rounded-xl p-2 shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
+                    {language === 'am' ? 'ጨዋታዎች' : 'Games'}
+                  </span>
+                  <div className="w-4 h-4 rounded-md bg-violet-50 text-violet-600 flex items-center justify-center">
+                    <Trophy size={10} />
+                  </div>
+                </div>
+                <div className="mt-1">
+                  <span className="text-base font-black text-violet-600 leading-none">{totalGamesInRooms}</span>
+                  <p className="text-[8px] text-slate-400 font-medium mt-0.5 truncate">
+                    {language === 'am' ? 'የተጠናቀቁ' : 'Played'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Card 4: Live Playing Right Now */}
+              <div className="shrink-0 w-28 bg-white border border-slate-200 rounded-xl p-2 shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
+                    {language === 'am' ? 'የአሁን' : 'Playing Now'}
+                  </span>
+                  <div className="w-4 h-4 rounded-md bg-rose-50 text-rose-600 flex items-center justify-center">
+                    <Gamepad2 size={10} />
+                  </div>
+                </div>
+                <div className="mt-1">
+                  <span className="text-base font-black text-rose-600 leading-none">{livePlayingAcrossStakes}</span>
+                  <p className="text-[8px] text-slate-400 font-medium mt-0.5 truncate">
+                    {language === 'am' ? 'በ4ቱ መጠን' : 'In 4 stakes'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Card 5: Live Pools */}
+              {totalActivePool > 0 && (
+                <div className="shrink-0 w-28 bg-white border border-slate-200 rounded-xl p-2 shadow-2xs flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
+                      {language === 'am' ? 'ደራሽ' : 'Live Pool'}
+                    </span>
+                    <div className="w-4 h-4 rounded-md bg-amber-50 text-amber-600 flex items-center justify-center">
+                      <Gift size={10} />
+                    </div>
+                  </div>
+                  <div className="mt-1">
+                    <span className="text-base font-black text-amber-600 leading-none">{totalActivePool} ETB</span>
+                    <p className="text-[8px] text-slate-400 font-medium mt-0.5 truncate">
+                      {language === 'am' ? 'ሽልማት' : 'Prize'}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Rooms Grid (Mobile friendly, strictly real rooms from DB) */}
+          <div className="px-4 flex-1 overflow-y-auto pb-4 pt-1" style={{ scrollbarWidth: 'none' }}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center space-x-1.5">
+                <span className="text-xs font-black text-slate-700 uppercase tracking-wide">
+                  {language === 'am' ? 'ክፍት ክፍሎች' : 'Available Rooms'}
+                </span>
+                <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.2 rounded-full font-bold">
+                  {rooms.length}
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-400 font-bold">
+                {language === 'am' ? 'ይምረጡና ይግቡ' : 'Tap room to join'}
+              </span>
+            </div>
+
+            {rooms.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-8 text-center space-y-2 mt-2">
+                <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
+                  <DoorOpen size={28} />
+                </div>
+                <p className="text-xs font-black text-slate-600">
+                  {language === 'am' ? 'ምንም ክፍሎች የሉም' : 'No active rooms yet'}
+                </p>
+                <p className="text-[10px] text-slate-400">
+                  {language === 'am' ? 'ክፍሎች ሲዘጋጁ እዚህ ይታያሉ' : 'Rooms will appear here once agents create them'}
+                </p>
+                <button
+                  onClick={handleRefreshRooms}
+                  className="mt-2 px-4 py-1.5 bg-amber-500 text-white rounded-xl text-xs font-black active:scale-95 shadow-sm"
+                >
+                  {language === 'am' ? 'አድስ (Refresh)' : 'Refresh'}
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 pb-2">
+                {rooms.map((room, idx) => {
+                  const gradient = ROOM_GRADIENTS[idx % ROOM_GRADIENTS.length];
+                  return (
+                    <div
+                      key={room.id}
+                      onClick={() => handleSelectRoom(room)}
+                      className="bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all duration-200 hover:shadow-md"
+                    >
+                      {/* Card Banner Header */}
+                      <div className={`h-20 bg-gradient-to-br ${gradient} flex flex-col items-center justify-center relative px-2 text-center shadow-xs`}>
+                        <div className="absolute top-2 right-2 flex items-center space-x-1 bg-black/25 backdrop-blur-xs px-1.5 py-0.5 rounded-full">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
+                          <span className="text-[7px] font-black text-white uppercase tracking-wider">LIVE</span>
+                        </div>
+                        <span className="text-white font-black text-sm drop-shadow-sm leading-tight line-clamp-2 px-1">
+                          {room.room_name}
+                        </span>
+                        {room.agent_name && (
+                          <span className="text-[8px] font-bold text-white/90 mt-0.5 truncate max-w-full">
+                            👑 {room.agent_name}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Stats Row: Players | Total Games */}
+                      <div className="w-full bg-slate-50 border-b border-slate-100 flex h-[38px] shrink-0">
+                        <div className="flex-1 flex flex-col items-center justify-center border-r border-slate-100">
+                          <span className="text-slate-400 text-[8px] font-bold uppercase tracking-wider">
+                            {language === 'am' ? 'ተጫዋቾች' : 'Players'}
+                          </span>
+                          <span className="text-[11px] font-black text-emerald-600">{room.total_players}</span>
+                        </div>
+                        <div className="flex-1 flex flex-col items-center justify-center">
+                          <span className="text-slate-400 text-[8px] font-bold uppercase tracking-wider">
+                            {language === 'am' ? 'ጨዋታዎች' : 'Games'}
+                          </span>
+                          <span className="text-[11px] font-black text-violet-600">{room.total_games}</span>
+                        </div>
+                      </div>
+
+                      {/* Action Button */}
+                      <div className="p-2 text-center bg-white">
+                        <div className="w-full bg-slate-100 hover:bg-amber-500 hover:text-white text-slate-700 font-black py-2 rounded-xl text-[11px] transition-colors flex items-center justify-center space-x-1 shadow-2xs">
+                          <span>{language === 'am' ? 'ክፍል ይግቡ' : 'Join Room'}</span>
+                          <span>→</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Back Button to Home */}
+          <div className="pb-3 flex justify-center shrink-0 relative z-10 mt-1 bg-white">
+            <button
+              onClick={() => navigate('/')}
+              className="px-6 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-full text-slate-600 text-xs font-bold uppercase tracking-widest active:scale-95 shadow-sm transition-colors flex items-center space-x-1.5"
+            >
+              <span>←</span>
+              <span>{language === 'am' ? 'ወደ ዋና ገጽ ተመለስ' : 'Back to Home'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── 2. STAKE SELECTION SCREEN (Shown AFTER room is selected) ──
   if (!selectedStake) {
     return (
       <div className="h-[calc(100dvh-80px)] w-full bg-white flex flex-col select-none overflow-hidden relative" onClick={initWebAudio}>
@@ -682,25 +1031,66 @@ export default function BingoGame() {
         </div>
 
         <div className="relative z-10 flex flex-col h-full">
-          {/* Light Header specifically for home screen */}
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
+          {/* Header */}
+          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white shadow-2xs">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-lg">{initial}</div>
-              <p className="font-bold text-sm uppercase tracking-wider text-slate-800">{user?.first_name || "USER"}</p>
+              <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-black text-lg shadow-xs">{initial}</div>
+              <div>
+                <p className="font-black text-sm uppercase tracking-wider text-slate-800 leading-tight">{user?.first_name || "USER"}</p>
+                <div className="flex items-center space-x-1 mt-0.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[10px] font-bold text-slate-400">Online</span>
+                </div>
+              </div>
             </div>
             <div className="flex items-center space-x-4 text-right">
               <div className="flex flex-col items-center"><Gift size={14} className="text-purple-600 mb-0.5" /><p className="text-xs font-bold text-slate-700">{fm(user?.bonus_balance)} ETB</p></div>
-              <div className="flex flex-col items-end"><p className="text-[11px] text-slate-500">{t[language].bingo.wallet}</p><p className="text-sm font-bold text-green-600">{fm(user?.main_balance)} ETB</p></div>
+              <div className="flex flex-col items-end"><p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{t[language].bingo.wallet}</p><p className="text-sm font-black text-emerald-600">{fm(user?.main_balance)} ETB</p></div>
             </div>
           </div>
-          
-          {/* Seamless White Banner for Logo */}
-          <div className="w-full bg-white flex justify-center py-2 z-20 shrink-0">
-            <img src="/hero.png" alt="Hdasebingo" className="max-w-[340px] h-[90px] object-contain" />
+
+          {/* Selected Room Banner Card with Change Room Action */}
+          <div className="mx-4 mt-2.5 p-3 bg-gradient-to-r from-amber-500/10 via-yellow-400/15 to-indigo-500/10 border border-amber-300/40 rounded-2xl flex items-center justify-between shadow-xs shrink-0">
+            <div className="flex items-center space-x-2.5">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-white shadow-md font-black">
+                <DoorOpen size={20} />
+              </div>
+              <div>
+                <div className="flex items-center space-x-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[9px] font-black text-amber-700 uppercase tracking-wider">
+                    {language === 'am' ? 'የተመረጠ ክፍል' : 'Selected Room'}
+                  </span>
+                </div>
+                <h3 className="font-black text-sm text-slate-800 leading-tight">
+                  {selectedRoom?.room_name || 'Active Room'}
+                </h3>
+                <p className="text-[9px] text-slate-500 font-semibold mt-0.5">
+                  👥 {selectedRoom?.total_players || 0} {language === 'am' ? 'ተጫዋቾች' : 'players'} • 🎮 {selectedRoom?.total_games || 0} {language === 'am' ? 'ጨዋታዎች' : 'games'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setSelectedRoomId(null);
+                setSearchParams(params => {
+                  params.delete('room');
+                  return params;
+                });
+              }}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-slate-700 text-[11px] font-bold active:scale-95 transition-transform shadow-xs flex items-center space-x-1 hover:bg-slate-50"
+            >
+              <RotateCcw size={12} className="text-amber-600" />
+              <span>{language === 'am' ? 'ክፍል ቀይር' : 'Change Room'}</span>
+            </button>
           </div>
 
-          <p className="text-center text-slate-400 text-[10px] uppercase tracking-widest font-bold pt-3 pb-1">{t[language].bingo.selectStakeWinBig}</p>
+          {/* Subtitle */}
+          <p className="text-center text-slate-400 text-[10px] uppercase tracking-widest font-bold pt-2.5 pb-1">
+            {t[language].bingo.selectStakeWinBig}
+          </p>
           
+          {/* Stakes Grid (10, 20, 50, 100 ETB) */}
           <div className="flex-1 grid grid-cols-2 gap-3 px-4 pb-2 min-h-0">
             {STAKE_OPTIONS.map(opt => {
               const hg = homeGames[opt.value];
@@ -760,14 +1150,27 @@ export default function BingoGame() {
               );
             })}
           </div>
+
+          {/* Bottom Action: Back to Rooms */}
           <div className="pb-3 flex justify-center shrink-0 relative z-10 mt-1">
-            <button onClick={() => navigate(-1)} className="px-6 py-1.5 bg-slate-100 border border-slate-200 rounded-full text-slate-500 text-[10px] font-bold uppercase tracking-widest active:scale-95 shadow-sm">← {t[language].bingo.backToGames}</button>
+            <button
+              onClick={() => {
+                setSelectedRoomId(null);
+                setSearchParams(params => {
+                  params.delete('room');
+                  return params;
+                });
+              }}
+              className="px-6 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-full text-slate-600 text-xs font-bold uppercase tracking-widest active:scale-95 shadow-sm transition-colors flex items-center space-x-1.5"
+            >
+              <RotateCcw size={12} className="text-amber-600" />
+              <span>{language === 'am' ? 'ወደ ክፍሎች ተመለስ (ክፍል ቀይር)' : '← Back to Rooms'}</span>
+            </button>
           </div>
         </div>
       </div>
     );
   }
-
 
   if (loading && !game) return <div className="h-[calc(100dvh-80px)] w-full bg-[#05081a] flex items-center justify-center"><RefreshCw size={28} className="text-orange-500 animate-spin" /></div>;
 

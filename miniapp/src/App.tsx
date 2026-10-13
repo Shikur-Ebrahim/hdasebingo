@@ -293,6 +293,7 @@ function App() {
           <Route path="/withdraw-history" element={<WithdrawHistory />} />
           <Route path="/transfer" element={<Transfer />} />
           <Route path="/bingo/live" element={<BingoGame />} />
+          <Route path="/rooms" element={<BingoGame />} />
           <Route path="/invite" element={<Invite />} />
           <Route path="/invited" element={<InvitedPeople />} />
           <Route path="/withdraw" element={<Withdraw />} />
