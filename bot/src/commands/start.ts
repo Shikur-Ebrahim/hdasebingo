@@ -67,8 +67,7 @@ export async function startCommand(ctx: Context) {
     `🎉 *እንኳን በደህና መጡ, ${user.first_name}!*\n\n` +
     `⚡ *ታላቁ የህዳሴ ቢንጎ • Hdasebingo* ላይ እንኳን ደህና መጡ! 🇪🇹\n\n` +
     `🌊 ከጓደኞችዎ ጋር ቢንጎ ይጫወቱ፣ ታላላቅ ሽልማቶችን ያሸንፉ! 🏆\n\n` +
-    `✨ *ታላቁ የኢትዮጵያ ህዳሴ ግድብ • Grand Ethiopian Renaissance Dam* 🇪🇹\n` +
-    `🔥 *Power & Victory in Every Game!* 🎱`;
+    `✨ *ታላቁ የኢትዮጵያ ህዳሴ ግድብ 🇪🇹*`;
 
   try {
     let msg;
