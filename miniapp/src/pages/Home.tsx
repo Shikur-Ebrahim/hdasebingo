@@ -28,7 +28,7 @@ const ROOM_GRADIENTS = [
 ];
 
 export default function Home() {
-  const { user, language } = useGameStore();
+  const { user, language, rooms, fetchRooms, subscribeToRooms } = useGameStore();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -38,9 +38,8 @@ export default function Home() {
   const [showAnnouncement, setShowAnnouncement] = useState(false);
   const announcementShownRef = useRef(false);
 
-  // Rooms state
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [roomsLoading, setRoomsLoading] = useState(false);
+  // Manual refresh spinner
+  const [manualRefreshing, setManualRefreshing] = useState(false);
 
   // Support banner state
   const [showSupportBanner, setShowSupportBanner] = useState(false);
@@ -64,30 +63,22 @@ export default function Home() {
     } catch { /* ignore if audio blocked */ }
   };
 
-  // Fetch rooms from API
-  const fetchRooms = async () => {
-    setRoomsLoading(true);
-    try {
-      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
-      const res = await fetch(`${API_URL}/player/rooms`, {
-        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setRooms(data.rooms || []);
-      }
-    } catch (e) {
-      console.error('Failed to load rooms', e);
-    } finally {
-      setRoomsLoading(false);
-    }
-  };
-
+  // Sync rooms silently on mount + realtime subscription (NO loading effect on revisit)
   useEffect(() => {
     fetchRooms();
-    const interval = setInterval(fetchRooms, 30000);
-    return () => clearInterval(interval);
+    const unsub = subscribeToRooms();
+    const interval = setInterval(() => fetchRooms(), 30000);
+    return () => {
+      unsub();
+      clearInterval(interval);
+    };
   }, []);
+
+  const handleManualRefresh = async () => {
+    setManualRefreshing(true);
+    await fetchRooms();
+    setTimeout(() => setManualRefreshing(false), 500);
+  };
 
   // Show banner 2s after each visit to home
   useEffect(() => {
@@ -365,46 +356,28 @@ export default function Home() {
             <div>
               <h2 className="font-black text-slate-800 dark:text-slate-100 text-sm leading-tight">ROOMS</h2>
               <p className="text-[9px] text-slate-400 dark:text-slate-500 font-semibold leading-none">
-                {rooms.length > 0 ? `${rooms.length} room${rooms.length > 1 ? 's' : ''} active` : 'No rooms yet'}
+                {rooms.length > 0 ? `${rooms.length} active room${rooms.length !== 1 ? 's' : ''} available` : 'No rooms yet'}
               </p>
             </div>
           </div>
           <button
-            onClick={fetchRooms}
+            onClick={handleManualRefresh}
             className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 active:bg-slate-200 transition-colors"
           >
-            <RefreshCw size={13} className={roomsLoading ? 'animate-spin text-indigo-500' : ''} />
+            <RefreshCw size={13} className={manualRefreshing ? 'animate-spin text-indigo-500' : ''} />
           </button>
         </div>
 
-        {/* Loading skeleton */}
-        {roomsLoading && rooms.length === 0 && (
-          <div className="grid grid-cols-2 gap-3">
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} className="bg-white dark:bg-slate-900 rounded-xl overflow-hidden shadow-sm animate-pulse border border-gray-100 dark:border-slate-800">
-                <div className="h-16 bg-slate-200 dark:bg-slate-700" />
-                <div className="h-[38px] bg-slate-100 dark:bg-slate-800" />
-                <div className="p-2">
-                  <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded-lg" />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!roomsLoading && rooms.length === 0 && (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 p-8 text-center space-y-2">
+        {/* Room cards — 2-column grid (only real rooms from DB, zero loading delay) */}
+        {rooms.length === 0 ? (
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 p-8 text-center space-y-2">
             <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto">
               <DoorOpen size={28} className="text-slate-300 dark:text-slate-600" />
             </div>
             <p className="text-xs font-black text-slate-500 dark:text-slate-400">No active rooms yet</p>
             <p className="text-[10px] text-slate-400 dark:text-slate-500">Rooms will appear here once agents create them</p>
           </div>
-        )}
-
-        {/* Room cards — 2-column grid */}
-        {rooms.length > 0 && (
+        ) : (
           <div className="grid grid-cols-2 gap-3">
             {rooms.map((room, idx) => {
               const gradient = ROOM_GRADIENTS[idx % ROOM_GRADIENTS.length];

@@ -9,6 +9,16 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
+export interface Room {
+  id: string;
+  room_name: string;
+  agent_id?: string;
+  agent_name?: string;
+  total_players: number;
+  total_games: number;
+  status: string;
+}
+
 interface GameStore {
   user: User | null;
   loading: boolean;
@@ -17,11 +27,14 @@ interface GameStore {
   isProfileOpen: boolean;
   isDarkMode: boolean;
   language: 'en' | 'am';
+  rooms: Room[];
   setLanguage: (lang: 'en' | 'am') => void;
   setProfileOpen: (isOpen: boolean) => void;
   toggleDarkMode: () => void;
   fetchUser: () => Promise<void>;
   subscribeToBalance: () => () => void;
+  fetchRooms: () => Promise<void>;
+  subscribeToRooms: () => () => void;
 }
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -36,6 +49,8 @@ export const useGameStore = create<GameStore>()(
       isProfileOpen: false,
       isDarkMode: false,
       language: 'en',
+      rooms: [],
+
       setLanguage: (lang) => set({ language: lang }),
       setProfileOpen: (isOpen: boolean) => set({ isProfileOpen: isOpen }),
       toggleDarkMode: () => set((state) => {
@@ -44,6 +59,44 @@ export const useGameStore = create<GameStore>()(
         else document.documentElement.classList.remove('dark');
         return { isDarkMode: newMode };
       }),
+
+      fetchRooms: async () => {
+        try {
+          let initData = '';
+          if (typeof WebApp !== 'undefined' && WebApp.initData) {
+            initData = WebApp.initData;
+          }
+          const res = await fetch(`${API_URL}/player/rooms`, {
+            headers: {
+              'Content-Type': 'application/json',
+              'x-telegram-init-data': initData,
+            },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.rooms)) {
+              set({ rooms: data.rooms });
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching rooms:', err);
+        }
+      },
+
+      subscribeToRooms: () => {
+        const channel = supabase
+          .channel(`public-rooms-sync-${Date.now()}`)
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'rooms' },
+            () => {
+              get().fetchRooms();
+            }
+          )
+          .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
+      },
 
       fetchUser: async () => {
         try {
