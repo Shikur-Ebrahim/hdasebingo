@@ -16,10 +16,12 @@ CREATE TABLE IF NOT EXISTS public.rooms (
   total_players INTEGER DEFAULT 0,
   total_games INTEGER DEFAULT 0,
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'paused')),
-  stake NUMERIC(10,2) DEFAULT 10,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Drop stake column if it exists
+ALTER TABLE public.rooms DROP COLUMN IF EXISTS stake;
 
 CREATE INDEX IF NOT EXISTS idx_rooms_agent_id ON public.rooms(agent_id);
 CREATE INDEX IF NOT EXISTS idx_rooms_status ON public.rooms(status);

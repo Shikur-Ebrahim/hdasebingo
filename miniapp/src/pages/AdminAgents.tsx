@@ -14,7 +14,6 @@ interface AgentRoom {
   total_players: number;
   total_games: number;
   status: 'active' | 'inactive' | 'paused';
-  stake: number;
   created_at: string;
 }
 
@@ -41,7 +40,6 @@ export default function AdminAgents() {
 
   // Assign room form state
   const [newRoomName, setNewRoomName] = useState('');
-  const [newRoomStake, setNewRoomStake] = useState('10');
   const [assigning, setAssigning] = useState(false);
 
   // All rooms state
@@ -149,7 +147,6 @@ export default function AdminAgents() {
         body: JSON.stringify({
           telegramId: searchedUser.telegram_id,
           roomName: newRoomName.trim(),
-          stake: Number(newRoomStake) || 10,
           status: 'active'
         })
       });
@@ -355,15 +352,12 @@ export default function AdminAgents() {
                       {searchedRoom.status}
                     </span>
                   </div>
-                  <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
+                  <div className="grid grid-cols-2 gap-1.5 text-center text-[10px]">
                     <div className="bg-slate-50 p-1.5 rounded-lg">
                       <span className="text-slate-400 font-semibold">Players:</span> <span className="font-black text-slate-700">{searchedRoom.total_players}</span>
                     </div>
                     <div className="bg-slate-50 p-1.5 rounded-lg">
                       <span className="text-slate-400 font-semibold">Games:</span> <span className="font-black text-slate-700">{searchedRoom.total_games}</span>
-                    </div>
-                    <div className="bg-slate-50 p-1.5 rounded-lg">
-                      <span className="text-slate-400 font-semibold">Stake:</span> <span className="font-black text-slate-700">{searchedRoom.stake} ETB</span>
                     </div>
                   </div>
                   <div className="flex space-x-1.5 pt-1">
@@ -399,19 +393,6 @@ export default function AdminAgents() {
                       placeholder="e.g. Alpha Room"
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-sky-500"
                     />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase">Default Stake (ETB)</label>
-                    <select
-                      value={newRoomStake}
-                      onChange={e => setNewRoomStake(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-sky-500"
-                    >
-                      <option value="10">10 ETB</option>
-                      <option value="20">20 ETB</option>
-                      <option value="50">50 ETB</option>
-                      <option value="100">100 ETB</option>
-                    </select>
                   </div>
                   <button
                     onClick={handleAssignRoom}
@@ -473,7 +454,7 @@ export default function AdminAgents() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 bg-slate-50 p-2 rounded-xl text-center text-[10px]">
+                  <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2 rounded-xl text-center text-[10px]">
                     <div>
                       <p className="text-slate-400 font-semibold uppercase text-[9px]">Players</p>
                       <p className="font-black text-slate-800">{room.total_players}</p>
@@ -481,10 +462,6 @@ export default function AdminAgents() {
                     <div>
                       <p className="text-slate-400 font-semibold uppercase text-[9px]">Games</p>
                       <p className="font-black text-slate-800">{room.total_games}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-400 font-semibold uppercase text-[9px]">Stake</p>
-                      <p className="font-black text-emerald-600">{room.stake} ETB</p>
                     </div>
                   </div>
 

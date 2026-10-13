@@ -1025,7 +1025,7 @@ router.get('/agents/search/:telegramId', async (req, res) => {
 // POST /admin/agents/assign-room — assign or create a room for an agent
 router.post('/agents/assign-room', async (req, res) => {
   try {
-    const { telegramId, roomName, stake, status } = req.body;
+    const { telegramId, roomName, status } = req.body;
     if (!telegramId) {
       res.status(400).json({ error: 'telegramId is required' });
       return;
@@ -1050,7 +1050,6 @@ router.post('/agents/assign-room', async (req, res) => {
     }
 
     const assignedRoomName = roomName?.trim() || `${user.first_name || user.username || 'Agent'}'s Room`;
-    const roomStake = stake !== undefined && !isNaN(Number(stake)) ? Number(stake) : 10;
     const roomStatus = status || 'active';
 
     const { data: room, error: rErr } = await supabase
@@ -1062,7 +1061,6 @@ router.post('/agents/assign-room', async (req, res) => {
         total_players: 0,
         total_games: 0,
         status: roomStatus,
-        stake: roomStake,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'agent_id' })
       .select()
@@ -1097,7 +1095,6 @@ router.put('/rooms/:id', async (req, res) => {
     const updates: any = { updated_at: new Date().toISOString() };
     if (req.body.room_name !== undefined) updates.room_name = req.body.room_name;
     if (req.body.status !== undefined) updates.status = req.body.status;
-    if (req.body.stake !== undefined) updates.stake = Number(req.body.stake);
     if (req.body.total_players !== undefined) updates.total_players = Number(req.body.total_players);
     if (req.body.total_games !== undefined) updates.total_games = Number(req.body.total_games);
 
