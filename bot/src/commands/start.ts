@@ -28,7 +28,7 @@ export async function startCommand(ctx: Context) {
     console.error('Upsert user error:', e); 
   }
 
-  const miniAppUrl = process.env.MINI_APP_URL || 'https://hdasebingo.vercel.app';
+  const miniAppUrl = process.env.MINI_APP_URL || 'https://hdasebingo-44kc.vercel.app';
   
   // Fetch dynamic links from Supabase settings
   let supportUsername = 'hdasebingo_admin';
