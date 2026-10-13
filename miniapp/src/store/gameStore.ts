@@ -9,6 +9,19 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
+// Clear legacy cached rooms for all users
+if (typeof window !== 'undefined' && window.localStorage) {
+  try {
+    // Remove old cache keys that had preset rooms
+    ['hdasebingo-cache', 'hdasebingo-rooms', 'hdasebingo-cache-v2'].forEach(key => {
+      const raw = localStorage.getItem(key);
+      if (raw && (raw.includes('preset-') || raw.includes('Abay') || raw.includes('Renaissance Dam'))) {
+        localStorage.removeItem(key);
+      }
+    });
+  } catch {}
+}
+
 export interface Room {
   id: string;
   room_name: string;
@@ -75,7 +88,9 @@ export const useGameStore = create<GameStore>()(
           if (res.ok) {
             const data = await res.json();
             if (Array.isArray(data.rooms)) {
-              set({ rooms: data.rooms });
+              // Ensure ONLY real rooms from the database are stored (filter out any preset IDs)
+              const realRooms = data.rooms.filter((r: any) => !String(r.id).startsWith('preset-'));
+              set({ rooms: realRooms });
             }
           }
         } catch (err) {
@@ -171,7 +186,12 @@ export const useGameStore = create<GameStore>()(
       },
     }),
     {
-      name: 'hdasebingo-cache',
+      name: 'hdasebingo-v4',
+      partialize: (state) => ({
+        user: state.user,
+        language: state.language,
+        isDarkMode: state.isDarkMode,
+      }),
     }
   )
 );

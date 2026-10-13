@@ -145,7 +145,7 @@ import Invite from './pages/Invite';
 import InvitedPeople from './pages/InvitedPeople';
 
 function App() {
-  const { fetchUser, subscribeToBalance, isDarkMode, isBlocked, setProfileOpen } = useGameStore();
+  const { fetchUser, fetchRooms, subscribeToBalance, isDarkMode, isBlocked, setProfileOpen } = useGameStore();
   const [supportUsername, setSupportUsername] = useState<string>('');
 
   useEffect(() => {
@@ -161,11 +161,12 @@ function App() {
       document.documentElement.classList.remove('dark');
     }
 
+    fetchRooms();
     fetchUser().then(() => {
       const unsub = subscribeToBalance();
       return unsub;
     });
-  }, [fetchUser, subscribeToBalance]);
+  }, [fetchUser, fetchRooms, subscribeToBalance]);
 
   useEffect(() => {
     if (isBlocked) {
