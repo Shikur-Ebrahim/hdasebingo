@@ -147,6 +147,7 @@ import InvitedPeople from './pages/InvitedPeople';
 function App() {
   const { fetchUser, fetchRooms, subscribeToBalance, isDarkMode, isBlocked, setProfileOpen } = useGameStore();
   const [supportUsername, setSupportUsername] = useState<string>('');
+  const [isAppInitializing, setIsAppInitializing] = useState(true);
 
   useEffect(() => {
     WebApp.ready();
@@ -161,10 +162,17 @@ function App() {
       document.documentElement.classList.remove('dark');
     }
 
-    fetchRooms();
-    fetchUser().then(() => {
+    // Load initial data (User + Rooms) concurrently with attractive splash screen
+    Promise.all([
+      fetchUser(),
+      fetchRooms(),
+      new Promise(resolve => setTimeout(resolve, 1100)) // smooth display duration
+    ]).then(() => {
+      setIsAppInitializing(false);
       const unsub = subscribeToBalance();
       return unsub;
+    }).catch(() => {
+      setIsAppInitializing(false);
     });
   }, [fetchUser, fetchRooms, subscribeToBalance]);
 
@@ -187,6 +195,68 @@ function App() {
       WebApp.openTelegramLink(`https://t.me/${username}`);
     }
   };
+
+  // Attractive initial loading effect on first app launch
+  if (isAppInitializing) {
+    return (
+      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-between py-12 px-6 bg-gradient-to-b from-[#0a0d1f] via-[#0f1430] to-[#070914] text-white select-none overflow-hidden">
+        {/* Ambient background glows */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 translate-y-1/2 w-80 h-80 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="w-full" />
+
+        {/* Center brand & animated bingo badge */}
+        <div className="flex flex-col items-center text-center relative z-10 space-y-4">
+          <div className="relative">
+            <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-amber-300 via-yellow-400 to-amber-600 shadow-[0_0_50px_rgba(250,204,21,0.45)] flex items-center justify-center p-1 animate-pulse">
+              <div className="w-full h-full rounded-[22px] bg-gradient-to-br from-[#12142e] to-[#0d0f22] flex flex-col items-center justify-center border border-amber-400/30">
+                <span className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-br from-yellow-300 to-amber-500">
+                  75
+                </span>
+                <span className="text-[9px] font-black tracking-widest text-amber-400 uppercase -mt-0.5">
+                  BINGO
+                </span>
+              </div>
+            </div>
+            {/* Spinning decorative orbit ring */}
+            <div className="absolute -inset-2.5 rounded-[32px] border border-amber-400/20 border-t-amber-400 animate-spin pointer-events-none" style={{ animationDuration: '3s' }} />
+          </div>
+
+          {/* Title */}
+          <div>
+            <h1 className="text-3xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-200 to-yellow-400 drop-shadow-sm">
+              HDASE BINGO
+            </h1>
+            <p className="text-xs font-bold text-amber-200/80 tracking-widest uppercase mt-0.5">
+              ሕዳሴ ቢንጎ • ይጫወቱ ያሸንፉ
+            </p>
+          </div>
+
+          {/* Modern Glowing Loading Bar */}
+          <div className="w-48 space-y-2 pt-2">
+            <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden p-0.5">
+              <div
+                className="h-full bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 rounded-full animate-pulse"
+                style={{
+                  width: '100%',
+                  animation: 'pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+                }}
+              />
+            </div>
+            <p className="text-[10px] text-white/50 font-medium tracking-wide">
+              በመጫን ላይ... Loading game rooms
+            </p>
+          </div>
+        </div>
+
+        {/* Footer security / platform note */}
+        <div className="text-center relative z-10 text-[10px] text-white/40 font-semibold tracking-wider">
+          🇪🇹 Official Ethiopian Bingo Platform
+        </div>
+      </div>
+    );
+  }
 
   if (isBlocked) {
     return (
