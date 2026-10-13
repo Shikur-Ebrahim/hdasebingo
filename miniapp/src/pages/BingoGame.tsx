@@ -207,13 +207,6 @@ export default function BingoGame() {
     });
   };
 
-  // Aggregated platform and room statistics for the horizontal top explanation section
-  const totalRoomsCount = rooms.length;
-  const totalPlayersInRooms = rooms.reduce((acc, r) => acc + (Number(r.total_players) || 0), 0);
-  const totalGamesInRooms = rooms.reduce((acc, r) => acc + (Number(r.total_games) || 0), 0);
-  const livePlayingAcrossStakes = Object.values(homeGames).reduce((acc, g) => acc + (Number(g.players) || 0), 0);
-  const totalActivePool = Object.values(homeGames).reduce((acc, g) => acc + (Number(g.pool) || 0), 0);
-
   // Fetch and listen for active derash & status on stake selection screen
   useEffect(() => {
     if (selectedStake) return;
@@ -790,137 +783,14 @@ export default function BingoGame() {
             </button>
           </div>
 
-          {/* Top Section: Advanced Horizontal Explanation & Stats Cards */}
-          <div className="px-4 py-2 space-y-2 shrink-0">
-            {/* Explanatory Banner */}
-            <div className="bg-gradient-to-r from-amber-500/10 via-yellow-400/15 to-indigo-500/10 border border-amber-300/40 rounded-2xl p-3 flex items-center justify-between shadow-2xs">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center shadow-md text-white font-black shrink-0">
-                  <Gamepad2 size={22} />
-                </div>
-                <div>
-                  <div className="flex items-center space-x-1.5">
-                    <span className="text-[9px] font-black uppercase tracking-wider text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-full">
-                      🔥 LIVE MULTIPLAYER
-                    </span>
-                  </div>
-                  <p className="text-xs font-black text-slate-800 mt-0.5">
-                    {language === 'am' ? 'ክፍል ይምረጡ • የደራሽ ቢንጎ ይጫወቱ' : 'Select Room • Play Live Bingo'}
-                  </p>
-                  <p className="text-[9px] text-slate-500 font-medium leading-tight mt-0.5">
-                    {language === 'am'
-                      ? 'የሚፈልጉትን ክፍል ይምረጡ፤ ከዚያም የመጫወቻ መጠን (10-100 ETB) ይመርጣሉ'
-                      : 'Pick any room below to enter, choose your stake (10-100 ETB) and win!'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Horizontal Scrollable Stats Cards */}
-            <div className="flex space-x-2 overflow-x-auto pb-1 pt-0.5 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
-              {/* Card 1: Active Rooms */}
-              <div className="shrink-0 w-28 bg-white border border-slate-200 rounded-xl p-2 shadow-2xs flex flex-col justify-between">
-                <div className="flex items-center justify-between">
-                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
-                    {language === 'am' ? 'ክፍሎች' : 'Rooms'}
-                  </span>
-                  <div className="w-4 h-4 rounded-md bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                    <DoorOpen size={10} />
-                  </div>
-                </div>
-                <div className="mt-1">
-                  <span className="text-base font-black text-slate-800 leading-none">{totalRoomsCount}</span>
-                  <p className="text-[8px] text-emerald-600 font-bold mt-0.5 flex items-center">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse" />
-                    {language === 'am' ? 'ንቁ' : 'Live'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Card 2: Total Players */}
-              <div className="shrink-0 w-28 bg-white border border-slate-200 rounded-xl p-2 shadow-2xs flex flex-col justify-between">
-                <div className="flex items-center justify-between">
-                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
-                    {language === 'am' ? 'ተጫዋች' : 'Players'}
-                  </span>
-                  <div className="w-4 h-4 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                    <Users size={10} />
-                  </div>
-                </div>
-                <div className="mt-1">
-                  <span className="text-base font-black text-emerald-600 leading-none">{totalPlayersInRooms}</span>
-                  <p className="text-[8px] text-slate-400 font-medium mt-0.5 truncate">
-                    {language === 'am' ? 'በሁሉም' : 'All rooms'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Card 3: Total Games Played */}
-              <div className="shrink-0 w-28 bg-white border border-slate-200 rounded-xl p-2 shadow-2xs flex flex-col justify-between">
-                <div className="flex items-center justify-between">
-                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
-                    {language === 'am' ? 'ጨዋታዎች' : 'Games'}
-                  </span>
-                  <div className="w-4 h-4 rounded-md bg-violet-50 text-violet-600 flex items-center justify-center">
-                    <Trophy size={10} />
-                  </div>
-                </div>
-                <div className="mt-1">
-                  <span className="text-base font-black text-violet-600 leading-none">{totalGamesInRooms}</span>
-                  <p className="text-[8px] text-slate-400 font-medium mt-0.5 truncate">
-                    {language === 'am' ? 'የተጠናቀቁ' : 'Played'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Card 4: Live Playing Right Now */}
-              <div className="shrink-0 w-28 bg-white border border-slate-200 rounded-xl p-2 shadow-2xs flex flex-col justify-between">
-                <div className="flex items-center justify-between">
-                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
-                    {language === 'am' ? 'የአሁን' : 'Playing Now'}
-                  </span>
-                  <div className="w-4 h-4 rounded-md bg-rose-50 text-rose-600 flex items-center justify-center">
-                    <Gamepad2 size={10} />
-                  </div>
-                </div>
-                <div className="mt-1">
-                  <span className="text-base font-black text-rose-600 leading-none">{livePlayingAcrossStakes}</span>
-                  <p className="text-[8px] text-slate-400 font-medium mt-0.5 truncate">
-                    {language === 'am' ? 'በ4ቱ መጠን' : 'In 4 stakes'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Card 5: Live Pools */}
-              {totalActivePool > 0 && (
-                <div className="shrink-0 w-28 bg-white border border-slate-200 rounded-xl p-2 shadow-2xs flex flex-col justify-between">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
-                      {language === 'am' ? 'ደራሽ' : 'Live Pool'}
-                    </span>
-                    <div className="w-4 h-4 rounded-md bg-amber-50 text-amber-600 flex items-center justify-center">
-                      <Gift size={10} />
-                    </div>
-                  </div>
-                  <div className="mt-1">
-                    <span className="text-base font-black text-amber-600 leading-none">{totalActivePool} ETB</span>
-                    <p className="text-[8px] text-slate-400 font-medium mt-0.5 truncate">
-                      {language === 'am' ? 'ሽልማት' : 'Prize'}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
           {/* Rooms Grid (Mobile friendly, strictly real rooms from DB) */}
-          <div className="px-4 flex-1 overflow-y-auto pb-4 pt-1" style={{ scrollbarWidth: 'none' }}>
-            <div className="flex items-center justify-between mb-2">
+          <div className="px-4 flex-1 overflow-y-auto pb-4 pt-2" style={{ scrollbarWidth: 'none' }}>
+            <div className="flex items-center justify-between mb-2.5">
               <div className="flex items-center space-x-1.5">
                 <span className="text-xs font-black text-slate-700 uppercase tracking-wide">
                   {language === 'am' ? 'ክፍት ክፍሎች' : 'Available Rooms'}
                 </span>
-                <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.2 rounded-full font-bold">
+                <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold">
                   {rooms.length}
                 </span>
               </div>
@@ -958,19 +828,14 @@ export default function BingoGame() {
                       className="bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all duration-200 hover:shadow-md"
                     >
                       {/* Card Banner Header */}
-                      <div className={`h-20 bg-gradient-to-br ${gradient} flex flex-col items-center justify-center relative px-2 text-center shadow-xs`}>
+                      <div className={`h-20 bg-gradient-to-br ${gradient} flex flex-col items-center justify-center relative px-2.5 text-center shadow-xs`}>
                         <div className="absolute top-2 right-2 flex items-center space-x-1 bg-black/25 backdrop-blur-xs px-1.5 py-0.5 rounded-full">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
                           <span className="text-[7px] font-black text-white uppercase tracking-wider">LIVE</span>
                         </div>
-                        <span className="text-white font-black text-sm drop-shadow-sm leading-tight line-clamp-2 px-1">
+                        <span className="text-white font-black text-base drop-shadow-sm leading-tight line-clamp-2 px-1">
                           {room.room_name}
                         </span>
-                        {room.agent_name && (
-                          <span className="text-[8px] font-bold text-white/90 mt-0.5 truncate max-w-full">
-                            👑 {room.agent_name}
-                          </span>
-                        )}
                       </div>
 
                       {/* Stats Row: Players | Total Games */}
@@ -1001,17 +866,6 @@ export default function BingoGame() {
                 })}
               </div>
             )}
-          </div>
-
-          {/* Bottom Back Button to Home */}
-          <div className="pb-3 flex justify-center shrink-0 relative z-10 mt-1 bg-white">
-            <button
-              onClick={() => navigate('/')}
-              className="px-6 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-full text-slate-600 text-xs font-bold uppercase tracking-widest active:scale-95 shadow-sm transition-colors flex items-center space-x-1.5"
-            >
-              <span>←</span>
-              <span>{language === 'am' ? 'ወደ ዋና ገጽ ተመለስ' : 'Back to Home'}</span>
-            </button>
           </div>
         </div>
       </div>
