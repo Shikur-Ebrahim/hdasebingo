@@ -43,6 +43,7 @@ export default function Home() {
   const [homeRoomSortFilter, setHomeRoomSortFilter] = useState<'all' | 'most_players' | 'most_games' | 'newest'>('all');
   const [showHomeFilterDropdown, setShowHomeFilterDropdown] = useState(false);
   const [homeRoomSearch, setHomeRoomSearch] = useState('');
+  const [showHomeSearchBar, setShowHomeSearchBar] = useState(false);
 
   // Support banner state
   const [showSupportBanner, setShowSupportBanner] = useState(false);
@@ -352,6 +353,7 @@ export default function Home() {
       <div className="px-4 flex-1" onClick={() => showHomeFilterDropdown && setShowHomeFilterDropdown(false)}>
         {/* Section header */}
         <div className="flex items-center justify-between mb-2">
+          {/* Left: icon + title */}
           <div className="flex items-center space-x-2">
             <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-sm">
               <DoorOpen size={14} className="text-white" />
@@ -364,79 +366,102 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Advanced Filter Button */}
-          <div className="relative">
+          {/* Right: Search icon + Filter button */}
+          <div className="flex items-center space-x-1.5">
+            {/* Search icon — parallel to BINGO ROOMS title */}
             <button
-              onClick={e => { e.stopPropagation(); setShowHomeFilterDropdown(v => !v); }}
-              className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl border text-xs font-bold active:scale-95 transition-all shadow-sm ${
-                homeRoomSortFilter !== 'all'
+              onClick={e => { e.stopPropagation(); setShowHomeSearchBar(v => !v); if (showHomeSearchBar) setHomeRoomSearch(''); }}
+              className={`w-8 h-8 rounded-xl border flex items-center justify-center active:scale-95 transition-all shadow-sm ${
+                showHomeSearchBar || homeRoomSearch
                   ? 'bg-indigo-500 border-indigo-500 text-white'
                   : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
             >
-              <span>
-                {homeRoomSortFilter === 'all' ? '🔽' : homeRoomSortFilter === 'most_players' ? '👥' : homeRoomSortFilter === 'most_games' ? '🎮' : '✨'}
-              </span>
-              <span>{homeRoomSortFilter === 'all' ? 'Filter' : homeRoomSortFilter === 'most_players' ? 'Players' : homeRoomSortFilter === 'most_games' ? 'Games' : 'Newest'}</span>
-              <ChevronDown size={11} className={showHomeFilterDropdown ? 'rotate-180 transition-transform' : 'transition-transform'} />
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="8" strokeWidth="2.5"/>
+                <path d="m21 21-4.35-4.35" strokeWidth="2.5" strokeLinecap="round"/>
+              </svg>
             </button>
 
-            {showHomeFilterDropdown && (
-              <div className="absolute right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200/80 dark:border-slate-700 overflow-hidden min-w-[175px]">
-                <div className="px-3 pt-2.5 pb-1">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sort Rooms By</p>
+            {/* Advanced Filter Button */}
+            <div className="relative">
+              <button
+                onClick={e => { e.stopPropagation(); setShowHomeFilterDropdown(v => !v); }}
+                className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl border text-xs font-bold active:scale-95 transition-all shadow-sm ${
+                  homeRoomSortFilter !== 'all'
+                    ? 'bg-indigo-500 border-indigo-500 text-white'
+                    : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                <span>
+                  {homeRoomSortFilter === 'all' ? '🔽' : homeRoomSortFilter === 'most_players' ? '👥' : homeRoomSortFilter === 'most_games' ? '🎮' : '✨'}
+                </span>
+                <span>{homeRoomSortFilter === 'all' ? 'Filter' : homeRoomSortFilter === 'most_players' ? 'Players' : homeRoomSortFilter === 'most_games' ? 'Games' : 'Newest'}</span>
+                <ChevronDown size={11} className={showHomeFilterDropdown ? 'rotate-180 transition-transform' : 'transition-transform'} />
+              </button>
+
+              {showHomeFilterDropdown && (
+                <div className="absolute right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200/80 dark:border-slate-700 overflow-hidden min-w-[175px]">
+                  <div className="px-3 pt-2.5 pb-1">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sort Rooms By</p>
+                  </div>
+                  {[
+                    { key: 'all', label: 'All Rooms', icon: '🏠' },
+                    { key: 'most_players', label: 'Most Players', icon: '👥' },
+                    { key: 'most_games', label: 'Most Games', icon: '🎮' },
+                    { key: 'newest', label: 'Newest Rooms', icon: '✨' },
+                  ].map(opt => (
+                    <button
+                      key={opt.key}
+                      onClick={() => { setHomeRoomSortFilter(opt.key as typeof homeRoomSortFilter); setShowHomeFilterDropdown(false); }}
+                      className={`w-full flex items-center space-x-2.5 px-3 py-2.5 text-left transition-colors ${
+                        homeRoomSortFilter === opt.key
+                          ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <span className="text-base leading-none">{opt.icon}</span>
+                      <span className="text-xs font-bold">{opt.label}</span>
+                      {homeRoomSortFilter === opt.key && <span className="ml-auto text-indigo-500 text-xs font-black">✓</span>}
+                    </button>
+                  ))}
+                  <div className="border-t border-slate-100 dark:border-slate-800 px-3 py-2">
+                    <button
+                      onClick={() => { handleManualRefresh(); setShowHomeFilterDropdown(false); }}
+                      className="w-full flex items-center justify-center space-x-2 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300 text-xs font-bold active:scale-95 transition-all hover:bg-slate-200 dark:hover:bg-slate-700"
+                    >
+                      <RefreshCw size={12} className={manualRefreshing ? 'animate-spin text-indigo-500' : ''} />
+                      <span>Refresh Rooms</span>
+                    </button>
+                  </div>
                 </div>
-                {[
-                  { key: 'all', label: 'All Rooms', icon: '🏠' },
-                  { key: 'most_players', label: 'Most Players', icon: '👥' },
-                  { key: 'most_games', label: 'Most Games', icon: '🎮' },
-                  { key: 'newest', label: 'Newest Rooms', icon: '✨' },
-                ].map(opt => (
-                  <button
-                    key={opt.key}
-                    onClick={() => { setHomeRoomSortFilter(opt.key as typeof homeRoomSortFilter); setShowHomeFilterDropdown(false); }}
-                    className={`w-full flex items-center space-x-2.5 px-3 py-2.5 text-left transition-colors ${
-                      homeRoomSortFilter === opt.key
-                        ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
-                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    <span className="text-base leading-none">{opt.icon}</span>
-                    <span className="text-xs font-bold">{opt.label}</span>
-                    {homeRoomSortFilter === opt.key && <span className="ml-auto text-indigo-500 text-xs font-black">✓</span>}
-                  </button>
-                ))}
-                <div className="border-t border-slate-100 dark:border-slate-800 px-3 py-2">
-                  <button
-                    onClick={() => { handleManualRefresh(); setShowHomeFilterDropdown(false); }}
-                    className="w-full flex items-center justify-center space-x-2 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300 text-xs font-bold active:scale-95 transition-all hover:bg-slate-200 dark:hover:bg-slate-700"
-                  >
-                    <RefreshCw size={12} className={manualRefreshing ? 'animate-spin text-indigo-500' : ''} />
-                    <span>Refresh Rooms</span>
-                  </button>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Search bar */}
-        <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-2 mb-2 border border-slate-200 dark:border-slate-700 focus-within:border-indigo-400 focus-within:ring-1 focus-within:ring-indigo-200 transition-all">
-          <svg className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <circle cx="11" cy="11" r="8" strokeWidth="2.5"/>
-            <path d="m21 21-4.35-4.35" strokeWidth="2.5" strokeLinecap="round"/>
-          </svg>
-          <input
-            type="text"
-            value={homeRoomSearch}
-            onChange={e => setHomeRoomSearch(e.target.value)}
-            placeholder="Search rooms by name..."
-            className="flex-1 bg-transparent text-xs font-semibold text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none"
-          />
-          {homeRoomSearch && (
-            <button onClick={() => setHomeRoomSearch('')} className="text-slate-400 hover:text-slate-600 ml-1 text-sm leading-none">×</button>
-          )}
-        </div>
+        {/* Collapsible search bar — shown only when search icon is tapped */}
+        {showHomeSearchBar && (
+          <div className="mb-2">
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-2 border border-slate-200 dark:border-slate-700 focus-within:border-indigo-400 focus-within:ring-1 focus-within:ring-indigo-200 transition-all">
+              <svg className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="8" strokeWidth="2.5"/>
+                <path d="m21 21-4.35-4.35" strokeWidth="2.5" strokeLinecap="round"/>
+              </svg>
+              <input
+                autoFocus
+                type="text"
+                value={homeRoomSearch}
+                onChange={e => setHomeRoomSearch(e.target.value)}
+                placeholder="Search rooms by name..."
+                className="flex-1 bg-transparent text-xs font-semibold text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none"
+              />
+              {homeRoomSearch && (
+                <button onClick={() => setHomeRoomSearch('')} className="text-slate-400 hover:text-slate-600 ml-1 text-sm leading-none">×</button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Filter chips row */}
         <div className="flex space-x-1.5 overflow-x-auto mb-3" style={{ scrollbarWidth: 'none' }}>
