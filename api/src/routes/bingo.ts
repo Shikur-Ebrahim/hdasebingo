@@ -227,7 +227,15 @@ router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
     updated_at: new Date().toISOString()
   }).eq('id', game.id);
 
-  res.json({ success: true, cartela_number: seat, card_matrix, unique_players });
+  res.json({
+    success: true,
+    cartela_number: seat,
+    card_matrix,
+    unique_players,
+    start_at: newStartAt,
+    prize_pool: prizePool,
+    total_players: unique_players,
+  });
 });
 
 router.get('/card', async (req, res) => {

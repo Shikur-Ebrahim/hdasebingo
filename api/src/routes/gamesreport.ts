@@ -76,7 +76,7 @@ router.get('/', async (req: AuthRequest, res) => {
 
   const enriched = paginated.map((g: any) => ({
     game_id:       g.id,
-    game_number:   g.id ? g.id.substring(0, 9) : null,       // first 9 chars of UUID
+    game_number:   g.id ? g.id.replace(/-/g, '').substring(0, 8).toUpperCase() : null,
     stake:         Number(g.stake) || 0,
     status:        g.status || 'unknown',
     prize_pool:    Number(g.prize_pool) || 0,

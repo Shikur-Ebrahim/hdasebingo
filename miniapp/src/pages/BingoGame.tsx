@@ -9,13 +9,18 @@ import { t } from '../lib/translations';
 const API = import.meta.env.VITE_API_URL || "/api";
 
 interface BGame {
-  id: string; stake: number; prize_pool: number;
+  id: string; stake: number; prize_pool: number; total_players?: number;
   status: "waiting" | "calling" | "finished";
   called_numbers: number[];
   winner_cartela: number | null; winner_telegram_id: string | null;
   winner_first_name: string | null; winner_prize: number | null;
   start_at: string; finished_at: string | null;
 }
+
+const formatGameId = (id: string | null | undefined): string => {
+  if (!id) return '';
+  return id.replace(/-/g, '').substring(0, 8).toUpperCase();
+};
 interface MyCard { cartela_number: number; card_matrix: number[][]; }
 interface Celebration { winner_name: string; winner_cartela: number; winner_prize: number; winner_matrix: number[][] | null; iWon: boolean; called: number[]; winners_list?: {first_name: string, cartela_number: number, card_matrix: number[][]}[] }
 
@@ -320,19 +325,24 @@ export default function BingoGame() {
   // Keep AudioContext resumed and mobile media pipeline unlocked on any touch
   const unlockAudio = useCallback(() => {
     try {
-      if (!audioCtxRef.current) {
-        const AC = window.AudioContext || (window as any).webkitAudioContext;
-        if (AC) audioCtxRef.current = new AC();
+      const AC = window.AudioContext || (window as any).webkitAudioContext;
+      if (!audioCtxRef.current && AC) {
+        audioCtxRef.current = new AC();
       }
-      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-        audioCtxRef.current.resume().catch(() => {});
+      const ctx = audioCtxRef.current;
+      if (ctx) {
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
+        }
+        // Play silent 1-sample buffer to permanently unlock audio on Android/iOS
+        if (ctx.state === 'running') {
+          const buffer = ctx.createBuffer(1, 1, 22050);
+          const source = ctx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(ctx.destination);
+          source.start(0);
+        }
       }
-    } catch(e) {}
-
-    try {
-      const dummy = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
-      dummy.volume = 0.01;
-      dummy.play().catch(() => {});
     } catch(e) {}
   }, []);
 
@@ -341,21 +351,21 @@ export default function BingoGame() {
   // Listen continuously on window touch/click so audio never gets suspended during game
   useEffect(() => {
     const handleGesture = () => unlockAudio();
+    window.addEventListener('pointerdown', handleGesture, { passive: true });
     window.addEventListener('touchstart', handleGesture, { passive: true });
     window.addEventListener('touchend', handleGesture, { passive: true });
     window.addEventListener('click', handleGesture, { passive: true });
     return () => {
+      window.removeEventListener('pointerdown', handleGesture);
       window.removeEventListener('touchstart', handleGesture);
       window.removeEventListener('touchend', handleGesture);
       window.removeEventListener('click', handleGesture);
     };
   }, [unlockAudio]);
 
-  // ── RAW ARRAYBUFFER CACHE: fetched at startup, no AudioContext needed yet ──────────────────
+  // ── RAW ARRAYBUFFER CACHE: fetched at startup ──────────────────
   const rawBufferCache = useRef<Map<string, ArrayBuffer>>(new Map());
 
-  // Pre-fetch ALL 75 call files + bingo_win as raw ArrayBuffers immediately on mount.
-  // We do NOT need AudioContext for fetching. Decoding happens on-demand when we need to play.
   useEffect(() => {
     let cancel = false;
     const preload = async () => {
@@ -363,11 +373,10 @@ export default function BingoGame() {
         ...Array.from({ length: 75 }, (_, i) => getAudioSrc(i + 1)),
         '/audio/bingo/bingo_win.mp3',
       ];
-      // Stagger: 3 files concurrently, small gap between batches
-      for (let i = 0; i < allSrcs.length; i += 3) {
+      for (let i = 0; i < allSrcs.length; i += 4) {
         if (cancel) break;
         await Promise.all(
-          allSrcs.slice(i, i + 3).map(async (src) => {
+          allSrcs.slice(i, i + 4).map(async (src) => {
             if (rawBufferCache.current.has(src)) return;
             try {
               const res = await fetch(src);
@@ -375,37 +384,56 @@ export default function BingoGame() {
             } catch {}
           })
         );
-        await new Promise(r => setTimeout(r, 50));
+        await new Promise(r => setTimeout(r, 40));
       }
     };
     preload();
     return () => { cancel = true; };
   }, []);
 
-  // ── CORE WEBAUDIO PLAYER: decodes from raw cache or fetches fresh ────────────────────────
-  const playViaWebAudio = useCallback(async (src: string, customGain?: number) => {
+  // Cross-browser safe decodeAudioData (handles both Promise & Callback signatures)
+  const decodeAudio = useCallback((ctx: AudioContext, buffer: ArrayBuffer): Promise<AudioBuffer> => {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      try {
+        const res = ctx.decodeAudioData(
+          buffer,
+          (buf) => { if (!settled) { settled = true; resolve(buf); } },
+          (err) => { if (!settled) { settled = true; reject(err); } }
+        );
+        if (res && typeof (res as any).then === 'function') {
+          (res as any).then(
+            (buf: AudioBuffer) => { if (!settled) { settled = true; resolve(buf); } },
+            (err: any) => { if (!settled) { settled = true; reject(err); } }
+          );
+        }
+      } catch (e) {
+        if (!settled) { settled = true; reject(e); }
+      }
+    });
+  }, []);
+
+  // ── CORE WEBAUDIO PLAYER ────────────────────────
+  const playViaWebAudio = useCallback(async (src: string, customGain?: number): Promise<boolean> => {
     try {
       if (!audioCtxRef.current) {
         const AC = window.AudioContext || (window as any).webkitAudioContext;
         if (AC) audioCtxRef.current = new AC();
       }
       const ctx = audioCtxRef.current;
-      if (!ctx) return;
+      if (!ctx) return false;
       if (ctx.state === 'suspended') await ctx.resume();
 
-      // Use pre-decoded AudioBuffer if cached
       let audioBuf = audioBufferCache.current.get(src);
       if (!audioBuf) {
-        // Use raw bytes from preload cache (already fetched at startup)
         let raw = rawBufferCache.current.get(src);
         if (!raw) {
           const res = await fetch(src);
-          if (!res.ok) return;
+          if (!res.ok) return false;
           raw = await res.arrayBuffer();
           rawBufferCache.current.set(src, raw);
         }
-        // Must clone (.slice) the ArrayBuffer — decodeAudioData detaches the original
-        audioBuf = await ctx.decodeAudioData(raw.slice(0));
+        audioBuf = await decodeAudio(ctx, raw.slice(0));
         audioBufferCache.current.set(src, audioBuf);
       }
 
@@ -416,19 +444,14 @@ export default function BingoGame() {
       source.connect(gainNode);
       gainNode.connect(ctx.destination);
       source.start(0);
+      return true;
     } catch(e) {
       console.warn('WebAudio error:', e);
+      return false;
     }
-  }, [volume]);
+  }, [volume, decodeAudio]);
 
-  // ── CALLER SOUND ─────────────────────────────────────────────────────────────────────────
-  // Uses ONE reusable <audio> element. Sets .src then calls .load() before .play().
-  // This is the ONLY reliable pattern on Android WebView / Telegram:
-  //   - .load() resets the media pipeline fully when src changes
-  //   - prevents silent "media session not acquired" failures
-  //   - WebAudio is the fallback if HTMLAudio errors
-  const callAudioElRef = useRef<HTMLAudioElement | null>(null);
-
+  // ── CALLER SOUND ─────────────────────────────────────────────────────────────
   const playCallAudio = useCallback((num: number) => {
     if (!soundEnabled) return;
     const cleanNum = Number(num);
@@ -441,35 +464,22 @@ export default function BingoGame() {
     const src = getAudioSrc(cleanNum);
     unlockAudio();
 
-    // Create the shared audio element once, reuse it every call
-    if (!callAudioElRef.current) {
-      callAudioElRef.current = new Audio();
+    // 1. If WebAudio context is running, use WebAudio directly (fast, zero lag, reliable on mobile)
+    if (audioCtxRef.current && audioCtxRef.current.state === 'running') {
+      playViaWebAudio(src);
+      return;
     }
-    const audio = callAudioElRef.current;
 
-    // Stop and reset — pause() then clear src so browser fully releases media session
-    try { audio.pause(); } catch {}
-    audio.currentTime = 0;
-
-    // Set new source and LOAD before play (required on Android when changing src)
-    audio.src = src;
-    audio.volume = Math.min(1.0, Math.max(0.0, volume));
-
-    // onerror → fall back to WebAudio engine (uses pre-fetched rawBufferCache)
-    audio.onerror = () => { playViaWebAudio(src); };
-
-    // .load() must be called explicitly when src changes on a reused element
-    audio.load();
-
-    const p = audio.play();
-    if (p !== undefined) {
-      p.catch(() => {
-        // Play was blocked (autoplay policy) → use WebAudio which bypasses this
+    // 2. Otherwise play via standard HTML5 Audio with fallback to WebAudio
+    try {
+      const audio = new Audio(src);
+      audio.volume = Math.min(1.0, Math.max(0.0, volume));
+      audio.play().catch(() => {
         playViaWebAudio(src);
       });
+    } catch {
+      playViaWebAudio(src);
     }
-
-    callAudioRef.current = audio; // keep ref in sync
   }, [soundEnabled, volume, unlockAudio, playViaWebAudio]);
 
   // ── CELEBRATION ──────────────────────────────────────────────────────────────────────────
@@ -483,9 +493,9 @@ export default function BingoGame() {
 
     // Stop caller voice immediately so "Bingo!" is loud and clear
     try {
-      if (callAudioElRef.current) {
-        callAudioElRef.current.pause();
-        callAudioElRef.current.currentTime = 0;
+      if (callAudioRef.current) {
+        callAudioRef.current.pause();
+        callAudioRef.current.currentTime = 0;
       }
     } catch {}
 
@@ -562,7 +572,9 @@ export default function BingoGame() {
     if (!selectedStake) return;
     const ch = supabase.channel(`bingo-rt-${selectedStake}-${Date.now()}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "bingo_games" }, ({ new: g }) => {
-        if (Number(g.stake) === selectedStake) setGame(g as BGame);
+        if (Number(g.stake) === selectedStake && (!selectedRoomId || g.room_id === selectedRoomId)) {
+          setGame(g as BGame);
+        }
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "bingo_games" }, () => { fetchState(); })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "bingo_players" }, ({ new: p }) => {
@@ -574,18 +586,33 @@ export default function BingoGame() {
         }
       }).subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [selectedStake, fetchState]);
+  }, [selectedStake, selectedRoomId, fetchState]);
 
   useEffect(() => {
     if (!game || game.status !== "waiting") return;
     const update = () => {
       if (document.visibilityState === 'hidden') return;
-      setTimeLeft(Math.max(0, Math.ceil((new Date(game.start_at).getTime() - Date.now()) / 1000)));
+      const left = Math.max(0, Math.ceil((new Date(game.start_at).getTime() - Date.now()) / 1000));
+      setTimeLeft(left);
+      if (left === 0) {
+        fetchState();
+      }
     };
     update();
     const id = setInterval(update, 1000);
     return () => clearInterval(id);
-  }, [game?.status, game?.start_at]);
+  }, [game?.status, game?.start_at, fetchState]);
+
+  // Fast polling fallback: keeps game state sync'd with zero delay when calling or countdown reaches 0
+  useEffect(() => {
+    if (!selectedStake) return;
+    const pollId = setInterval(() => {
+      if (game?.status === 'calling' || (game?.status === 'waiting' && timeLeft <= 2)) {
+        fetchState();
+      }
+    }, 1500);
+    return () => clearInterval(pollId);
+  }, [selectedStake, game?.status, timeLeft, fetchState]);
 
   const called = game?.called_numbers ?? [];
   const lastNum = called.length > 0 ? Number(called[called.length - 1]) : null;
@@ -750,6 +777,14 @@ export default function BingoGame() {
         setMyCartelas(prev => [...prev, newCard]);
         setMyCard(newCard); // also set my_card for backward compat
         if (d.unique_players !== undefined) setUniquePlayers(Number(d.unique_players));
+        if (d.start_at || d.prize_pool) {
+          setGame(prev => prev ? {
+            ...prev,
+            start_at: d.start_at ?? prev.start_at,
+            prize_pool: d.prize_pool !== undefined ? Number(d.prize_pool) : prev.prize_pool,
+            total_players: d.total_players !== undefined ? Number(d.total_players) : prev.total_players,
+          } : prev);
+        }
         refreshUser();
       } else {
         setTaken(prev => prev.filter(n => n !== seat));
@@ -762,7 +797,11 @@ export default function BingoGame() {
   const fm = (a: number | undefined) => (a || 0).toLocaleString("en-US");
   const initial = user?.first_name ? user.first_name.charAt(0).toUpperCase() : "U";
   let statusTxt = "Finished", statusCls = "text-slate-400";
-  if (game?.status === "waiting") { statusTxt = timeLeft > 86400 ? "Waiting..." : `${timeLeft}s`; statusCls = "text-orange-400"; }
+  if (game?.status === "waiting") {
+    if (timeLeft > 86400) { statusTxt = "Waiting..."; statusCls = "text-orange-400"; }
+    else if (timeLeft === 0) { statusTxt = "Ready!"; statusCls = "text-emerald-400 animate-pulse"; }
+    else { statusTxt = `${timeLeft}s`; statusCls = "text-orange-400"; }
+  }
   else if (game?.status === "calling") { statusTxt = "Active"; statusCls = "text-emerald-400"; }
 
   const Header = () => (
@@ -1201,7 +1240,7 @@ export default function BingoGame() {
 
         {/* Top Info Bar */}
         <div className="flex items-center justify-between bg-[#0f172a] px-2 py-1 rounded-xl border border-slate-800 shrink-0">
-          <div className="text-slate-400 text-[9px] font-bold">ID: {game.id.substring(0,9)}</div>
+          <div className="text-slate-400 text-[9px] font-bold">ID: {formatGameId(game.id)}</div>
           <div className="flex items-center gap-1 text-yellow-400 text-[9px] font-bold"><Trophy size={10}/> {game.prize_pool} ETB</div>
           <div className="flex items-center gap-1 text-blue-400 text-[9px] font-bold"><LayoutGrid size={10}/> {taken.length}</div>
           <div className="flex items-center gap-1 text-emerald-400 text-[9px] font-bold"><Clock size={10}/> {called.length}/75</div>
@@ -1504,17 +1543,45 @@ export default function BingoGame() {
         <Header />
         {game.status === 'waiting' && (
           <div className="bg-[#0a0d1f] px-3 pt-3 pb-3">
-            <div className="flex items-center gap-2 mb-2">
-              <button onClick={() => setSelectedStake(null)} className="h-9 w-10 flex items-center justify-center bg-white/5 border border-white/10 rounded-xl"><ArrowLeft size={18} className="text-white" /></button>
-              <div className="relative">
+            <div className="flex items-center gap-1.5 mb-2">
+              <button 
+                onClick={() => {
+                  setSelectedStake(null);
+                  setSelectedRoomId(null);
+                  setSearchParams({});
+                }} 
+                className="h-9 w-9 flex items-center justify-center bg-white/5 border border-white/10 rounded-xl shrink-0 active:scale-95 transition-transform"
+                title="Back to rooms"
+              >
+                <ArrowLeft size={16} className="text-white" />
+              </button>
+
+              {/* Room Name Badge/Button */}
+              <button
+                onClick={() => {
+                  if (myCartelas.length === 0) {
+                    setSelectedStake(null);
+                    setSelectedRoomId(null);
+                    setSearchParams({});
+                  }
+                }}
+                className={`flex items-center gap-1.5 bg-gradient-to-r from-amber-500/20 to-orange-500/10 border border-amber-500/30 rounded-xl px-2.5 h-9 text-amber-300 font-black text-xs shrink-0 max-w-[120px] truncate ${myCartelas.length > 0 ? 'opacity-80 cursor-default' : 'active:scale-95'}`}
+                title={selectedRoom?.room_name || 'Room'}
+              >
+                <DoorOpen size={13} className="text-amber-400 shrink-0" />
+                <span className="truncate">{selectedRoom?.room_name || 'Room'}</span>
+              </button>
+
+              {/* Stake Dropdown */}
+              <div className="relative shrink-0">
                 <button 
                   onClick={() => {
                     if (myCartelas.length === 0) setShowStakeDropdown(!showStakeDropdown);
                   }}
-                  className={`flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl pl-3 pr-3 h-9 text-white font-black text-sm transition-colors ${myCartelas.length > 0 ? 'opacity-50 cursor-not-allowed' : 'active:bg-white/10'}`}
+                  className={`flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-xl px-2.5 h-9 text-white font-black text-xs transition-colors ${myCartelas.length > 0 ? 'opacity-50 cursor-not-allowed' : 'active:bg-white/10'}`}
                 >
                   <span>{selectedStake} ETB</span>
-                  <ChevronDown size={14} className={`text-white/50 transition-transform ${showStakeDropdown ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={12} className={`text-white/50 transition-transform ${showStakeDropdown ? 'rotate-180' : ''}`} />
                 </button>
                 
                 {/* Dropdown Menu */}
@@ -1540,9 +1607,11 @@ export default function BingoGame() {
                   </>
                 )}
               </div>
-              <div className="flex-1 bg-white/5 border border-white/10 rounded-xl h-9 flex flex-col items-center justify-center">
-                <span className="text-[9px] text-white/30 font-bold leading-none">{t[language].bingo.gameId}</span>
-                <span className="text-sm font-black text-white leading-tight">{game.id.substring(0,9)}</span>
+
+              {/* Game ID Box — 8 uppercase characters, no hyphen */}
+              <div className="flex-1 min-w-[75px] bg-white/5 border border-white/10 rounded-xl h-9 flex flex-col items-center justify-center">
+                <span className="text-[8px] text-white/30 font-black tracking-wider uppercase leading-none">{t[language].bingo.gameId}</span>
+                <span className="text-xs font-black text-white leading-tight tracking-wider">{formatGameId(game.id)}</span>
               </div>
             </div>
             <div className="grid grid-cols-5 gap-1.5">

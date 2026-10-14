@@ -547,10 +547,10 @@ router.get('/tx-report', validateTelegramAuth, requireAdmin, async (req, res) =>
     const prize = Number(g.winner_prize || 0);
     if (g.win_type === 'jackpot_8') {
       totalJackpot8 += prize;
-      txList.push({ id: g.id + '_j8', type: 'jackpot_8', amount: prize, status: 'approved', created_at: g.finished_at, username: uname, telegram_id: g.winner_telegram_id, game_id: g.id.substring(0,9), stake: g.stake });
+      txList.push({ id: g.id + '_j8', type: 'jackpot_8', amount: prize, status: 'approved', created_at: g.finished_at, username: uname, telegram_id: g.winner_telegram_id, game_id: g.id.replace(/-/g, '').substring(0, 8).toUpperCase(), stake: g.stake });
     } else if (g.win_type === 'jackpot_10') {
       totalJackpot10 += prize;
-      txList.push({ id: g.id + '_j10', type: 'jackpot_10', amount: prize, status: 'approved', created_at: g.finished_at, username: uname, telegram_id: g.winner_telegram_id, game_id: g.id.substring(0,9), stake: g.stake });
+      txList.push({ id: g.id + '_j10', type: 'jackpot_10', amount: prize, status: 'approved', created_at: g.finished_at, username: uname, telegram_id: g.winner_telegram_id, game_id: g.id.replace(/-/g, '').substring(0, 8).toUpperCase(), stake: g.stake });
     }
   });
 
@@ -933,7 +933,8 @@ router.get('/user-audit/:telegramId', async (req, res) => {
     (plays || []).forEach((p: any) => {
       if (p.bingo_games) {
         if (p.bingo_games.status !== 'cancelled') {
-           txList.push({ id: 'play_' + p.game_id + '_' + Math.random(), type: 'game_stake', amount: p.bingo_games.stake, status: 'approved', created_at: p.created_at, note: 'Game #' + p.game_id });
+           const gId = p.game_id ? p.game_id.replace(/-/g, '').substring(0, 8).toUpperCase() : '';
+           txList.push({ id: 'play_' + p.game_id + '_' + Math.random(), type: 'game_stake', amount: p.bingo_games.stake, status: 'approved', created_at: p.created_at, note: 'Game #' + gId });
         }
       }
     });

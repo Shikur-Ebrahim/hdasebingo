@@ -36,6 +36,11 @@ export function checkBingo(card: number[][], called: number[]): boolean {
   return false;
 }
 
+function formatGameId(id: string | null | undefined): string {
+  if (!id) return '???';
+  return id.replace(/-/g, '').substring(0, 8).toUpperCase();
+}
+
 class BingoEngine {
   private timer: ReturnType<typeof setInterval> | null = null;
   private busy = false;
@@ -63,18 +68,28 @@ class BingoEngine {
 
     const rooms = activeRooms || [];
     if (rooms.length === 0) return;
+    const roomIds = rooms.map(r => r.id);
+
+    // 2. Fetch all active non-finished games across all rooms in ONE batch query
+    const { data: activeGames } = await supabase
+      .from('bingo_games')
+      .select('*')
+      .in('room_id', roomIds)
+      .neq('status', 'finished')
+      .order('created_at', { ascending: false });
+
+    const gamesMap = new Map<string, any>();
+    for (const g of activeGames || []) {
+      const key = `${g.room_id}_${g.stake}`;
+      if (!gamesMap.has(key)) {
+        gamesMap.set(key, g);
+      }
+    }
 
     for (const room of rooms) {
       for (const stake of STAKES) {
-        const { data: game } = await supabase
-          .from('bingo_games')
-          .select('*')
-          .eq('room_id', room.id)
-          .eq('stake', stake)
-          .neq('status', 'finished')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        const key = `${room.id}_${stake}`;
+        const game = gamesMap.get(key);
 
         if (!game) {
           await this.createGame(room.id, stake);
@@ -99,7 +114,7 @@ class BingoEngine {
       called_numbers: [],
       start_at,
     }).select('id').single();
-    const displayId = newGame?.id?.substring(0, 9) ?? '???';
+    const displayId = formatGameId(newGame?.id);
     console.log(`🎰 Room ${roomId} Game #${displayId} (Stake: ${stake}) created, waiting for first player`);
   }
 
@@ -136,7 +151,7 @@ class BingoEngine {
 
       // Has the release time (default 60s) expired?
       if (waitingDurationSec >= releaseTimeoutSec) {
-        console.log(`⏰ Game #${game.id.substring(0,9)} (Stake: ${game.stake}): Release time reached (${Math.round(waitingDurationSec)}s >= ${releaseTimeoutSec}s). Refunding ${players.length} cartelas and releasing player.`);
+        console.log(`⏰ Game #${formatGameId(game.id)} (Stake: ${game.stake}): Release time reached (${Math.round(waitingDurationSec)}s >= ${releaseTimeoutSec}s). Refunding ${players.length} cartelas and releasing player.`);
         await this.refundAndResetGame(game, players);
         return;
       }
@@ -147,7 +162,7 @@ class BingoEngine {
         start_at: new Date(Date.now() + remainingSec * 1000).toISOString(),
         updated_at: new Date().toISOString(),
       }).eq('id', game.id);
-      console.log(`🎰 Game #${game.game_id} extended by ${remainingSec}s (${Math.round(waitingDurationSec)}s elapsed / ${releaseTimeoutSec}s total release limit)`);
+      console.log(`🎰 Game #${formatGameId(game.id)} extended by ${remainingSec}s (${Math.round(waitingDurationSec)}s elapsed / ${releaseTimeoutSec}s total release limit)`);
       return;
     }
 
@@ -157,7 +172,7 @@ class BingoEngine {
       called_numbers: [],
       updated_at: new Date().toISOString(),
     }).eq('id', game.id);
-    console.log(`🎰 Game #${game.game_id} started with ${uniquePlayers} unique players!`);
+    console.log(`🎰 Game #${formatGameId(game.id)} started with ${uniquePlayers} unique players!`);
   }
 
   private async refundAndResetGame(game: any, players: any[]) {
@@ -229,24 +244,18 @@ class BingoEngine {
       updated_at: new Date().toISOString(),
     }).eq('id', game.id);
 
-    console.log(`✅ Game #${game.id.substring(0,9)} successfully reset and refunded.`);
+    console.log(`✅ Game #${formatGameId(game.id)} successfully reset and refunded.`);
   }
 
   private async handleCalling(game: any) {
-    // Guard: re-fetch to confirm the game is still calling (prevents stale reads)
-    const { data: freshGame } = await supabase
-      .from('bingo_games')
-      .select('status, updated_at, called_numbers')
-      .eq('id', game.id)
-      .single();
-    if (!freshGame || freshGame.status !== 'calling') return;
+    if (game.status !== 'calling') return;
 
     const cfg = await getSettings();
     const intervalMs = Math.max(1000, Number(cfg.call_interval_ms) || 3000);
-    const lastUpdate = new Date(freshGame.updated_at || game.updated_at).getTime();
+    const lastUpdate = new Date(game.updated_at).getTime();
     if (Date.now() - lastUpdate < intervalMs) return;
 
-    const called: number[] = (freshGame.called_numbers || game.called_numbers || []).map(Number);
+    const called: number[] = (game.called_numbers || []).map(Number);
     const pool = Array.from({ length: 75 }, (_, i) => i + 1).filter(n => !called.includes(n));
 
     if (pool.length === 0) {
@@ -371,7 +380,7 @@ class BingoEngine {
         : `🎉 BINGO! You won ${finalPrize} ETB on Cartela #${w.cartela_number}!`;
         
       await notify(w.telegram_id, msg);
-      console.log(`🏆 Game #${gameId.substring(0,9)}: Single winner ${w.first_name} — ${finalPrize} ETB`);
+      console.log(`🏆 Game #${formatGameId(gameId)}: Single winner ${w.first_name} — ${finalPrize} ETB`);
       await this.incrementRoomGames(roomId);
       return;
     }
@@ -409,13 +418,13 @@ class BingoEngine {
           `🎉 BINGO! You tied with another player! You each won ${splitPrize} ETB (prize split on Cartela #${w.cartela_number})!`
         );
       }
-      console.log(`🤝 Game #${gameId.substring(0,9)}: 2-way tie — ${w1.first_name} & ${w2.first_name} — ${splitPrize} ETB each`);
+      console.log(`🤝 Game #${formatGameId(gameId)}: 2-way tie — ${w1.first_name} & ${w2.first_name} — ${splitPrize} ETB each`);
       await this.incrementRoomGames(roomId);
       return;
     }
 
     // ── CASE 3: 3 or more winners — REMATCH ──────────────────────────────────
-    console.log(`🔄 Game #${gameId.substring(0,9)}: ${winners.length}-way tie — triggering REMATCH & stake refund`);
+    console.log(`🔄 Game #${formatGameId(gameId)}: ${winners.length}-way tie — triggering REMATCH & stake refund`);
 
     const { data: claim, error: claimErr } = await supabase.from('bingo_games').update({
         status:            'finished',
@@ -440,7 +449,7 @@ class BingoEngine {
       }
       await notify(
         p.telegram_id,
-        `🔄 REMATCH! ${winners.length} players hit BINGO at the same time on Game #${gameId.substring(0,9)}. Your ${stake} ETB stake has been refunded. A new game is starting!`
+        `🔄 REMATCH! ${winners.length} players hit BINGO at the same time on Game #${formatGameId(gameId)}. Your ${stake} ETB stake has been refunded. A new game is starting!`
       );
     }
     await this.incrementRoomGames(roomId);

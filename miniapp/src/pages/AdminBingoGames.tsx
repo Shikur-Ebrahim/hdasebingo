@@ -260,7 +260,7 @@ export default function AdminBingoGames() {
                       reportGames.map((g: any) => (
                         <div key={g.id} className="p-3 hover:bg-slate-50 transition-colors">
                           <div className="flex justify-between items-center mb-1">
-                            <span className="font-black text-sm text-slate-700">#{g.id.substring(0,9)}</span>
+                            <span className="font-black text-sm text-slate-700">#{g.id.replace(/-/g, '').substring(0, 8).toUpperCase()}</span>
                             <span className="text-[10px] font-bold text-slate-400">{new Date(g.created_at).toLocaleString()}</span>
                           </div>
                           <div className="flex justify-between items-center text-xs">
@@ -470,7 +470,7 @@ export default function AdminBingoGames() {
               <div className="grid grid-cols-3 gap-2 text-center mb-3">
                 <div>
                   <p className="text-[9px] text-slate-400 font-bold uppercase">Game ID</p>
-                  <p className="text-2xl font-black text-orange-600">#{liveGame.id.substring(0,9)}</p>
+                  <p className="text-2xl font-black text-orange-600">#{liveGame.id.replace(/-/g, '').substring(0, 8).toUpperCase()}</p>
                 </div>
                 <div>
                   <p className="text-[9px] text-slate-400 font-bold uppercase">Players</p>
@@ -521,7 +521,7 @@ export default function AdminBingoGames() {
               {games.filter(g => g.status === "finished").slice(0, 15).map(g => (
                 <div key={g.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
                   <div>
-                    <p className="font-black text-slate-700 text-sm">Game #{g.id.substring(0,9)}</p>
+                    <p className="font-black text-slate-700 text-sm">Game #{g.id.replace(/-/g, '').substring(0, 8).toUpperCase()}</p>
                     <p className="text-xs text-slate-400">
                       {g.winner_first_name === "REMATCH"
                         ? "REMATCH - stakes refunded"

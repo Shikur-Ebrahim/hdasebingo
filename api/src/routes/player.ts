@@ -293,7 +293,8 @@ router.get('/audit', validateTelegramAuth, async (req: AuthRequest, res) => {
         // Wait, stake is taken on join. Refunded if cancelled. Let's just say "stake" for all plays.
         // Actually, if cancelled, it's refunded. So let's only show completed/active games stakes.
         if (p.bingo_games.status !== 'cancelled') {
-           txList.push({ id: 'play_' + p.game_id + '_' + Math.random(), type: 'game_stake', amount: p.bingo_games.stake, status: 'approved', created_at: p.created_at, note: 'Game #' + p.game_id });
+           const gId = p.game_id ? p.game_id.replace(/-/g, '').substring(0, 8).toUpperCase() : '';
+           txList.push({ id: 'play_' + p.game_id + '_' + Math.random(), type: 'game_stake', amount: p.bingo_games.stake, status: 'approved', created_at: p.created_at, note: 'Game #' + gId });
         }
       }
     });
