@@ -173,7 +173,7 @@ export default function BingoGame() {
   const [previewCartela, setPreviewCartela] = useState<{ seat: number; matrix: number[][] } | null>(null);
   const [homeGames, setHomeGames] = useState<Record<number, { pool: number; start_at?: string; status: string; players: number }>>({});
   const [homeTimeLeft, setHomeTimeLeft] = useState<Record<number, number>>({});
-  const [soundEnabled, setSoundEnabled] = useState(true); // default ON
+  const [soundEnabled, setSoundEnabled] = useState(false); // default OFF
   const [volume, setVolume] = useState(1.0);
   const [autoMark, setAutoMark] = useState(true); // default: auto-mark called numbers
   const [manuallyMarked, setManuallyMarked] = useState<Set<number>>(new Set());
@@ -321,6 +321,8 @@ export default function BingoGame() {
   const specialAudioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioBufferCache = useRef<Map<string, AudioBuffer>>(new Map());
+  const activeCallSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const activeSpecialSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
   // Keep AudioContext resumed and mobile media pipeline unlocked on any touch
   const unlockAudio = useCallback(() => {
@@ -414,7 +416,7 @@ export default function BingoGame() {
   }, []);
 
   // ── CORE WEBAUDIO PLAYER ────────────────────────
-  const playViaWebAudio = useCallback(async (src: string, customGain?: number): Promise<boolean> => {
+  const playViaWebAudio = useCallback(async (src: string, customGain?: number, isSpecial: boolean = false): Promise<boolean> => {
     try {
       if (!audioCtxRef.current) {
         const AC = window.AudioContext || (window as any).webkitAudioContext;
@@ -423,6 +425,25 @@ export default function BingoGame() {
       const ctx = audioCtxRef.current;
       if (!ctx) return false;
       if (ctx.state === 'suspended') await ctx.resume();
+
+      // If playing special (bingo_win), stop any active caller audio immediately so they NEVER overlap!
+      if (isSpecial) {
+        if (activeCallSourceRef.current) {
+          try {
+            activeCallSourceRef.current.stop();
+            activeCallSourceRef.current.disconnect();
+          } catch {}
+          activeCallSourceRef.current = null;
+        }
+      } else {
+        if (activeCallSourceRef.current) {
+          try {
+            activeCallSourceRef.current.stop();
+            activeCallSourceRef.current.disconnect();
+          } catch {}
+          activeCallSourceRef.current = null;
+        }
+      }
 
       let audioBuf = audioBufferCache.current.get(src);
       if (!audioBuf) {
@@ -443,6 +464,18 @@ export default function BingoGame() {
       source.buffer = audioBuf;
       source.connect(gainNode);
       gainNode.connect(ctx.destination);
+
+      if (isSpecial) {
+        activeSpecialSourceRef.current = source;
+      } else {
+        activeCallSourceRef.current = source;
+      }
+
+      source.onended = () => {
+        if (isSpecial && activeSpecialSourceRef.current === source) activeSpecialSourceRef.current = null;
+        if (!isSpecial && activeCallSourceRef.current === source) activeCallSourceRef.current = null;
+      };
+
       source.start(0);
       return true;
     } catch(e) {
@@ -466,32 +499,41 @@ export default function BingoGame() {
 
     // 1. If WebAudio context is running, use WebAudio directly (fast, zero lag, reliable on mobile)
     if (audioCtxRef.current && audioCtxRef.current.state === 'running') {
-      playViaWebAudio(src);
+      playViaWebAudio(src, undefined, false);
       return;
     }
 
     // 2. Otherwise play via standard HTML5 Audio with fallback to WebAudio
     try {
+      if (callAudioRef.current) {
+        callAudioRef.current.pause();
+      }
       const audio = new Audio(src);
+      callAudioRef.current = audio;
       audio.volume = Math.min(1.0, Math.max(0.0, volume));
       audio.play().catch(() => {
-        playViaWebAudio(src);
+        playViaWebAudio(src, undefined, false);
       });
     } catch {
-      playViaWebAudio(src);
+      playViaWebAudio(src, undefined, false);
     }
   }, [soundEnabled, volume, unlockAudio, playViaWebAudio]);
 
   // ── CELEBRATION ──────────────────────────────────────────────────────────────────────────
-  // Plays ONLY the "Bingo!" announcement voice (/audio/bingo/bingo_win.mp3) — no synth, no fanfare.
-  // Plays at full volume, always on.
-  const specialAudioElRef = useRef<HTMLAudioElement | null>(null);
-
+  // Plays ONLY the "Bingo!" announcement voice (/audio/bingo/bingo_win.mp3).
+  // Immediately stops all other sounds so Bingo! is crystal clear with zero overlap.
   const playSpecial = useCallback((name: string = 'bingo_win') => {
     const src = `/audio/bingo/${name}.mp3`;
     unlockAudio();
 
-    // Stop caller voice immediately so "Bingo!" is loud and clear
+    // Stop caller voice immediately so "Bingo!" is loud, clear, and never overlaps
+    if (activeCallSourceRef.current) {
+      try {
+        activeCallSourceRef.current.stop();
+        activeCallSourceRef.current.disconnect();
+      } catch {}
+      activeCallSourceRef.current = null;
+    }
     try {
       if (callAudioRef.current) {
         callAudioRef.current.pause();
@@ -499,27 +541,22 @@ export default function BingoGame() {
       }
     } catch {}
 
-    // Dedicated celebration audio element with explicit .load()
-    try {
-      if (!specialAudioElRef.current) {
-        specialAudioElRef.current = new Audio();
-      }
-      const audio = specialAudioElRef.current;
-      try { audio.pause(); } catch {}
-      audio.currentTime = 0;
-      audio.src = src;
-      audio.volume = 1.0; // Celebration is always full 100% volume
-      audio.onerror = () => { playViaWebAudio(src, 1.5); };
-      audio.load();
+    // Priority 1: WebAudio
+    if (audioCtxRef.current && audioCtxRef.current.state === 'running') {
+      playViaWebAudio(src, 1.8, true);
+      return;
+    }
 
-      const p = audio.play();
-      if (p !== undefined) {
-        p.catch(() => {
-          playViaWebAudio(src, 1.5);
-        });
-      }
+    // Priority 2: HTML Audio
+    try {
+      const audio = new Audio(src);
+      specialAudioRef.current = audio;
+      audio.volume = 1.0;
+      audio.play().catch(() => {
+        playViaWebAudio(src, 1.8, true);
+      });
     } catch {
-      playViaWebAudio(src, 1.5);
+      playViaWebAudio(src, 1.8, true);
     }
   }, [unlockAudio, playViaWebAudio]);
 
@@ -603,14 +640,14 @@ export default function BingoGame() {
     return () => clearInterval(id);
   }, [game?.status, game?.start_at, fetchState]);
 
-  // Fast polling fallback: keeps game state sync'd with zero delay when calling or countdown reaches 0
+  // Fast polling fallback: keeps game state sync'd with zero delay (1s interval)
   useEffect(() => {
     if (!selectedStake) return;
     const pollId = setInterval(() => {
       if (game?.status === 'calling' || (game?.status === 'waiting' && timeLeft <= 2)) {
         fetchState();
       }
-    }, 1500);
+    }, 1000);
     return () => clearInterval(pollId);
   }, [selectedStake, game?.status, timeLeft, fetchState]);
 
@@ -627,7 +664,7 @@ export default function BingoGame() {
 
   const hasCelebratedRef = useRef<string | null>(null);
 
-  // Fire celebration when game finishes — play sound + fetch winner card
+  // Fire celebration when game finishes — sequence final number call then "BINGO!" with zero overlap
   useEffect(() => {
     if (game?.status !== 'finished') return;
     if (hasCelebratedRef.current === game.id) return;
@@ -636,9 +673,20 @@ export default function BingoGame() {
 
     hasCelebratedRef.current = game.id;
 
+    // Trigger celebration sound cleanly: if final number hasn't played yet, play it first, then Bingo! 900ms after
+    const hasUnplayedFinalCall = soundEnabled && called.length > prevCalledLenRef.current && lastNum;
+    if (hasUnplayedFinalCall) {
+      playCallAudio(lastNum);
+      prevCalledLenRef.current = called.length;
+      setTimeout(() => {
+        playSpecial('bingo_win');
+      }, 900);
+    } else {
+      playSpecial('bingo_win');
+    }
+
     // ── REMATCH: 3+ way tie ───────────────────────────────────────────────────
     if (game.winner_first_name === 'REMATCH') {
-      playSpecial('bingo_win');
       setCelebration({
         winner_name: 'REMATCH',
         winner_cartela: 0,
@@ -651,57 +699,56 @@ export default function BingoGame() {
     }
 
     // ── Normal or 2-way tie ───────────────────────────────────────────────────
-          const iWon = game.winner_telegram_id === String(user?.telegram_id);
-      let isMounted = true;
-      playSpecial('bingo_win');
-      
-      if (game.winner_first_name && game.winner_first_name.includes(' & ')) {
-        fetch(`${API}/bingo/winners?game_id=${game.id}`, { headers: hdrs() })
+    const iWon = game.winner_telegram_id === String(user?.telegram_id);
+    let isMounted = true;
+    
+    if (game.winner_first_name && game.winner_first_name.includes(' & ')) {
+      fetch(`${API}/bingo/winners?game_id=${game.id}`, { headers: hdrs() })
+        .then(r => r.json())
+        .then(data => {
+          if (!isMounted) return;
+          setCelebration({
+            winner_name: game.winner_first_name || 'Player',
+            winner_cartela: 0,
+            winner_prize: game.winner_prize!,
+            winner_matrix: null,
+            winners_list: data.winners,
+            iWon, called: [...game.called_numbers]
+          });
+        }).catch(() => {
+          if (isMounted) setCelebration({ winner_name: game.winner_first_name || 'Player', winner_cartela: 0, winner_prize: game.winner_prize!, winner_matrix: null, iWon, called: [...game.called_numbers] });
+        });
+    } else {
+      const localCard = myCartelas.find(c => c.cartela_number === game.winner_cartela)?.card_matrix;
+      if (localCard) {
+        setCelebration({
+          winner_name: game.winner_first_name || 'Player',
+          winner_cartela: game.winner_cartela!,
+          winner_prize: game.winner_prize!,
+          winner_matrix: localCard,
+          iWon, called: [...(game.called_numbers || [])]
+        });
+      } else {
+        fetch(`${API}/bingo/card?game_id=${game.id}&cartela=${game.winner_cartela}`, { headers: hdrs() })
           .then(r => r.json())
           .then(data => {
             if (!isMounted) return;
             setCelebration({
               winner_name: game.winner_first_name || 'Player',
-              winner_cartela: 0,
+              winner_cartela: game.winner_cartela!,
               winner_prize: game.winner_prize!,
-              winner_matrix: null,
-              winners_list: data.winners,
-              iWon, called: [...game.called_numbers]
+              winner_matrix: data.matrix || null,
+              iWon, called: [...(game.called_numbers || [])]
             });
           }).catch(() => {
-            if (isMounted) setCelebration({ winner_name: game.winner_first_name || 'Player', winner_cartela: 0, winner_prize: game.winner_prize!, winner_matrix: null, iWon, called: [...game.called_numbers] });
+            if (isMounted) setCelebration({ winner_name: game.winner_first_name || 'Player', winner_cartela: game.winner_cartela!, winner_prize: game.winner_prize!, winner_matrix: null, iWon, called: [...(game.called_numbers || [])] });
           });
-      } else {
-        const localCard = myCartelas.find(c => c.cartela_number === game.winner_cartela)?.card_matrix;
-        if (localCard) {
-          setCelebration({
-            winner_name: game.winner_first_name || 'Player',
-            winner_cartela: game.winner_cartela!,
-            winner_prize: game.winner_prize!,
-            winner_matrix: localCard,
-            iWon, called: [...(game.called_numbers || [])]
-          });
-        } else {
-          fetch(`${API}/bingo/card?game_id=${game.id}&cartela=${game.winner_cartela}`, { headers: hdrs() })
-            .then(r => r.json())
-            .then(data => {
-              if (!isMounted) return;
-              setCelebration({
-                winner_name: game.winner_first_name || 'Player',
-                winner_cartela: game.winner_cartela!,
-                winner_prize: game.winner_prize!,
-                winner_matrix: data.matrix || null,
-                iWon, called: [...(game.called_numbers || [])]
-              });
-            }).catch(() => {
-              if (isMounted) setCelebration({ winner_name: game.winner_first_name || 'Player', winner_cartela: game.winner_cartela!, winner_prize: game.winner_prize!, winner_matrix: null, iWon, called: [...(game.called_numbers || [])] });
-            });
-        }
       }
-      return () => { isMounted = false; };
-  }, [game?.status, game?.id, game?.winner_cartela, game?.winner_first_name]);
+    }
+    return () => { isMounted = false; };
+  }, [game?.status, game?.id, game?.winner_cartela, game?.winner_first_name, playSpecial, playCallAudio, soundEnabled, called, lastNum]);
 
-  // Auto-dismiss celebration after 2 seconds
+  // Auto-dismiss celebration after 1 second
   useEffect(() => {
     if (!celebration) return;
     const timer = setTimeout(() => {
@@ -713,7 +760,7 @@ export default function BingoGame() {
       hasCelebratedRef.current = null; // Reset so subsequent games celebrate cleanly
       fetchState();
       refreshUser();
-    }, 2000);
+    }, 1000);
     return () => clearTimeout(timer);
   }, [celebration]);
 
@@ -1431,7 +1478,7 @@ export default function BingoGame() {
                         </div>
                         {/* Cartela Label */}
                         <div className="py-0.5 px-2 flex items-center justify-between bg-[#0a0f1e] border-t border-white/10">
-                          <p className="text-yellow-400 font-black text-[8px] tracking-wider uppercase">#{card.cartela_number}</p>
+                          <p className="text-yellow-400 font-black text-[8px] tracking-wider uppercase flex items-center gap-1"><LayoutGrid size={9} className="text-yellow-300" /> {card.cartela_number}</p>
                           <span className="text-white/40 text-[7px] font-bold uppercase">{t[language].bingo.cartelaNum.trim()}</span>
                         </div>
                       </div>
@@ -1501,7 +1548,10 @@ export default function BingoGame() {
       {myNums.length > 0 && (
         <div className="flex gap-2 mb-2 flex-wrap">
           {myNums.map(n => (
-            <span key={n} className="px-3 py-1 bg-emerald-500 text-white text-xs font-black rounded-full ring-2 ring-yellow-300">#{n} ✓</span>
+            <span key={n} className="px-3 py-1 bg-emerald-500 text-white text-xs font-black rounded-full ring-2 ring-yellow-300 flex items-center gap-1.5 shadow-sm">
+              <LayoutGrid size={12} className="text-yellow-200 shrink-0" />
+              <span>{n} ✓</span>
+            </span>
           ))}
         </div>
       )}
@@ -1770,7 +1820,7 @@ export default function BingoGame() {
                     </div>
                     {/* Cartela label + Winning Rule Tag */}
                     <div className="py-2 px-3 flex items-center justify-between bg-[#0a0f1e] border-t border-white/10">
-                      <p className="text-yellow-400 font-black text-[11px] tracking-wider uppercase">CARTELA # {celebration.winner_cartela}</p>
+                      <p className="text-yellow-400 font-black text-[11px] tracking-wider uppercase flex items-center gap-1.5"><LayoutGrid size={13} className="text-yellow-300" /> CARTELA {celebration.winner_cartela}</p>
                       <span className="text-emerald-400 text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 px-2.5 py-0.5 rounded-full border border-emerald-500/40 shadow-[0_0_6px_rgba(16,185,129,0.3)]">
                         {winTitle}
                       </span>

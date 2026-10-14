@@ -167,12 +167,14 @@ class BingoEngine {
     }
 
     // 2+ unique players: START GAME!
+    const intervalMs = Math.max(1000, Number(cfg.call_interval_ms) || 3000);
     await supabase.from('bingo_games').update({
       status: 'calling',
       called_numbers: [],
-      updated_at: new Date().toISOString(),
+      // Start calling the first number in exactly 1 second
+      updated_at: new Date(Date.now() - intervalMs + 1000).toISOString(),
     }).eq('id', game.id);
-    console.log(`🎰 Game #${formatGameId(game.id)} started with ${uniquePlayers} unique players!`);
+    console.log(`🎰 Game #${formatGameId(game.id)} started with ${uniquePlayers} unique players! First call in 1s.`);
   }
 
   private async refundAndResetGame(game: any, players: any[]) {
