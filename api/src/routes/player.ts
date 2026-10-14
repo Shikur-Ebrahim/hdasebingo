@@ -298,7 +298,7 @@ router.get('/rooms', async (_req, res) => {
   try {
     const { data: rooms, error } = await supabase
       .from('rooms')
-      .select('id, room_name, agent_id, agent_name, total_players, total_games, status, created_at')
+      .select('id, room_name, agent_id, agent_name, total_games, status, created_at')
       .eq('status', 'active')
       .order('created_at', { ascending: true });
 
@@ -306,15 +306,13 @@ router.get('/rooms', async (_req, res) => {
 
     const enrichedRooms = await Promise.all(
       (rooms || []).map(async (room) => {
-        let players = Number(room.total_players || 0);
+        let players = 0;
         if (room.agent_id) {
           const { count } = await supabase
             .from('users')
             .select('id', { count: 'exact', head: true })
             .eq('inviter_id', room.agent_id);
-          if (count && count > players) {
-            players = count;
-          }
+          players = count || 0;
         }
         return {
           ...room,
@@ -330,29 +328,9 @@ router.get('/rooms', async (_req, res) => {
   }
 });
 
-// POST /player/rooms/:id/enter — track player entering a room
-router.post('/rooms/:id/enter', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { data: room } = await supabase
-      .from('rooms')
-      .select('id, total_players')
-      .eq('id', id)
-      .maybeSingle();
-
-    if (room) {
-      await supabase
-        .from('rooms')
-        .update({
-          total_players: Number(room.total_players || 0) + 1,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id);
-    }
-    res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+// POST /player/rooms/:id/enter — track player entering a room (no longer mutates total_players in rooms table)
+router.post('/rooms/:id/enter', async (_req, res) => {
+  res.json({ success: true });
 });
 
 export default router;

@@ -1058,7 +1058,6 @@ router.post('/agents/assign-room', async (req, res) => {
         agent_id: telegramId,
         room_name: assignedRoomName,
         agent_name: user.first_name || user.username || 'Agent',
-        total_players: 0,
         total_games: 0,
         status: roomStatus,
         updated_at: new Date().toISOString(),
@@ -1074,7 +1073,7 @@ router.post('/agents/assign-room', async (req, res) => {
   }
 });
 
-// GET /admin/rooms — get all rooms
+// GET /admin/rooms — get all rooms (enriched with real player count from users table)
 router.get('/rooms', async (_req, res) => {
   try {
     const { data: rooms, error } = await supabase
@@ -1083,7 +1082,25 @@ router.get('/rooms', async (_req, res) => {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    res.json({ rooms: rooms || [] });
+
+    const enriched = await Promise.all(
+      (rooms || []).map(async (r) => {
+        let players = 0;
+        if (r.agent_id) {
+          const { count } = await supabase
+            .from('users')
+            .select('id', { count: 'exact', head: true })
+            .eq('inviter_id', r.agent_id);
+          players = count || 0;
+        }
+        return {
+          ...r,
+          total_players: players,
+        };
+      })
+    );
+
+    res.json({ rooms: enriched });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -1095,7 +1112,6 @@ router.put('/rooms/:id', async (req, res) => {
     const updates: any = { updated_at: new Date().toISOString() };
     if (req.body.room_name !== undefined) updates.room_name = req.body.room_name;
     if (req.body.status !== undefined) updates.status = req.body.status;
-    if (req.body.total_players !== undefined) updates.total_players = Number(req.body.total_players);
     if (req.body.total_games !== undefined) updates.total_games = Number(req.body.total_games);
 
     const { data: room, error } = await supabase

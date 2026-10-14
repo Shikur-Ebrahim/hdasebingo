@@ -227,7 +227,6 @@ export default function AdminAgents() {
         body: JSON.stringify({
           room_name: editRoomName.trim(),
           status: editRoomStatus,
-          total_players: Number(editRoomPlayers) || 0,
           total_games: Number(editRoomGames) || 0,
         })
       });
@@ -527,14 +526,11 @@ export default function AdminAgents() {
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase">Players</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={editRoomPlayers}
-                  onChange={e => setEditRoomPlayers(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-sky-500"
-                />
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Players (From Users)</label>
+                <div className="w-full bg-slate-100 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-black text-emerald-600 flex items-center justify-between">
+                  <span>{editingRoom.total_players || 0}</span>
+                  <span className="text-[9px] text-slate-400 font-semibold">Auto</span>
+                </div>
               </div>
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase">Total Games</label>
