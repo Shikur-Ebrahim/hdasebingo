@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Plus, Trash2, Edit3, Upload, CheckCircle, XCircle, Video, Loader2, Eye, EyeOff, Play } from 'lucide-react';
+import { ChevronLeft, Plus, Trash2, Edit3, Upload, CheckCircle, XCircle, Video, Loader2, Eye, EyeOff, Play, X } from 'lucide-react';
 import WebApp from '@twa-dev/sdk';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -27,9 +27,6 @@ const CATEGORIES = [
   { id: 'transfer',     label: '🔄 How to Transfer', color: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
 ];
 
-// All tab + category tabs
-const ALL_TABS = [{ id: 'all', label: '🗂 All', color: 'bg-slate-100 text-slate-700 border-slate-200' }, ...CATEGORIES];
-
 const categoryLabel = (id: string) => CATEGORIES.find(c => c.id === id)?.label ?? id;
 const categoryColor = (id: string) => CATEGORIES.find(c => c.id === id)?.color ?? 'bg-slate-100 text-slate-700';
 
@@ -37,7 +34,7 @@ export default function AdminSupportVideos() {
   const navigate = useNavigate();
   const [videos, setVideos] = useState<SupportVideo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('all'); // default: All
+  const [activeTab, setActiveTab] = useState('all'); // default: All categories
 
   // Upload / form state
   const [showForm, setShowForm] = useState(false);
@@ -48,7 +45,10 @@ export default function AdminSupportVideos() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null);
+
+  // Full-screen video preview modal
   const [previewVideo, setPreviewVideo] = useState<SupportVideo | null>(null);
+  const previewVideoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
@@ -88,6 +88,11 @@ export default function AdminSupportVideos() {
     setFile(null);
     setUploadProgress(0);
     setShowForm(true);
+  };
+
+  const closePreview = () => {
+    if (previewVideoRef.current) previewVideoRef.current.pause();
+    setPreviewVideo(null);
   };
 
   const uploadVideoFile = async (f: File): Promise<{ video_url: string; video_key: string }> => {
@@ -183,6 +188,11 @@ export default function AdminSupportVideos() {
 
   const filtered = activeTab === 'all' ? videos : videos.filter(v => v.category === activeTab);
 
+  const getCategoryCount = (catId: string) => {
+    if (catId === 'all') return videos.length;
+    return videos.filter(v => v.category === catId).length;
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 pb-8">
       {/* Header */}
@@ -203,19 +213,29 @@ export default function AdminSupportVideos() {
         </button>
       </div>
 
-      {/* Category Tabs — All + each category */}
-      <div className="px-4 pt-4 pb-2 flex space-x-2 overflow-x-auto no-scrollbar">
-        {ALL_TABS.map(tab => (
+      {/* Category Tabs: All + 6 Categories */}
+      <div className="px-4 pt-3 pb-2 flex space-x-2 overflow-x-auto no-scrollbar">
+        <button
+          onClick={() => setActiveTab('all')}
+          className={`flex-shrink-0 px-3.5 py-1.5 rounded-full font-bold text-xs border transition-all ${
+            activeTab === 'all'
+              ? 'bg-violet-600 text-white border-violet-600 shadow-sm'
+              : 'bg-white text-slate-600 border-gray-200 hover:bg-slate-50'
+          }`}
+        >
+          🗂 All ({getCategoryCount('all')})
+        </button>
+        {CATEGORIES.map(cat => (
           <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            key={cat.id}
+            onClick={() => setActiveTab(cat.id)}
             className={`flex-shrink-0 px-3.5 py-1.5 rounded-full font-bold text-xs border transition-all ${
-              activeTab === tab.id
+              activeTab === cat.id
                 ? 'bg-violet-600 text-white border-violet-600 shadow-sm'
                 : 'bg-white text-slate-600 border-gray-200 hover:bg-slate-50'
             }`}
           >
-            {tab.label}
+            {cat.label} ({getCategoryCount(cat.id)})
           </button>
         ))}
       </div>
@@ -227,62 +247,109 @@ export default function AdminSupportVideos() {
             <Loader2 size={28} className="animate-spin text-violet-500" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-16">
-            <Video size={40} className="mx-auto text-slate-300 mb-3" />
-            <p className="text-slate-500 font-semibold text-sm">No videos yet</p>
-            <p className="text-slate-400 text-xs mt-1">Tap Add to upload the first video</p>
+          <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-gray-200 p-6">
+            <Video size={44} className="mx-auto text-slate-300 mb-3" />
+            <p className="text-slate-600 font-bold text-sm">No videos found</p>
+            <p className="text-slate-400 text-xs mt-1">Tap Add to upload a video for this section</p>
+            <button
+              onClick={openCreate}
+              className="mt-4 inline-flex items-center space-x-1.5 bg-violet-600 text-white px-4 py-2 rounded-xl text-xs font-bold active:scale-95"
+            >
+              <Plus size={14} />
+              <span>Add Video</span>
+            </button>
           </div>
         ) : (
           filtered.map(v => (
-            <div key={v.id} className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${!v.is_active ? 'opacity-60' : ''}`}>
-              {/* Inline video player */}
-              <div className="relative w-full bg-black" style={{ paddingTop: '56.25%' }}>
+            <div key={v.id} className={`bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden ${!v.is_active ? 'opacity-70' : ''}`}>
+              {/* Clickable Video Thumbnail / Player preview */}
+              <div
+                onClick={() => setPreviewVideo(v)}
+                className="relative w-full bg-slate-900 cursor-pointer group"
+                style={{ paddingTop: '52%' }}
+              >
                 <video
                   src={v.video_url}
-                  controls
-                  playsInline
                   preload="metadata"
-                  className="absolute inset-0 w-full h-full object-contain"
+                  playsInline
+                  muted
+                  className="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
                 />
-                {!v.is_active && (
-                  <div className="absolute top-2 right-2 bg-slate-900/70 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full">
-                    Hidden
+                
+                {/* Dark gradient overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-center justify-center">
+                  <div className="w-13 h-13 rounded-full bg-violet-600/90 text-white flex items-center justify-center shadow-lg group-hover:scale-110 active:scale-95 transition-transform p-3">
+                    <Play size={24} fill="currentColor" className="ml-0.5" />
                   </div>
-                )}
-              </div>
+                </div>
 
-              {/* Info */}
-              <div className="p-3">
-                <div className="flex items-center space-x-1.5 mb-1">
-                  <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full border ${categoryColor(v.category)}`}>
+                {/* Badge tags */}
+                <div className="absolute top-2.5 left-2.5 flex items-center space-x-1.5">
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm bg-white/95 ${categoryColor(v.category)}`}>
                     {categoryLabel(v.category)}
                   </span>
                 </div>
-                <p className="font-bold text-slate-800 text-sm leading-tight">{v.title}</p>
-                {v.description && <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{v.description}</p>}
+
+                <div className="absolute top-2.5 right-2.5">
+                  {!v.is_active ? (
+                    <span className="bg-rose-500/90 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-sm">
+                      Hidden
+                    </span>
+                  ) : (
+                    <span className="bg-emerald-500/90 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-sm">
+                      Active
+                    </span>
+                  )}
+                </div>
+
+                {/* Click to open label */}
+                <div className="absolute bottom-2 right-2.5 bg-black/70 backdrop-blur-sm text-white/90 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center space-x-1">
+                  <Play size={10} fill="currentColor" />
+                  <span>Click to play</span>
+                </div>
               </div>
 
-              {/* Actions */}
-              <div className="flex items-center border-t border-gray-100 divide-x divide-gray-100">
+              {/* Title & Description */}
+              <div className="p-3.5">
+                <h3 
+                  onClick={() => setPreviewVideo(v)}
+                  className="font-black text-slate-800 text-sm leading-snug cursor-pointer hover:text-violet-600 transition-colors"
+                >
+                  {v.title}
+                </h3>
+                {v.description && (
+                  <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">{v.description}</p>
+                )}
+              </div>
+
+              {/* Action Buttons Row */}
+              <div className="flex items-center border-t border-gray-100 divide-x divide-gray-100 bg-slate-50/50">
+                <button
+                  onClick={() => setPreviewVideo(v)}
+                  className="flex-1 flex items-center justify-center space-x-1.5 py-2.5 text-xs font-bold text-violet-700 hover:bg-violet-50 active:bg-violet-100 transition-colors"
+                >
+                  <Play size={13} fill="currentColor" />
+                  <span>Open Video</span>
+                </button>
                 <button
                   onClick={() => handleToggle(v)}
-                  className="flex-1 flex items-center justify-center space-x-1.5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 active:bg-slate-100 transition-colors"
+                  className="flex-1 flex items-center justify-center space-x-1.5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 active:bg-slate-200 transition-colors"
                 >
-                  {v.is_active ? <Eye size={14} className="text-emerald-500" /> : <EyeOff size={14} className="text-slate-400" />}
+                  {v.is_active ? <Eye size={13} className="text-emerald-500" /> : <EyeOff size={13} className="text-slate-400" />}
                   <span>{v.is_active ? 'Active' : 'Hidden'}</span>
                 </button>
                 <button
                   onClick={() => openEdit(v)}
                   className="flex-1 flex items-center justify-center space-x-1.5 py-2.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50 active:bg-indigo-100 transition-colors"
                 >
-                  <Edit3 size={14} />
+                  <Edit3 size={13} />
                   <span>Edit</span>
                 </button>
                 <button
                   onClick={() => handleDelete(v)}
                   className="flex-1 flex items-center justify-center space-x-1.5 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 active:bg-rose-100 transition-colors"
                 >
-                  <Trash2 size={14} />
+                  <Trash2 size={13} />
                   <span>Delete</span>
                 </button>
               </div>
@@ -291,27 +358,76 @@ export default function AdminSupportVideos() {
         )}
       </div>
 
-      {/* Upload / Edit Form Modal */}
+      {/* FULL-SCREEN VIDEO PLAYER MODAL */}
+      {previewVideo && (
+        <div className="fixed inset-0 z-50 bg-black flex flex-col justify-between">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 bg-slate-900/90 backdrop-blur-md border-b border-white/10 z-10">
+            <div className="flex-1 min-w-0 pr-3">
+              <span className={`inline-block text-[9px] font-black px-2 py-0.5 rounded-full mb-0.5 ${categoryColor(previewVideo.category)}`}>
+                {categoryLabel(previewVideo.category)}
+              </span>
+              <p className="font-bold text-white text-sm truncate">{previewVideo.title}</p>
+            </div>
+            <button
+              onClick={closePreview}
+              className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 active:scale-90 text-white flex items-center justify-center transition-all"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Video Player Area */}
+          <div className="flex-1 flex items-center justify-center bg-black p-2">
+            <video
+              ref={previewVideoRef}
+              src={previewVideo.video_url}
+              controls
+              autoPlay
+              playsInline
+              className="w-full max-h-full rounded-xl"
+              style={{ maxHeight: 'calc(100vh - 140px)' }}
+            >
+              Your browser does not support video playback.
+            </video>
+          </div>
+
+          {/* Bottom info footer */}
+          {previewVideo.description && (
+            <div className="p-3 bg-slate-900/90 border-t border-white/10 text-xs text-white/80 max-h-24 overflow-y-auto">
+              <p className="font-medium">{previewVideo.description}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* UPLOAD / EDIT FORM MODAL */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/50 backdrop-blur-sm">
-          <div className="w-full bg-white rounded-t-3xl p-5 space-y-4 max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <h2 className="font-black text-slate-800 text-base">{editing ? 'Edit Video' : 'Add Video'}</h2>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600 text-xl font-bold">×</button>
+        <div className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm">
+          <div className="w-full bg-white rounded-t-3xl p-5 space-y-4 max-h-[92vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+              <h2 className="font-black text-slate-800 text-base">{editing ? 'Edit Video' : 'Add New Video'}</h2>
+              <button 
+                onClick={() => setShowForm(false)} 
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-lg font-bold"
+              >
+                ✕
+              </button>
             </div>
 
-            {/* Category */}
+            {/* Category Selection (6 categories) */}
             <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1.5">Category</label>
+              <label className="block text-xs font-bold text-slate-600 mb-1.5">Category *</label>
               <div className="grid grid-cols-2 gap-2">
                 {CATEGORIES.map(cat => (
                   <button
                     key={cat.id}
+                    type="button"
                     onClick={() => setForm(f => ({ ...f, category: cat.id }))}
-                    className={`py-2.5 rounded-xl border font-bold text-xs transition-all ${
+                    className={`py-2.5 px-3 rounded-xl border font-bold text-xs transition-all text-left truncate ${
                       form.category === cat.id
-                        ? 'bg-violet-600 text-white border-violet-600'
-                        : 'bg-white text-slate-600 border-gray-200 hover:bg-slate-50'
+                        ? 'bg-violet-600 text-white border-violet-600 shadow-sm'
+                        : 'bg-white text-slate-700 border-gray-200 hover:bg-slate-50'
                     }`}
                   >
                     {cat.label}
@@ -337,16 +453,16 @@ export default function AdminSupportVideos() {
               <textarea
                 value={form.description}
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="Short description…"
+                placeholder="Short description of what the video explains…"
                 rows={2}
                 className="w-full px-3.5 py-3 rounded-xl border border-gray-200 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-violet-400 resize-none"
               />
             </div>
 
-            {/* Video File */}
+            {/* Video File Picker */}
             <div>
               <label className="block text-xs font-bold text-slate-600 mb-1.5">
-                Video File {editing ? <span className="font-normal text-slate-400">(leave empty to keep existing)</span> : '*'}
+                Video File {editing ? <span className="font-normal text-slate-400">(choose new file to replace)</span> : '*'}
               </label>
               <input
                 ref={fileInputRef}
@@ -356,38 +472,54 @@ export default function AdminSupportVideos() {
                 className="hidden"
               />
               <button
+                type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full flex items-center justify-center space-x-2 border-2 border-dashed border-violet-300 bg-violet-50 hover:bg-violet-100 py-5 rounded-xl transition-colors"
+                className="w-full flex items-center justify-center space-x-2 border-2 border-dashed border-violet-300 bg-violet-50/70 hover:bg-violet-100/70 py-4 rounded-xl transition-colors"
               >
-                <Upload size={20} className="text-violet-500" />
+                <Upload size={20} className="text-violet-600" />
                 <span className="text-sm font-bold text-violet-700">
-                  {file ? file.name : 'Tap to select video'}
+                  {file ? file.name : 'Tap to select video file'}
                 </span>
               </button>
               {file && (
-                <p className="text-xs text-slate-500 mt-1 text-center">
-                  {(file.size / 1024 / 1024).toFixed(1)} MB — {file.type}
+                <p className="text-xs text-slate-500 mt-1 text-center font-medium">
+                  Selected: {(file.size / 1024 / 1024).toFixed(1)} MB — {file.type || 'video'}
                 </p>
               )}
 
-              {/* Preview selected file before upload */}
+              {/* Video Preview: Newly selected file */}
               {file && (
                 <div className="mt-3 rounded-xl overflow-hidden border border-violet-200 bg-black">
+                  <p className="text-[11px] font-bold text-white/80 bg-slate-900 px-3 py-1">Video Preview (Selected File):</p>
                   <video
                     src={URL.createObjectURL(file)}
                     controls
                     playsInline
-                    className="w-full max-h-48 object-contain"
+                    className="w-full max-h-48 object-contain bg-black"
                   />
                 </div>
               )}
 
+              {/* Video Preview: Existing video when editing */}
+              {!file && editing?.video_url && (
+                <div className="mt-3 rounded-xl overflow-hidden border border-gray-200 bg-black">
+                  <p className="text-[11px] font-bold text-white/80 bg-slate-900 px-3 py-1">Current Saved Video:</p>
+                  <video
+                    src={editing.video_url}
+                    controls
+                    playsInline
+                    className="w-full max-h-48 object-contain bg-black"
+                  />
+                </div>
+              )}
+
+              {/* Upload Progress */}
               {uploading && (
                 <div className="mt-2 space-y-1">
                   <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                    <div className="h-full bg-violet-500 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
+                    <div className="h-full bg-violet-600 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
                   </div>
-                  <p className="text-xs text-center text-violet-600 font-bold">{uploadProgress}% uploaded…</p>
+                  <p className="text-xs text-center text-violet-600 font-bold">{uploadProgress}% uploaded to R2…</p>
                 </div>
               )}
             </div>
@@ -396,16 +528,16 @@ export default function AdminSupportVideos() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white py-3.5 rounded-xl font-black text-sm flex items-center justify-center space-x-2 active:scale-95 transition-all"
+              className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white py-3.5 rounded-xl font-black text-sm flex items-center justify-center space-x-2 active:scale-95 transition-all shadow-md shadow-violet-200"
             >
               {saving ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />}
-              <span>{saving ? (uploading ? 'Uploading…' : 'Saving…') : editing ? 'Update Video' : 'Save Video'}</span>
+              <span>{saving ? (uploading ? 'Uploading Video…' : 'Saving…') : editing ? 'Update Video' : 'Save & Publish Video'}</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* Toast */}
+      {/* Toast Alert */}
       {toast && (
         <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center space-x-2 px-4 py-2.5 rounded-full shadow-lg text-white text-sm font-bold ${toast.type === 'ok' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
           {toast.type === 'ok' ? <CheckCircle size={16} /> : <XCircle size={16} />}

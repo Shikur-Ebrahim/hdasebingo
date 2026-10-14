@@ -344,7 +344,7 @@ router.get('/support-videos', async (req, res) => {
       .order('sort_order')
       .order('created_at');
 
-    if (req.query.category) {
+    if (req.query.category && req.query.category !== 'all') {
       query = query.eq('category', req.query.category as string);
     }
 
