@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Plus, Trash2, Edit3, Upload, CheckCircle, XCircle, Video, Loader2, Eye, EyeOff, GripVertical } from 'lucide-react';
+import { ChevronLeft, Plus, Trash2, Edit3, Upload, CheckCircle, XCircle, Video, Loader2, Eye, EyeOff, Play } from 'lucide-react';
 import WebApp from '@twa-dev/sdk';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -19,11 +19,16 @@ interface SupportVideo {
 }
 
 const CATEGORIES = [
-  { id: 'how_to_use',  label: '📱 How to Use',   color: 'bg-blue-100 text-blue-700 border-blue-200' },
-  { id: 'how_to_play', label: '🎮 How to Play',   color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
-  { id: 'deposit',     label: '💰 Deposit',        color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-  { id: 'withdraw',    label: '💸 Withdraw',       color: 'bg-rose-100 text-rose-700 border-rose-200' },
+  { id: 'how_to_use',   label: '📱 How to Use',     color: 'bg-blue-100 text-blue-700 border-blue-200' },
+  { id: 'how_to_play',  label: '🎮 How to Play',     color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  { id: 'deposit',      label: '💰 Deposit',          color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+  { id: 'withdraw',     label: '💸 Withdraw',         color: 'bg-rose-100 text-rose-700 border-rose-200' },
+  { id: 'invite',       label: '🤝 How to Invite',   color: 'bg-purple-100 text-purple-700 border-purple-200' },
+  { id: 'transfer',     label: '🔄 How to Transfer', color: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
 ];
+
+// All tab + category tabs
+const ALL_TABS = [{ id: 'all', label: '🗂 All', color: 'bg-slate-100 text-slate-700 border-slate-200' }, ...CATEGORIES];
 
 const categoryLabel = (id: string) => CATEGORIES.find(c => c.id === id)?.label ?? id;
 const categoryColor = (id: string) => CATEGORIES.find(c => c.id === id)?.color ?? 'bg-slate-100 text-slate-700';
@@ -32,7 +37,7 @@ export default function AdminSupportVideos() {
   const navigate = useNavigate();
   const [videos, setVideos] = useState<SupportVideo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeCategory, setActiveCategory] = useState('how_to_use');
+  const [activeTab, setActiveTab] = useState('all'); // default: All
 
   // Upload / form state
   const [showForm, setShowForm] = useState(false);
@@ -43,6 +48,7 @@ export default function AdminSupportVideos() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null);
+  const [previewVideo, setPreviewVideo] = useState<SupportVideo | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
@@ -70,7 +76,7 @@ export default function AdminSupportVideos() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ category: activeCategory, title: '', description: '' });
+    setForm({ category: activeTab === 'all' ? 'how_to_use' : activeTab, title: '', description: '' });
     setFile(null);
     setUploadProgress(0);
     setShowForm(true);
@@ -85,7 +91,6 @@ export default function AdminSupportVideos() {
   };
 
   const uploadVideoFile = async (f: File): Promise<{ video_url: string; video_key: string }> => {
-    // Step 1: Get presigned URL
     const presignRes = await fetch(`${API_URL}/upload/presign`, {
       method: 'POST',
       headers: { 'x-telegram-init-data': initData, 'Content-Type': 'application/json' },
@@ -94,7 +99,6 @@ export default function AdminSupportVideos() {
     if (!presignRes.ok) throw new Error('Failed to get upload URL');
     const { uploadUrl, publicUrl, key } = await presignRes.json();
 
-    // Step 2: PUT directly to R2 with progress tracking via XMLHttpRequest
     await new Promise<void>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.upload.onprogress = (e) => {
@@ -177,7 +181,7 @@ export default function AdminSupportVideos() {
     }
   };
 
-  const filtered = videos.filter(v => v.category === activeCategory);
+  const filtered = activeTab === 'all' ? videos : videos.filter(v => v.category === activeTab);
 
   return (
     <div className="min-h-screen bg-slate-50 pb-8">
@@ -199,19 +203,19 @@ export default function AdminSupportVideos() {
         </button>
       </div>
 
-      {/* Category Tabs */}
+      {/* Category Tabs — All + each category */}
       <div className="px-4 pt-4 pb-2 flex space-x-2 overflow-x-auto no-scrollbar">
-        {CATEGORIES.map(cat => (
+        {ALL_TABS.map(tab => (
           <button
-            key={cat.id}
-            onClick={() => setActiveCategory(cat.id)}
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
             className={`flex-shrink-0 px-3.5 py-1.5 rounded-full font-bold text-xs border transition-all ${
-              activeCategory === cat.id
+              activeTab === tab.id
                 ? 'bg-violet-600 text-white border-violet-600 shadow-sm'
                 : 'bg-white text-slate-600 border-gray-200 hover:bg-slate-50'
             }`}
           >
-            {cat.label}
+            {tab.label}
           </button>
         ))}
       </div>
@@ -231,30 +235,31 @@ export default function AdminSupportVideos() {
         ) : (
           filtered.map(v => (
             <div key={v.id} className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${!v.is_active ? 'opacity-60' : ''}`}>
-              <div className="flex items-start p-3 space-x-3">
-                {/* Thumbnail / placeholder */}
-                <div className="w-20 h-14 rounded-xl bg-gradient-to-br from-violet-100 to-indigo-100 flex items-center justify-center shrink-0 relative overflow-hidden border border-violet-200/50">
-                  {v.thumbnail_url ? (
-                    <img src={v.thumbnail_url} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <Video size={22} className="text-violet-400" />
-                  )}
-                  {!v.is_active && (
-                    <div className="absolute inset-0 bg-slate-900/30 flex items-center justify-center">
-                      <span className="text-[9px] text-white font-black uppercase bg-slate-700/80 px-1 py-0.5 rounded">Hidden</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center space-x-1.5 mb-0.5">
-                    <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full border ${categoryColor(v.category)}`}>
-                      {categoryLabel(v.category)}
-                    </span>
+              {/* Inline video player */}
+              <div className="relative w-full bg-black" style={{ paddingTop: '56.25%' }}>
+                <video
+                  src={v.video_url}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="absolute inset-0 w-full h-full object-contain"
+                />
+                {!v.is_active && (
+                  <div className="absolute top-2 right-2 bg-slate-900/70 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full">
+                    Hidden
                   </div>
-                  <p className="font-bold text-slate-800 text-sm leading-tight truncate">{v.title}</p>
-                  {v.description && <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{v.description}</p>}
+                )}
+              </div>
+
+              {/* Info */}
+              <div className="p-3">
+                <div className="flex items-center space-x-1.5 mb-1">
+                  <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full border ${categoryColor(v.category)}`}>
+                    {categoryLabel(v.category)}
+                  </span>
                 </div>
+                <p className="font-bold text-slate-800 text-sm leading-tight">{v.title}</p>
+                {v.description && <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{v.description}</p>}
               </div>
 
               {/* Actions */}
@@ -364,6 +369,19 @@ export default function AdminSupportVideos() {
                   {(file.size / 1024 / 1024).toFixed(1)} MB — {file.type}
                 </p>
               )}
+
+              {/* Preview selected file before upload */}
+              {file && (
+                <div className="mt-3 rounded-xl overflow-hidden border border-violet-200 bg-black">
+                  <video
+                    src={URL.createObjectURL(file)}
+                    controls
+                    playsInline
+                    className="w-full max-h-48 object-contain"
+                  />
+                </div>
+              )}
+
               {uploading && (
                 <div className="mt-2 space-y-1">
                   <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
