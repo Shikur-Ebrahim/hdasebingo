@@ -276,31 +276,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* SUPPORT BANNER */}
-      {showSupportBanner && (
-        <div
-          className="fixed bottom-[74px] left-0 right-0 z-50 flex justify-center pointer-events-none px-4"
-          style={{ animation: 'slideUp 0.4s cubic-bezier(0.34,1.56,0.64,1)' }}
-        >
-          <div className="flex items-center bg-white border border-violet-300 rounded-full p-1 shadow-[0_4px_28px_rgba(109,40,217,0.3)] pointer-events-auto max-w-fit">
-            <button
-              onClick={() => { setShowSupportBanner(false); navigate('/support'); }}
-              className="flex items-center gap-2 active:bg-violet-50 transition-colors rounded-full px-3 py-1.5"
-            >
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
-              <MessageCircle size={15} className="text-violet-600 flex-shrink-0" />
-              <span className="text-violet-800 font-bold text-[13px] leading-tight">{t[language].home.supportBanner}</span>
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); setShowSupportBanner(false); }}
-              className="w-7 h-7 ml-1 mr-0.5 rounded-full flex items-center justify-center text-slate-400 active:bg-slate-100 transition-colors flex-shrink-0 text-lg"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* ACTION BUTTONS */}
       <div className="px-4 grid grid-cols-3 gap-3">
         <Link to="/deposit" className="flex items-center justify-center space-x-1.5 bg-yellow-400 hover:bg-yellow-500 text-yellow-950 py-2 rounded-xl font-bold text-xs shadow-sm transition-colors">
@@ -322,9 +297,34 @@ export default function Home() {
 
       {/* ACTIVE GAMES / LIVE BINGO BANNER */}
       <div className="px-4">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="font-bold text-slate-500 dark:text-slate-400 tracking-wider text-xs">{t[language].home.activeGames}</h2>
-          <button onClick={handleHelp} className="text-blue-500 flex items-center space-x-1 text-xs font-semibold">
+        <div className="flex items-center justify-between mb-2 gap-1.5 min-h-[26px]">
+          <h2 className="font-bold text-slate-500 dark:text-slate-400 tracking-wider text-xs shrink-0">
+            {t[language].home.activeGames}
+          </h2>
+
+          {/* Support pill in the gap between ACTIVE GAMES and Help */}
+          {showSupportBanner && (
+            <div className="flex items-center bg-white dark:bg-slate-800 border border-violet-300 dark:border-violet-700/60 rounded-full py-0.5 px-2 shadow-sm">
+              <button
+                onClick={() => { setShowSupportBanner(false); navigate('/support'); }}
+                className="flex items-center gap-1 active:opacity-75 transition-opacity"
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <MessageCircle size={12} className="text-violet-600 dark:text-violet-400 shrink-0" />
+                <span className="text-violet-800 dark:text-violet-300 font-bold text-[10.5px] leading-tight truncate">
+                  {t[language].home.supportBanner}
+                </span>
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowSupportBanner(false); }}
+                className="ml-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold leading-none shrink-0"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          <button onClick={handleHelp} className="text-blue-500 flex items-center space-x-1 text-xs font-semibold shrink-0">
             <Info size={14} />
             <span>{t[language].home.help}</span>
           </button>
