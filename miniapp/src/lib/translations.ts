@@ -127,7 +127,7 @@ export const t = {
       
       title: 'Deposit Funds',
       balance: 'Main Balance',
-      minDepositText: 'Min deposit is 50 ETB',
+      minDepositText: 'Minimum Deposit',
       chooseMethod: 'Choose Method',
       howToDeposit: 'HOW TO DEPOSIT',
         step1: 'Send the exact amount to the account above.',
@@ -516,7 +516,7 @@ export const t = {
       backHome: 'ወደ ዋናው ገጽ ይመለሱ',
       title: 'ገንዘብ ማስገቢያ',
       balance: 'ዋና ሂሳብ',
-      minDepositText: 'አነስተኛ ማስገቢያ 50 ETB',
+      minDepositText: 'አነስተኛ ማስገቢያ',
       chooseMethod: 'የክፍያ መንገድ ይምረጡ',
       howToDeposit: 'እንዴት እንደሚያስገቡ',
         step1: 'ከላይ በተገለጸው የባንክ አካውንት ላይ ትክክለኛውን ገንዘብ ይላኩ።',
