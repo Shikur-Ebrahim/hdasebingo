@@ -193,15 +193,20 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData }
       });
       const data = await res.json();
-      const username = data.username || 'hdasebingo_admin';
-      const url = `https://t.me/${username.replace('@', '')}`;
+      const username = (data.username || 'Mosque_Dona').replace('@', '').trim();
+      const url = `https://t.me/${username}`;
       if (typeof WebApp !== 'undefined' && WebApp.openTelegramLink) {
         WebApp.openTelegramLink(url);
       } else {
         window.open(url, '_blank');
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
+      const fallbackUrl = 'https://t.me/Mosque_Dona';
+      if (typeof WebApp !== 'undefined' && WebApp.openTelegramLink) {
+        WebApp.openTelegramLink(fallbackUrl);
+      } else {
+        window.open(fallbackUrl, '_blank');
+      }
     }
   };
 
@@ -310,7 +315,7 @@ export default function Home() {
           {showSupportBanner && (
             <div className="flex items-center bg-white dark:bg-slate-800 border border-violet-300 dark:border-violet-700/60 rounded-full py-0.5 px-2 shadow-sm">
               <button
-                onClick={() => { setShowSupportBanner(false); navigate('/support'); }}
+                onClick={handleHelp}
                 className="flex items-center gap-1 active:opacity-75 transition-opacity"
               >
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />

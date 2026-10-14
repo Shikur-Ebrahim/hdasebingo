@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Play, X, Loader2, Video as VideoIcon } from 'lucide-react';
+import { ChevronLeft, Play, X, Loader2, Video as VideoIcon, Headphones } from 'lucide-react';
 import WebApp from '@twa-dev/sdk';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -32,6 +32,29 @@ export default function SupportVideos() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+
+  const handleSupport = async () => {
+    try {
+      const res = await fetch(`${API_URL}/player/support-contact`, {
+        headers: { 'x-telegram-init-data': initData },
+      });
+      const data = await res.json();
+      const username = (data.username || 'Mosque_Dona').replace('@', '').trim();
+      const url = `https://t.me/${username}`;
+      if (typeof WebApp !== 'undefined' && WebApp.openTelegramLink) {
+        WebApp.openTelegramLink(url);
+      } else {
+        window.open(url, '_blank');
+      }
+    } catch {
+      const fallbackUrl = 'https://t.me/Mosque_Dona';
+      if (typeof WebApp !== 'undefined' && WebApp.openTelegramLink) {
+        WebApp.openTelegramLink(fallbackUrl);
+      } else {
+        window.open(fallbackUrl, '_blank');
+      }
+    }
+  };
 
   const fetchVideos = async (category?: string | null) => {
     setLoading(true);
@@ -83,31 +106,22 @@ export default function SupportVideos() {
             <p className="text-xs text-slate-500 font-medium">Video Guides</p>
           )}
         </div>
-        {selectedCategory && (
-          <button
-            onClick={() => setSelectedCategory(null)}
-            className="text-xs font-bold text-violet-600 bg-violet-50 px-2.5 py-1 rounded-lg"
-          >
-            Categories
-          </button>
-        )}
+        <button
+          onClick={handleSupport}
+          className="flex items-center space-x-1.5 text-xs font-bold text-violet-700 bg-violet-50 hover:bg-violet-100 active:scale-95 px-3 py-1.5 rounded-xl border border-violet-200 transition-all shadow-xs"
+        >
+          <Headphones size={13} className="text-violet-600" />
+          <span>Support</span>
+        </button>
       </div>
 
       {!selectedCategory ? (
-        /* Category Selection Grid */
-        <div className="px-4 pt-6">
-          <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-gradient-to-br from-violet-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-violet-200">
-              <span className="text-3xl">🎬</span>
-            </div>
-            <h2 className="font-black text-slate-800 text-xl">Video Tutorials</h2>
-            <p className="text-sm text-slate-500 mt-1 font-medium">Select a topic or watch all tutorials</p>
-          </div>
-
-          {/* Quick "View All Videos" banner */}
+        /* Category Selection Grid without the redundant top illustration */
+        <div className="px-4 pt-4">
+          {/* Quick "Browse All Videos" banner */}
           <button
             onClick={() => selectCategory('all')}
-            className="w-full mb-3 bg-gradient-to-r from-violet-600 to-indigo-600 text-white p-3.5 rounded-2xl shadow-md flex items-center justify-between active:scale-[0.98] transition-all"
+            className="w-full mb-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white p-3.5 rounded-2xl shadow-md flex items-center justify-between active:scale-[0.98] transition-all"
           >
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-xl">
@@ -115,7 +129,7 @@ export default function SupportVideos() {
               </div>
               <div className="text-left">
                 <p className="font-black text-sm">Browse All Videos</p>
-                <p className="text-[11px] text-white/80">See tutorials from all categories</p>
+                <p className="text-[11px] text-white/80 font-medium">See tutorials from all categories</p>
               </div>
             </div>
             <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center font-black">
@@ -123,7 +137,7 @@ export default function SupportVideos() {
             </div>
           </button>
 
-          {/* 6 Category Tiles */}
+          {/* 6 Category Tiles in 2-column grid */}
           <div className="grid grid-cols-2 gap-3">
             {CATEGORIES.map(cat => (
               <button
@@ -139,13 +153,22 @@ export default function SupportVideos() {
             ))}
           </div>
 
-          <div className="mt-6 p-4 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-start space-x-3">
-            <span className="text-xl mt-0.5">💡</span>
-            <div>
-              <p className="font-bold text-indigo-800 text-sm">Need more help?</p>
-              <p className="text-indigo-600 text-xs mt-0.5 font-medium">Contact support through the app if you have questions after watching.</p>
+          {/* Direct Support Button Card */}
+          <button
+            onClick={handleSupport}
+            className="w-full mt-6 p-4 bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-200/80 rounded-2xl flex items-center justify-between text-left active:scale-[0.98] transition-all shadow-sm"
+          >
+            <div className="flex items-start space-x-3">
+              <span className="text-2xl mt-0.5">💡</span>
+              <div>
+                <p className="font-bold text-violet-900 text-sm">Need more help?</p>
+                <p className="text-violet-700/80 text-xs mt-0.5 font-medium">Contact admin support directly on Telegram.</p>
+              </div>
             </div>
-          </div>
+            <span className="text-violet-600 font-bold text-xs bg-white px-2.5 py-1.5 rounded-xl border border-violet-200 shadow-xs">
+              Chat
+            </span>
+          </button>
         </div>
       ) : (
         /* Video List with horizontal category switcher */
@@ -186,6 +209,13 @@ export default function SupportVideos() {
               <VideoIcon size={40} className="mx-auto text-slate-300 mb-3" />
               <p className="text-slate-600 font-bold text-sm">No videos in this category</p>
               <p className="text-slate-400 text-xs mt-1">Check back soon for new guides</p>
+              <button
+                onClick={handleSupport}
+                className="mt-4 inline-flex items-center space-x-1.5 bg-violet-600 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-sm"
+              >
+                <Headphones size={13} />
+                <span>Contact Support</span>
+              </button>
             </div>
           ) : (
             <div className="space-y-3">

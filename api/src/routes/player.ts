@@ -56,20 +56,51 @@ router.get('/invited', validateTelegramAuth, async (req: AuthRequest, res) => {
   const total_earned = invitedWithRewards.reduce((sum, u) => sum + u.reward_earned, 0);
   res.json({ invited: invitedWithRewards, total_earned });
 });
-// Fetch support contact and channel link from settings
-router.get('/support-contact', validateTelegramAuth, async (req: AuthRequest, res) => {
-  const { data: allSettings } = await supabase.from('settings').select('key, value');
-  const getSetting = (k: string, def: string) => {
-    const row = allSettings?.find(s => s.key === k);
-    return row ? row.value : def;
-  };
+// Fetch support contact and channel link from settings (fallback to real admin username)
+router.get('/support-contact', async (_req, res) => {
+  try {
+    const { data: allSettings } = await supabase.from('settings').select('key, value');
+    const getSetting = (k: string, def: string) => {
+      const row = allSettings?.find(s => s.key === k);
+      return row ? row.value : def;
+    };
 
-  res.json({
-    username: getSetting('support_username', 'hdasebingo_admin'),
-    channel: getSetting('channel_link', 'https://t.me/hdasebingo'),
-    announcement_message: getSetting('announcement_message', ''),
-    announcement_max_views: parseInt(getSetting('announcement_max_views', '2'), 10)
-  });
+    let username = (getSetting('support_username', '') || '').trim().replace('@', '');
+
+    // If support_username is not customized, dynamically track the actual admin user from the database
+    if (!username || username === 'hdasebingo_admin' || username === 'adwabingo_admin') {
+      const { data: adminUser } = await supabase
+        .from('users')
+        .select('username')
+        .eq('role', 'admin')
+        .not('username', 'is', null)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (adminUser?.username) {
+        username = adminUser.username.replace('@', '');
+      }
+    }
+
+    if (!username) {
+      username = 'Mosque_Dona';
+    }
+
+    res.json({
+      username,
+      channel: getSetting('channel_link', 'https://t.me/hdasebingo'),
+      announcement_message: getSetting('announcement_message', ''),
+      announcement_max_views: parseInt(getSetting('announcement_max_views', '2'), 10)
+    });
+  } catch {
+    res.json({
+      username: 'Mosque_Dona',
+      channel: 'https://t.me/hdasebingo',
+      announcement_message: '',
+      announcement_max_views: 2
+    });
+  }
 });
 
 // GET /api/player/transfer/lookup — verify recipient before showing confirmation
