@@ -304,23 +304,24 @@ router.get('/rooms', async (_req, res) => {
 
     if (error) throw error;
 
-    const enrichedRooms = await Promise.all(
-      (rooms || []).map(async (room) => {
-        let players = 0;
-        if (room.agent_id) {
-          const { count } = await supabase
-            .from('users')
-            .select('id', { count: 'exact', head: true })
-            .eq('inviter_id', room.agent_id);
-          players = count || 0;
-        }
-        return {
-          ...room,
-          total_players: players,
-          total_games: Number(room.total_games || 0)
-        };
-      })
-    );
+    // Sum active players across all games in each room
+    const { data: activeGames } = await supabase
+      .from('bingo_games')
+      .select('room_id, total_players')
+      .in('status', ['waiting', 'calling']);
+
+    const roomPlayersMap: Record<string, number> = {};
+    (activeGames || []).forEach((g: any) => {
+      if (g.room_id) {
+        roomPlayersMap[g.room_id] = (roomPlayersMap[g.room_id] || 0) + Number(g.total_players || 0);
+      }
+    });
+
+    const enrichedRooms = (rooms || []).map((room) => ({
+      ...room,
+      total_players: roomPlayersMap[room.id] || 0,
+      total_games: Number(room.total_games || 0)
+    }));
 
     res.json({ rooms: enrichedRooms });
   } catch (err: any) {

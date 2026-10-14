@@ -7,11 +7,19 @@ import { getSettings } from './adminSettings';
 const router = Router();
 
 // ── GET /api/bingo/pools ── server-side unique player count (bypasses RLS) ──
-router.get('/pools', validateTelegramAuth, async (_req, res) => {
-  const { data: games } = await supabase
+router.get('/pools', validateTelegramAuth, async (req, res) => {
+  const roomId = (req.query.room || req.query.roomId) as string | undefined;
+
+  let query = supabase
     .from('bingo_games')
-    .select('id, stake, prize_pool, start_at, status')
+    .select('id, stake, prize_pool, total_players, start_at, status, room_id')
     .in('status', ['waiting', 'calling']);
+
+  if (roomId) {
+    query = query.eq('room_id', roomId);
+  }
+
+  const { data: games } = await query;
 
   if (!games || games.length === 0) { res.json({ pools: [] }); return; }
 
@@ -33,7 +41,8 @@ router.get('/pools', validateTelegramAuth, async (_req, res) => {
     prize_pool: g.prize_pool,
     start_at: g.start_at,
     status: g.status,
-    unique_players: uniqueMap[g.id]?.size || 0,
+    unique_players: uniqueMap[g.id]?.size || g.total_players || 0,
+    room_id: g.room_id,
   }));
 
   res.json({ pools });
@@ -43,11 +52,18 @@ router.get('/pools', validateTelegramAuth, async (_req, res) => {
 router.get('/current', validateTelegramAuth, async (req: AuthRequest, res) => {
   const telegramId = req.telegramUser!.id.toString();
   const stake = Number(req.query.stake) || 10;
+  const roomId = (req.query.room || req.query.roomId) as string | undefined;
 
-  const { data: game } = await supabase
+  let query = supabase
     .from('bingo_games')
     .select('*')
-    .eq('stake', stake)
+    .eq('stake', stake);
+
+  if (roomId) {
+    query = query.eq('room_id', roomId);
+  }
+
+  const { data: game } = await query
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -74,7 +90,8 @@ router.get('/current', validateTelegramAuth, async (req: AuthRequest, res) => {
 // ── POST /api/bingo/join ────────────────────────────────────────────────────
 router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
   const telegramId = req.telegramUser!.id.toString();
-  const { cartela_number } = req.body;
+  const { cartela_number, room_id, roomId, room } = req.body;
+  const selectedRoomId = room_id || roomId || room;
   const seat = Number(cartela_number);
   const cfg = await getSettings();
 
@@ -86,12 +103,15 @@ router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
 
   let query = supabase
     .from('bingo_games')
-    .select('id, game_id, stake, status, start_at')
+    .select('id, game_id, stake, status, start_at, room_id')
     .eq('status', 'waiting')
-    .eq('stake', Number(requestedStake))
-    .order('created_at', { ascending: false });
-  
-  const { data: gamesData } = await query.limit(1);
+    .eq('stake', Number(requestedStake));
+
+  if (selectedRoomId) {
+    query = query.eq('room_id', selectedRoomId);
+  }
+
+  const { data: gamesData } = await query.order('created_at', { ascending: false }).limit(1);
   const game = gamesData?.[0];
 
   if (!game) {
@@ -202,6 +222,7 @@ router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
 
   await supabase.from('bingo_games').update({
     prize_pool: prizePool,
+    total_players: unique_players,
     start_at: newStartAt,
     updated_at: new Date().toISOString()
   }).eq('id', game.id);

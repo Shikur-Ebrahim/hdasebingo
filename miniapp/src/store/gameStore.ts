@@ -107,28 +107,27 @@ export const useGameStore = create<GameStore>()(
               .order('created_at', { ascending: true });
 
             if (!error && Array.isArray(dbRooms) && dbRooms.length > 0) {
-              const enriched = await Promise.all(
-                dbRooms.map(async (r: any) => {
-                  let players = 0;
-                  if (r.agent_id) {
-                    const { count } = await supabase
-                      .from('users')
-                      .select('id', { count: 'exact', head: true })
-                      .eq('inviter_id', r.agent_id);
-                    players = count || 0;
-                  }
-                  return {
-                    id: r.id,
-                    room_name: r.room_name,
-                    agent_id: r.agent_id,
-                    agent_name: r.agent_name,
-                    total_games: Number(r.total_games || 0),
-                    total_players: players,
-                    status: r.status,
-                  };
-                })
-              );
-              loadedRooms = enriched;
+              const { data: activeGames } = await supabase
+                .from('bingo_games')
+                .select('room_id, total_players')
+                .in('status', ['waiting', 'calling']);
+
+              const roomPlayersMap: Record<string, number> = {};
+              (activeGames || []).forEach((g: any) => {
+                if (g.room_id) {
+                  roomPlayersMap[g.room_id] = (roomPlayersMap[g.room_id] || 0) + Number(g.total_players || 0);
+                }
+              });
+
+              loadedRooms = dbRooms.map((r: any) => ({
+                id: r.id,
+                room_name: r.room_name,
+                agent_id: r.agent_id,
+                agent_name: r.agent_name,
+                total_games: Number(r.total_games || 0),
+                total_players: roomPlayersMap[r.id] || 0,
+                status: r.status,
+              }));
             }
           }
 
@@ -146,6 +145,13 @@ export const useGameStore = create<GameStore>()(
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'rooms' },
+            () => {
+              get().fetchRooms();
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'bingo_games' },
             () => {
               get().fetchRooms();
             }

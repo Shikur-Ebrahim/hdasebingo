@@ -234,20 +234,47 @@ export default function BingoGame() {
     let isMounted = true;
 
     const fetchPools = async () => {
-      // Use backend API — service key bypasses RLS so unique player count is always accurate
-      const r = await fetch(`${API}/bingo/pools`, { headers: hdrs() });
-      if (!r.ok || !isMounted) return;
-      const { pools } = await r.json();
-      const p: Record<number, any> = {};
-      (pools || []).forEach((g: any) => {
-        p[Number(g.stake)] = {
-          pool: g.prize_pool,
-          start_at: g.start_at,
-          status: g.status,
-          players: g.unique_players,
-        };
-      });
-      if (isMounted) setHomeGames(p);
+      let loadedPools: any[] | null = null;
+      try {
+        const url = `${API}/bingo/pools${selectedRoomId ? `?room=${selectedRoomId}` : ''}`;
+        const r = await fetch(url, { headers: hdrs() });
+        if (r.ok) {
+          const d = await r.json();
+          if (Array.isArray(d.pools)) loadedPools = d.pools;
+        }
+      } catch {}
+
+      // Resilient fallback direct to Supabase
+      if (!loadedPools) {
+        let q = supabase
+          .from('bingo_games')
+          .select('id, stake, prize_pool, total_players, start_at, status, room_id')
+          .in('status', ['waiting', 'calling']);
+        if (selectedRoomId) q = q.eq('room_id', selectedRoomId);
+        const { data: dbGames } = await q;
+        if (dbGames) {
+          loadedPools = dbGames.map(g => ({
+            stake: g.stake,
+            prize_pool: g.prize_pool,
+            start_at: g.start_at,
+            status: g.status,
+            unique_players: g.total_players || 0,
+          }));
+        }
+      }
+
+      if (loadedPools && isMounted) {
+        const p: Record<number, any> = {};
+        loadedPools.forEach((g: any) => {
+          p[Number(g.stake)] = {
+            pool: g.prize_pool,
+            start_at: g.start_at,
+            status: g.status,
+            players: g.unique_players,
+          };
+        });
+        setHomeGames(p);
+      }
     };
     fetchPools();
 
@@ -262,7 +289,7 @@ export default function BingoGame() {
       .subscribe();
 
     return () => { isMounted = false; supabase.removeChannel(ch); };
-  }, [selectedStake]);
+  }, [selectedStake, selectedRoomId]);
 
   // Tick timer for home screen
   useEffect(() => {
@@ -510,7 +537,8 @@ export default function BingoGame() {
     if (!selectedStake) return;
     setLoading(true);
     try {
-      const r = await fetch(`${API}/bingo/current?stake=${selectedStake}`, { headers: hdrs() });
+      const url = `${API}/bingo/current?stake=${selectedStake}${selectedRoomId ? `&room=${selectedRoomId}` : ''}`;
+      const r = await fetch(url, { headers: hdrs() });
       if (r.ok) {
         const d = await r.json();
         if (d.max_players) setMaxPlayers(Number(d.max_players));
@@ -526,7 +554,7 @@ export default function BingoGame() {
         }
       }
     } catch { } finally { setLoading(false); }
-  }, [selectedStake]);
+  }, [selectedStake, selectedRoomId]);
 
   useEffect(() => { if (selectedStake) fetchState(); }, [selectedStake, fetchState]);
 
@@ -705,7 +733,16 @@ export default function BingoGame() {
     const rawPool = newTotalCartelas * stakeAmt;
     setGame(prev => prev ? { ...prev, prize_pool: newUniquePlayers < 3 ? rawPool : Math.floor(rawPool * 0.8) } : prev);
     try {
-      const r = await fetch(`${API}/bingo/join`, { method: "POST", headers: hdrs(), body: JSON.stringify({ cartela_number: seat, stake: selectedStake, card_matrix: matrix }) });
+      const r = await fetch(`${API}/bingo/join`, {
+        method: "POST",
+        headers: hdrs(),
+        body: JSON.stringify({
+          cartela_number: seat,
+          stake: selectedStake,
+          card_matrix: matrix,
+          room_id: selectedRoomId,
+        })
+      });
       const d = await r.json();
       if (r.ok) {
         if (WebApp?.HapticFeedback) WebApp.HapticFeedback.notificationOccurred("success");

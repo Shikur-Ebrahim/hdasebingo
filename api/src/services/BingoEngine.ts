@@ -55,39 +55,53 @@ class BingoEngine {
   }
 
   private async step() {
-    for (const stake of STAKES) {
-      const { data: game } = await supabase
-        .from('bingo_games')
-        .select('*')
-        .eq('stake', stake)
-        .neq('status', 'finished')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+    // 1. Fetch all active rooms
+    const { data: activeRooms } = await supabase
+      .from('rooms')
+      .select('id')
+      .eq('status', 'active');
 
-      if (!game) {
-        await this.createGame(stake);
-      } else if (game.status === 'waiting') {
-        await this.handleWaiting(game);
-      } else if (game.status === 'calling') {
-        await this.handleCalling(game);
+    const rooms = activeRooms || [];
+    if (rooms.length === 0) return;
+
+    for (const room of rooms) {
+      for (const stake of STAKES) {
+        const { data: game } = await supabase
+          .from('bingo_games')
+          .select('*')
+          .eq('room_id', room.id)
+          .eq('stake', stake)
+          .neq('status', 'finished')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!game) {
+          await this.createGame(room.id, stake);
+        } else if (game.status === 'waiting') {
+          await this.handleWaiting(game);
+        } else if (game.status === 'calling') {
+          await this.handleCalling(game);
+        }
       }
     }
   }
 
-  private async createGame(stake: number) {
+  private async createGame(roomId: string, stake: number) {
     const game_id = Math.floor(100 + Math.random() * 900).toString();
     const start_at = new Date(Date.now() + 86400000 * 365).toISOString();
 
     await supabase.from('bingo_games').insert({
       game_id,
+      room_id: roomId,
       stake,
       prize_pool: 0,
+      total_players: 0,
       status: 'waiting',
       called_numbers: [],
       start_at,
     });
-    console.log(`🎰 Game #${game_id} (Stake: ${stake}) created, waiting for first player`);
+    console.log(`🎰 Room ${roomId} Game #${game_id} (Stake: ${stake}) created, waiting for first player`);
   }
 
   private async handleWaiting(game: any) {
@@ -111,6 +125,7 @@ class BingoEngine {
         await supabase.from('bingo_games').update({
           start_at: new Date(Date.now() + 86400000 * 365).toISOString(),
           prize_pool: 0,
+          total_players: 0,
           updated_at: new Date().toISOString(),
         }).eq('id', game.id);
         return;
@@ -209,6 +224,7 @@ class BingoEngine {
     // Reset game state to fresh waiting (waiting for new players)
     await supabase.from('bingo_games').update({
       prize_pool: 0,
+      total_players: 0,
       called_numbers: [],
       start_at: new Date(Date.now() + 86400000 * 365).toISOString(),
       updated_at: new Date().toISOString(),
@@ -240,6 +256,9 @@ class BingoEngine {
         finished_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq('id', game.id);
+      if (game.room_id) {
+        await this.incrementRoomGames(game.room_id);
+      }
       return;
     }
 
@@ -251,7 +270,7 @@ class BingoEngine {
       updated_at: new Date().toISOString(),
     }).eq('id', game.id);
 
-    await this.checkWinners(game.id, game.game_id, newCalled, game.prize_pool, game.stake);
+    await this.checkWinners(game.id, game.game_id, newCalled, game.prize_pool, game.stake, game.room_id);
   }
 
   private async checkWinners(
@@ -260,6 +279,7 @@ class BingoEngine {
     called: number[],
     prizePool: number,
     stake: number,
+    roomId?: string,
   ) {
     const { data: players } = await supabase
       .from('bingo_players')
@@ -273,8 +293,6 @@ class BingoEngine {
     if (winningRows.length === 0) return;
 
     // ── Deduplicate by telegram_id: if same user wins with 2 cartelas, pick ONE ─
-    // This means one user buying multiple cartelas is treated as a single winner,
-    // not a "tie" — they win the full prize.
     const seenTelegramIds = new Set<string>();
     const winners: typeof winningRows = [];
     for (const row of winningRows) {
@@ -283,7 +301,6 @@ class BingoEngine {
         winners.push(row);
       }
     }
-
 
     const prize = Number(prizePool);
     const token = process.env.BOT_TOKEN;
@@ -329,7 +346,6 @@ class BingoEngine {
         }
       }
 
-
       const { data: claim, error: claimErr } = await supabase.from('bingo_games').update({
         status:             'finished',
         winner_telegram_id: w.telegram_id,
@@ -358,7 +374,7 @@ class BingoEngine {
         
       await notify(w.telegram_id, msg);
       console.log(`🏆 Game #${gameLabel}: Single winner ${w.first_name} — ${finalPrize} ETB`);
-      await this.incrementActiveRoomsGames();
+      await this.incrementRoomGames(roomId);
       return;
     }
 
@@ -396,12 +412,11 @@ class BingoEngine {
         );
       }
       console.log(`🤝 Game #${gameLabel}: 2-way tie — ${w1.first_name} & ${w2.first_name} — ${splitPrize} ETB each`);
-      await this.incrementActiveRoomsGames();
+      await this.incrementRoomGames(roomId);
       return;
     }
 
     // ── CASE 3: 3 or more winners — REMATCH ──────────────────────────────────
-    // Refund stake to every player, mark game finished as REMATCH
     console.log(`🔄 Game #${gameLabel}: ${winners.length}-way tie — triggering REMATCH & stake refund`);
 
     const { data: claim, error: claimErr } = await supabase.from('bingo_games').update({
@@ -430,23 +445,21 @@ class BingoEngine {
         `🔄 REMATCH! ${winners.length} players hit BINGO at the same time on Game #${gameLabel}. Your ${stake} ETB stake has been refunded. A new game is starting!`
       );
     }
-    await this.incrementActiveRoomsGames();
-    // Engine will auto-create a new game for this stake on next tick
+    await this.incrementRoomGames(roomId);
   }
 
-  private async incrementActiveRoomsGames() {
+  private async incrementRoomGames(roomId?: string) {
+    if (!roomId) return;
     try {
-      const { data: rooms } = await supabase.from('rooms').select('id, total_games').eq('status', 'active');
-      if (rooms && rooms.length > 0) {
-        for (const r of rooms) {
-          await supabase.from('rooms').update({
-            total_games: Number(r.total_games || 0) + 1,
-            updated_at: new Date().toISOString()
-          }).eq('id', r.id);
-        }
+      const { data: room } = await supabase.from('rooms').select('total_games').eq('id', roomId).maybeSingle();
+      if (room) {
+        await supabase.from('rooms').update({
+          total_games: Number(room.total_games || 0) + 1,
+          updated_at: new Date().toISOString()
+        }).eq('id', roomId);
       }
     } catch (e) {
-      console.error('Failed to increment rooms total_games', e);
+      console.error('Failed to increment room total_games', e);
     }
   }
 }
