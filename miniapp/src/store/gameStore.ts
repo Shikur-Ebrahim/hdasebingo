@@ -75,23 +75,65 @@ export const useGameStore = create<GameStore>()(
 
       fetchRooms: async () => {
         try {
-          let initData = '';
-          if (typeof WebApp !== 'undefined' && WebApp.initData) {
-            initData = WebApp.initData;
-          }
-          const res = await fetch(`${API_URL}/player/rooms`, {
-            headers: {
-              'Content-Type': 'application/json',
-              'x-telegram-init-data': initData,
-            },
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data.rooms)) {
-              // Ensure ONLY real rooms from the database are stored (filter out any preset IDs)
-              const realRooms = data.rooms.filter((r: any) => !String(r.id).startsWith('preset-'));
-              set({ rooms: realRooms });
+          let loadedRooms: Room[] | null = null;
+          // 1. Try backend API first
+          try {
+            let initData = '';
+            if (typeof WebApp !== 'undefined' && WebApp.initData) {
+              initData = WebApp.initData;
             }
+            const res = await fetch(`${API_URL}/player/rooms`, {
+              headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': initData,
+              },
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (Array.isArray(data.rooms) && data.rooms.length > 0) {
+                loadedRooms = data.rooms.filter((r: any) => !String(r.id).startsWith('preset-'));
+              }
+            }
+          } catch {
+            // fallback to direct Supabase query
+          }
+
+          // 2. If API didn't return rooms or errored, fetch directly from Supabase (100% resilient fallback)
+          if (!loadedRooms || loadedRooms.length === 0) {
+            const { data: dbRooms, error } = await supabase
+              .from('rooms')
+              .select('id, room_name, agent_id, agent_name, total_games, status, created_at')
+              .eq('status', 'active')
+              .order('created_at', { ascending: true });
+
+            if (!error && Array.isArray(dbRooms) && dbRooms.length > 0) {
+              const enriched = await Promise.all(
+                dbRooms.map(async (r: any) => {
+                  let players = 0;
+                  if (r.agent_id) {
+                    const { count } = await supabase
+                      .from('users')
+                      .select('id', { count: 'exact', head: true })
+                      .eq('inviter_id', r.agent_id);
+                    players = count || 0;
+                  }
+                  return {
+                    id: r.id,
+                    room_name: r.room_name,
+                    agent_id: r.agent_id,
+                    agent_name: r.agent_name,
+                    total_games: Number(r.total_games || 0),
+                    total_players: players,
+                    status: r.status,
+                  };
+                })
+              );
+              loadedRooms = enriched;
+            }
+          }
+
+          if (loadedRooms && loadedRooms.length > 0) {
+            set({ rooms: loadedRooms });
           }
         } catch (err) {
           console.error('Error fetching rooms:', err);
