@@ -103,7 +103,7 @@ router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
 
   let query = supabase
     .from('bingo_games')
-    .select('id, game_id, stake, status, start_at, room_id')
+    .select('id, stake, status, start_at, room_id')
     .eq('status', 'waiting')
     .eq('stake', Number(requestedStake));
 

@@ -88,11 +88,9 @@ class BingoEngine {
   }
 
   private async createGame(roomId: string, stake: number) {
-    const game_id = Math.floor(100 + Math.random() * 900).toString();
     const start_at = new Date(Date.now() + 86400000 * 365).toISOString();
 
-    await supabase.from('bingo_games').insert({
-      game_id,
+    const { data: newGame } = await supabase.from('bingo_games').insert({
       room_id: roomId,
       stake,
       prize_pool: 0,
@@ -100,8 +98,9 @@ class BingoEngine {
       status: 'waiting',
       called_numbers: [],
       start_at,
-    });
-    console.log(`🎰 Room ${roomId} Game #${game_id} (Stake: ${stake}) created, waiting for first player`);
+    }).select('id').single();
+    const displayId = newGame?.id?.substring(0, 9) ?? '???';
+    console.log(`🎰 Room ${roomId} Game #${displayId} (Stake: ${stake}) created, waiting for first player`);
   }
 
   private async handleWaiting(game: any) {
@@ -137,7 +136,7 @@ class BingoEngine {
 
       // Has the release time (default 60s) expired?
       if (waitingDurationSec >= releaseTimeoutSec) {
-        console.log(`⏰ Game #${game.game_id} (Stake: ${game.stake}): Release time reached (${Math.round(waitingDurationSec)}s >= ${releaseTimeoutSec}s). Refunding ${players.length} cartelas and releasing player.`);
+        console.log(`⏰ Game #${game.id.substring(0,9)} (Stake: ${game.stake}): Release time reached (${Math.round(waitingDurationSec)}s >= ${releaseTimeoutSec}s). Refunding ${players.length} cartelas and releasing player.`);
         await this.refundAndResetGame(game, players);
         return;
       }
@@ -230,7 +229,7 @@ class BingoEngine {
       updated_at: new Date().toISOString(),
     }).eq('id', game.id);
 
-    console.log(`✅ Game #${game.game_id} successfully reset and refunded.`);
+    console.log(`✅ Game #${game.id.substring(0,9)} successfully reset and refunded.`);
   }
 
   private async handleCalling(game: any) {
@@ -270,12 +269,11 @@ class BingoEngine {
       updated_at: new Date().toISOString(),
     }).eq('id', game.id);
 
-    await this.checkWinners(game.id, game.game_id, newCalled, game.prize_pool, game.stake, game.room_id);
+    await this.checkWinners(game.id, newCalled, game.prize_pool, game.stake, game.room_id);
   }
 
   private async checkWinners(
     gameId: string,
-    gameLabel: string,
     called: number[],
     prizePool: number,
     stake: number,
@@ -373,7 +371,7 @@ class BingoEngine {
         : `🎉 BINGO! You won ${finalPrize} ETB on Cartela #${w.cartela_number}!`;
         
       await notify(w.telegram_id, msg);
-      console.log(`🏆 Game #${gameLabel}: Single winner ${w.first_name} — ${finalPrize} ETB`);
+      console.log(`🏆 Game #${gameId.substring(0,9)}: Single winner ${w.first_name} — ${finalPrize} ETB`);
       await this.incrementRoomGames(roomId);
       return;
     }
@@ -411,13 +409,13 @@ class BingoEngine {
           `🎉 BINGO! You tied with another player! You each won ${splitPrize} ETB (prize split on Cartela #${w.cartela_number})!`
         );
       }
-      console.log(`🤝 Game #${gameLabel}: 2-way tie — ${w1.first_name} & ${w2.first_name} — ${splitPrize} ETB each`);
+      console.log(`🤝 Game #${gameId.substring(0,9)}: 2-way tie — ${w1.first_name} & ${w2.first_name} — ${splitPrize} ETB each`);
       await this.incrementRoomGames(roomId);
       return;
     }
 
     // ── CASE 3: 3 or more winners — REMATCH ──────────────────────────────────
-    console.log(`🔄 Game #${gameLabel}: ${winners.length}-way tie — triggering REMATCH & stake refund`);
+    console.log(`🔄 Game #${gameId.substring(0,9)}: ${winners.length}-way tie — triggering REMATCH & stake refund`);
 
     const { data: claim, error: claimErr } = await supabase.from('bingo_games').update({
         status:            'finished',
@@ -442,7 +440,7 @@ class BingoEngine {
       }
       await notify(
         p.telegram_id,
-        `🔄 REMATCH! ${winners.length} players hit BINGO at the same time on Game #${gameLabel}. Your ${stake} ETB stake has been refunded. A new game is starting!`
+        `🔄 REMATCH! ${winners.length} players hit BINGO at the same time on Game #${gameId.substring(0,9)}. Your ${stake} ETB stake has been refunded. A new game is starting!`
       );
     }
     await this.incrementRoomGames(roomId);

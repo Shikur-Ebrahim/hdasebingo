@@ -9,7 +9,7 @@ import { t } from '../lib/translations';
 const API = import.meta.env.VITE_API_URL || "/api";
 
 interface BGame {
-  id: string; game_id: string; stake: number; prize_pool: number;
+  id: string; stake: number; prize_pool: number;
   status: "waiting" | "calling" | "finished";
   called_numbers: number[];
   winner_cartela: number | null; winner_telegram_id: string | null;
@@ -1201,7 +1201,7 @@ export default function BingoGame() {
 
         {/* Top Info Bar */}
         <div className="flex items-center justify-between bg-[#0f172a] px-2 py-1 rounded-xl border border-slate-800 shrink-0">
-          <div className="text-slate-400 text-[9px] font-bold">ID: {game.game_id}</div>
+          <div className="text-slate-400 text-[9px] font-bold">ID: {game.id.substring(0,9)}</div>
           <div className="flex items-center gap-1 text-yellow-400 text-[9px] font-bold"><Trophy size={10}/> {game.prize_pool} ETB</div>
           <div className="flex items-center gap-1 text-blue-400 text-[9px] font-bold"><LayoutGrid size={10}/> {taken.length}</div>
           <div className="flex items-center gap-1 text-emerald-400 text-[9px] font-bold"><Clock size={10}/> {called.length}/75</div>
@@ -1542,7 +1542,7 @@ export default function BingoGame() {
               </div>
               <div className="flex-1 bg-white/5 border border-white/10 rounded-xl h-9 flex flex-col items-center justify-center">
                 <span className="text-[9px] text-white/30 font-bold leading-none">{t[language].bingo.gameId}</span>
-                <span className="text-sm font-black text-white leading-tight">{game.game_id}</span>
+                <span className="text-sm font-black text-white leading-tight">{game.id.substring(0,9)}</span>
               </div>
             </div>
             <div className="grid grid-cols-5 gap-1.5">
