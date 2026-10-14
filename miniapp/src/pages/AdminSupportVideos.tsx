@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Plus, Trash2, Edit3, Upload, CheckCircle, XCircle, Video, Loader2, Eye, EyeOff, Play, X } from 'lucide-react';
+import { ChevronLeft, Plus, Trash2, Edit3, Upload, CheckCircle, XCircle, Video, Loader2, Eye, EyeOff, Play, X, ChevronUp, ChevronDown } from 'lucide-react';
 import WebApp from '@twa-dev/sdk';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -46,10 +46,14 @@ export default function AdminSupportVideos() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null);
 
-  // Full-screen video preview modal
-  const [previewVideo, setPreviewVideo] = useState<SupportVideo | null>(null);
+  // Full-screen video preview modal with vertical swipe navigation
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const previewVideoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const touchStartY = useRef<number | null>(null);
+  const touchEndY = useRef<number | null>(null);
+  const lastWheelTime = useRef<number>(0);
 
   const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
 
@@ -90,9 +94,59 @@ export default function AdminSupportVideos() {
     setShowForm(true);
   };
 
+  const filtered = activeTab === 'all' ? videos : videos.filter(v => v.category === activeTab);
+
+  const openPreview = (index: number) => {
+    setPreviewIndex(index);
+  };
+
   const closePreview = () => {
     if (previewVideoRef.current) previewVideoRef.current.pause();
-    setPreviewVideo(null);
+    setPreviewIndex(null);
+  };
+
+  const goToNextPreview = () => {
+    if (filtered.length <= 1) return;
+    setPreviewIndex(prev => prev !== null ? (prev + 1) % filtered.length : 0);
+  };
+
+  const goToPrevPreview = () => {
+    if (filtered.length <= 1) return;
+    setPreviewIndex(prev => prev !== null ? (prev - 1 + filtered.length) % filtered.length : 0);
+  };
+
+  // Touch swipe handling for admin player
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+    touchEndY.current = null;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStartY.current === null || touchEndY.current === null) return;
+    const diff = touchStartY.current - touchEndY.current;
+    if (diff > 45) {
+      goToNextPreview();
+    } else if (diff < -45) {
+      goToPrevPreview();
+    }
+    touchStartY.current = null;
+    touchEndY.current = null;
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    const now = Date.now();
+    if (now - lastWheelTime.current < 450) return;
+    if (e.deltaY > 30) {
+      lastWheelTime.current = now;
+      goToNextPreview();
+    } else if (e.deltaY < -30) {
+      lastWheelTime.current = now;
+      goToPrevPreview();
+    }
   };
 
   const uploadVideoFile = async (f: File): Promise<{ video_url: string; video_key: string }> => {
@@ -186,12 +240,12 @@ export default function AdminSupportVideos() {
     }
   };
 
-  const filtered = activeTab === 'all' ? videos : videos.filter(v => v.category === activeTab);
-
   const getCategoryCount = (catId: string) => {
     if (catId === 'all') return videos.length;
     return videos.filter(v => v.category === catId).length;
   };
+
+  const currentPreviewVideo = previewIndex !== null ? filtered[previewIndex] : null;
 
   return (
     <div className="min-h-screen bg-slate-50 pb-8">
@@ -260,11 +314,11 @@ export default function AdminSupportVideos() {
             </button>
           </div>
         ) : (
-          filtered.map(v => (
+          filtered.map((v, idx) => (
             <div key={v.id} className={`bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden ${!v.is_active ? 'opacity-70' : ''}`}>
               {/* Clickable Video Thumbnail / Player preview */}
               <div
-                onClick={() => setPreviewVideo(v)}
+                onClick={() => openPreview(idx)}
                 className="relative w-full bg-slate-900 cursor-pointer group"
                 style={{ paddingTop: '52%' }}
               >
@@ -312,7 +366,7 @@ export default function AdminSupportVideos() {
               {/* Title & Description */}
               <div className="p-3.5">
                 <h3 
-                  onClick={() => setPreviewVideo(v)}
+                  onClick={() => openPreview(idx)}
                   className="font-black text-slate-800 text-sm leading-snug cursor-pointer hover:text-violet-600 transition-colors"
                 >
                   {v.title}
@@ -325,7 +379,7 @@ export default function AdminSupportVideos() {
               {/* Action Buttons Row */}
               <div className="flex items-center border-t border-gray-100 divide-x divide-gray-100 bg-slate-50/50">
                 <button
-                  onClick={() => setPreviewVideo(v)}
+                  onClick={() => openPreview(idx)}
                   className="flex-1 flex items-center justify-center space-x-1.5 py-2.5 text-xs font-bold text-violet-700 hover:bg-violet-50 active:bg-violet-100 transition-colors"
                 >
                   <Play size={13} fill="currentColor" />
@@ -358,16 +412,27 @@ export default function AdminSupportVideos() {
         )}
       </div>
 
-      {/* FULL-SCREEN VIDEO PLAYER MODAL */}
-      {previewVideo && (
-        <div className="fixed inset-0 z-50 bg-black flex flex-col justify-between">
+      {/* FULL-SCREEN VIDEO PLAYER MODAL WITH SWIPE UP/DOWN NAVIGATION */}
+      {currentPreviewVideo && (
+        <div 
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onWheel={handleWheel}
+          className="fixed inset-0 z-50 bg-black flex flex-col justify-between select-none touch-none"
+        >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-slate-900/90 backdrop-blur-md border-b border-white/10 z-10">
+          <div className="flex items-center justify-between px-4 py-3 bg-slate-900/90 backdrop-blur-md border-b border-white/10 z-20">
             <div className="flex-1 min-w-0 pr-3">
-              <span className={`inline-block text-[9px] font-black px-2 py-0.5 rounded-full mb-0.5 ${categoryColor(previewVideo.category)}`}>
-                {categoryLabel(previewVideo.category)}
-              </span>
-              <p className="font-bold text-white text-sm truncate">{previewVideo.title}</p>
+              <div className="flex items-center space-x-2 mb-0.5">
+                <span className={`inline-block text-[9px] font-black px-2 py-0.5 rounded-full ${categoryColor(currentPreviewVideo.category)}`}>
+                  {categoryLabel(currentPreviewVideo.category)}
+                </span>
+                <span className="text-[10px] font-bold text-white/70 bg-black/40 px-2 py-0.5 rounded-full">
+                  {(previewIndex ?? 0) + 1} of {filtered.length}
+                </span>
+              </div>
+              <p className="font-bold text-white text-sm truncate">{currentPreviewVideo.title}</p>
             </div>
             <button
               onClick={closePreview}
@@ -378,26 +443,54 @@ export default function AdminSupportVideos() {
           </div>
 
           {/* Video Player Area */}
-          <div className="flex-1 flex items-center justify-center bg-black p-2">
+          <div className="flex-1 relative flex items-center justify-center bg-black p-2 overflow-hidden">
             <video
+              key={currentPreviewVideo.id}
               ref={previewVideoRef}
-              src={previewVideo.video_url}
+              src={currentPreviewVideo.video_url}
               controls
               autoPlay
               playsInline
-              className="w-full max-h-full rounded-xl"
-              style={{ maxHeight: 'calc(100vh - 140px)' }}
+              className="w-full max-h-full rounded-xl object-contain"
+              style={{ maxHeight: 'calc(100vh - 150px)' }}
             >
               Your browser does not support video playback.
             </video>
+
+            {/* Floating Navigation Controls on the Right Edge (Swipe Up/Down) */}
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col items-center space-y-3 z-30">
+              <button
+                onClick={(e) => { e.stopPropagation(); goToPrevPreview(); }}
+                className="w-10 h-10 rounded-full bg-black/70 backdrop-blur-md border border-white/20 text-white flex items-center justify-center active:scale-90 transition-transform shadow-lg"
+                title="Previous Video (Swipe Down)"
+              >
+                <ChevronUp size={20} />
+              </button>
+
+              <div className="px-2 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/15 text-[10px] font-black text-white/90">
+                {(previewIndex ?? 0) + 1}/{filtered.length}
+              </div>
+
+              <button
+                onClick={(e) => { e.stopPropagation(); goToNextPreview(); }}
+                className="w-10 h-10 rounded-full bg-violet-600/90 backdrop-blur-md border border-violet-400/40 text-white flex items-center justify-center active:scale-90 transition-transform shadow-lg animate-pulse"
+                title="Next Video (Swipe Up)"
+              >
+                <ChevronDown size={20} />
+              </button>
+            </div>
           </div>
 
-          {/* Bottom info footer */}
-          {previewVideo.description && (
-            <div className="p-3 bg-slate-900/90 border-t border-white/10 text-xs text-white/80 max-h-24 overflow-y-auto">
-              <p className="font-medium">{previewVideo.description}</p>
+          {/* Bottom info footer & helper */}
+          <div className="p-3.5 bg-slate-900/90 border-t border-white/10 z-20 space-y-1">
+            {currentPreviewVideo.description && (
+              <p className="text-xs text-white/80 font-medium line-clamp-2">{currentPreviewVideo.description}</p>
+            )}
+            <div className="text-[10px] text-white/50 font-bold flex items-center space-x-1">
+              <span>↕</span>
+              <span>Swipe up or down or use arrows to view next/prev video</span>
             </div>
-          )}
+          </div>
         </div>
       )}
 

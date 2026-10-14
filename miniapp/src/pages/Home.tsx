@@ -185,7 +185,7 @@ export default function Home() {
   }, []);
   // ----------------------------------
 
-  const handleHelp = async () => {
+  const handleTelegramSupport = async () => {
     const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
     const API_URL_H = import.meta.env.VITE_API_URL || '/api';
     try {
@@ -298,9 +298,20 @@ export default function Home() {
           <Share2 size={18} />
           <span>{t[language].home.invite}</span>
         </button>
-        <Link to="/help-videos" className="flex flex-col items-center justify-center space-y-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 text-violet-600 dark:text-violet-400 py-2.5 rounded-xl font-bold text-[11px] shadow-sm transition-colors">
-          <Clapperboard size={18} />
-          <span>Videos</span>
+        <Link
+          to="/help-videos"
+          className="relative group flex flex-col items-center justify-center space-y-1 bg-gradient-to-br from-violet-600 via-indigo-600 to-purple-700 hover:from-violet-500 hover:to-purple-600 text-white py-2.5 rounded-xl font-black text-[11px] shadow-md shadow-violet-500/30 active:scale-95 transition-all overflow-hidden border border-violet-400/40"
+        >
+          {/* Subtle animated shimmer highlight */}
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full duration-1000 transition-transform pointer-events-none" />
+          
+          {/* Attention-seeker badge */}
+          <span className="absolute -top-1 -right-1 bg-gradient-to-r from-amber-400 to-rose-500 text-white text-[7.5px] font-black px-1.5 py-0.5 rounded-full shadow-sm animate-pulse tracking-wider uppercase border border-white/40">
+            Guide
+          </span>
+
+          <Clapperboard size={18} className="text-white drop-shadow-sm" />
+          <span className="tracking-wide">Videos</span>
         </Link>
       </div>
 
@@ -315,7 +326,7 @@ export default function Home() {
           {showSupportBanner && (
             <div className="flex items-center bg-white dark:bg-slate-800 border border-violet-300 dark:border-violet-700/60 rounded-full py-0.5 px-2 shadow-sm">
               <button
-                onClick={handleHelp}
+                onClick={handleTelegramSupport}
                 className="flex items-center gap-1 active:opacity-75 transition-opacity"
               >
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
@@ -333,7 +344,10 @@ export default function Home() {
             </div>
           )}
 
-          <button onClick={handleHelp} className="text-blue-500 flex items-center space-x-1 text-xs font-semibold shrink-0">
+          <button 
+            onClick={() => navigate('/help-videos')} 
+            className="text-violet-600 dark:text-violet-400 flex items-center space-x-1 text-xs font-bold shrink-0 hover:underline active:scale-95 transition-all"
+          >
             <Info size={14} />
             <span>{t[language].home.help}</span>
           </button>

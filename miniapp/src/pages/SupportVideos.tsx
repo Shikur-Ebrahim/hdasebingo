@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Play, X, Loader2, Video as VideoIcon, Headphones } from 'lucide-react';
+import { ChevronLeft, Play, X, Loader2, Video as VideoIcon, Headphones, ChevronUp, ChevronDown, MessageCircle } from 'lucide-react';
 import WebApp from '@twa-dev/sdk';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -28,8 +28,17 @@ export default function SupportVideos() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [videos, setVideos] = useState<SupportVideo[]>([]);
   const [loading, setLoading] = useState(false);
-  const [playingVideo, setPlayingVideo] = useState<SupportVideo | null>(null);
+
+  // Fullscreen Reels/Shorts Player state
+  const [isPlayerOpen, setIsPlayerOpen] = useState(false);
+  const [playerPlaylist, setPlayerPlaylist] = useState<SupportVideo[]>([]);
+  const [activeVideoIndex, setActiveVideoIndex] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Touch gesture tracking for vertical swipe
+  const touchStartY = useRef<number | null>(null);
+  const touchEndY = useRef<number | null>(null);
+  const lastWheelTime = useRef<number>(0);
 
   const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
 
@@ -79,12 +88,87 @@ export default function SupportVideos() {
     fetchVideos(catId);
   };
 
-  const closeVideo = () => {
-    if (videoRef.current) videoRef.current.pause();
-    setPlayingVideo(null);
+  const openVideoAt = (index: number, list: SupportVideo[]) => {
+    setPlayerPlaylist(list);
+    setActiveVideoIndex(index);
+    setIsPlayerOpen(true);
   };
 
+  const closeVideoPlayer = () => {
+    if (videoRef.current) videoRef.current.pause();
+    setIsPlayerOpen(false);
+  };
+
+  const goToNextVideo = () => {
+    if (playerPlaylist.length <= 1) return;
+    setActiveVideoIndex(prev => (prev + 1) % playerPlaylist.length);
+  };
+
+  const goToPrevVideo = () => {
+    if (playerPlaylist.length <= 1) return;
+    setActiveVideoIndex(prev => (prev - 1 + playerPlaylist.length) % playerPlaylist.length);
+  };
+
+  // Touch swipe handling
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+    touchEndY.current = null;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStartY.current === null || touchEndY.current === null) return;
+    const diff = touchStartY.current - touchEndY.current;
+    const minSwipeDistance = 45;
+
+    if (diff > minSwipeDistance) {
+      // Swiped UP -> Go to Next video
+      goToNextVideo();
+    } else if (diff < -minSwipeDistance) {
+      // Swiped DOWN -> Go to Prev video
+      goToPrevVideo();
+    }
+    touchStartY.current = null;
+    touchEndY.current = null;
+  };
+
+  // Wheel handling for desktop
+  const handleWheel = (e: React.WheelEvent) => {
+    const now = Date.now();
+    if (now - lastWheelTime.current < 450) return; // Debounce wheel
+    if (e.deltaY > 30) {
+      lastWheelTime.current = now;
+      goToNextVideo();
+    } else if (e.deltaY < -30) {
+      lastWheelTime.current = now;
+      goToPrevVideo();
+    }
+  };
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (!isPlayerOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown' || e.key === ' ') {
+        e.preventDefault();
+        goToNextVideo();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        goToPrevVideo();
+      } else if (e.key === 'Escape') {
+        closeVideoPlayer();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isPlayerOpen, playerPlaylist.length]);
+
+  const currentVideo = playerPlaylist[activeVideoIndex];
   const activeCat = CATEGORIES.find(c => c.id === selectedCategory);
+  const currentVideoCat = currentVideo ? CATEGORIES.find(c => c.id === currentVideo.category) : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pb-8">
@@ -224,7 +308,7 @@ export default function SupportVideos() {
                 return (
                   <button
                     key={v.id}
-                    onClick={() => setPlayingVideo(v)}
+                    onClick={() => openVideoAt(idx, videos)}
                     className="w-full bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98] transition-all text-left"
                   >
                     <div className="flex items-center space-x-3 p-3">
@@ -259,7 +343,7 @@ export default function SupportVideos() {
                         )}
                         <div className="flex items-center space-x-1 mt-1.5 text-violet-600">
                           <Play size={10} fill="currentColor" />
-                          <span className="text-[10px] font-bold">Watch Video</span>
+                          <span className="text-[10px] font-bold">Watch Video (Swipeable)</span>
                         </div>
                       </div>
                     </div>
@@ -271,36 +355,112 @@ export default function SupportVideos() {
         </div>
       )}
 
-      {/* FULL-SCREEN VIDEO PLAYER */}
-      {playingVideo && (
-        <div className="fixed inset-0 z-50 bg-black flex flex-col justify-between">
-          <div className="flex items-center justify-between px-4 py-3 bg-slate-900/90 backdrop-blur-md border-b border-white/10 z-10">
+      {/* FULL-SCREEN REELS/SHORTS-STYLE SWIPEABLE VIDEO PLAYER */}
+      {isPlayerOpen && currentVideo && (
+        <div
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onWheel={handleWheel}
+          className="fixed inset-0 z-50 bg-black flex flex-col justify-between select-none touch-none"
+        >
+          {/* Top Bar */}
+          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/90 via-black/60 to-transparent z-20">
             <div className="flex-1 min-w-0 pr-3">
-              <p className="font-bold text-white text-sm truncate">{playingVideo.title}</p>
-              {playingVideo.description && (
-                <p className="text-[11px] text-white/60 font-medium truncate">{playingVideo.description}</p>
-              )}
+              <div className="flex items-center space-x-2 mb-0.5">
+                {currentVideoCat && (
+                  <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-white/20 text-white backdrop-blur-md">
+                    {currentVideoCat.emoji} {currentVideoCat.label}
+                  </span>
+                )}
+                <span className="text-[10px] font-bold text-white/70 bg-black/40 px-2 py-0.5 rounded-full">
+                  {activeVideoIndex + 1} of {playerPlaylist.length}
+                </span>
+              </div>
+              <p className="font-bold text-white text-sm truncate">{currentVideo.title}</p>
             </div>
-            <button 
-              onClick={closeVideo} 
-              className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 active:scale-90 text-white flex items-center justify-center transition-all"
-            >
-              <X size={20} />
-            </button>
+            
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handleSupport}
+                className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center active:scale-90 transition-all"
+                title="Support"
+              >
+                <MessageCircle size={16} />
+              </button>
+              <button 
+                onClick={closeVideoPlayer} 
+                className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center active:scale-90 transition-all"
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
           </div>
 
-          <div className="flex-1 flex items-center justify-center bg-black p-2">
+          {/* Main Video Viewport */}
+          <div className="flex-1 relative flex items-center justify-center bg-black overflow-hidden">
             <video
+              key={currentVideo.id} // Reload video smoothly when index changes
               ref={videoRef}
-              src={playingVideo.video_url}
+              src={currentVideo.video_url}
               controls
               autoPlay
               playsInline
-              className="w-full max-h-full rounded-xl"
-              style={{ maxHeight: 'calc(100vh - 120px)' }}
+              className="w-full max-h-full object-contain"
+              style={{ maxHeight: 'calc(100vh - 150px)' }}
             >
               Your browser does not support video playback.
             </video>
+
+            {/* Floating Navigation Controls on the Right Edge (TikTok / Shorts style) */}
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col items-center space-y-3 z-30">
+              {/* Prev Video Button (▲) */}
+              <button
+                onClick={(e) => { e.stopPropagation(); goToPrevVideo(); }}
+                className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-white flex flex-col items-center justify-center active:scale-90 transition-transform shadow-lg hover:bg-black/80"
+                title="Previous Video (Swipe Down)"
+              >
+                <ChevronUp size={20} />
+              </button>
+
+              {/* Progress counter pill */}
+              <div className="px-2 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/15 text-[10px] font-black text-white/90">
+                {activeVideoIndex + 1}/{playerPlaylist.length}
+              </div>
+
+              {/* Next Video Button (▼) */}
+              <button
+                onClick={(e) => { e.stopPropagation(); goToNextVideo(); }}
+                className="w-10 h-10 rounded-full bg-violet-600/90 backdrop-blur-md border border-violet-400/40 text-white flex flex-col items-center justify-center active:scale-90 transition-transform shadow-lg hover:bg-violet-700 animate-pulse"
+                title="Next Video (Swipe Up)"
+              >
+                <ChevronDown size={20} />
+              </button>
+            </div>
+          </div>
+
+          {/* Bottom Info & Swipe Hint Overlay */}
+          <div className="p-4 bg-gradient-to-t from-black via-black/80 to-transparent z-20 space-y-2">
+            {currentVideo.description && (
+              <p className="text-xs text-white/80 font-medium line-clamp-2 leading-relaxed">
+                {currentVideo.description}
+              </p>
+            )}
+
+            {/* Swipe instruction helper */}
+            <div className="flex items-center justify-between pt-1">
+              <div className="flex items-center space-x-1.5 text-[10px] font-bold text-white/60">
+                <span className="inline-block animate-bounce">↕</span>
+                <span>Swipe up or down for next video</span>
+              </div>
+              <button
+                onClick={handleSupport}
+                className="text-[10px] font-bold text-violet-300 hover:text-white flex items-center space-x-1 underline"
+              >
+                <span>Ask Admin Help</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
