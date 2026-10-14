@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
-import { Gift, ArrowDownToLine, Share2, PlusCircle, Info, MessageCircle, DoorOpen, Users, Gamepad2, RefreshCw, ChevronDown } from 'lucide-react';
+import { Gift, ArrowDownToLine, Share2, PlusCircle, Info, MessageCircle, DoorOpen, Users, Gamepad2, RefreshCw, ChevronDown, Clapperboard } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { supabase } from '../lib/supabase';
@@ -277,22 +277,26 @@ export default function Home() {
       </div>
 
       {/* ACTION BUTTONS */}
-      <div className="px-4 grid grid-cols-3 gap-3">
-        <Link to="/deposit" className="flex items-center justify-center space-x-1.5 bg-yellow-400 hover:bg-yellow-500 text-yellow-950 py-2 rounded-xl font-bold text-xs shadow-sm transition-colors">
-          <PlusCircle size={16} />
+      <div className="px-4 grid grid-cols-4 gap-2">
+        <Link to="/deposit" className="flex flex-col items-center justify-center space-y-1 bg-yellow-400 hover:bg-yellow-500 text-yellow-950 py-2.5 rounded-xl font-bold text-[11px] shadow-sm transition-colors">
+          <PlusCircle size={18} />
           <span>{t[language].home.deposit}</span>
         </Link>
-        <Link to="/withdraw" className="flex items-center justify-center space-x-1.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 py-2 rounded-xl font-bold text-xs shadow-sm transition-colors">
-          <ArrowDownToLine size={16} />
+        <Link to="/withdraw" className="flex flex-col items-center justify-center space-y-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 py-2.5 rounded-xl font-bold text-[11px] shadow-sm transition-colors">
+          <ArrowDownToLine size={18} />
           <span>{t[language].home.withdraw}</span>
         </Link>
         <button
           onClick={handleInvite}
-          className="flex items-center justify-center space-x-1.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 py-2 rounded-xl font-bold text-xs shadow-sm transition-colors"
+          className="flex flex-col items-center justify-center space-y-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 py-2.5 rounded-xl font-bold text-[11px] shadow-sm transition-colors"
         >
-          <Share2 size={16} />
+          <Share2 size={18} />
           <span>{t[language].home.invite}</span>
         </button>
+        <Link to="/help-videos" className="flex flex-col items-center justify-center space-y-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 text-violet-600 dark:text-violet-400 py-2.5 rounded-xl font-bold text-[11px] shadow-sm transition-colors">
+          <Clapperboard size={18} />
+          <span>Videos</span>
+        </Link>
       </div>
 
       {/* ACTIVE GAMES / LIVE BINGO BANNER */}

@@ -1139,4 +1139,92 @@ router.delete('/rooms/:id', async (req, res) => {
   }
 });
 
+// ─── SUPPORT VIDEOS ─────────────────────────────────────────────────────────
+
+// GET /admin/support-videos
+router.get('/support-videos', async (_req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('support_videos')
+      .select('*')
+      .order('category')
+      .order('sort_order')
+      .order('created_at');
+    if (error) throw error;
+    res.json({ videos: data || [] });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/support-videos
+router.post('/support-videos', async (req, res) => {
+  try {
+    const { category, title, description, video_url, video_key, thumbnail_url, sort_order } = req.body;
+    if (!category || !title || !video_url || !video_key) {
+      res.status(400).json({ error: 'category, title, video_url and video_key are required' });
+      return;
+    }
+    const { data, error } = await supabase
+      .from('support_videos')
+      .insert({ category, title, description: description || null, video_url, video_key, thumbnail_url: thumbnail_url || null, sort_order: sort_order ?? 0 })
+      .select()
+      .single();
+    if (error) throw error;
+    res.json({ success: true, video: data });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /admin/support-videos/:id
+router.put('/support-videos/:id', async (req, res) => {
+  try {
+    const updates: any = { updated_at: new Date().toISOString() };
+    const fields = ['category', 'title', 'description', 'video_url', 'video_key', 'thumbnail_url', 'is_active', 'sort_order'];
+    for (const f of fields) {
+      if (req.body[f] !== undefined) updates[f] = req.body[f];
+    }
+    const { data, error } = await supabase
+      .from('support_videos')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    if (error) throw error;
+    res.json({ success: true, video: data });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /admin/support-videos/:id
+router.delete('/support-videos/:id', async (req, res) => {
+  try {
+    // Fetch the video_key first so we can clean up R2
+    const { data: vid, error: fetchErr } = await supabase
+      .from('support_videos')
+      .select('video_key')
+      .eq('id', req.params.id)
+      .single();
+    if (fetchErr) throw fetchErr;
+
+    const { error } = await supabase.from('support_videos').delete().eq('id', req.params.id);
+    if (error) throw error;
+
+    // Best-effort R2 deletion
+    if (vid?.video_key) {
+      try {
+        const { deleteFromR2 } = await import('../services/r2');
+        await deleteFromR2(vid.video_key);
+      } catch (_) {}
+    }
+
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
+

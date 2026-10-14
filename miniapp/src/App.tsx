@@ -137,6 +137,8 @@ import AdminUsers from './pages/AdminUsers';
 import AdminWorkers from './pages/AdminWorkers';
 import AdminBroadcast from './pages/AdminBroadcast';
 import AdminAgents from './pages/AdminAgents';
+import AdminSupportVideos from './pages/AdminSupportVideos';
+import SupportVideos from './pages/SupportVideos';
 
 import DepositHistory from './pages/DepositHistory';
 import WithdrawHistory from './pages/WithdrawHistory';
@@ -315,6 +317,8 @@ function App() {
           <Route path="/admin/workers" element={<AdminWorkers />} />
           <Route path="/admin/broadcast" element={<AdminBroadcast />} />
           <Route path="/admin/agents" element={<AdminAgents />} />
+          <Route path="/admin/support-videos" element={<AdminSupportVideos />} />
+          <Route path="/help-videos" element={<SupportVideos />} />
           <Route path="/worker" element={<Worker />} />
         </Routes></ErrorBoundary>
         <Profile />

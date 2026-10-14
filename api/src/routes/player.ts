@@ -334,4 +334,27 @@ router.post('/rooms/:id/enter', async (_req, res) => {
   res.json({ success: true });
 });
 
+// GET /player/support-videos?category=<cat> — public: active videos for users
+router.get('/support-videos', async (req, res) => {
+  try {
+    let query = supabase
+      .from('support_videos')
+      .select('id, category, title, description, video_url, thumbnail_url, sort_order')
+      .eq('is_active', true)
+      .order('sort_order')
+      .order('created_at');
+
+    if (req.query.category) {
+      query = query.eq('category', req.query.category as string);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json({ videos: data || [] });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
+
