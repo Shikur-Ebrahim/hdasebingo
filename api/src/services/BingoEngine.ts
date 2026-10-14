@@ -195,11 +195,11 @@ class BingoEngine {
       // Build a refund description for the notification
       let refundDesc = '';
       if (bonusAmt > 0 && mainAmt > 0) {
-        refundDesc = bonusAmt + ' ETB ወደ Bonus, ' + mainAmt + ' ETB ወደ Main Balance';
+        refundDesc = bonusAmt + ' ETB to Bonus, ' + mainAmt + ' ETB to Main Balance';
       } else if (bonusAmt > 0) {
-        refundDesc = bonusAmt + ' ETB ወደ Bonus Balance';
+        refundDesc = bonusAmt + ' ETB to Bonus Balance';
       } else {
-        refundDesc = mainAmt + ' ETB ወደ Main Balance';
+        refundDesc = mainAmt + ' ETB to Main Balance';
       }
 
       // Notify user via Telegram bot if configured
@@ -210,7 +210,7 @@ class BingoEngine {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               chat_id: telegramId,
-              text: '⏳ *ቢንጦ ጸዋታ ተሰርዋል*\n\nሌላ ተጫዋች በጊዜዱ ስለለገባ የ ' + count + ' ካርቴላ ክፈያ (*' + totalRefund + ' ETB*) ተመላሽ ተደርጋል።\n\n✅ ' + refundDesc + '።',
+              text: '⏳ *Bingo game canceled*\n\nBecause another player joined too late, your ' + count + '-card payment (*' + totalRefund + ' ETB*) has been refunded.\n\n✅ ' + refundDesc + '.',
               parse_mode: 'Markdown',
             }),
           });
