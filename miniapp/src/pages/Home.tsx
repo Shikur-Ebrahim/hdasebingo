@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
-import { Gift, ArrowDownToLine, Share2, PlusCircle, Info, MessageCircle, DoorOpen, Users, Gamepad2, RefreshCw, ChevronDown, Clapperboard } from 'lucide-react';
+import { Gift, ArrowDownToLine, Share2, PlusCircle, Info, DoorOpen, Users, Gamepad2, RefreshCw, ChevronDown, Clapperboard } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { supabase } from '../lib/supabase';
@@ -45,28 +45,6 @@ export default function Home() {
   const [homeRoomSearch, setHomeRoomSearch] = useState('');
   const [showHomeSearchBar, setShowHomeSearchBar] = useState(false);
 
-  // Support banner state
-  const [showSupportBanner, setShowSupportBanner] = useState(false);
-  const bannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Play popup sound using Web Audio API
-  const playPopSound = () => {
-    try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.connect(g);
-      g.connect(ctx.destination);
-      o.type = 'sine';
-      o.frequency.setValueAtTime(600, ctx.currentTime);
-      o.frequency.exponentialRampToValueAtTime(900, ctx.currentTime + 0.08);
-      g.gain.setValueAtTime(0.3, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-      o.start(ctx.currentTime);
-      o.stop(ctx.currentTime + 0.3);
-    } catch { /* ignore if audio blocked */ }
-  };
-
   // Sync rooms silently on mount + realtime subscription (NO loading effect on revisit)
   useEffect(() => {
     fetchRooms();
@@ -83,21 +61,6 @@ export default function Home() {
     await fetchRooms();
     setTimeout(() => setManualRefreshing(false), 500);
   };
-
-  // Show banner 2s after each visit to home
-  useEffect(() => {
-    if (location.pathname !== '/') return;
-    if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
-    setShowSupportBanner(false);
-
-    bannerTimerRef.current = setTimeout(() => {
-      setShowSupportBanner(true);
-      sessionStorage.setItem('support_banner_ts', String(Date.now()));
-      playPopSound();
-    }, 2000);
-
-    return () => { if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current); };
-  }, [location.pathname]);
 
   useEffect(() => {
     let isMounted = true;
@@ -185,30 +148,7 @@ export default function Home() {
   }, []);
   // ----------------------------------
 
-  const handleTelegramSupport = async () => {
-    const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
-    const API_URL_H = import.meta.env.VITE_API_URL || '/api';
-    try {
-      const res = await fetch(`${API_URL_H}/player/support-contact`, {
-        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData }
-      });
-      const data = await res.json();
-      const username = (data.username || 'Mosque_Dona').replace('@', '').trim();
-      const url = `https://t.me/${username}`;
-      if (typeof WebApp !== 'undefined' && WebApp.openTelegramLink) {
-        WebApp.openTelegramLink(url);
-      } else {
-        window.open(url, '_blank');
-      }
-    } catch {
-      const fallbackUrl = 'https://t.me/Mosque_Dona';
-      if (typeof WebApp !== 'undefined' && WebApp.openTelegramLink) {
-        WebApp.openTelegramLink(fallbackUrl);
-      } else {
-        window.open(fallbackUrl, '_blank');
-      }
-    }
-  };
+
 
   const initial = user?.first_name ? user.first_name.charAt(0).toUpperCase() : 'U';
   const formatMoney = (amount: number | undefined) => (amount || 0).toLocaleString('en-US');
@@ -315,44 +255,8 @@ export default function Home() {
         </Link>
       </div>
 
-      {/* ACTIVE GAMES / LIVE BINGO BANNER */}
+      {/* LIVE BINGO BANNER */}
       <div className="px-4">
-        <div className="flex items-center justify-between mb-2 gap-1.5 min-h-[26px]">
-          <h2 className="font-bold text-slate-500 dark:text-slate-400 tracking-wider text-xs shrink-0">
-            {t[language].home.activeGames}
-          </h2>
-
-          {/* Support pill in the gap between ACTIVE GAMES and Help */}
-          {showSupportBanner && (
-            <div className="flex items-center bg-white dark:bg-slate-800 border border-violet-300 dark:border-violet-700/60 rounded-full py-0.5 px-2 shadow-sm">
-              <button
-                onClick={handleTelegramSupport}
-                className="flex items-center gap-1 active:opacity-75 transition-opacity"
-              >
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                <MessageCircle size={12} className="text-violet-600 dark:text-violet-400 shrink-0" />
-                <span className="text-violet-800 dark:text-violet-300 font-bold text-[10.5px] leading-tight truncate">
-                  {t[language].home.supportBanner}
-                </span>
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); setShowSupportBanner(false); }}
-                className="ml-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold leading-none shrink-0"
-              >
-                ×
-              </button>
-            </div>
-          )}
-
-          <button 
-            onClick={() => navigate('/help-videos')} 
-            className="text-violet-600 dark:text-violet-400 flex items-center space-x-1 text-xs font-bold shrink-0 hover:underline active:scale-95 transition-all"
-          >
-            <Info size={14} />
-            <span>{t[language].home.help}</span>
-          </button>
-        </div>
-
         <Link to="/bingo/live" className="block relative rounded-2xl overflow-hidden shadow-md h-52 flex flex-col items-center justify-center border border-amber-100">
           {/* Light gradient background — matches loading screen */}
           <div className="absolute inset-0" style={{

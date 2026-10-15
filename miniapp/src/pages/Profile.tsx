@@ -4,7 +4,7 @@ import { t } from '../lib/translations';
 import { 
   Wallet, Gift, PlusCircle, ArrowDownToLine, Share2, 
   ArrowRightLeft, History, Users, Globe, Headphones, Megaphone,
-  ChevronRight, X, Moon, BarChart2, Copy, Check, BookOpen
+  ChevronRight, X, Moon, BarChart2, Copy, Check, BookOpen, Bot, Sparkles
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
@@ -153,7 +153,7 @@ export default function Profile() {
           </div>
 
           {/* List items — flex-1 fills all remaining height, justify-around spreads evenly */}
-          <div className="bg-white dark:bg-slate-800 rounded-2xl px-1.5 shadow-sm border border-gray-100 dark:border-slate-700 flex flex-col flex-1 justify-around py-1">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl px-1.5 shadow-sm border border-gray-100 dark:border-slate-700 flex flex-col flex-1 justify-around py-1 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
 
             <button onClick={() => navigateTo('/deposit-history')} className={row}>
               <div className={icon('bg-blue-50 text-blue-500')}><History size={12} /></div>
@@ -226,6 +226,33 @@ export default function Profile() {
               <span className="flex-1 font-bold text-slate-700 dark:text-slate-200 text-[10px]">{t[language].profile.darkMode}</span>
               <div className={`w-7 h-3.5 rounded-full relative mr-1 transition-colors ${isDarkMode ? 'bg-violet-500' : 'bg-slate-200'}`}>
                 <div className={`w-3 h-3 bg-white rounded-full absolute top-[1px] shadow-sm transition-all duration-300 ${isDarkMode ? 'left-[15px]' : 'left-[1px]'}`} />
+              </div>
+            </button>
+
+            {/* AI Assistance — Unique highlighted button */}
+            <button
+              onClick={() => navigateTo('/support')}
+              className="w-full flex items-center px-2 py-1.5 rounded-xl bg-gradient-to-r from-violet-600/10 via-purple-600/15 to-indigo-600/10 border border-violet-200 dark:border-violet-700/50 hover:from-violet-600/20 hover:to-indigo-600/20 transition-all active:scale-[0.98] text-left shadow-2xs group my-0.5"
+            >
+              <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-violet-600 to-indigo-600 text-white flex items-center justify-center mr-2 shrink-0 shadow-xs">
+                <Bot size={13} />
+              </div>
+              <div className="flex-1 min-w-0 pr-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-black text-violet-900 dark:text-violet-200 text-[10px] truncate">
+                    {t[language].profile.aiAssistance || 'AI Assistance'}
+                  </span>
+                  <span className="text-[7px] bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-1.5 py-0.2 rounded-full font-black tracking-wider uppercase shrink-0">
+                    AI
+                  </span>
+                </div>
+                <p className="text-[8px] text-violet-600/80 dark:text-violet-400 font-semibold truncate leading-tight">
+                  {language === 'am' ? '24/7 ፈጣን ስማርት ረዳት' : '24/7 Smart Helper'}
+                </p>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <ChevronRight size={11} className="text-violet-400 group-hover:translate-x-0.5 transition-transform" />
               </div>
             </button>
 
