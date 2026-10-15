@@ -373,15 +373,26 @@ export default function Home() {
           {/* Subtle dark overlay for depth */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/60" />
 
-          {/* Scrolling marquee strip at top */}
+          {/* Scrolling marquee strip — live room names from DB */}
           <div className="absolute top-0 left-0 right-0 overflow-hidden py-1.5 bg-yellow-400/10 border-b border-yellow-400/20">
-            <div className="flex whitespace-nowrap animate-marquee">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <span key={i} className="text-yellow-400 font-black text-[10px] uppercase tracking-[0.25em] px-5 shrink-0">
-                  🎯 HDASE BINGO &nbsp;·&nbsp; 🏆 Win Big Today &nbsp;·&nbsp; 🎲 Play &amp; Win &nbsp;·&nbsp; 🔥 Live Games Now &nbsp;·&nbsp;
-                </span>
-              ))}
-            </div>
+            {rooms.length > 0 ? (
+              <div className="flex whitespace-nowrap animate-marquee">
+                {/* Duplicate twice so the loop is seamless */}
+                {[...rooms, ...rooms].map((room, i) => (
+                  <span key={i} className="text-yellow-400 font-black text-[10px] uppercase tracking-[0.2em] px-4 shrink-0">
+                    🎯 {room.room_name} &nbsp;·&nbsp;
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="flex whitespace-nowrap animate-marquee">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <span key={i} className="text-yellow-400 font-black text-[10px] uppercase tracking-[0.25em] px-5 shrink-0">
+                    🎯 HDASE BINGO &nbsp;·&nbsp; 🏆 Live Rooms &nbsp;·&nbsp; 🔥 Play Now &nbsp;·&nbsp;
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Main content */}
