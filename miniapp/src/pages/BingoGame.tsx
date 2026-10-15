@@ -902,11 +902,11 @@ export default function BingoGame() {
   else if (game?.status === "calling") { statusTxt = "Active"; statusCls = "text-emerald-400"; }
 
   const Header = () => (
-    <div className={`px-4 py-3 border-b ${game?.status === 'calling' ? 'border-white/5 bg-[#05081a]' : 'border-slate-100 bg-white shadow-2xs'} flex items-center justify-between shrink-0 transition-colors`}>
+    <div className="px-4 py-3 border-b border-slate-100 bg-white shadow-2xs flex items-center justify-between shrink-0 transition-colors">
       <div className="flex items-center space-x-3">
         <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-black text-lg shadow-xs">{initial}</div>
         <div>
-          <p className={`font-black text-sm uppercase tracking-wider ${game?.status === 'calling' ? 'text-slate-200' : 'text-slate-800'} leading-tight`}>{user?.first_name || "USER"}</p>
+          <p className="font-black text-sm uppercase tracking-wider text-slate-800 leading-tight">{user?.first_name || "USER"}</p>
           <div className="flex items-center space-x-1 mt-0.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-[10px] font-bold text-slate-400">Online</span>
@@ -915,12 +915,12 @@ export default function BingoGame() {
       </div>
       <div className="flex items-center space-x-4 text-right">
         <div className="flex flex-col items-center">
-          <Gift size={14} className={`${game?.status === 'calling' ? 'text-purple-400' : 'text-purple-600'} mb-0.5`} />
-          <p className={`text-xs font-bold ${game?.status === 'calling' ? 'text-slate-300' : 'text-slate-700'}`}>{fm(user?.bonus_balance)} ETB</p>
+          <Gift size={14} className="text-purple-600 mb-0.5" />
+          <p className="text-xs font-bold text-slate-700">{fm(user?.bonus_balance)} ETB</p>
         </div>
         <div className="flex flex-col items-end">
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{t[language].bingo.wallet}</p>
-          <p className={`text-sm font-black ${game?.status === 'calling' ? 'text-green-400' : 'text-emerald-600'}`}>{fm(user?.main_balance)} ETB</p>
+          <p className="text-sm font-black text-emerald-600">{fm(user?.main_balance)} ETB</p>
         </div>
       </div>
     </div>
@@ -1327,14 +1327,23 @@ export default function BingoGame() {
     );
   }
 
-  if (loading && !game) return <div className="h-[calc(100dvh-80px)] w-full bg-[#05081a] flex items-center justify-center"><RefreshCw size={28} className="text-orange-500 animate-spin" /></div>;
+  if (loading && !game) {
+    return (
+      <div className="h-[calc(100dvh-80px)] w-full bg-gradient-to-b from-[#fffbf0] via-[#fef3c7]/40 to-[#fffbf0] flex flex-col items-center justify-center gap-3">
+        <div className="w-14 h-14 rounded-2xl bg-white border-2 border-amber-300 shadow-md flex items-center justify-center">
+          <RefreshCw size={26} className="text-amber-500 animate-spin" />
+        </div>
+        <p className="text-xs font-black text-amber-800 tracking-wider uppercase">Loading Game...</p>
+      </div>
+    );
+  }
 
   if (!game) return (
-    <div className="h-[calc(100dvh-80px)] w-full bg-[#05081a] flex flex-col items-center justify-center text-white gap-4">
-      <span className="text-5xl">🎱</span>
-      <p className="font-bold text-lg">{t[language].bingo.preparingNext}</p>
-      <button onClick={fetchState} className="px-6 py-2.5 bg-orange-500 text-black font-black rounded-full text-sm">{t[language].bingo.refresh}</button>
-      <button onClick={() => setSelectedStake(null)} className="text-white/40 text-xs underline mt-2">{t[language].bingo.changeStake}</button>
+    <div className="h-[calc(100dvh-80px)] w-full bg-gradient-to-b from-[#fffbf0] via-[#fef3c7]/30 to-[#fffbf0] flex flex-col items-center justify-center text-slate-800 gap-4">
+      <div className="w-16 h-16 rounded-3xl bg-white border-2 border-amber-300 shadow-md flex items-center justify-center text-3xl">🎱</div>
+      <p className="font-black text-lg text-slate-800">{t[language].bingo.preparingNext}</p>
+      <button onClick={fetchState} className="px-8 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-black rounded-full text-sm shadow-md active:scale-95 transition-transform">{t[language].bingo.refresh}</button>
+      <button onClick={() => setSelectedStake(null)} className="text-slate-400 text-xs underline mt-1">{t[language].bingo.changeStake}</button>
     </div>
   );
 
@@ -1347,19 +1356,19 @@ export default function BingoGame() {
       <div className="h-full flex flex-col px-1 pt-1 pb-2 gap-1">
 
         {/* Top Info Bar */}
-        <div className="flex items-center justify-between bg-[#0f172a] px-2 py-1 rounded-xl border border-slate-800 shrink-0">
-          <div className="text-slate-400 text-[9px] font-bold">ID: {formatGameId(game.id)}</div>
-          <div className="flex items-center gap-1 text-yellow-400 text-[9px] font-bold"><Trophy size={10}/> {game.prize_pool} ETB</div>
-          <div className="flex items-center gap-1 text-blue-400 text-[9px] font-bold"><LayoutGrid size={10}/> {taken.length}</div>
-          <div className="flex items-center gap-1 text-emerald-400 text-[9px] font-bold"><Clock size={10}/> {called.length}/75</div>
-          <div className="text-[8px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded-full font-black animate-pulse">LIVE</div>
+        <div className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-xl border border-amber-200/80 shadow-2xs shrink-0">
+          <div className="text-slate-600 text-[9px] font-black">ID: {formatGameId(game.id)}</div>
+          <div className="flex items-center gap-1 text-amber-700 text-[9px] font-black"><Trophy size={10} className="text-amber-500"/> {game.prize_pool} ETB</div>
+          <div className="flex items-center gap-1 text-blue-700 text-[9px] font-black"><LayoutGrid size={10} className="text-blue-500"/> {taken.length}</div>
+          <div className="flex items-center gap-1 text-emerald-700 text-[9px] font-black"><Clock size={10} className="text-emerald-500"/> {called.length}/75</div>
+          <div className="text-[8px] bg-red-500/10 text-red-600 px-2 py-0.5 rounded-full font-black animate-pulse border border-red-200">LIVE</div>
         </div>
 
-        {/* 1-75 Tracker Board — slightly larger */}
-        <div className="bg-[#0b1120] rounded-xl px-1.5 py-1.5 border border-slate-800 shrink-0">
+        {/* 1-75 Tracker Board */}
+        <div className="bg-white rounded-2xl px-2 py-2 border-2 border-amber-200/90 shadow-sm shrink-0">
           <div className="flex flex-col gap-[3px]">
             {BINGO_LETTERS.map((letter, rowIndex) => (
-              <div key={letter} className="flex items-center gap-1">
+              <div key={letter} className="flex items-center gap-1.5">
                 <div className="w-4 flex-shrink-0 flex items-center justify-center font-black text-[10px]" style={{ color: LETTER_COLOR[letter] }}>{letter}</div>
                 <div className="flex-1 grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(15, minmax(0, 1fr))' }}>
                   {Array.from({ length: 15 }, (_, i) => {
@@ -1367,9 +1376,9 @@ export default function BingoGame() {
                     const isCalled = called.includes(num);
                     const isLatest = num === lastNum;
                     return (
-                      <div key={num} className={`h-[20px] rounded-[3px] flex items-center justify-center text-[8px] font-bold transition-all ${
-                        isLatest ? 'bg-white text-black shadow-[0_0_4px_rgba(255,255,255,0.8)]' :
-                        isCalled ? 'bg-yellow-500 text-yellow-950' : 'bg-slate-800/60 text-slate-500'
+                      <div key={num} className={`h-[20px] rounded-[3px] flex items-center justify-center text-[8px] font-black transition-all ${
+                        isLatest ? 'bg-amber-400 text-amber-950 shadow-md ring-2 ring-orange-500 font-black scale-105 z-10' :
+                        isCalled ? 'bg-orange-500 text-white shadow-2xs' : 'bg-slate-100 text-slate-400'
                       }`}>{num}</div>
                     );
                   })}
@@ -1383,36 +1392,36 @@ export default function BingoGame() {
         <div className="flex-1 min-h-0 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
         <div className={`w-full ${myCartelas.length > 1 ? 'max-w-[420px]' : 'max-w-[290px]'} mx-auto flex flex-col gap-1.5 pb-2`}>
           {/* Caller Row */}
-          <div className="shrink-0 bg-[#0a0f1e] rounded-xl border border-white/5 px-2 py-1.5 w-full max-w-[320px] mx-auto">
+          <div className="shrink-0 bg-white rounded-2xl border-2 border-amber-200/90 shadow-sm px-3 py-2 w-full max-w-[320px] mx-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {recent.length === 0 ? (
-                  <span className="text-slate-500 text-[10px] font-bold animate-pulse">Waiting...</span>
+                  <span className="text-amber-700 text-[10px] font-black animate-pulse">Waiting...</span>
                 ) : recent.map((num, idx) => {
                   const l = getLetter(num);
                   const isFirst = idx === 0;
                   if (isFirst) {
                     return (
                       <div key={`${num}-${idx}`} className="flex items-center gap-2">
-                        <div className="w-11 h-11 flex flex-col items-center justify-center rounded-full font-black border-2 border-yellow-400 bg-yellow-400/20 shadow-[0_0_12px_rgba(250,204,21,0.3)]">
+                        <div className="w-11 h-11 flex flex-col items-center justify-center rounded-full font-black border-2 border-amber-400 bg-amber-100/80 shadow-md">
                           <span style={{ color: LETTER_COLOR[l] }} className="text-[10px] leading-none font-black">{l}</span>
-                          <span className="text-white text-lg leading-none font-black">{num}</span>
+                          <span className="text-slate-900 text-lg leading-none font-black">{num}</span>
                         </div>
-                        <span className="text-yellow-400 font-black text-sm">{AMHARIC_NUM[num]}</span>
+                        <span className="text-amber-800 font-black text-sm">{AMHARIC_NUM[num]}</span>
                       </div>
                     );
                   }
                   return (
-                    <div key={`${num}-${idx}`} className="w-7 h-7 flex flex-col items-center justify-center rounded-full border border-slate-700 bg-slate-800/60 opacity-50">
+                    <div key={`${num}-${idx}`} className="w-7 h-7 flex flex-col items-center justify-center rounded-full border border-amber-200 bg-amber-50/60">
                       <span style={{ color: LETTER_COLOR[l] }} className="text-[7px] leading-none font-black">{l}</span>
-                      <span className="text-white text-[10px] leading-none font-black">{num}</span>
+                      <span className="text-slate-700 text-[10px] leading-none font-black">{num}</span>
                     </div>
                   );
                 })}
               </div>
               <div className="flex items-center gap-1.5">
-                <button onClick={() => setAutoMark(a => !a)} className={`w-8 h-8 rounded-lg border flex items-center justify-center active:scale-90 ${autoMark ? 'bg-amber-500/20 border-amber-500/50' : 'bg-slate-800 border-slate-700'}`}>
-                  {autoMark ? <Wand2 size={13} className="text-amber-400" /> : <Hand size={13} className="text-slate-400" />}
+                <button onClick={() => setAutoMark(a => !a)} className={`w-8 h-8 rounded-xl border flex items-center justify-center active:scale-90 transition-all ${autoMark ? 'bg-amber-100 border-amber-400 shadow-2xs' : 'bg-slate-100 border-slate-200'}`}>
+                  {autoMark ? <Wand2 size={13} className="text-amber-600" /> : <Hand size={13} className="text-slate-400" />}
                 </button>
                 <button onClick={() => {
                     const next = !soundEnabled;
@@ -1423,8 +1432,8 @@ export default function BingoGame() {
                       playCallAudio(lastNum || 1);
                     }
                   }}
-                  className={`w-8 h-8 rounded-lg border flex items-center justify-center active:scale-90 ${soundEnabled ? 'bg-blue-500/20 border-blue-500/50' : 'bg-slate-800 border-slate-700'}`}>
-                  {soundEnabled ? <Volume2 size={13} className="text-blue-400" /> : <VolumeX size={13} className="text-red-400" />}
+                  className={`w-8 h-8 rounded-xl border flex items-center justify-center active:scale-90 transition-all ${soundEnabled ? 'bg-blue-100 border-blue-400 shadow-2xs' : 'bg-slate-100 border-slate-200'}`}>
+                  {soundEnabled ? <Volume2 size={13} className="text-blue-600" /> : <VolumeX size={13} className="text-red-400" />}
                 </button>
               </div>
             </div>
@@ -1435,7 +1444,7 @@ export default function BingoGame() {
             myCartelas.length === 1 ? (
               /* Single Cartela — exact same classic centered layout as preset */
               <div key={myCartelas[0].cartela_number} className="w-full max-w-[250px] mx-auto">
-                <div className="rounded-2xl overflow-hidden border border-white/10" style={{ background: 'linear-gradient(145deg,#1a2540,#0f1829)' }}>
+                <div className="rounded-2xl overflow-hidden border-2 border-amber-300 shadow-md bg-white">
                   {/* BINGO Header */}
                   <div className="grid grid-cols-5">
                     {BINGO_LETTERS.map(l => (
@@ -1443,7 +1452,7 @@ export default function BingoGame() {
                     ))}
                   </div>
                   {/* Card Grid */}
-                  <div className="grid grid-cols-5 gap-[3px] p-[3px] bg-[#0a0f1e]">
+                  <div className="grid grid-cols-5 gap-[3px] p-[3px] bg-amber-50/60">
                     {Array.from({ length: 5 }).flatMap((_, r) =>
                       Array.from({ length: 5 }, (_, c) => {
                         const num = myCartelas[0].card_matrix[r][c];
@@ -1466,11 +1475,11 @@ export default function BingoGame() {
                               if (WebApp?.HapticFeedback) WebApp.HapticFeedback.selectionChanged();
                             }}
                             className={`aspect-square flex items-center justify-center font-black text-sm rounded-lg transition-all duration-200 select-none ${
-                              isFree ? 'bg-yellow-400 text-yellow-900' :
-                              isLast && autoMark ? 'bg-orange-500 text-white shadow-[0_0_10px_rgba(249,115,22,0.7)]' :
-                              marked ? 'bg-emerald-500 text-white' :
-                              canTap ? 'bg-white text-[#1a2540] active:scale-95 cursor-pointer ring-1 ring-blue-400/50' :
-                              'bg-white text-[#1a2540]'
+                              isFree ? 'bg-amber-400 text-amber-950 font-black shadow-xs' :
+                              isLast && autoMark ? 'bg-orange-500 text-white shadow-md ring-2 ring-amber-300 scale-105 z-10' :
+                              marked ? 'bg-emerald-500 text-white shadow-xs' :
+                              canTap ? 'bg-white text-slate-800 active:scale-95 cursor-pointer ring-2 ring-blue-400 shadow-xs' :
+                              'bg-white text-slate-800 border border-slate-100 shadow-xs'
                             }`}
                           >{isFree ? '★' : num}</div>
                         );
@@ -1478,9 +1487,9 @@ export default function BingoGame() {
                     )}
                   </div>
                   {/* Cartela Label */}
-                  <div className="py-1 flex items-center justify-center bg-[#0a0f1e] border-t border-white/10">
-                    <p className="text-white/80 font-black text-[9px] tracking-widest uppercase flex items-center gap-1.5">
-                      <LayoutGrid size={11} className="text-yellow-400 shrink-0" />
+                  <div className="py-1.5 flex items-center justify-center bg-white border-t border-amber-200">
+                    <p className="text-amber-800 font-black text-[10px] tracking-widest uppercase flex items-center gap-1.5">
+                      <LayoutGrid size={12} className="text-amber-500 shrink-0" />
                       <span>{t[language].bingo.cartelaNum.trim()} {myCartelas[0].cartela_number}</span>
                     </p>
                   </div>
@@ -1490,13 +1499,13 @@ export default function BingoGame() {
               /* 2 or More Cartelas — Side-by-side grid, ALL visible without any hidden tabs! */
               <div className="w-full flex flex-col gap-1 px-1">
                 <div className="flex items-center justify-between px-0.5">
-                  <span className="text-white/60 text-[10px] font-bold tracking-wider uppercase">CARTELAS ({myCartelas.length})</span>
-                  <span className="text-emerald-400 text-[8px] font-black uppercase tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">All Active</span>
+                  <span className="text-amber-800 text-[10px] font-black tracking-wider uppercase">CARTELAS ({myCartelas.length})</span>
+                  <span className="text-emerald-700 text-[8px] font-black uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">All Active</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 w-full">
                   {myCartelas.map((card) => (
                     <div key={card.cartela_number} className="w-full">
-                      <div className="rounded-xl overflow-hidden border border-white/10 shadow-md" style={{ background: 'linear-gradient(145deg,#1a2540,#0f1829)' }}>
+                      <div className="rounded-xl overflow-hidden border-2 border-amber-300 shadow-md bg-white">
                         {/* BINGO Header */}
                         <div className="grid grid-cols-5">
                           {BINGO_LETTERS.map(l => (
@@ -1504,7 +1513,7 @@ export default function BingoGame() {
                           ))}
                         </div>
                         {/* Card Grid */}
-                        <div className="grid grid-cols-5 gap-[2px] p-[2px] bg-[#0a0f1e]">
+                        <div className="grid grid-cols-5 gap-[2px] p-[2px] bg-amber-50/60">
                           {Array.from({ length: 5 }).flatMap((_, r) =>
                             Array.from({ length: 5 }, (_, c) => {
                               const num = card.card_matrix[r][c];
@@ -1527,11 +1536,11 @@ export default function BingoGame() {
                                     if (WebApp?.HapticFeedback) WebApp.HapticFeedback.selectionChanged();
                                   }}
                                   className={`aspect-square flex items-center justify-center font-black text-[11px] rounded transition-all duration-200 select-none ${
-                                    isFree ? 'bg-yellow-400 text-yellow-900 font-black' :
-                                    isLast && autoMark ? 'bg-orange-500 text-white shadow-[0_0_6px_rgba(249,115,22,0.8)]' :
+                                    isFree ? 'bg-amber-400 text-amber-950 font-black' :
+                                    isLast && autoMark ? 'bg-orange-500 text-white shadow-md ring-2 ring-amber-300 scale-105 z-10' :
                                     marked ? 'bg-emerald-500 text-white' :
-                                    canTap ? 'bg-white text-[#1a2540] active:scale-95 cursor-pointer ring-1 ring-blue-400/50' :
-                                    'bg-white text-[#1a2540]'
+                                    canTap ? 'bg-white text-slate-800 active:scale-95 cursor-pointer ring-2 ring-blue-400' :
+                                    'bg-white text-slate-800 border border-slate-100 shadow-2xs'
                                   }`}
                                 >
                                   {isFree ? '★' : num}
@@ -1541,9 +1550,9 @@ export default function BingoGame() {
                           )}
                         </div>
                         {/* Cartela Label */}
-                        <div className="py-1 px-2 flex items-center justify-center bg-[#0a0f1e] border-t border-white/10">
-                          <p className="text-yellow-400 font-black text-[8px] tracking-wider uppercase flex items-center gap-1.5">
-                            <LayoutGrid size={10} className="text-yellow-300 shrink-0" />
+                        <div className="py-1 px-2 flex items-center justify-center bg-white border-t border-amber-200">
+                          <p className="text-amber-800 font-black text-[9px] tracking-wider uppercase flex items-center gap-1.5">
+                            <LayoutGrid size={11} className="text-amber-500 shrink-0" />
                             <span>{t[language].bingo.cartelaNum.trim()} {card.cartela_number}</span>
                           </p>
                         </div>
@@ -1555,7 +1564,7 @@ export default function BingoGame() {
             )
           ) : (
             <div className="w-full max-w-[250px] mx-auto relative mt-1 pointer-events-none">
-              <div className="rounded-2xl overflow-hidden border border-white/10" style={{ background: 'linear-gradient(145deg,#1a2540,#0f1829)' }}>
+              <div className="rounded-2xl overflow-hidden border-2 border-amber-300 bg-white shadow-md">
                 {/* BINGO Header */}
                 <div className="grid grid-cols-5">
                   {BINGO_LETTERS.map(l => (
@@ -1564,14 +1573,14 @@ export default function BingoGame() {
                 </div>
                 
                 {/* Dummy Grid */}
-                <div className="grid grid-cols-5 gap-[3px] p-[3px] bg-[#0a0f1e]">
+                <div className="grid grid-cols-5 gap-[3px] p-[3px] bg-amber-50/60">
                   {Array.from({ length: 5 }).flatMap((_, r) => 
                     Array.from({ length: 5 }, (_, c) => {
                       const isFree = r === 2 && c === 2;
                       const num = isFree ? '★' : (c * 15) + r + (c % 2 === 0 ? 3 : 8);
                       return (
                         <div key={`${r}-${c}`} className={`aspect-square flex items-center justify-center font-black text-sm rounded-lg ${
-                          isFree ? 'bg-yellow-400 text-yellow-900' : 'bg-white text-[#1a2540]'
+                          isFree ? 'bg-amber-400 text-amber-950' : 'bg-white text-slate-800 shadow-2xs border border-slate-100'
                         }`}>{num}</div>
                       );
                     })
@@ -1579,12 +1588,12 @@ export default function BingoGame() {
                 </div>
 
                 {/* Overlay Text */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-10">
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-xs z-10">
                   <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mb-3 border border-red-500/30">
                     <span className="text-xl animate-pulse">⏳</span>
                   </div>
-                  <h3 className="text-red-400 font-black text-lg uppercase tracking-widest mb-1 shadow-[0_0_10px_rgba(239,68,68,0.5)]">Match is active</h3>
-                  <p className="text-white/80 text-[10px] font-bold text-center px-4 leading-relaxed uppercase tracking-wider">
+                  <h3 className="text-red-400 font-black text-lg uppercase tracking-widest mb-1 drop-shadow-sm">Match is active</h3>
+                  <p className="text-white text-[10px] font-bold text-center px-4 leading-relaxed uppercase tracking-wider">
                     <span dangerouslySetInnerHTML={{ __html: t[language].bingo.waitNext }} />
                   </p>
                 </div>
@@ -1663,8 +1672,8 @@ export default function BingoGame() {
   };
 
   return (
-    <div className={`h-[calc(100dvh-80px)] w-full ${game.status === 'calling' ? 'bg-[#05081a]' : 'bg-gradient-to-b from-[#fffbf0] via-[#fef3c7]/30 to-[#fffbf0]'} flex flex-col select-none`} onClick={initWebAudio}>
-      <div className={`sticky top-0 z-40 ${game.status === 'calling' ? 'bg-[#05081a]' : 'bg-white shadow-2xs border-b border-amber-100/80'} flex flex-col shrink-0`}>
+    <div className="h-[calc(100dvh-80px)] w-full bg-gradient-to-b from-[#fffbf0] via-[#fef3c7]/30 to-[#fffbf0] flex flex-col select-none" onClick={initWebAudio}>
+      <div className="sticky top-0 z-40 bg-white shadow-2xs border-b border-amber-100/80 flex flex-col shrink-0">
         <Header />
         {game.status !== 'calling' && (
           <div className="bg-gradient-to-r from-amber-50/90 via-yellow-50/60 to-amber-50/90 border-b border-amber-200/70 px-3 pt-3 pb-3">
