@@ -1125,46 +1125,45 @@ export default function BingoGame() {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3 pb-2">
-                {filteredRooms.map((room, idx) => {
-                  const gradient = ROOM_GRADIENTS[idx % ROOM_GRADIENTS.length];
+                {filteredRooms.map((room) => {
                   return (
                     <div
                       key={room.id}
                       onClick={() => handleSelectRoom(room)}
-                      className="bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all duration-200 hover:shadow-md"
+                      className="bg-[#0a0f1e] rounded-2xl shadow-lg border border-white/10 overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all duration-200 hover:border-white/20 hover:shadow-[0_0_16px_rgba(255,255,255,0.06)]"
                     >
-                      {/* Card Banner Header */}
-                      <div className={`h-20 bg-gradient-to-br ${gradient} flex flex-col items-center justify-center relative px-2.5 text-center shadow-xs`}>
-                        <div className="absolute top-2 right-2 flex items-center space-x-1 bg-black/25 backdrop-blur-xs px-1.5 py-0.5 rounded-full">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
+                      {/* Card Banner Header — sleek black */}
+                      <div className="h-20 bg-gradient-to-b from-[#131929] to-[#0a0f1e] flex flex-col items-center justify-center relative px-2.5 text-center border-b border-white/8">
+                        <div className="absolute top-2 right-2 flex items-center space-x-1 bg-black/40 backdrop-blur-xs px-1.5 py-0.5 rounded-full">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_#34d399]" />
                           <span className="text-[7px] font-black text-white uppercase tracking-wider">LIVE</span>
                         </div>
-                        <span className="text-white font-black text-base drop-shadow-sm leading-tight line-clamp-2 px-1">
+                        <span className="text-white font-black text-base leading-tight line-clamp-2 px-1 tracking-wide">
                           {room.room_name}
                         </span>
                       </div>
 
                       {/* Stats Row: Players | Total Games */}
-                      <div className="w-full bg-slate-50 border-b border-slate-100 flex h-[38px] shrink-0">
-                        <div className="flex-1 flex flex-col items-center justify-center border-r border-slate-100">
-                          <span className="text-slate-400 text-[8px] font-bold uppercase tracking-wider">
+                      <div className="w-full bg-[#0d1220] border-b border-white/8 flex h-[38px] shrink-0">
+                        <div className="flex-1 flex flex-col items-center justify-center border-r border-white/8">
+                          <span className="text-white/40 text-[8px] font-bold uppercase tracking-wider">
                             {language === 'am' ? 'ተጫዋቾች' : 'Players'}
                           </span>
-                          <span className="text-[11px] font-black text-emerald-600">{room.total_players}</span>
+                          <span className="text-[11px] font-black text-emerald-400">{room.total_players}</span>
                         </div>
                         <div className="flex-1 flex flex-col items-center justify-center">
-                          <span className="text-slate-400 text-[8px] font-bold uppercase tracking-wider">
+                          <span className="text-white/40 text-[8px] font-bold uppercase tracking-wider">
                             {language === 'am' ? 'ጨዋታዎች' : 'Games'}
                           </span>
-                          <span className="text-[11px] font-black text-violet-600">{room.total_games}</span>
+                          <span className="text-[11px] font-black text-violet-400">{room.total_games}</span>
                         </div>
                       </div>
 
                       {/* Action Button */}
-                      <div className="p-2 text-center bg-white">
-                        <div className="w-full bg-slate-100 hover:bg-amber-500 hover:text-white text-slate-700 font-black py-2 rounded-xl text-[11px] transition-colors flex items-center justify-center space-x-1 shadow-2xs">
+                      <div className="p-2 bg-[#0a0f1e]">
+                        <div className="w-full bg-white/8 hover:bg-white/14 text-white font-black py-2 rounded-xl text-[11px] transition-colors flex items-center justify-center space-x-1">
                           <span>{language === 'am' ? 'ክፍል ይግቡ' : 'Join Room'}</span>
-                          <span>→</span>
+                          <span className="text-white/60">→</span>
                         </div>
                       </div>
                     </div>
