@@ -106,7 +106,7 @@ class BingoEngine {
     // Prevent duplicate active games: check if a waiting or calling game already exists
     const { data: existing } = await supabase
       .from('bingo_games')
-      .select('id')
+      .select('*')
       .eq('room_id', roomId)
       .eq('stake', stake)
       .in('status', ['waiting', 'calling'])
@@ -128,7 +128,7 @@ class BingoEngine {
       status: 'waiting',
       called_numbers: [],
       start_at,
-    }).select('id').single();
+    }).select('*').single();
 
     if (error) {
       console.error(`❌ Failed to create game for room ${roomId} (Stake: ${stake}):`, error);
@@ -290,11 +290,7 @@ class BingoEngine {
       }).eq('id', game.id);
       if (game.room_id) {
         await this.incrementRoomGames(game.room_id);
-        const rId = game.room_id;
-        const stk = game.stake;
-        setTimeout(async () => {
-          try { await this.createGame(rId, stk); } catch (e) { console.error('createGame error:', e); }
-        }, 200);
+        await this.createGame(game.room_id, game.stake);
       }
       return;
     }
@@ -412,9 +408,7 @@ class BingoEngine {
       console.log(`🏆 Game #${formatGameId(gameId)}: Single winner ${w.first_name} — ${finalPrize} ETB`);
       await this.incrementRoomGames(roomId);
       if (roomId) {
-        setTimeout(async () => {
-          try { await this.createGame(roomId, stake); } catch (e) { console.error('createGame error:', e); }
-        }, 200);
+        await this.createGame(roomId, stake);
       }
       return;
     }
@@ -455,9 +449,7 @@ class BingoEngine {
       console.log(`🤝 Game #${formatGameId(gameId)}: 2-way tie — ${w1.first_name} & ${w2.first_name} — ${splitPrize} ETB each`);
       await this.incrementRoomGames(roomId);
       if (roomId) {
-        setTimeout(async () => {
-          try { await this.createGame(roomId, stake); } catch (e) { console.error('createGame error:', e); }
-        }, 200);
+        await this.createGame(roomId, stake);
       }
       return;
     }
@@ -493,9 +485,7 @@ class BingoEngine {
     }
     await this.incrementRoomGames(roomId);
     if (roomId) {
-      setTimeout(async () => {
-        try { await this.createGame(roomId, stake); } catch (e) { console.error('createGame error:', e); }
-      }, 200);
+      await this.createGame(roomId, stake);
     }
   }
 

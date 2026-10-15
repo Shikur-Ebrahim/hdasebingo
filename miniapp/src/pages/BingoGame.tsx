@@ -783,6 +783,7 @@ export default function BingoGame() {
       setMyCartelas([]);
       setActiveCartelaIdx(0);
       setTaken([]);
+      setGame(prev => prev ? { ...prev, status: 'waiting', called_numbers: [], total_players: 0, prize_pool: 0 } : prev);
       fetchState();
       refreshUser();
     }, 1000);
@@ -1621,7 +1622,7 @@ export default function BingoGame() {
     <div className="h-[calc(100dvh-80px)] w-full bg-[#05081a] flex flex-col select-none" onClick={initWebAudio}>
       <div className="sticky top-0 z-40 bg-[#05081a] flex flex-col shrink-0">
         <Header />
-        {game.status === 'waiting' && (
+        {game.status !== 'calling' && (
           <div className="bg-[#0a0d1f] px-3 pt-3 pb-3">
             <div className="flex items-center gap-1.5 mb-2">
               <button 
@@ -1712,8 +1713,8 @@ export default function BingoGame() {
         </div>
       )}
 
-      <div className={`flex-1 min-h-0 ${game.status === 'waiting' ? 'overflow-y-auto' : 'overflow-hidden'}`}>
-        {game.status === 'waiting' ? renderCartelaPicker() : renderCallingBoard()}
+      <div className={`flex-1 min-h-0 ${game.status === 'calling' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+        {game.status === 'calling' ? renderCallingBoard() : renderCartelaPicker()}
       </div>
 
       {/* Winner Celebration */}
@@ -1723,7 +1724,17 @@ export default function BingoGame() {
 
             {/* Close button */}
             <button
-              onClick={() => { gameFinishedRef.current = false; setCelebration(null); setMyCard(null); setMyCartelas([]); setActiveCartelaIdx(0); setTaken([]); fetchState(); refreshUser(); }}
+              onClick={() => {
+                gameFinishedRef.current = false;
+                setCelebration(null);
+                setMyCard(null);
+                setMyCartelas([]);
+                setActiveCartelaIdx(0);
+                setTaken([]);
+                setGame(prev => prev ? { ...prev, status: 'waiting', called_numbers: [], total_players: 0, prize_pool: 0 } : prev);
+                fetchState();
+                refreshUser();
+              }}
               className="absolute top-3 right-3 w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white/50 active:scale-90 transition-all text-sm font-black z-10"
             >✕</button>
 
