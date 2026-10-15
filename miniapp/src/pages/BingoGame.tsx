@@ -1723,12 +1723,12 @@ export default function BingoGame() {
       {/* Winner Celebration */}
       {celebration && (
         <div className="absolute inset-0 z-50 flex items-center justify-center p-3 bg-black/95 backdrop-blur-md overflow-y-auto">
-          <div className="bg-gradient-to-b from-[#1a0a3e] to-[#0a0f1e] border border-yellow-400/30 rounded-3xl p-4 text-center max-w-sm w-full shadow-[0_0_40px_rgba(250,204,21,0.3)] flex flex-col items-center relative">
+          <div className="bg-black border border-yellow-400/30 rounded-3xl p-4 text-center max-w-sm w-full shadow-[0_0_50px_rgba(0,0,0,0.9)] flex flex-col items-center relative">
             {/* ── REMATCH ── */}
             {celebration.winner_name === 'REMATCH' ? (<>
               <div className="text-5xl mb-2 animate-spin">🔄</div>
               <h2 className="text-3xl font-black text-orange-400 mb-2">{t[language].bingo.rematch}</h2>
-              <div className="bg-orange-500/10 rounded-2xl p-3 mb-3 w-full border border-orange-500/30">
+              <div className="bg-[#111111] rounded-2xl p-3 mb-3 w-full border border-orange-500/30">
                 <p className="text-orange-300 font-black text-sm mb-1">{t[language].bingo.tieDesc}</p>
                 <p className="text-white/60 text-xs">{t[language].bingo.stakeRefunded}</p>
                 <p className="text-white/40 text-xs mt-1">{t[language].bingo.newGameStarts}</p>
@@ -1747,7 +1747,7 @@ export default function BingoGame() {
                       const winCells = getWinningCells(w.card_matrix, celebration.called);
                       const winTitle = getWinningPatternTitle(w.card_matrix, celebration.called);
                       return (
-                      <div key={idx} className="flex-shrink-0 w-[140px] bg-white/5 rounded-2xl p-2 border border-white/10 flex flex-col items-center">
+                      <div key={idx} className="flex-shrink-0 w-[140px] bg-[#111111] rounded-2xl p-2 border border-white/10 flex flex-col items-center">
                         <p className="text-white font-black text-sm truncate w-full">{w.first_name}</p>
                         <div className="flex items-center justify-between w-full mb-1">
                           <p className="text-yellow-400/70 text-[9px] font-bold flex items-center gap-1"><LayoutGrid size={10} className="text-yellow-400 shrink-0" /> {t[language].bingo.cartelaNum.trim()} {w.cartela_number}</p>
@@ -1784,7 +1784,7 @@ export default function BingoGame() {
                     );})}
                   </div>
                 ) : (
-                  <div className="bg-white/5 rounded-2xl p-3 mb-3 w-full border border-white/10">
+                  <div className="bg-[#111111] rounded-2xl p-3 mb-3 w-full border border-white/10">
                     <p className="text-white font-black text-lg">{celebration.winner_name}</p>
                   </div>
                 )}
@@ -1802,7 +1802,7 @@ export default function BingoGame() {
               </div>
 
               {/* Winner info */}
-              <div className="w-full bg-white/5 rounded-2xl p-3 mb-3 border border-white/10">
+              <div className="w-full bg-[#111111] rounded-2xl p-3 mb-3 border border-white/10">
                 <p className="text-white/50 text-[9px] uppercase tracking-widest mb-1">{t[language].bingo.winner}</p>
                 <p className="text-white font-black text-xl leading-tight">{celebration.winner_name}</p>
                 <p className="text-yellow-400/70 text-xs font-bold mt-0.5 flex items-center justify-center gap-1.5"><LayoutGrid size={12} className="text-yellow-400 shrink-0" /> {t[language].bingo.cartelaNum.trim()} {celebration.winner_cartela}</p>
