@@ -353,20 +353,49 @@ export default function Home() {
           </button>
         </div>
 
-        <Link to="/bingo/live" className="block relative rounded-2xl overflow-hidden shadow-sm h-52 bg-gradient-to-br from-[#1a1a3e] to-[#0d0d1f] flex flex-col items-center justify-center border border-indigo-900/50">
-          <div className="absolute inset-0 opacity-20">
-            <div className="grid grid-cols-10 gap-2 p-3 h-full">
-              {Array.from({ length: 40 }).map((_, i) => <div key={i} className="bg-white rounded-sm opacity-50" />)}
+        <Link to="/bingo/live" className="block relative rounded-2xl overflow-hidden shadow-lg h-52 flex flex-col items-center justify-center border border-white/10">
+          {/* Checkerboard background */}
+          <div className="absolute inset-0 bg-black" />
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundImage: `
+                linear-gradient(45deg, #1a1a1a 25%, transparent 25%),
+                linear-gradient(-45deg, #1a1a1a 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #1a1a1a 75%),
+                linear-gradient(-45deg, transparent 75%, #1a1a1a 75%)
+              `,
+              backgroundSize: '24px 24px',
+              backgroundPosition: '0 0, 0 12px, 12px -12px, -12px 0px',
+              backgroundColor: '#111',
+            }}
+          />
+          {/* Subtle dark overlay for depth */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/60" />
+
+          {/* Scrolling marquee strip at top */}
+          <div className="absolute top-0 left-0 right-0 overflow-hidden py-1.5 bg-yellow-400/10 border-b border-yellow-400/20">
+            <div className="flex whitespace-nowrap animate-marquee">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <span key={i} className="text-yellow-400 font-black text-[10px] uppercase tracking-[0.25em] px-5 shrink-0">
+                  🎯 HDASE BINGO &nbsp;·&nbsp; 🏆 Win Big Today &nbsp;·&nbsp; 🎲 Play &amp; Win &nbsp;·&nbsp; 🔥 Live Games Now &nbsp;·&nbsp;
+                </span>
+              ))}
             </div>
           </div>
-          <div className="relative z-10 flex flex-col items-center text-center">
-            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1 flex items-center">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-1" /> {t[language].home.liveBingo}
+
+          {/* Main content */}
+          <div className="relative z-10 flex flex-col items-center text-center px-4">
+            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              {t[language].home.liveBingo}
             </span>
-            <span className="text-yellow-400 font-black text-3xl mb-1">{t[language].home.joinNextGame}</span>
+            <span className="text-yellow-400 font-black text-3xl mb-1 drop-shadow-[0_0_12px_rgba(250,204,21,0.6)]">
+              {t[language].home.joinNextGame}
+            </span>
             <span className="text-white/60 text-xs font-semibold mb-4">{t[language].home.pickCartela}</span>
-            <div className="bg-yellow-400 text-yellow-950 px-8 py-2 rounded-full font-black text-sm shadow-[0_0_15px_rgba(250,204,21,0.4)]">
-              {t[language].home.openCartela}
+            <div className="bg-yellow-400 text-yellow-950 px-8 py-2.5 rounded-full font-black text-sm shadow-[0_0_20px_rgba(250,204,21,0.5)] active:scale-95 transition-transform">
+              {t[language].home.openCartela} →
             </div>
           </div>
         </Link>

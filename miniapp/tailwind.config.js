@@ -2,7 +2,19 @@
 export default {
   darkMode: 'class',
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
-  theme: { extend: {} },
+  theme: {
+    extend: {
+      keyframes: {
+        marquee: {
+          '0%':   { transform: 'translateX(0%)' },
+          '100%': { transform: 'translateX(-50%)' },
+        },
+      },
+      animation: {
+        marquee: 'marquee 8s linear infinite',
+      },
+    },
+  },
   plugins: [
     require('@tailwindcss/typography'),
   ],
