@@ -387,7 +387,16 @@ export const t = {
       share: 'Share Link',
       stats: 'Invite Stats',
       totalInvited: 'Total Invited',
-      totalEarned: 'Total Earned (ETB)'
+      totalEarned: 'Total Earned (ETB)',
+      qrCode: 'QR Code',
+      scanToJoin: 'Scan to Join & Play',
+      downloadQR: 'Save QR Image',
+      shareQR: 'Share QR',
+      copiedQR: 'QR Code Copied!',
+      copiedLink: 'Invite Link Copied!',
+      referralCode: 'Referral Code',
+      tapToExpand: 'Tap to view fullscreen',
+      scanInPerson: 'Scan In Person',
     }
   },
   am: {
@@ -777,7 +786,16 @@ export const t = {
       share: 'ሊንኩን አጋራ',
       stats: 'የመጋበዣ ስታትስቲክስ',
       totalInvited: 'አጠቃላይ የጋበዙት',
-      totalEarned: 'አጠቃላይ ያገኙት (ETB)'
+      totalEarned: 'አጠቃላይ ያገኙት (ETB)',
+      qrCode: 'ኪውአር ኮድ (QR)',
+      scanToJoin: 'ስካን አድርገው ይቀላቀሉ',
+      downloadQR: 'QR ፎቶ አውርድ',
+      shareQR: 'QR አጋራ',
+      copiedQR: 'QR ኮድ ኮፒ ተደርጓል!',
+      copiedLink: 'ሊንኩ ኮፒ ተደርጓል!',
+      referralCode: 'የመጋበዣ ኮድ',
+      tapToExpand: 'ትልቅ አድርጎ ለማየት ይንኩ',
+      scanInPerson: 'አጠገብዎ ላለ ሰው ስካን ያድርጉ',
     }
   }
 };
