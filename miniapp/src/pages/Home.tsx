@@ -532,7 +532,8 @@ export default function Home() {
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
-              {filteredHomeRooms.map((room) => {
+              {filteredHomeRooms.map((room, idx) => {
+                const gradient = ROOM_GRADIENTS[idx % ROOM_GRADIENTS.length];
                 return (
                   <div
                     key={room.id}
@@ -540,35 +541,32 @@ export default function Home() {
                       fetch(`${API_URL}/player/rooms/${room.id}/enter`, { method: 'POST' }).catch(() => {});
                       navigate(`/bingo/live?room=${room.id}`);
                     }}
-                    className="bg-[#0a0f1e] rounded-xl shadow-lg border border-white/10 overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all hover:border-white/20 hover:shadow-[0_0_16px_rgba(255,255,255,0.06)]"
+                    className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all"
                   >
-                    {/* Sleek black header with room name */}
-                    <div className="h-16 bg-gradient-to-b from-[#131929] to-[#0a0f1e] flex flex-col items-center justify-center relative px-2 text-center border-b border-white/8">
-                      <div className="absolute top-2 right-2 flex items-center space-x-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_#34d399]" />
-                      </div>
-                      <span className="text-white font-black text-sm leading-tight line-clamp-2 px-1 tracking-wide">
+                    {/* Colorful gradient header with room name */}
+                    <div className={`h-16 bg-gradient-to-br ${gradient} flex flex-col items-center justify-center relative px-2 text-center`}>
+                      <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-300 animate-pulse shadow-sm" />
+                      <span className="text-white font-black text-sm drop-shadow-sm leading-tight line-clamp-2 px-1">
                         {room.room_name}
                       </span>
                     </div>
 
                     {/* Players / Total Games — 2 columns */}
-                    <div className="w-full bg-[#0d1220] border-b border-white/8 flex h-[38px] shrink-0">
-                      <div className="flex-1 flex flex-col items-center justify-center border-r border-white/8">
-                        <span className="text-white/40 text-[8px] font-bold uppercase tracking-wider">Players</span>
-                        <span className="text-[11px] font-black text-emerald-400">{room.total_players}</span>
+                    <div className="w-full bg-slate-50 dark:bg-slate-800/50 border-b border-gray-100 dark:border-slate-800 flex h-[38px] shrink-0">
+                      <div className="flex-1 flex flex-col items-center justify-center border-r border-gray-100 dark:border-slate-800">
+                        <span className="text-slate-400 dark:text-slate-500 text-[8px] font-bold uppercase tracking-wider">Players</span>
+                        <span className="text-[11px] font-black text-emerald-600 dark:text-emerald-400">{room.total_players}</span>
                       </div>
                       <div className="flex-1 flex flex-col items-center justify-center">
-                        <span className="text-white/40 text-[8px] font-bold uppercase tracking-wider">Total Games</span>
-                        <span className="text-[11px] font-black text-violet-400">{room.total_games}</span>
+                        <span className="text-slate-400 dark:text-slate-500 text-[8px] font-bold uppercase tracking-wider">Total Games</span>
+                        <span className="text-[11px] font-black text-violet-600 dark:text-violet-400">{room.total_games}</span>
                       </div>
                     </div>
 
                     {/* Join Room button */}
-                    <div className="p-2 bg-[#0a0f1e]">
-                      <div className="w-full bg-white/8 hover:bg-white/14 text-white font-bold py-2 rounded-lg text-xs transition-colors flex items-center justify-center space-x-1">
-                        <span>Join Room</span>
-                        <span className="text-white/60">→</span>
+                    <div className="p-2 text-center">
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2 rounded-lg text-xs transition-colors flex items-center justify-center">
+                        Join Room
                       </div>
                     </div>
                   </div>
