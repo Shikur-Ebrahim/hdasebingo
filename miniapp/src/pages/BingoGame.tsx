@@ -578,6 +578,9 @@ export default function BingoGame() {
   const [celebration, setCelebration] = useState<Celebration | null>(null);
   const celebrationRef = useRef<Celebration | null>(null);
   celebrationRef.current = celebration;
+  // Set IMMEDIATELY when we detect a finished game — before React renders the celebration modal.
+  // This prevents INSERT/fetchState from overwriting the finished game with a new waiting game.
+  const gameFinishedRef = useRef(false);
   const gameIdRef = useRef<string | null>(null);
   const prevCalledLenRef = useRef(0);
   const hadCartelasRef = useRef(false);
@@ -594,15 +597,16 @@ export default function BingoGame() {
         if (d.max_cartelas_per_user) setMaxCartelasPerUser(Number(d.max_cartelas_per_user));
         if (d.my_cartelas) setMyCartelas(d.my_cartelas);
         if (d.unique_players !== undefined) setUniquePlayers(Number(d.unique_players));
-        if (d.game && d.game.id !== gameIdRef.current) {
-          // If celebration modal is currently active on screen, do NOT interrupt it with the new waiting game
-          if (celebrationRef.current && d.game.status === 'waiting') return;
+        if (d.game) {
+          // If we are in a finished-game celebration window, block any waiting game from overwriting
+          if (gameFinishedRef.current && d.game.status === 'waiting') return;
+          // If this is a newly finished game, mark it immediately
+          if (d.game.status === 'finished') gameFinishedRef.current = true;
           setGame(d.game); setTaken(d.taken_cartelas ?? []); setMyCard(d.my_card ?? null);
-          gameIdRef.current = d.game.id;
-          prevCalledLenRef.current = d.game.called_numbers?.length || 0;
-        } else if (d.game) {
-          if (celebrationRef.current && d.game.status === 'waiting') return;
-          setGame(d.game); setTaken(d.taken_cartelas ?? []); setMyCard(d.my_card ?? null);
+          if (d.game.id !== gameIdRef.current) {
+            gameIdRef.current = d.game.id;
+            prevCalledLenRef.current = d.game.called_numbers?.length || 0;
+          }
         }
       }
     } catch { } finally { setLoading(false); }
@@ -615,11 +619,14 @@ export default function BingoGame() {
     const ch = supabase.channel(`bingo-rt-${selectedStake}-${Date.now()}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "bingo_games" }, ({ new: g }) => {
         if (Number(g.stake) === selectedStake && (!selectedRoomId || g.room_id === selectedRoomId)) {
+          // Immediately lock if the game just finished
+          if ((g as BGame).status === 'finished') gameFinishedRef.current = true;
           setGame(g as BGame);
         }
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "bingo_games" }, () => {
-        if (!celebrationRef.current) fetchState();
+        // Never interrupt celebration with a newly inserted waiting game
+        if (!gameFinishedRef.current) fetchState();
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "bingo_players" }, ({ new: p }) => {
         const np = p as { game_id: string; cartela_number: number; telegram_id: string };
@@ -678,8 +685,8 @@ export default function BingoGame() {
     // Guard: wait for backend to finish populating winner fields before celebrating
     if (!game.winner_cartela && game.winner_first_name !== 'REMATCH') return;
 
-    // Guard: Never celebrate stale finished game if user opens the page > 8s after game finished
-    if (game.finished_at && (Date.now() - new Date(game.finished_at).getTime()) > 8000) {
+    // Guard: Never celebrate stale finished game if user opens the page > 5s after game finished
+    if (game.finished_at && (Date.now() - new Date(game.finished_at).getTime()) > 5000) {
       celebratedGamesRef.current.add(game.id);
       fetchState();
       return;
@@ -766,10 +773,11 @@ export default function BingoGame() {
     return () => { isMounted = false; };
   }, [game?.status, game?.id, game?.winner_cartela, game?.winner_first_name, playSpecial, playCallAudio, soundEnabled, called, lastNum]);
 
-  // Auto-dismiss celebration after 5 seconds so users can see the winning card
+  // Auto-dismiss celebration after 1 second, then load next game
   useEffect(() => {
     if (!celebration) return;
     const timer = setTimeout(() => {
+      gameFinishedRef.current = false;   // unlock so fetchState can load next game
       setCelebration(null);
       setMyCard(null);
       setMyCartelas([]);
@@ -777,7 +785,7 @@ export default function BingoGame() {
       setTaken([]);
       fetchState();
       refreshUser();
-    }, 5000);
+    }, 1000);
     return () => clearTimeout(timer);
   }, [celebration, fetchState, refreshUser]);
 
@@ -1715,7 +1723,7 @@ export default function BingoGame() {
 
             {/* Close button */}
             <button
-              onClick={() => { setCelebration(null); setMyCard(null); setMyCartelas([]); setActiveCartelaIdx(0); setTaken([]); fetchState(); refreshUser(); }}
+              onClick={() => { gameFinishedRef.current = false; setCelebration(null); setMyCard(null); setMyCartelas([]); setActiveCartelaIdx(0); setTaken([]); fetchState(); refreshUser(); }}
               className="absolute top-3 right-3 w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white/50 active:scale-90 transition-all text-sm font-black z-10"
             >✕</button>
 
@@ -1857,7 +1865,7 @@ export default function BingoGame() {
               )}
 
               {/* Auto-dismiss indicator */}
-              <p className="text-white/30 text-[10px] font-bold animate-pulse">✕ Tap × to close · Auto-closing in 5s...</p>
+              <p className="text-white/30 text-[10px] font-bold animate-pulse">{t[language].bingo.returning}</p>
             </>)}
 
           </div>

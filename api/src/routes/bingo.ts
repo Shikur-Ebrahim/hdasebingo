@@ -80,7 +80,7 @@ router.get('/current', validateTelegramAuth, async (req: AuthRequest, res) => {
   let game: any = null;
   if (recentFinished && recentFinished.finished_at) {
     const msSinceFinish = Date.now() - new Date(recentFinished.finished_at).getTime();
-    if (msSinceFinish < 7000) {   // 7s window: frontend shows for 5s + 2s buffer
+    if (msSinceFinish < 3000) {
       game = recentFinished;
     }
   }
