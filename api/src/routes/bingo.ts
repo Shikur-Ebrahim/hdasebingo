@@ -173,6 +173,7 @@ router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
   }
 
   const requestedStake = req.body.stake || 10;
+  const targetGameId = req.body.game_id;
 
   let query = supabase
     .from('bingo_games')
@@ -184,26 +185,37 @@ router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
     query = query.eq('room_id', selectedRoomId);
   }
 
-  const { data: gamesData } = await query.order('created_at', { ascending: false }).limit(1);
-  const game = gamesData?.[0];
+  // Parallel fetch: Game + User balance in ONE round trip!
+  const gameQuery = targetGameId
+    ? supabase.from('bingo_games').select('id, stake, status, start_at, room_id').eq('id', targetGameId).eq('status', 'waiting').maybeSingle()
+    : query.order('created_at', { ascending: false }).limit(1).maybeSingle();
+
+  const userQuery = supabase.from('users').select('main_balance, bonus_balance, first_name').eq('telegram_id', telegramId).single();
+
+  const [gameRes, userRes] = await Promise.all([gameQuery, userQuery]);
+  const game = (gameRes as any)?.data;
+  const user = (userRes as any)?.data;
 
   if (!game) {
     res.status(400).json({ error: 'No game accepting players for this stake right now.' }); return;
   }
+  if (!user) { res.status(404).json({ error: 'User not found' }); return; }
 
-  const { data: existing } = await supabase
-    .from('bingo_players')
-    .select('id')
-    .eq('game_id', game.id)
-    .eq('telegram_id', telegramId);
-  const existingCount = existing?.length || 0;
+  // Parallel check: User cartela limit + Seat conflict in ONE round trip!
+  const [existingRes, seatCheckRes] = await Promise.all([
+    supabase.from('bingo_players').select('id').eq('game_id', game.id).eq('telegram_id', telegramId),
+    supabase.from('bingo_players').select('id').eq('game_id', game.id).eq('cartela_number', seat).maybeSingle()
+  ]);
+
+  if (seatCheckRes.data) {
+    res.status(400).json({ error: `Cartela #${seat} is already taken! Pick another.` }); return;
+  }
+
+  const existingCount = existingRes.data?.length || 0;
   if (existingCount >= cfg.max_cartelas_per_user) {
     res.status(400).json({ error: `You can only pick ${cfg.max_cartelas_per_user} cartela${cfg.max_cartelas_per_user > 1 ? 's' : ''} per game` }); return;
   }
 
-  const { data: user } = await supabase.from('users').select('main_balance, bonus_balance, first_name').eq('telegram_id', telegramId).single();
-  if (!user) { res.status(404).json({ error: 'User not found' }); return; }
-  
   const stakeAmt = Number(game.stake);
   const mainBal = Number(user.main_balance || 0);
   const bonusBal = Number(user.bonus_balance || 0);

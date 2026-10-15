@@ -823,18 +823,28 @@ export default function BingoGame() {
     if (taken.includes(seat)) { setErrMsg("Taken! Pick another."); return; }
     const bonusBal = Number(user?.bonus_balance || 0), mainBal = Number(user?.main_balance || 0);
     if (!user || bonusBal + mainBal < game.stake) { setErrMsg(`Need ${game.stake} ETB`); return; }
-    setBuying(seat); setErrMsg("");
-    setTaken(prev => [...prev, seat]);
+
+    setErrMsg("");
+    // INSTANT 0ms OPTIMISTIC UPDATE: Turn green with ✓ immediately!
+    const optimisticCard = { cartela_number: seat, card_matrix: matrix };
+    setMyCartelas(prev => [...prev, optimisticCard]);
+    setMyCard(optimisticCard);
+    setTaken(prev => prev.includes(seat) ? prev : [...prev, seat]);
+    setBuying(null);
+    if (WebApp?.HapticFeedback) WebApp.HapticFeedback.notificationOccurred("success");
+
     const stakeAmt = game.stake;
     let nb = bonusBal, nm = mainBal;
     if (nb >= stakeAmt) { nb -= stakeAmt; } else { nm -= stakeAmt - nb; nb = 0; }
     useGameStore.setState(s => ({ user: s.user ? { ...s.user, main_balance: nm, bonus_balance: nb } : s.user }));
-    // Optimistic: pot = (total cartelas + 1) × stake; commission only if unique players >= 3
+
+    // Optimistic pot calculation: pot = (total cartelas + 1) × stake
     const isFirstCartela = myCartelas.length === 0;
     const newUniquePlayers = isFirstCartela ? uniquePlayers + 1 : uniquePlayers;
     const newTotalCartelas = taken.length + 1;
     const rawPool = newTotalCartelas * stakeAmt;
     setGame(prev => prev ? { ...prev, prize_pool: newUniquePlayers < 3 ? rawPool : Math.floor(rawPool * 0.8) } : prev);
+
     try {
       const r = await fetch(`${API}/bingo/join`, {
         method: "POST",
@@ -844,14 +854,14 @@ export default function BingoGame() {
           stake: selectedStake,
           card_matrix: matrix,
           room_id: selectedRoomId,
+          game_id: game.id,
         })
       });
       const d = await r.json();
       if (r.ok) {
-        if (WebApp?.HapticFeedback) WebApp.HapticFeedback.notificationOccurred("success");
-        const newCard = { cartela_number: seat, card_matrix: d.card_matrix };
-        setMyCartelas(prev => [...prev, newCard]);
-        setMyCard(newCard); // also set my_card for backward compat
+        if (d.card_matrix) {
+          setMyCartelas(prev => prev.map(c => c.cartela_number === seat ? { ...c, card_matrix: d.card_matrix } : c));
+        }
         if (d.unique_players !== undefined) setUniquePlayers(Number(d.unique_players));
         if (d.start_at || d.prize_pool) {
           setGame(prev => prev ? {
@@ -863,11 +873,22 @@ export default function BingoGame() {
         }
         refreshUser();
       } else {
+        // Rollback optimistic update on error
+        setMyCartelas(prev => prev.filter(c => c.cartela_number !== seat));
         setTaken(prev => prev.filter(n => n !== seat));
         useGameStore.setState(s => ({ user: s.user ? { ...s.user, main_balance: mainBal, bonus_balance: bonusBal } : s.user }));
-        setErrMsg(d.error ?? "Could not join."); fetchState();
+        setErrMsg(d.error ?? "Could not join.");
+        fetchState();
       }
-    } catch { setErrMsg("Network error"); } finally { setBuying(null); }
+    } catch {
+      // Rollback on network error
+      setMyCartelas(prev => prev.filter(c => c.cartela_number !== seat));
+      setTaken(prev => prev.filter(n => n !== seat));
+      useGameStore.setState(s => ({ user: s.user ? { ...s.user, main_balance: mainBal, bonus_balance: bonusBal } : s.user }));
+      setErrMsg("Network error");
+    } finally {
+      setBuying(null);
+    }
   };
 
   const fm = (a: number | undefined) => (a || 0).toLocaleString("en-US");
