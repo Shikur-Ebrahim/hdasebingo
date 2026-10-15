@@ -662,16 +662,20 @@ export default function BingoGame() {
     prevCalledLenRef.current = called.length;
   }, [called.length, game?.status, lastNum, playCallAudio]);
 
-  const hasCelebratedRef = useRef<string | null>(null);
+  const celebratedGamesRef = useRef<Set<string>>(new Set());
 
   // Fire celebration when game finishes — sequence final number call then "BINGO!" with zero overlap
   useEffect(() => {
     if (game?.status !== 'finished') return;
-    if (hasCelebratedRef.current === game.id) return;
+    if (celebratedGamesRef.current.has(game.id)) return;
     // Guard: wait for backend to finish populating winner fields before celebrating
     if (!game.winner_cartela && game.winner_first_name !== 'REMATCH') return;
 
-    hasCelebratedRef.current = game.id;
+    celebratedGamesRef.current.add(game.id);
+    if (celebratedGamesRef.current.size > 20) {
+      const [oldest] = celebratedGamesRef.current;
+      celebratedGamesRef.current.delete(oldest);
+    }
 
     // Trigger celebration sound cleanly: if final number hasn't played yet, play it first, then Bingo! 900ms after
     const hasUnplayedFinalCall = soundEnabled && called.length > prevCalledLenRef.current && lastNum;
@@ -757,12 +761,11 @@ export default function BingoGame() {
       setMyCartelas([]);
       setActiveCartelaIdx(0);
       setTaken([]);
-      hasCelebratedRef.current = null; // Reset so subsequent games celebrate cleanly
       fetchState();
       refreshUser();
     }, 1000);
     return () => clearTimeout(timer);
-  }, [celebration]);
+  }, [celebration, fetchState, refreshUser]);
 
   // Generate matrix client-side for preview
   const generateBingoCard = () => {
@@ -1417,8 +1420,11 @@ export default function BingoGame() {
                     )}
                   </div>
                   {/* Cartela Label */}
-                  <div className="py-1 text-center bg-[#0a0f1e] border-t border-white/10">
-                    <p className="text-white/70 font-black text-[9px] tracking-widest uppercase">{t[language].bingo.cartelaNum} {myCartelas[0].cartela_number}</p>
+                  <div className="py-1 flex items-center justify-center bg-[#0a0f1e] border-t border-white/10">
+                    <p className="text-white/80 font-black text-[9px] tracking-widest uppercase flex items-center gap-1.5">
+                      <LayoutGrid size={11} className="text-yellow-400 shrink-0" />
+                      <span>{t[language].bingo.cartelaNum.trim()} {myCartelas[0].cartela_number}</span>
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1477,9 +1483,11 @@ export default function BingoGame() {
                           )}
                         </div>
                         {/* Cartela Label */}
-                        <div className="py-0.5 px-2 flex items-center justify-between bg-[#0a0f1e] border-t border-white/10">
-                          <p className="text-yellow-400 font-black text-[8px] tracking-wider uppercase flex items-center gap-1"><LayoutGrid size={9} className="text-yellow-300" /> {card.cartela_number}</p>
-                          <span className="text-white/40 text-[7px] font-bold uppercase">{t[language].bingo.cartelaNum.trim()}</span>
+                        <div className="py-1 px-2 flex items-center justify-center bg-[#0a0f1e] border-t border-white/10">
+                          <p className="text-yellow-400 font-black text-[8px] tracking-wider uppercase flex items-center gap-1.5">
+                            <LayoutGrid size={10} className="text-yellow-300 shrink-0" />
+                            <span>{t[language].bingo.cartelaNum.trim()} {card.cartela_number}</span>
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -1723,7 +1731,7 @@ export default function BingoGame() {
                       <div key={idx} className="flex-shrink-0 w-[140px] bg-white/5 rounded-2xl p-2 border border-white/10 flex flex-col items-center">
                         <p className="text-white font-black text-sm truncate w-full">{w.first_name}</p>
                         <div className="flex items-center justify-between w-full mb-1">
-                          <p className="text-yellow-400/70 text-[9px] font-bold">{t[language].bingo.cartelaNum}{w.cartela_number}</p>
+                          <p className="text-yellow-400/70 text-[9px] font-bold flex items-center gap-1"><LayoutGrid size={10} className="text-yellow-400 shrink-0" /> {t[language].bingo.cartelaNum.trim()} {w.cartela_number}</p>
                           <span className="text-emerald-400 text-[7px] font-black">{winTitle.replace(' BINGO!', '')}</span>
                         </div>
                         <div className="w-full">
@@ -1778,7 +1786,7 @@ export default function BingoGame() {
               <div className="w-full bg-white/5 rounded-2xl p-3 mb-3 border border-white/10">
                 <p className="text-white/50 text-[9px] uppercase tracking-widest mb-1">{t[language].bingo.winner}</p>
                 <p className="text-white font-black text-xl leading-tight">{celebration.winner_name}</p>
-                <p className="text-yellow-400/70 text-xs font-bold mt-0.5">{t[language].bingo.cartelaNum}{celebration.winner_cartela}</p>
+                <p className="text-yellow-400/70 text-xs font-bold mt-0.5 flex items-center justify-center gap-1.5"><LayoutGrid size={12} className="text-yellow-400 shrink-0" /> {t[language].bingo.cartelaNum.trim()} {celebration.winner_cartela}</p>
                 <div className="mt-2 inline-block bg-emerald-500 text-white px-5 py-1 rounded-full font-black text-lg shadow-[0_0_15px_rgba(16,185,129,0.4)]">
                   🎉 {celebration.winner_prize} ETB
                 </div>
@@ -1846,7 +1854,7 @@ export default function BingoGame() {
       {previewCartela && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setPreviewCartela(null)}>
           <div className="bg-[#0f1829] border border-cyan-400/30 rounded-3xl p-5 w-full max-w-[320px] shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-xl font-black text-white text-center mb-1">{t[language].bingo.cartelaNum}{previewCartela.seat}</h3>
+            <h3 className="text-xl font-black text-white text-center mb-1 flex items-center justify-center gap-2"><LayoutGrid size={18} className="text-yellow-400 shrink-0" /> {t[language].bingo.cartelaNum.trim()} {previewCartela.seat}</h3>
             <p className="text-cyan-300 text-[10px] uppercase font-bold text-center tracking-widest mb-4">{t[language].bingo.previewNumbers}</p>
             
             <div className="rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_15px_rgba(34,211,238,0.2)] mb-5">

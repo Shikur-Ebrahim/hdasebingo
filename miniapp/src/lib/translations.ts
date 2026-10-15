@@ -26,7 +26,7 @@ export const t = {
       profile: 'Profile'
     },
     bingo: {
-      cartelaNum: 'CARTELA #',
+      cartelaNum: 'CARTELA ',
       waitNext: 'Please wait for<br/>the next match',
       stakeRefunded: 'Your stake has been refunded.',
       newGameStarts: 'A new game is starting...',
@@ -416,7 +416,7 @@ export const t = {
       profile: 'ፕሮፋይል'
     },
     bingo: {
-      cartelaNum: 'ካርቴላ ቁጥር ',
+      cartelaNum: 'ካርቴላ ',
       waitNext: 'እባክዎ ቀጣዩን<br/>ጨዋታ ይጠብቁ',
       stakeRefunded: 'የከፈሉት ገንዘብ ተመልሷል',
       newGameStarts: 'አዲስ ጨዋታ እየጀመረ ነው...',
