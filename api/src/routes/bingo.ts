@@ -107,7 +107,38 @@ router.get('/current', validateTelegramAuth, async (req: AuthRequest, res) => {
   const my_card = my_cartelas.length > 0 ? my_cartelas[0] : null;
 
   const cfg = await getSettings();
-  res.json({ game, taken_cartelas, unique_players, my_card, my_cartelas, max_players: cfg.max_players, max_cartelas_per_user: cfg.max_cartelas_per_user });
+
+  // Find if a game recently finished (< 6s ago) so celebration is guaranteed to display
+  let last_finished_game: any = null;
+  let finishedQuery = supabase
+    .from('bingo_games')
+    .select('*')
+    .eq('stake', stake)
+    .eq('status', 'finished');
+  if (roomId) finishedQuery = finishedQuery.eq('room_id', roomId);
+
+  const { data: recentFinished } = await finishedQuery
+    .order('finished_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (recentFinished && recentFinished.finished_at) {
+    const msSince = Date.now() - new Date(recentFinished.finished_at).getTime();
+    if (msSince < 6000) {
+      last_finished_game = recentFinished;
+    }
+  }
+
+  res.json({
+    game,
+    last_finished_game,
+    taken_cartelas,
+    unique_players,
+    my_card,
+    my_cartelas,
+    max_players: cfg.max_players,
+    max_cartelas_per_user: cfg.max_cartelas_per_user
+  });
 });
 
 // ── POST /api/bingo/join ────────────────────────────────────────────────────

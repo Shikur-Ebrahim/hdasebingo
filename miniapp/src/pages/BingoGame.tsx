@@ -578,12 +578,78 @@ export default function BingoGame() {
   const [celebration, setCelebration] = useState<Celebration | null>(null);
   const celebrationRef = useRef<Celebration | null>(null);
   celebrationRef.current = celebration;
-  // Set IMMEDIATELY when we detect a finished game — before React renders the celebration modal.
-  // This prevents INSERT/fetchState from overwriting the finished game with a new waiting game.
+  const celebratedGamesRef = useRef<Set<string>>(new Set());
   const gameFinishedRef = useRef(false);
   const gameIdRef = useRef<string | null>(null);
   const prevCalledLenRef = useRef(0);
   const hadCartelasRef = useRef(false);
+
+  // Instant celebration trigger — displays popup immediately in 0ms without waiting for network!
+  const triggerCelebration = useCallback((finGame: any) => {
+    if (!finGame || finGame.status !== 'finished') return;
+    if (celebratedGamesRef.current.has(finGame.id)) return;
+    if (!finGame.winner_cartela && finGame.winner_first_name !== 'REMATCH') return;
+
+    // Guard: ignore stale games > 6s old
+    if (finGame.finished_at && (Date.now() - new Date(finGame.finished_at).getTime()) > 6000) {
+      celebratedGamesRef.current.add(finGame.id);
+      return;
+    }
+
+    celebratedGamesRef.current.add(finGame.id);
+    if (celebratedGamesRef.current.size > 20) {
+      const [oldest] = celebratedGamesRef.current;
+      celebratedGamesRef.current.delete(oldest);
+    }
+
+    // Play celebration sound
+    playSpecial('bingo_win');
+
+    if (finGame.winner_first_name === 'REMATCH') {
+      setCelebration({
+        winner_name: 'REMATCH',
+        winner_cartela: 0,
+        winner_prize: 0,
+        winner_matrix: null,
+        iWon: false,
+        called: [...(finGame.called_numbers || [])],
+      });
+      return;
+    }
+
+    const iWon = finGame.winner_telegram_id === String(user?.telegram_id);
+    const localCard = myCartelas.find(c => c.cartela_number === finGame.winner_cartela)?.card_matrix;
+
+    // Render celebration popup IMMEDIATELY!
+    setCelebration({
+      winner_name: finGame.winner_first_name || 'Player',
+      winner_cartela: finGame.winner_cartela || 0,
+      winner_prize: finGame.winner_prize || 0,
+      winner_matrix: localCard || null,
+      iWon,
+      called: [...(finGame.called_numbers || [])],
+    });
+
+    // If 2-way tie, fetch winners list in background
+    if (finGame.winner_first_name && finGame.winner_first_name.includes(' & ')) {
+      fetch(`${API}/bingo/winners?game_id=${finGame.id}`, { headers: hdrs() })
+        .then(r => r.json())
+        .then(data => {
+          if (data?.winners) {
+            setCelebration(prev => prev ? { ...prev, winners_list: data.winners } : prev);
+          }
+        }).catch(() => {});
+    } else if (!localCard && finGame.winner_cartela) {
+      // Fetch winner card matrix in background without blocking the popup
+      fetch(`${API}/bingo/card?game_id=${finGame.id}&cartela=${finGame.winner_cartela}`, { headers: hdrs() })
+        .then(r => r.json())
+        .then(data => {
+          if (data?.matrix) {
+            setCelebration(prev => prev ? { ...prev, winner_matrix: data.matrix } : prev);
+          }
+        }).catch(() => {});
+    }
+  }, [user?.telegram_id, myCartelas, playSpecial]);
 
   const fetchState = useCallback(async () => {
     if (!selectedStake) return;
@@ -597,12 +663,19 @@ export default function BingoGame() {
         if (d.max_cartelas_per_user) setMaxCartelasPerUser(Number(d.max_cartelas_per_user));
         if (d.my_cartelas) setMyCartelas(d.my_cartelas);
         if (d.unique_players !== undefined) setUniquePlayers(Number(d.unique_players));
+        
+        // Guarantee celebration popup fires even if WebSocket was delayed or dropped!
+        if (d.last_finished_game) {
+          triggerCelebration(d.last_finished_game);
+        }
+
         if (d.game) {
-          // If we are in a finished-game celebration window, block any waiting game from overwriting
-          if (gameFinishedRef.current && d.game.status === 'waiting') return;
-          // If this is a newly finished game, mark it immediately
-          if (d.game.status === 'finished') gameFinishedRef.current = true;
-          setGame(d.game); setTaken(d.taken_cartelas ?? []); setMyCard(d.my_card ?? null);
+          if (d.game.status === 'finished') {
+            triggerCelebration(d.game);
+          }
+          setGame(d.game);
+          setTaken(d.taken_cartelas ?? []);
+          setMyCard(d.my_card ?? null);
           if (d.game.id !== gameIdRef.current) {
             gameIdRef.current = d.game.id;
             prevCalledLenRef.current = d.game.called_numbers?.length || 0;
@@ -610,7 +683,7 @@ export default function BingoGame() {
         }
       }
     } catch { } finally { setLoading(false); }
-  }, [selectedStake, selectedRoomId]);
+  }, [selectedStake, selectedRoomId, triggerCelebration]);
 
   useEffect(() => { if (selectedStake) fetchState(); }, [selectedStake, fetchState]);
 
@@ -619,14 +692,16 @@ export default function BingoGame() {
     const ch = supabase.channel(`bingo-rt-${selectedStake}-${Date.now()}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "bingo_games" }, ({ new: g }) => {
         if (Number(g.stake) === selectedStake && (!selectedRoomId || g.room_id === selectedRoomId)) {
-          // Immediately lock if the game just finished
-          if ((g as BGame).status === 'finished') gameFinishedRef.current = true;
-          setGame(g as BGame);
+          const bg = g as BGame;
+          if (bg.status === 'finished') {
+            triggerCelebration(bg);
+          } else {
+            setGame(bg);
+          }
         }
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "bingo_games" }, () => {
-        // Never interrupt celebration with a newly inserted waiting game
-        if (!gameFinishedRef.current) fetchState();
+        fetchState();
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "bingo_players" }, ({ new: p }) => {
         const np = p as { game_id: string; cartela_number: number; telegram_id: string };
@@ -637,7 +712,7 @@ export default function BingoGame() {
         }
       }).subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [selectedStake, selectedRoomId, fetchState]);
+  }, [selectedStake, selectedRoomId, fetchState, triggerCelebration]);
 
   useEffect(() => {
     if (!game || game.status !== "waiting") return;
@@ -676,102 +751,12 @@ export default function BingoGame() {
     prevCalledLenRef.current = called.length;
   }, [called.length, game?.status, lastNum, playCallAudio]);
 
-  const celebratedGamesRef = useRef<Set<string>>(new Set());
-
-  // Fire celebration when game finishes — sequence final number call then "BINGO!" with zero overlap
+  // Fire celebration when game finishes
   useEffect(() => {
-    if (game?.status !== 'finished') return;
-    if (celebratedGamesRef.current.has(game.id)) return;
-    // Guard: wait for backend to finish populating winner fields before celebrating
-    if (!game.winner_cartela && game.winner_first_name !== 'REMATCH') return;
-
-    // Guard: Never celebrate stale finished game if user opens the page > 5s after game finished
-    if (game.finished_at && (Date.now() - new Date(game.finished_at).getTime()) > 5000) {
-      celebratedGamesRef.current.add(game.id);
-      fetchState();
-      return;
+    if (game?.status === 'finished') {
+      triggerCelebration(game);
     }
-
-    celebratedGamesRef.current.add(game.id);
-    if (celebratedGamesRef.current.size > 20) {
-      const [oldest] = celebratedGamesRef.current;
-      celebratedGamesRef.current.delete(oldest);
-    }
-
-    // Trigger celebration sound cleanly: if final number hasn't played yet, play it first, then Bingo! 900ms after
-    const hasUnplayedFinalCall = soundEnabled && called.length > prevCalledLenRef.current && lastNum;
-    if (hasUnplayedFinalCall) {
-      playCallAudio(lastNum);
-      prevCalledLenRef.current = called.length;
-      setTimeout(() => {
-        playSpecial('bingo_win');
-      }, 900);
-    } else {
-      playSpecial('bingo_win');
-    }
-
-    // ── REMATCH: 3+ way tie ───────────────────────────────────────────────────
-    if (game.winner_first_name === 'REMATCH') {
-      setCelebration({
-        winner_name: 'REMATCH',
-        winner_cartela: 0,
-        winner_prize: 0,
-        winner_matrix: null,
-        iWon: false,
-        called: [...(game.called_numbers || [])],
-      });
-      return;
-    }
-
-    // ── Normal or 2-way tie ───────────────────────────────────────────────────
-    const iWon = game.winner_telegram_id === String(user?.telegram_id);
-    let isMounted = true;
-    
-    if (game.winner_first_name && game.winner_first_name.includes(' & ')) {
-      fetch(`${API}/bingo/winners?game_id=${game.id}`, { headers: hdrs() })
-        .then(r => r.json())
-        .then(data => {
-          if (!isMounted) return;
-          setCelebration({
-            winner_name: game.winner_first_name || 'Player',
-            winner_cartela: 0,
-            winner_prize: game.winner_prize!,
-            winner_matrix: null,
-            winners_list: data.winners,
-            iWon, called: [...game.called_numbers]
-          });
-        }).catch(() => {
-          if (isMounted) setCelebration({ winner_name: game.winner_first_name || 'Player', winner_cartela: 0, winner_prize: game.winner_prize!, winner_matrix: null, iWon, called: [...game.called_numbers] });
-        });
-    } else {
-      const localCard = myCartelas.find(c => c.cartela_number === game.winner_cartela)?.card_matrix;
-      if (localCard) {
-        setCelebration({
-          winner_name: game.winner_first_name || 'Player',
-          winner_cartela: game.winner_cartela!,
-          winner_prize: game.winner_prize!,
-          winner_matrix: localCard,
-          iWon, called: [...(game.called_numbers || [])]
-        });
-      } else {
-        fetch(`${API}/bingo/card?game_id=${game.id}&cartela=${game.winner_cartela}`, { headers: hdrs() })
-          .then(r => r.json())
-          .then(data => {
-            if (!isMounted) return;
-            setCelebration({
-              winner_name: game.winner_first_name || 'Player',
-              winner_cartela: game.winner_cartela!,
-              winner_prize: game.winner_prize!,
-              winner_matrix: data.matrix || null,
-              iWon, called: [...(game.called_numbers || [])]
-            });
-          }).catch(() => {
-            if (isMounted) setCelebration({ winner_name: game.winner_first_name || 'Player', winner_cartela: game.winner_cartela!, winner_prize: game.winner_prize!, winner_matrix: null, iWon, called: [...(game.called_numbers || [])] });
-          });
-      }
-    }
-    return () => { isMounted = false; };
-  }, [game?.status, game?.id, game?.winner_cartela, game?.winner_first_name, playSpecial, playCallAudio, soundEnabled, called, lastNum]);
+  }, [game?.status, game?.id, triggerCelebration]);
 
   // Auto-dismiss celebration after 1 second, then load next game
   useEffect(() => {
