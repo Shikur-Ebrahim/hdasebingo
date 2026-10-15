@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 import { getSettings } from '../routes/adminSettings';
 
-const TICK_MS = 500; // 500ms tick for exact call_interval_ms execution
+const TICK_MS = 300; // 300ms responsive tick for exact call_interval_ms execution
 const STAKES  = [10, 20, 50, 100];
 
 export function generateBingoCard(): number[][] {
@@ -290,7 +290,11 @@ class BingoEngine {
       }).eq('id', game.id);
       if (game.room_id) {
         await this.incrementRoomGames(game.room_id);
-        await this.createGame(game.room_id, game.stake);
+        const rId = game.room_id;
+        const stk = game.stake;
+        setTimeout(async () => {
+          try { await this.createGame(rId, stk); } catch (e) { console.error('createGame error:', e); }
+        }, 6000);
       }
       return;
     }
@@ -408,7 +412,9 @@ class BingoEngine {
       console.log(`🏆 Game #${formatGameId(gameId)}: Single winner ${w.first_name} — ${finalPrize} ETB`);
       await this.incrementRoomGames(roomId);
       if (roomId) {
-        await this.createGame(roomId, stake);
+        setTimeout(async () => {
+          try { await this.createGame(roomId, stake); } catch (e) { console.error('createGame error:', e); }
+        }, 6000);
       }
       return;
     }
@@ -449,7 +455,9 @@ class BingoEngine {
       console.log(`🤝 Game #${formatGameId(gameId)}: 2-way tie — ${w1.first_name} & ${w2.first_name} — ${splitPrize} ETB each`);
       await this.incrementRoomGames(roomId);
       if (roomId) {
-        await this.createGame(roomId, stake);
+        setTimeout(async () => {
+          try { await this.createGame(roomId, stake); } catch (e) { console.error('createGame error:', e); }
+        }, 6000);
       }
       return;
     }
@@ -485,7 +493,9 @@ class BingoEngine {
     }
     await this.incrementRoomGames(roomId);
     if (roomId) {
-      await this.createGame(roomId, stake);
+      setTimeout(async () => {
+        try { await this.createGame(roomId, stake); } catch (e) { console.error('createGame error:', e); }
+      }, 6000);
     }
   }
 

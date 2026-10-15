@@ -63,34 +63,36 @@ router.get('/current', validateTelegramAuth, async (req: AuthRequest, res) => {
     baseQuery = baseQuery.eq('room_id', roomId);
   }
 
-  // 1. First look for an active non-finished game (waiting or calling)
-  let { data: game } = await baseQuery
-    .in('status', ['waiting', 'calling'])
-    .order('created_at', { ascending: false })
+  // 1. Check if a game for this room & stake finished within the last 3 seconds
+  // This guarantees all active players receive the winner celebration and card pattern!
+  let finishedQuery = supabase
+    .from('bingo_games')
+    .select('*')
+    .eq('stake', stake)
+    .eq('status', 'finished');
+  if (roomId) finishedQuery = finishedQuery.eq('room_id', roomId);
+
+  const { data: recentFinished } = await finishedQuery
+    .order('finished_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  // 2. If no active game, check if a game finished very recently (< 4 seconds ago)
-  // so players still in the calling room receive the final celebration
-  if (!game) {
-    let finishedQuery = supabase
-      .from('bingo_games')
-      .select('*')
-      .eq('stake', stake)
-      .eq('status', 'finished');
-    if (roomId) finishedQuery = finishedQuery.eq('room_id', roomId);
+  let game: any = null;
+  if (recentFinished && recentFinished.finished_at) {
+    const msSinceFinish = Date.now() - new Date(recentFinished.finished_at).getTime();
+    if (msSinceFinish < 7000) {   // 7s window: frontend shows for 5s + 2s buffer
+      game = recentFinished;
+    }
+  }
 
-    const { data: recentFinished } = await finishedQuery
-      .order('finished_at', { ascending: false })
+  // 2. If no game finished recently (<3s), find the active waiting or calling game
+  if (!game) {
+    let { data: activeGame } = await baseQuery
+      .in('status', ['waiting', 'calling'])
+      .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-
-    if (recentFinished && recentFinished.finished_at) {
-      const msSinceFinish = Date.now() - new Date(recentFinished.finished_at).getTime();
-      if (msSinceFinish < 4000) {
-        game = recentFinished;
-      }
-    }
+    game = activeGame;
   }
 
   // 3. If STILL no active game (or finished game is older than 4s):
