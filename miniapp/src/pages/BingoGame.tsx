@@ -583,6 +583,9 @@ export default function BingoGame() {
   const gameIdRef = useRef<string | null>(null);
   const prevCalledLenRef = useRef(0);
   const hadCartelasRef = useRef(false);
+  const celebrationTimerRef = useRef<any>(null);
+  const fetchStateRef = useRef<() => void>(() => {});
+  const refreshUserRef = useRef<() => void>(() => {});
 
   // Instant celebration trigger — displays popup immediately in 0ms without waiting for network!
   const triggerCelebration = useCallback((finGame: any) => {
@@ -604,6 +607,20 @@ export default function BingoGame() {
 
     // Play celebration sound
     playSpecial('bingo_win');
+
+    // Start guaranteed 1-second auto-dismiss timer that CANNOT be cancelled or reset by background fetches or re-renders!
+    if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
+    celebrationTimerRef.current = setTimeout(() => {
+      celebrationTimerRef.current = null;
+      setCelebration(null);
+      setMyCard(null);
+      setMyCartelas([]);
+      setActiveCartelaIdx(0);
+      setTaken([]);
+      setGame(prev => prev ? { ...prev, status: 'waiting', called_numbers: [], total_players: 0, prize_pool: 0 } : prev);
+      fetchStateRef.current();
+      refreshUserRef.current();
+    }, 1000);
 
     if (finGame.winner_first_name === 'REMATCH') {
       setCelebration({
@@ -684,6 +701,8 @@ export default function BingoGame() {
       }
     } catch { } finally { setLoading(false); }
   }, [selectedStake, selectedRoomId, triggerCelebration]);
+  fetchStateRef.current = fetchState;
+  refreshUserRef.current = refreshUser;
 
   useEffect(() => { if (selectedStake) fetchState(); }, [selectedStake, fetchState]);
 
@@ -758,22 +777,12 @@ export default function BingoGame() {
     }
   }, [game?.status, game?.id, triggerCelebration]);
 
-  // Auto-dismiss celebration after 1 second, then load next game
+  // Clean up timer on unmount
   useEffect(() => {
-    if (!celebration) return;
-    const timer = setTimeout(() => {
-      gameFinishedRef.current = false;   // unlock so fetchState can load next game
-      setCelebration(null);
-      setMyCard(null);
-      setMyCartelas([]);
-      setActiveCartelaIdx(0);
-      setTaken([]);
-      setGame(prev => prev ? { ...prev, status: 'waiting', called_numbers: [], total_players: 0, prize_pool: 0 } : prev);
-      fetchState();
-      refreshUser();
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [celebration, fetchState, refreshUser]);
+    return () => {
+      if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
+    };
+  }, []);
 
   // Generate matrix client-side for preview
   const generateBingoCard = () => {
@@ -1706,23 +1715,6 @@ export default function BingoGame() {
       {celebration && (
         <div className="absolute inset-0 z-50 flex items-center justify-center p-3 bg-black/95 backdrop-blur-md overflow-y-auto">
           <div className="bg-gradient-to-b from-[#1a0a3e] to-[#0a0f1e] border border-yellow-400/30 rounded-3xl p-4 text-center max-w-sm w-full shadow-[0_0_40px_rgba(250,204,21,0.3)] flex flex-col items-center relative">
-
-            {/* Close button */}
-            <button
-              onClick={() => {
-                gameFinishedRef.current = false;
-                setCelebration(null);
-                setMyCard(null);
-                setMyCartelas([]);
-                setActiveCartelaIdx(0);
-                setTaken([]);
-                setGame(prev => prev ? { ...prev, status: 'waiting', called_numbers: [], total_players: 0, prize_pool: 0 } : prev);
-                fetchState();
-                refreshUser();
-              }}
-              className="absolute top-3 right-3 w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white/50 active:scale-90 transition-all text-sm font-black z-10"
-            >✕</button>
-
             {/* ── REMATCH ── */}
             {celebration.winner_name === 'REMATCH' ? (<>
               <div className="text-5xl mb-2 animate-spin">🔄</div>
