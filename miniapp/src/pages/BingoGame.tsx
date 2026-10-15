@@ -1125,21 +1125,20 @@ export default function BingoGame() {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3 pb-2">
-                {filteredRooms.map((room, idx) => {
-                  const gradient = ROOM_GRADIENTS[idx % ROOM_GRADIENTS.length];
+                {filteredRooms.map((room) => {
                   return (
                     <div
                       key={room.id}
                       onClick={() => handleSelectRoom(room)}
                       className="bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all duration-200 hover:shadow-md"
                     >
-                      {/* Card Banner Header — colorful gradient per room */}
-                      <div className={`h-20 bg-gradient-to-br ${gradient} flex flex-col items-center justify-center relative px-2.5 text-center shadow-xs`}>
-                        <div className="absolute top-2 right-2 flex items-center space-x-1 bg-black/25 backdrop-blur-xs px-1.5 py-0.5 rounded-full">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
+                      {/* Same black header for all rooms */}
+                      <div className="h-20 bg-black flex flex-col items-center justify-center relative px-2.5 text-center">
+                        <div className="absolute top-2 right-2 flex items-center space-x-1 bg-white/10 px-1.5 py-0.5 rounded-full">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                           <span className="text-[7px] font-black text-white uppercase tracking-wider">LIVE</span>
                         </div>
-                        <span className="text-white font-black text-base drop-shadow-sm leading-tight line-clamp-2 px-1">
+                        <span className="text-white font-black text-base leading-tight line-clamp-2 px-1">
                           {room.room_name}
                         </span>
                       </div>

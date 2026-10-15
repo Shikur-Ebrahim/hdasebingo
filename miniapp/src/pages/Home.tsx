@@ -532,8 +532,7 @@ export default function Home() {
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
-              {filteredHomeRooms.map((room, idx) => {
-                const gradient = ROOM_GRADIENTS[idx % ROOM_GRADIENTS.length];
+              {filteredHomeRooms.map((room) => {
                 return (
                   <div
                     key={room.id}
@@ -543,10 +542,10 @@ export default function Home() {
                     }}
                     className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all"
                   >
-                    {/* Colorful gradient header with room name */}
-                    <div className={`h-16 bg-gradient-to-br ${gradient} flex flex-col items-center justify-center relative px-2 text-center`}>
-                      <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-300 animate-pulse shadow-sm" />
-                      <span className="text-white font-black text-sm drop-shadow-sm leading-tight line-clamp-2 px-1">
+                    {/* Same black header for all rooms */}
+                    <div className="h-16 bg-black flex flex-col items-center justify-center relative px-2 text-center">
+                      <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm" />
+                      <span className="text-white font-black text-sm leading-tight line-clamp-2 px-1">
                         {room.room_name}
                       </span>
                     </div>
