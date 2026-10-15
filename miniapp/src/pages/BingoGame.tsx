@@ -584,6 +584,7 @@ export default function BingoGame() {
   const prevCalledLenRef = useRef(0);
   const hadCartelasRef = useRef(false);
   const celebrationTimerRef = useRef<any>(null);
+  const cartelaMatricesRef = useRef<Record<number, number[][]>>({});
   const fetchStateRef = useRef<() => void>(() => {});
   const refreshUserRef = useRef<() => void>(() => {});
 
@@ -636,13 +637,15 @@ export default function BingoGame() {
 
     const iWon = finGame.winner_telegram_id === String(user?.telegram_id);
     const localCard = myCartelas.find(c => c.cartela_number === finGame.winner_cartela)?.card_matrix;
+    const cachedCard = finGame.winner_matrix || (finGame.winner_cartela ? cartelaMatricesRef.current[finGame.winner_cartela] : null);
+    const winningMatrix = localCard || cachedCard || null;
 
-    // Render celebration popup IMMEDIATELY!
+    // Render celebration popup IMMEDIATELY with full tracked cartela matrix — 0ms, no loading!
     setCelebration({
       winner_name: finGame.winner_first_name || 'Player',
       winner_cartela: finGame.winner_cartela || 0,
       winner_prize: finGame.winner_prize || 0,
-      winner_matrix: localCard || null,
+      winner_matrix: winningMatrix,
       iWon,
       called: [...(finGame.called_numbers || [])],
     });
@@ -656,8 +659,8 @@ export default function BingoGame() {
             setCelebration(prev => prev ? { ...prev, winners_list: data.winners } : prev);
           }
         }).catch(() => {});
-    } else if (!localCard && finGame.winner_cartela) {
-      // Fetch winner card matrix in background without blocking the popup
+    } else if (!winningMatrix && finGame.winner_cartela) {
+      // Fallback only if not in memory: fetch winner card matrix
       fetch(`${API}/bingo/card?game_id=${finGame.id}&cartela=${finGame.winner_cartela}`, { headers: hdrs() })
         .then(r => r.json())
         .then(data => {
@@ -680,6 +683,9 @@ export default function BingoGame() {
         if (d.max_cartelas_per_user) setMaxCartelasPerUser(Number(d.max_cartelas_per_user));
         if (d.my_cartelas) setMyCartelas(d.my_cartelas);
         if (d.unique_players !== undefined) setUniquePlayers(Number(d.unique_players));
+        if (d.cartela_matrices) {
+          cartelaMatricesRef.current = { ...cartelaMatricesRef.current, ...d.cartela_matrices };
+        }
         
         // Guarantee celebration popup fires even if WebSocket was delayed or dropped!
         if (d.last_finished_game) {
@@ -723,8 +729,11 @@ export default function BingoGame() {
         fetchState();
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "bingo_players" }, ({ new: p }) => {
-        const np = p as { game_id: string; cartela_number: number; telegram_id: string };
+        const np = p as { game_id: string; cartela_number: number; card_matrix?: number[][]; telegram_id: string };
         if (np.game_id === gameIdRef.current) {
+          if (np.cartela_number && np.card_matrix) {
+            cartelaMatricesRef.current[np.cartela_number] = np.card_matrix;
+          }
           setTaken(prev => prev.includes(np.cartela_number) ? prev : [...prev, np.cartela_number]);
           // Re-fetch to get accurate unique_players count (same user may buy multiple cartelas)
           fetchState();

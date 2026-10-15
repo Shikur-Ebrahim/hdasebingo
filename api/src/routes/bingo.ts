@@ -106,6 +106,14 @@ router.get('/current', validateTelegramAuth, async (req: AuthRequest, res) => {
   // Backward compat: my_card = first cartela
   const my_card = my_cartelas.length > 0 ? my_cartelas[0] : null;
 
+  // Build full map of cartela matrices for instant 0ms celebration rendering without network fetch!
+  const cartela_matrices: Record<number, number[][]> = {};
+  for (const r of rows || []) {
+    if (r.cartela_number && r.card_matrix) {
+      cartela_matrices[r.cartela_number] = r.card_matrix;
+    }
+  }
+
   const cfg = await getSettings();
 
   // Find if a game recently finished (< 6s ago) so celebration is guaranteed to display
@@ -126,12 +134,23 @@ router.get('/current', validateTelegramAuth, async (req: AuthRequest, res) => {
     const msSince = Date.now() - new Date(recentFinished.finished_at).getTime();
     if (msSince < 6000) {
       last_finished_game = recentFinished;
+      if (recentFinished.winner_cartela) {
+        const { data: wp } = await supabase.from('bingo_players')
+          .select('card_matrix')
+          .eq('game_id', recentFinished.id)
+          .eq('cartela_number', recentFinished.winner_cartela)
+          .maybeSingle();
+        if (wp?.card_matrix) {
+          last_finished_game.winner_matrix = wp.card_matrix;
+        }
+      }
     }
   }
 
   res.json({
     game,
     last_finished_game,
+    cartela_matrices,
     taken_cartelas,
     unique_players,
     my_card,
