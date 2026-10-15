@@ -1772,22 +1772,22 @@ export default function BingoGame() {
 
       {/* Winner Celebration */}
       {celebration && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center p-3 bg-black/95 backdrop-blur-md overflow-y-auto">
-          <div className="bg-black border border-yellow-400/30 rounded-3xl p-4 text-center max-w-sm w-full shadow-[0_0_50px_rgba(0,0,0,0.9)] flex flex-col items-center relative">
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white border-2 border-amber-300 rounded-3xl p-4 text-center max-w-sm w-full shadow-2xl flex flex-col items-center relative">
             {/* ── REMATCH ── */}
             {celebration.winner_name === 'REMATCH' ? (<>
               <div className="text-5xl mb-2 animate-spin">🔄</div>
-              <h2 className="text-3xl font-black text-orange-400 mb-2">{t[language].bingo.rematch}</h2>
-              <div className="bg-[#111111] rounded-2xl p-3 mb-3 w-full border border-orange-500/30">
-                <p className="text-orange-300 font-black text-sm mb-1">{t[language].bingo.tieDesc}</p>
-                <p className="text-white/60 text-xs">{t[language].bingo.stakeRefunded}</p>
-                <p className="text-white/40 text-xs mt-1">{t[language].bingo.newGameStarts}</p>
+              <h2 className="text-3xl font-black text-orange-500 mb-2">{t[language].bingo.rematch}</h2>
+              <div className="bg-amber-50/80 rounded-2xl p-3 mb-3 w-full border border-amber-200">
+                <p className="text-orange-600 font-black text-sm mb-1">{t[language].bingo.tieDesc}</p>
+                <p className="text-slate-600 text-xs font-semibold">{t[language].bingo.stakeRefunded}</p>
+                <p className="text-slate-400 text-xs mt-1 font-semibold">{t[language].bingo.newGameStarts}</p>
               </div>
 
             {/* ── 2-WAY TIE🌟 */}
               </>) : celebration.winner_name.includes(' & ') ? (<>
-                <h2 className="text-xl font-black text-yellow-400 mb-1">{t[language].bingo.tieTitle}</h2>
-                <div className="mb-2 inline-block bg-emerald-500/20 text-emerald-400 px-3 py-0.5 rounded-full font-black text-sm border border-emerald-500/30">
+                <h2 className="text-xl font-black text-amber-700 mb-1">{t[language].bingo.tieTitle}</h2>
+                <div className="mb-2 inline-block bg-emerald-100 text-emerald-800 px-3.5 py-1 rounded-full font-black text-sm border border-emerald-300 shadow-2xs">
                   {celebration.winner_prize} ETB {t[language].bingo.each}
                 </div>
                 
@@ -1797,11 +1797,11 @@ export default function BingoGame() {
                       const winCells = getWinningCells(w.card_matrix, celebration.called);
                       const winTitle = getWinningPatternTitle(w.card_matrix, celebration.called);
                       return (
-                      <div key={idx} className="flex-shrink-0 w-[140px] bg-[#111111] rounded-2xl p-2 border border-white/10 flex flex-col items-center">
-                        <p className="text-white font-black text-sm truncate w-full">{w.first_name}</p>
+                      <div key={idx} className="flex-shrink-0 w-[140px] bg-white rounded-2xl p-2 border-2 border-amber-200 shadow-xs flex flex-col items-center">
+                        <p className="text-slate-900 font-black text-sm truncate w-full">{w.first_name}</p>
                         <div className="flex items-center justify-between w-full mb-1">
-                          <p className="text-yellow-400/70 text-[9px] font-bold flex items-center gap-1"><LayoutGrid size={10} className="text-yellow-400 shrink-0" /> {t[language].bingo.cartelaNum.trim()} {w.cartela_number}</p>
-                          <span className="text-emerald-400 text-[7px] font-black">{winTitle.replace(' BINGO!', '')}</span>
+                          <p className="text-amber-700 text-[9px] font-bold flex items-center gap-1"><LayoutGrid size={10} className="text-amber-500 shrink-0" /> {t[language].bingo.cartelaNum.trim()} {w.cartela_number}</p>
+                          <span className="text-emerald-700 text-[7px] font-black">{winTitle.replace(' BINGO!', '')}</span>
                         </div>
                         <div className="w-full">
                           <div className="grid grid-cols-5">
@@ -1809,7 +1809,7 @@ export default function BingoGame() {
                               <div key={l} className="flex items-center justify-center py-0.5 font-black text-white text-[9px]" style={{ background: l==='B'?'#3b82f6':l==='I'?'#8b5cf6':l==='N'?'#ec4899':l==='G'?'#22c55e':'#3b82f6' }}>{l}</div>
                             ))}
                           </div>
-                          <div className="grid grid-cols-5 gap-[1px] p-[1px] bg-[#0a0f1e]">
+                          <div className="grid grid-cols-5 gap-[1px] p-[1px] bg-amber-50/60">
                             {w.card_matrix.map((row, r) => row.map((num, c) => {
                               const isFree = num === 0;
                               const isWin = winCells.has(`${r}-${c}`);
@@ -1817,12 +1817,12 @@ export default function BingoGame() {
                               return (
                                 <div key={c} className={`aspect-square flex items-center justify-center text-[8px] font-black ${
                                   isFree
-                                    ? 'bg-yellow-400 text-yellow-900 font-black'
+                                    ? 'bg-amber-400 text-amber-950 font-black'
                                     : isWin
-                                    ? 'bg-emerald-500 text-white shadow-[0_0_4px_rgba(16,185,129,0.9)] ring-1 ring-yellow-300 font-black'
+                                    ? 'bg-emerald-500 text-white shadow-xs ring-1 ring-amber-300 font-black'
                                     : isCalled
-                                    ? 'bg-amber-100 text-slate-700'
-                                    : 'bg-white text-slate-700'
+                                    ? 'bg-orange-100 text-slate-800'
+                                    : 'bg-white text-slate-800'
                                 }`}>
                                   {isFree ? '★' : num}
                                 </div>
@@ -1834,29 +1834,29 @@ export default function BingoGame() {
                     );})}
                   </div>
                 ) : (
-                  <div className="bg-[#111111] rounded-2xl p-3 mb-3 w-full border border-white/10">
-                    <p className="text-white font-black text-lg">{celebration.winner_name}</p>
+                  <div className="bg-amber-50/80 rounded-2xl p-3 mb-3 w-full border border-amber-200">
+                    <p className="text-slate-900 font-black text-lg">{celebration.winner_name}</p>
                   </div>
                 )}
                 
-                <p className="text-white/30 text-[10px] font-bold animate-pulse">{t[language].bingo.returning}</p>
+                <p className="text-slate-400 text-[10px] font-black uppercase tracking-wider animate-pulse">{t[language].bingo.returning}</p>
   
               {/* 🌟  ── */}
             </>) : (<>
               {/* Trophy + BINGO label — NO overlap */}
               <div className="flex flex-col items-center mb-3">
                 <div className="text-5xl mb-1 animate-bounce">🏆</div>
-                <div className="bg-yellow-400 text-yellow-900 px-6 py-1 rounded-full font-black text-2xl tracking-widest shadow-[0_0_20px_rgba(250,204,21,0.5)]">
+                <div className="bg-amber-400 text-amber-950 px-7 py-1.5 rounded-full font-black text-2xl tracking-widest shadow-md">
                   BINGO!
                 </div>
               </div>
 
               {/* Winner info */}
-              <div className="w-full bg-[#111111] rounded-2xl p-3 mb-3 border border-white/10">
-                <p className="text-white/50 text-[9px] uppercase tracking-widest mb-1">{t[language].bingo.winner}</p>
-                <p className="text-white font-black text-xl leading-tight">{celebration.winner_name}</p>
-                <p className="text-yellow-400/70 text-xs font-bold mt-0.5 flex items-center justify-center gap-1.5"><LayoutGrid size={12} className="text-yellow-400 shrink-0" /> {t[language].bingo.cartelaNum.trim()} {celebration.winner_cartela}</p>
-                <div className="mt-2 inline-block bg-emerald-500 text-white px-5 py-1 rounded-full font-black text-lg shadow-[0_0_15px_rgba(16,185,129,0.4)]">
+              <div className="w-full bg-amber-50/80 rounded-2xl p-3 mb-3 border border-amber-200/80 shadow-2xs">
+                <p className="text-amber-800 text-[9px] uppercase tracking-widest mb-1 font-black">{t[language].bingo.winner}</p>
+                <p className="text-slate-900 font-black text-2xl leading-tight">{celebration.winner_name}</p>
+                <p className="text-amber-700 text-xs font-bold mt-0.5 flex items-center justify-center gap-1.5"><LayoutGrid size={12} className="text-amber-500 shrink-0" /> {t[language].bingo.cartelaNum.trim()} {celebration.winner_cartela}</p>
+                <div className="mt-2 inline-block bg-emerald-500 text-white px-6 py-1.5 rounded-full font-black text-lg shadow-[0_4px_16px_rgba(16,185,129,0.4)]">
                   🎉 {celebration.winner_prize} ETB
                 </div>
               </div>
@@ -1866,7 +1866,7 @@ export default function BingoGame() {
                 const winCells = getWinningCells(celebration.winner_matrix, celebration.called);
                 const winTitle = getWinningPatternTitle(celebration.winner_matrix, celebration.called);
                 return (
-                  <div className="w-full rounded-2xl overflow-hidden border-2 border-yellow-400/50 mb-3 shadow-[0_0_25px_rgba(250,204,21,0.25)]">
+                  <div className="w-full rounded-2xl overflow-hidden border-2 border-amber-300 mb-3 shadow-md bg-white">
                     {/* BINGO header */}
                     <div className="grid grid-cols-5">
                       {BINGO_LETTERS.map(l => (
@@ -1874,7 +1874,7 @@ export default function BingoGame() {
                       ))}
                     </div>
                     {/* Card grid */}
-                    <div className="grid grid-cols-5 gap-[2px] p-[2px] bg-slate-200">
+                    <div className="grid grid-cols-5 gap-[2px] p-[2px] bg-amber-50/60">
                       {Array.from({ length: 5 }).flatMap((_, r) => Array.from({ length: 5 }).map((_, c) => {
                         const num = celebration.winner_matrix![r][c];
                         const isFree = num === 0;
@@ -1883,12 +1883,12 @@ export default function BingoGame() {
                         return (
                           <div key={`${r}-${c}`} className={`aspect-square flex items-center justify-center font-black text-xs rounded transition-all ${
                             isFree
-                              ? 'bg-yellow-400 text-yellow-900 font-black'
+                              ? 'bg-amber-400 text-amber-950 font-black'
                               : isWin
-                              ? 'bg-emerald-500 text-white font-black shadow-[0_0_8px_rgba(16,185,129,0.9)] ring-2 ring-yellow-300 scale-105 z-10'
+                              ? 'bg-emerald-500 text-white font-black shadow-md ring-2 ring-amber-300 scale-105 z-10'
                               : isCalled
-                              ? 'bg-amber-100 text-slate-700'
-                              : 'bg-white text-slate-700'
+                              ? 'bg-orange-100 text-slate-800 font-bold'
+                              : 'bg-white text-slate-800 border border-slate-100'
                           }`}>
                             {isFree ? '★' : num}
                           </div>
@@ -1896,23 +1896,23 @@ export default function BingoGame() {
                       }))}
                     </div>
                     {/* Cartela label + Winning Rule Tag */}
-                    <div className="py-2 px-3 flex items-center justify-between bg-[#0a0f1e] border-t border-white/10">
-                      <p className="text-yellow-400 font-black text-[11px] tracking-wider uppercase flex items-center gap-1.5"><LayoutGrid size={13} className="text-yellow-300" /> CARTELA {celebration.winner_cartela}</p>
-                      <span className="text-emerald-400 text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 px-2.5 py-0.5 rounded-full border border-emerald-500/40 shadow-[0_0_6px_rgba(16,185,129,0.3)]">
+                    <div className="py-2 px-3 flex items-center justify-between bg-white border-t border-amber-200">
+                      <p className="text-amber-800 font-black text-[11px] tracking-wider uppercase flex items-center gap-1.5"><LayoutGrid size={13} className="text-amber-500" /> CARTELA {celebration.winner_cartela}</p>
+                      <span className="text-emerald-700 text-[10px] font-black uppercase tracking-wider bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300 shadow-2xs">
                         {winTitle}
                       </span>
                     </div>
                   </div>
                 );
               })() : (
-                <div className="w-full bg-white/5 rounded-2xl p-4 mb-3 border border-white/10 flex flex-col items-center">
+                <div className="w-full bg-amber-50/80 rounded-2xl p-4 mb-3 border border-amber-200 flex flex-col items-center">
                   <div className="animate-spin text-2xl mb-1">⏳</div>
-                  <p className="text-white/60 text-xs font-bold">Loading winning cartela...</p>
+                  <p className="text-amber-800 text-xs font-bold">Loading winning cartela...</p>
                 </div>
               )}
 
               {/* Auto-dismiss indicator */}
-              <p className="text-white/30 text-[10px] font-bold animate-pulse">{t[language].bingo.returning}</p>
+              <p className="text-slate-400 text-[10px] font-black uppercase tracking-wider animate-pulse">{t[language].bingo.returning}</p>
             </>)}
 
           </div>
