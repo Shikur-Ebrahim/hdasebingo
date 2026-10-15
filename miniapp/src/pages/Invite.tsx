@@ -309,10 +309,12 @@ export default function Invite() {
 
                 {/* Center Badge */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-400 border-2 border-white shadow-md flex items-center justify-center text-white font-black text-xs">
-                    75
+                  <div className="bg-gradient-to-r from-amber-500 to-yellow-400 border-2 border-white shadow-lg rounded-xl px-2 py-1 flex flex-col items-center justify-center" style={{ minWidth: 64 }}>
+                    <span className="text-[8px] font-black text-white/80 uppercase tracking-widest leading-none">HDASE</span>
+                    <span className="text-[11px] font-black text-white leading-none tracking-wider">BINGO</span>
                   </div>
                 </div>
+
               </div>
             </div>
 
@@ -476,8 +478,9 @@ export default function Invite() {
                 bgColor="#ffffff"
               />
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-400 border-2 border-white shadow-lg flex items-center justify-center text-white font-black text-sm">
-                  75
+                <div className="bg-gradient-to-r from-amber-500 to-yellow-400 border-2 border-white shadow-lg rounded-xl px-2.5 py-1.5 flex flex-col items-center justify-center" style={{ minWidth: 70 }}>
+                  <span className="text-[9px] font-black text-white/80 uppercase tracking-widest leading-none">HDASE</span>
+                  <span className="text-[13px] font-black text-white leading-none tracking-wider">BINGO</span>
                 </div>
               </div>
             </div>
