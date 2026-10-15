@@ -1784,21 +1784,28 @@ export default function BingoGame() {
   
               {/* 🌟  ── */}
             </>) : (<>
-              {/* Trophy + BINGO label — NO overlap */}
-              <div className="flex flex-col items-center mb-3">
-                <div className="text-5xl mb-1 animate-bounce">🏆</div>
-                <div className="bg-yellow-400 text-yellow-900 px-6 py-1 rounded-full font-black text-2xl tracking-widest shadow-[0_0_20px_rgba(250,204,21,0.5)]">
+              {/* Trophy + BINGO label — Compact & Attractive */}
+              <div className="flex flex-col items-center mb-2">
+                <div className="text-4xl mb-0.5 animate-bounce">🏆</div>
+                <div className="bg-yellow-400 text-yellow-950 px-5 py-0.5 rounded-full font-black text-xl tracking-widest shadow-[0_0_16px_rgba(250,204,21,0.45)]">
                   BINGO!
                 </div>
               </div>
 
-              {/* Winner info */}
-              <div className="w-full bg-white/5 rounded-2xl p-3 mb-3 border border-white/10">
-                <p className="text-white/50 text-[9px] uppercase tracking-widest mb-1">{t[language].bingo.winner}</p>
-                <p className="text-white font-black text-xl leading-tight">{celebration.winner_name}</p>
-                <p className="text-yellow-400/70 text-xs font-bold mt-0.5 flex items-center justify-center gap-1.5"><LayoutGrid size={12} className="text-yellow-400 shrink-0" /> {t[language].bingo.cartelaNum.trim()} {celebration.winner_cartela}</p>
-                <div className="mt-2 inline-block bg-emerald-500 text-white px-5 py-1 rounded-full font-black text-lg shadow-[0_0_15px_rgba(16,185,129,0.4)]">
-                  🎉 {celebration.winner_prize} ETB
+              {/* Winner Bar: Left (Name + Cartela), Right (Prize Pill) — Compact Horizontal Layout */}
+              <div className="w-full bg-white/5 rounded-2xl py-2 px-3.5 mb-2.5 border border-white/10 flex items-center justify-between">
+                <div className="flex flex-col items-start min-w-0 pr-2">
+                  <p className="text-white font-black text-base leading-tight truncate max-w-[150px]">
+                    {celebration.winner_name}
+                  </p>
+                  <p className="text-yellow-400 text-xs font-bold mt-0.5 flex items-center gap-1.5">
+                    <LayoutGrid size={12} className="text-yellow-400 shrink-0" />
+                    <span>{t[language].bingo.cartelaNum.trim()} {celebration.winner_cartela}</span>
+                  </p>
+                </div>
+                <div className="shrink-0 bg-emerald-500 text-white px-3.5 py-1.5 rounded-full font-black text-sm shadow-[0_0_12px_rgba(16,185,129,0.4)] flex items-center gap-1.5">
+                  <span>🎉</span>
+                  <span>{celebration.winner_prize} ETB</span>
                 </div>
               </div>
 
