@@ -57,10 +57,11 @@ function Navigation() {
   const location = useLocation();
   const { user, isProfileOpen, setProfileOpen, language } = useGameStore();
 
-  // Hide the player bottom navigation if the user is an Admin or Worker
-  if (user?.role === 'admin' || user?.role === 'worker') {
+  // Hide the player bottom navigation if the user is an Admin, Worker, or Agent
+  if (user?.role === 'admin' || user?.role === 'worker' || user?.role === 'agent') {
     return null;
   }
+
 
   const navItems = [
     { path: '/', label: t[language].nav.games, icon: Gamepad2 },
@@ -122,10 +123,15 @@ function RoleRouter() {
   if (user?.role === 'worker') {
     return <Navigate to="/worker" replace />;
   }
-  
+
+  if (user?.role === 'agent') {
+    return <Navigate to="/agent" replace />;
+  }
+
   // Default user role sees the normal bingo home page
   return <Home />;
 }
+
 
 import AdminDepositMethods from './pages/AdminDepositMethods';
 import AdminWithdrawalMethods from './pages/AdminWithdrawalMethods';
@@ -139,6 +145,8 @@ import AdminBroadcast from './pages/AdminBroadcast';
 import AdminAgents from './pages/AdminAgents';
 import AdminSupportVideos from './pages/AdminSupportVideos';
 import SupportVideos from './pages/SupportVideos';
+import Agent from './pages/Agent';
+
 
 import DepositHistory from './pages/DepositHistory';
 import WithdrawHistory from './pages/WithdrawHistory';
@@ -320,6 +328,8 @@ function App() {
           <Route path="/admin/support-videos" element={<AdminSupportVideos />} />
           <Route path="/help-videos" element={<SupportVideos />} />
           <Route path="/worker" element={<Worker />} />
+          <Route path="/agent" element={<Agent />} />
+
         </Routes></ErrorBoundary>
         <Profile />
         <Navigation />

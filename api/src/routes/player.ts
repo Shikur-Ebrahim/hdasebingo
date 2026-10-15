@@ -388,5 +388,34 @@ router.get('/support-videos', async (req, res) => {
   }
 });
 
+// GET /player/agent-room — get room assigned to current agent
+router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) => {
+  try {
+    const telegramId = req.telegramUser!.id.toString();
+    const { data: room, error } = await supabase
+      .from('rooms')
+      .select('*')
+      .eq('agent_id', telegramId)
+      .maybeSingle();
+
+    if (error && !error.message.includes('does not exist')) throw error;
+
+    let activeGames: any[] = [];
+    if (room?.id) {
+      const { data: games } = await supabase
+        .from('bingo_games')
+        .select('id, stake, prize_pool, total_players, status, start_at')
+        .eq('room_id', room.id)
+        .in('status', ['waiting', 'calling'])
+        .order('created_at', { ascending: false });
+      activeGames = games || [];
+    }
+
+    res.json({ room: room || null, active_games: activeGames });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
 
