@@ -63,40 +63,16 @@ router.get('/current', validateTelegramAuth, async (req: AuthRequest, res) => {
     baseQuery = baseQuery.eq('room_id', roomId);
   }
 
-  // 1. Check if a game for this room & stake finished within the last 3 seconds
-  // This guarantees all active players receive the winner celebration and card pattern!
-  let finishedQuery = supabase
-    .from('bingo_games')
-    .select('*')
-    .eq('stake', stake)
-    .eq('status', 'finished');
-  if (roomId) finishedQuery = finishedQuery.eq('room_id', roomId);
-
-  const { data: recentFinished } = await finishedQuery
-    .order('finished_at', { ascending: false })
+  // Find the active waiting or calling game for this room & stake
+  // NOTE: Celebration is triggered by realtime UPDATE on the frontend — no need to serve finished games here.
+  let { data: activeGame } = await baseQuery
+    .in('status', ['waiting', 'calling'])
+    .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+  let game: any = activeGame ?? null;
 
-  let game: any = null;
-  if (recentFinished && recentFinished.finished_at) {
-    const msSinceFinish = Date.now() - new Date(recentFinished.finished_at).getTime();
-    if (msSinceFinish < 3000) {
-      game = recentFinished;
-    }
-  }
-
-  // 2. If no game finished recently (<3s), find the active waiting or calling game
-  if (!game) {
-    let { data: activeGame } = await baseQuery
-      .in('status', ['waiting', 'calling'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    game = activeGame;
-  }
-
-  // 3. If STILL no active game (or finished game is older than 4s):
-  // Auto-create next waiting game immediately with zero delay
+  // If no active game exists yet, auto-create the next waiting game immediately
   if (!game) {
     if (roomId) {
       game = await engine.createGame(roomId, stake);

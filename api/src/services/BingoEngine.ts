@@ -294,7 +294,7 @@ class BingoEngine {
         const stk = game.stake;
         setTimeout(async () => {
           try { await this.createGame(rId, stk); } catch (e) { console.error('createGame error:', e); }
-        }, 2500);
+        }, 200);
       }
       return;
     }
@@ -414,7 +414,7 @@ class BingoEngine {
       if (roomId) {
         setTimeout(async () => {
           try { await this.createGame(roomId, stake); } catch (e) { console.error('createGame error:', e); }
-        }, 2500);
+        }, 200);
       }
       return;
     }
@@ -457,7 +457,7 @@ class BingoEngine {
       if (roomId) {
         setTimeout(async () => {
           try { await this.createGame(roomId, stake); } catch (e) { console.error('createGame error:', e); }
-        }, 2500);
+        }, 200);
       }
       return;
     }
@@ -495,7 +495,7 @@ class BingoEngine {
     if (roomId) {
       setTimeout(async () => {
         try { await this.createGame(roomId, stake); } catch (e) { console.error('createGame error:', e); }
-      }, 2500);
+      }, 200);
     }
   }
 
