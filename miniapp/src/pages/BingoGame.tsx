@@ -902,14 +902,26 @@ export default function BingoGame() {
   else if (game?.status === "calling") { statusTxt = "Active"; statusCls = "text-emerald-400"; }
 
   const Header = () => (
-    <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between shrink-0">
+    <div className={`px-4 py-3 border-b ${game?.status === 'calling' ? 'border-white/5 bg-[#05081a]' : 'border-slate-100 bg-white shadow-2xs'} flex items-center justify-between shrink-0 transition-colors`}>
       <div className="flex items-center space-x-3">
-        <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-lg">{initial}</div>
-        <p className="font-bold text-sm uppercase tracking-wider text-slate-200">{user?.first_name || "USER"}</p>
+        <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-black text-lg shadow-xs">{initial}</div>
+        <div>
+          <p className={`font-black text-sm uppercase tracking-wider ${game?.status === 'calling' ? 'text-slate-200' : 'text-slate-800'} leading-tight`}>{user?.first_name || "USER"}</p>
+          <div className="flex items-center space-x-1 mt-0.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[10px] font-bold text-slate-400">Online</span>
+          </div>
+        </div>
       </div>
       <div className="flex items-center space-x-4 text-right">
-        <div className="flex flex-col items-center"><Gift size={14} className="text-purple-400 mb-0.5" /><p className="text-xs font-bold text-slate-300">{fm(user?.bonus_balance)} ETB</p></div>
-        <div className="flex flex-col items-end"><p className="text-[11px] text-slate-400">{t[language].bingo.wallet}</p><p className="text-sm font-bold text-green-400">{fm(user?.main_balance)} ETB</p></div>
+        <div className="flex flex-col items-center">
+          <Gift size={14} className={`${game?.status === 'calling' ? 'text-purple-400' : 'text-purple-600'} mb-0.5`} />
+          <p className={`text-xs font-bold ${game?.status === 'calling' ? 'text-slate-300' : 'text-slate-700'}`}>{fm(user?.bonus_balance)} ETB</p>
+        </div>
+        <div className="flex flex-col items-end">
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{t[language].bingo.wallet}</p>
+          <p className={`text-sm font-black ${game?.status === 'calling' ? 'text-green-400' : 'text-emerald-600'}`}>{fm(user?.main_balance)} ETB</p>
+        </div>
       </div>
     </div>
   );
@@ -1589,48 +1601,57 @@ export default function BingoGame() {
     const myNums = myCartelas.map(c => c.cartela_number);
     const canPickMore = myCartelas.length < maxCartelasPerUser;
     return (
-    <div className="flex-1 overflow-y-auto relative p-2 pb-16">
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-[10px] text-cyan-300 font-black uppercase tracking-widest">
-          {canPickMore ? `TAP TO PICK — ${taken.length}/${maxPlayers} TAKEN` : `ALL CARTELAS SELECTED ✓`}
-        </p>
-        <p className="text-[10px] text-yellow-300 font-black">
+    <div className="flex-1 overflow-y-auto relative p-3 pb-16">
+      <div className="flex items-center justify-between mb-2.5">
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <p className="text-xs text-slate-700 font-black uppercase tracking-wider">
+            {canPickMore ? `TAP TO PICK — ${taken.length}/${maxPlayers} TAKEN` : `ALL CARTELAS SELECTED ✓`}
+          </p>
+        </div>
+        <span className="text-[11px] bg-amber-100 text-amber-800 border border-amber-300/80 px-2.5 py-0.5 rounded-full font-black shadow-2xs">
           {myCartelas.length}/{maxCartelasPerUser} PICKED
-        </p>
+        </span>
       </div>
       {/* My Cartelas chips */}
       {myNums.length > 0 && (
-        <div className="flex gap-2 mb-2 flex-wrap">
+        <div className="flex gap-2 mb-2.5 flex-wrap">
           {myNums.map(n => (
-            <span key={n} className="px-3 py-1 bg-emerald-500 text-white text-xs font-black rounded-full ring-2 ring-yellow-300 flex items-center gap-1.5 shadow-sm">
-              <LayoutGrid size={12} className="text-yellow-200 shrink-0" />
-              <span>{n} ✓</span>
+            <span key={n} className="px-3 py-1 bg-emerald-500 text-white text-xs font-black rounded-full ring-2 ring-amber-300 flex items-center gap-1.5 shadow-sm">
+              <LayoutGrid size={12} className="text-amber-200 shrink-0" />
+              <span>{t[language].bingo.cartelaNum.trim()} {n} ✓</span>
             </span>
           ))}
         </div>
       )}
-      <div className="rounded-2xl border-[3px] border-cyan-400 overflow-hidden bg-[#05081a] shadow-[0_0_25px_rgba(34,211,238,0.4)]">
-        <div className="grid gap-[2px] p-[2px]" style={{ gridTemplateColumns: "repeat(10, 1fr)" }}>
+      <div className="rounded-2xl border-2 border-amber-300/90 overflow-hidden bg-white/90 backdrop-blur-sm shadow-md p-1">
+        <div className="grid gap-[3px] p-[2px]" style={{ gridTemplateColumns: "repeat(10, 1fr)" }}>
           {Array.from({ length: maxPlayers }, (_, i) => {
             const n = i + 1;
             const isTaken = taken.includes(n), isMine = myNums.includes(n), isBuying = buying === n;
             if (isMine) {
               return (
-                <div key={n} className="aspect-square flex items-center justify-center rounded-[7px] text-[10px] font-black bg-emerald-500 text-white ring-[2.5px] ring-yellow-300 z-10">
+                <div key={n} className="aspect-square flex items-center justify-center rounded-[8px] text-[10px] font-black bg-emerald-500 text-white ring-2 ring-amber-400 z-10 shadow-xs">
                   ✓
                 </div>
               );
             }
             if (isTaken) {
               return (
-                <div key={n} className="aspect-square flex items-center justify-center rounded-[7px] text-[9px] font-black bg-red-900/60 text-red-300/50 border border-red-700/30">
+                <div key={n} className="aspect-square flex items-center justify-center rounded-[8px] text-[10px] font-bold bg-slate-100 text-slate-300 border border-slate-200/50">
                   ✕
                 </div>
               );
             }
             return (
               <button key={n} disabled={buying !== null || !canPickMore} onClick={() => openPreview(n)}
-                className={`aspect-square flex items-center justify-center rounded-[7px] text-[11px] font-black transition-all duration-150 ${!canPickMore ? 'bg-white/20 text-white/30 cursor-not-allowed' : isBuying ? 'bg-white opacity-40 scale-90' : 'bg-white text-black active:scale-90 cursor-pointer'}`}>
+                className={`aspect-square flex items-center justify-center rounded-[8px] text-xs font-black transition-all duration-150 border ${
+                  !canPickMore 
+                    ? 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed' 
+                    : isBuying 
+                    ? 'bg-amber-100 border-amber-300 opacity-60 scale-90' 
+                    : 'bg-white text-slate-800 border-slate-200/80 hover:border-amber-400 hover:bg-amber-50/50 shadow-2xs active:scale-90 cursor-pointer'
+                }`}>
                 {n}
               </button>
             );
@@ -1642,11 +1663,11 @@ export default function BingoGame() {
   };
 
   return (
-    <div className="h-[calc(100dvh-80px)] w-full bg-[#05081a] flex flex-col select-none" onClick={initWebAudio}>
-      <div className="sticky top-0 z-40 bg-[#05081a] flex flex-col shrink-0">
+    <div className={`h-[calc(100dvh-80px)] w-full ${game.status === 'calling' ? 'bg-[#05081a]' : 'bg-gradient-to-b from-[#fffbf0] via-[#fef3c7]/30 to-[#fffbf0]'} flex flex-col select-none`} onClick={initWebAudio}>
+      <div className={`sticky top-0 z-40 ${game.status === 'calling' ? 'bg-[#05081a]' : 'bg-white shadow-2xs border-b border-amber-100/80'} flex flex-col shrink-0`}>
         <Header />
         {game.status !== 'calling' && (
-          <div className="bg-[#0a0d1f] px-3 pt-3 pb-3">
+          <div className="bg-gradient-to-r from-amber-50/90 via-yellow-50/60 to-amber-50/90 border-b border-amber-200/70 px-3 pt-3 pb-3">
             <div className="flex items-center gap-1.5 mb-2">
               <button 
                 onClick={() => {
@@ -1654,10 +1675,10 @@ export default function BingoGame() {
                   setSelectedRoomId(null);
                   setSearchParams({});
                 }} 
-                className="h-9 w-9 flex items-center justify-center bg-white/5 border border-white/10 rounded-xl shrink-0 active:scale-95 transition-transform"
+                className="h-9 w-9 flex items-center justify-center bg-white border border-amber-200/80 rounded-xl shrink-0 active:scale-95 transition-transform shadow-xs text-slate-700 hover:bg-amber-50"
                 title="Back to rooms"
               >
-                <ArrowLeft size={16} className="text-white" />
+                <ArrowLeft size={16} className="text-slate-700" />
               </button>
 
               {/* Room Name Badge/Button */}
@@ -1669,10 +1690,10 @@ export default function BingoGame() {
                     setSearchParams({});
                   }
                 }}
-                className={`flex items-center gap-1.5 bg-gradient-to-r from-amber-500/20 to-orange-500/10 border border-amber-500/30 rounded-xl px-2.5 h-9 text-amber-300 font-black text-xs shrink-0 max-w-[120px] truncate ${myCartelas.length > 0 ? 'opacity-80 cursor-default' : 'active:scale-95'}`}
+                className={`flex items-center gap-1.5 bg-amber-100/90 border border-amber-300/80 rounded-xl px-2.5 h-9 text-amber-900 font-black text-xs shrink-0 max-w-[125px] truncate shadow-xs ${myCartelas.length > 0 ? 'opacity-80 cursor-default' : 'active:scale-95'}`}
                 title={selectedRoom?.room_name || 'Room'}
               >
-                <DoorOpen size={13} className="text-amber-400 shrink-0" />
+                <DoorOpen size={13} className="text-amber-700 shrink-0" />
                 <span className="truncate">{selectedRoom?.room_name || 'Room'}</span>
               </button>
 
@@ -1682,17 +1703,17 @@ export default function BingoGame() {
                   onClick={() => {
                     if (myCartelas.length === 0) setShowStakeDropdown(!showStakeDropdown);
                   }}
-                  className={`flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-xl px-2.5 h-9 text-white font-black text-xs transition-colors ${myCartelas.length > 0 ? 'opacity-50 cursor-not-allowed' : 'active:bg-white/10'}`}
+                  className={`flex items-center gap-1.5 bg-white border border-amber-200/80 rounded-xl px-2.5 h-9 text-slate-800 font-black text-xs transition-colors shadow-xs ${myCartelas.length > 0 ? 'opacity-50 cursor-not-allowed' : 'active:bg-amber-50'}`}
                 >
                   <span>{selectedStake} ETB</span>
-                  <ChevronDown size={12} className={`text-white/50 transition-transform ${showStakeDropdown ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={12} className={`text-slate-400 transition-transform ${showStakeDropdown ? 'rotate-180' : ''}`} />
                 </button>
                 
                 {/* Dropdown Menu */}
                 {showStakeDropdown && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowStakeDropdown(false)} />
-                    <div className="absolute top-[calc(100%+8px)] left-0 w-32 bg-[#1a2540] border border-white/10 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] z-50 overflow-hidden">
+                    <div className="absolute top-[calc(100%+8px)] left-0 w-32 bg-white border border-amber-200 rounded-xl shadow-xl z-50 overflow-hidden">
                       {[10, 20, 50, 100].map(val => (
                         <button
                           key={val}
@@ -1701,10 +1722,10 @@ export default function BingoGame() {
                             setGame(null); setMyCard(null); setMyCartelas([]); setActiveCartelaIdx(0); setTaken([]);
                             setShowStakeDropdown(false);
                           }}
-                          className={`w-full text-left px-4 py-3 flex items-center justify-between border-b border-white/5 last:border-0 hover:bg-white/5 active:bg-white/10 transition-colors ${selectedStake === val ? 'text-white' : 'text-slate-400'}`}
+                          className={`w-full text-left px-4 py-3 flex items-center justify-between border-b border-slate-100 last:border-0 hover:bg-amber-50 active:bg-amber-100 transition-colors ${selectedStake === val ? 'text-amber-600 font-black' : 'text-slate-700'}`}
                         >
                           <span className="font-black text-sm">{val} ETB</span>
-                          {selectedStake === val && <div className="w-2 h-2 rounded-full bg-emerald-400" />}
+                          {selectedStake === val && <div className="w-2 h-2 rounded-full bg-amber-500" />}
                         </button>
                       ))}
                     </div>
@@ -1713,26 +1734,26 @@ export default function BingoGame() {
               </div>
 
               {/* Game ID Box — 8 uppercase characters, no hyphen */}
-              <div className="flex-1 min-w-[75px] bg-white/5 border border-white/10 rounded-xl h-9 flex flex-col items-center justify-center">
-                <span className="text-[8px] text-white/30 font-black tracking-wider uppercase leading-none">{t[language].bingo.gameId}</span>
-                <span className="text-xs font-black text-white leading-tight tracking-wider">{formatGameId(game.id)}</span>
+              <div className="flex-1 min-w-[75px] bg-white border border-amber-200/80 rounded-xl h-9 flex flex-col items-center justify-center shadow-xs">
+                <span className="text-[8px] text-slate-400 font-black tracking-wider uppercase leading-none">{t[language].bingo.gameId}</span>
+                <span className="text-xs font-black text-slate-800 leading-tight tracking-wider">{formatGameId(game.id)}</span>
               </div>
             </div>
             <div className="grid grid-cols-5 gap-1.5">
-              <div className="bg-white/5 border border-white/5 rounded-xl py-1.5 text-center"><p className="text-[8px] text-white/30 font-bold uppercase">{t[language].bingo.stake}</p><p className="text-xs font-black text-white">{game.stake} ETB</p></div>
-              <div className="bg-white/5 border border-white/5 rounded-xl py-1.5 text-center"><p className="text-[8px] text-white/30 font-bold uppercase">{t[language].bingo.players}</p><p className="text-xs font-black text-emerald-400">{uniquePlayers}</p></div>
-              <div className="bg-white/5 border border-white/5 rounded-xl py-1.5 text-center"><p className="text-[8px] text-white/30 font-bold uppercase">{t[language].bingo.cartelas}</p><p className="text-xs font-black text-cyan-400">{taken.length}</p></div>
-              <div className="bg-white/5 border border-white/5 rounded-xl py-1.5 text-center"><p className="text-[8px] text-white/30 font-bold uppercase">{t[language].bingo.derash}</p><p className="text-xs font-black text-yellow-400">{game.prize_pool} ETB</p></div>
-              <div className="bg-white/5 border border-white/5 rounded-xl py-1.5 text-center"><p className="text-[8px] text-white/30 font-bold uppercase">{t[language].bingo.status}</p><p className={`text-xs font-black ${statusCls}`}>{statusTxt}</p></div>
+              <div className="bg-white/90 border border-amber-200/70 rounded-xl py-1.5 text-center shadow-2xs"><p className="text-[8px] text-slate-400 font-bold uppercase">{t[language].bingo.stake}</p><p className="text-xs font-black text-slate-800">{game.stake} ETB</p></div>
+              <div className="bg-white/90 border border-amber-200/70 rounded-xl py-1.5 text-center shadow-2xs"><p className="text-[8px] text-slate-400 font-bold uppercase">{t[language].bingo.players}</p><p className="text-xs font-black text-emerald-600">{uniquePlayers}</p></div>
+              <div className="bg-white/90 border border-amber-200/70 rounded-xl py-1.5 text-center shadow-2xs"><p className="text-[8px] text-slate-400 font-bold uppercase">{t[language].bingo.cartelas}</p><p className="text-xs font-black text-blue-600">{taken.length}</p></div>
+              <div className="bg-white/90 border border-amber-200/70 rounded-xl py-1.5 text-center shadow-2xs"><p className="text-[8px] text-slate-400 font-bold uppercase">{t[language].bingo.derash}</p><p className="text-xs font-black text-amber-600">{game.prize_pool} ETB</p></div>
+              <div className="bg-white/90 border border-amber-200/70 rounded-xl py-1.5 text-center shadow-2xs"><p className="text-[8px] text-slate-400 font-bold uppercase">{t[language].bingo.status}</p><p className={`text-xs font-black ${statusCls}`}>{statusTxt}</p></div>
             </div>
           </div>
         )}
       </div>
 
       {errMsg && (
-        <div className="mx-3 mt-2 px-3 py-2 bg-red-500/20 border border-red-500/40 rounded-xl flex items-center justify-between z-10 shrink-0">
-          <p className="text-red-400 text-xs font-bold">{errMsg}</p>
-          <button onClick={() => setErrMsg("")} className="text-red-400 text-base leading-none ml-2">✕</button>
+        <div className={`mx-3 mt-2 px-3 py-2 ${game.status === 'calling' ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'bg-red-50 border-red-200 text-red-600'} border rounded-xl flex items-center justify-between z-10 shrink-0`}>
+          <p className="text-xs font-bold">{errMsg}</p>
+          <button onClick={() => setErrMsg("")} className="text-base leading-none ml-2">✕</button>
         </div>
       )}
 
@@ -1891,25 +1912,25 @@ export default function BingoGame() {
 
       {/* Preview Modal */}
       {previewCartela && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setPreviewCartela(null)}>
-          <div className="bg-[#0f1829] border border-cyan-400/30 rounded-3xl p-5 w-full max-w-[320px] shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-xl font-black text-white text-center mb-1 flex items-center justify-center gap-2"><LayoutGrid size={18} className="text-yellow-400 shrink-0" /> {t[language].bingo.cartelaNum.trim()} {previewCartela.seat}</h3>
-            <p className="text-cyan-300 text-[10px] uppercase font-bold text-center tracking-widest mb-4">{t[language].bingo.previewNumbers}</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setPreviewCartela(null)}>
+          <div className="bg-white border-2 border-amber-300 rounded-3xl p-5 w-full max-w-[320px] shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-xl font-black text-slate-800 text-center mb-1 flex items-center justify-center gap-2"><LayoutGrid size={18} className="text-amber-500 shrink-0" /> {t[language].bingo.cartelaNum.trim()} {previewCartela.seat}</h3>
+            <p className="text-amber-600 text-[10px] uppercase font-black text-center tracking-widest mb-4">{t[language].bingo.previewNumbers}</p>
             
-            <div className="rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_15px_rgba(34,211,238,0.2)] mb-5">
+            <div className="rounded-2xl overflow-hidden border border-amber-200 shadow-md mb-5">
               <div className="grid grid-cols-5">
                 {BINGO_LETTERS.map(l => (
                   <div key={l} className="flex items-center justify-center py-1.5 font-black text-white text-sm" style={{ background: LETTER_BG[l] }}>{l}</div>
                 ))}
               </div>
-              <div className="grid grid-cols-5 gap-[2px] p-[2px] bg-[#0a0f1e]">
+              <div className="grid grid-cols-5 gap-[2px] p-[2px] bg-amber-50/50">
                 {Array.from({ length: 5 }).flatMap((_, r) =>
                   Array.from({ length: 5 }, (_, c) => {
                     const num = previewCartela.matrix[r][c];
                     const isFree = num === 0;
                     return (
                       <div key={`${r}-${c}`} className={`aspect-square flex items-center justify-center font-black text-sm rounded-md transition-all duration-300 ${
-                        isFree ? 'bg-yellow-400 text-yellow-900' : 'bg-white text-[#1a2540]'
+                        isFree ? 'bg-amber-400 text-amber-950 shadow-xs' : 'bg-white text-slate-800 border border-slate-100 shadow-xs'
                       }`}>{isFree ? '★' : num}</div>
                     );
                   })
@@ -1918,8 +1939,8 @@ export default function BingoGame() {
             </div>
 
             <div className="flex gap-3">
-              <button onClick={() => setPreviewCartela(null)} className="flex-1 py-3 rounded-xl bg-white/10 text-white font-black active:scale-95 transition-transform border border-white/20">{t[language].bingo.cancel}</button>
-              <button onClick={() => joinGame(previewCartela.seat, previewCartela.matrix)} className="flex-1 py-3 rounded-xl bg-emerald-500 text-white font-black active:scale-95 transition-transform shadow-[0_0_15px_rgba(16,185,129,0.5)] border border-emerald-400">
+              <button onClick={() => setPreviewCartela(null)} className="flex-1 py-3 rounded-xl bg-slate-100 text-slate-700 font-black active:scale-95 transition-transform border border-slate-200">{t[language].bingo.cancel}</button>
+              <button onClick={() => joinGame(previewCartela.seat, previewCartela.matrix)} className="flex-1 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-black active:scale-95 transition-transform shadow-[0_4px_16px_rgba(16,185,129,0.4)] border border-emerald-400">
                 {t[language].bingo.buy.replace('{stake}', String(game?.stake || 0))}
               </button>
             </div>
