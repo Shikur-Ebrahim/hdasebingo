@@ -386,16 +386,15 @@ export default function Home() {
 
           {/* Main content */}
           <div className="relative z-10 flex flex-col items-center text-center px-4">
-            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              {t[language].home.liveBingo}
+              LIVE BINGO
             </span>
-            <span className="text-yellow-400 font-black text-3xl mb-1 drop-shadow-[0_0_12px_rgba(250,204,21,0.6)]">
-              {t[language].home.joinNextGame}
+            <span className="text-yellow-400 font-black text-4xl mb-5 drop-shadow-[0_0_16px_rgba(250,204,21,0.7)] tracking-wide">
+              HDASE BINGO
             </span>
-            <span className="text-white/60 text-xs font-semibold mb-4">{t[language].home.pickCartela}</span>
-            <div className="bg-yellow-400 text-yellow-950 px-8 py-2.5 rounded-full font-black text-sm shadow-[0_0_20px_rgba(250,204,21,0.5)] active:scale-95 transition-transform">
-              {t[language].home.openCartela} →
+            <div className="bg-yellow-400 text-yellow-950 px-10 py-2.5 rounded-full font-black text-sm shadow-[0_0_20px_rgba(250,204,21,0.5)] active:scale-95 transition-transform">
+              PLAY NOW →
             </div>
           </div>
         </Link>
