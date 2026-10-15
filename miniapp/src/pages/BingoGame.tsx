@@ -165,6 +165,7 @@ export default function BingoGame() {
   const [roomSearch, setRoomSearch] = useState('');
   const [showSearchBar, setShowSearchBar] = useState(false);
   const [showStakeDropdown, setShowStakeDropdown] = useState(false);
+  const [showRoomDropdown, setShowRoomDropdown] = useState(false);
   const [maxPlayers, setMaxPlayers] = useState<number>(150);
   const [maxCartelasPerUser, setMaxCartelasPerUser] = useState<number>(2);
   const [myCartelas, setMyCartelas] = useState<Array<{ cartela_number: number; card_matrix: number[][] }>>([]);
@@ -1204,7 +1205,21 @@ export default function BingoGame() {
         <div className="relative z-10 flex flex-col h-full">
           {/* Header */}
           <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white shadow-2xs">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2.5">
+              <button
+                onClick={() => {
+                  setSelectedRoomId(null);
+                  setSearchParams(params => {
+                    params.delete('room');
+                    params.delete('stake');
+                    return params;
+                  });
+                }}
+                className="h-9 w-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl shrink-0 active:scale-95 transition-transform shadow-xs text-slate-700 hover:bg-slate-50"
+                title={language === 'am' ? 'ወደ ክፍሎች ተመለስ' : 'Back to rooms'}
+              >
+                <ArrowLeft size={16} className="text-slate-700" />
+              </button>
               <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-black text-lg shadow-xs">{initial}</div>
               <div>
                 <p className="font-black text-sm uppercase tracking-wider text-slate-800 leading-tight">{user?.first_name || "USER"}</p>
@@ -1681,38 +1696,100 @@ export default function BingoGame() {
               <button 
                 onClick={() => {
                   setSelectedStake(null);
-                  setSelectedRoomId(null);
-                  setSearchParams({});
+                  setSearchParams(params => {
+                    params.delete('stake');
+                    return params;
+                  });
+                  setGame(null);
+                  setMyCard(null);
+                  setMyCartelas([]);
+                  setActiveCartelaIdx(0);
+                  setTaken([]);
                 }} 
                 className="h-9 w-9 flex items-center justify-center bg-white border border-amber-200/80 rounded-xl shrink-0 active:scale-95 transition-transform shadow-xs text-slate-700 hover:bg-amber-50"
-                title="Back to rooms"
+                title={language === 'am' ? 'ወደ እጣዎች ተመለስ' : 'Back to stakes'}
               >
                 <ArrowLeft size={16} className="text-slate-700" />
               </button>
 
-              {/* Room Name Badge/Button */}
-              <button
-                onClick={() => {
-                  if (myCartelas.length === 0) {
-                    setSelectedStake(null);
-                    setSelectedRoomId(null);
-                    setSearchParams({});
-                  }
-                }}
-                className={`flex items-center gap-1.5 bg-amber-100/90 border border-amber-300/80 rounded-xl px-2.5 h-9 text-amber-900 font-black text-xs shrink-0 max-w-[125px] truncate shadow-xs ${myCartelas.length > 0 ? 'opacity-80 cursor-default' : 'active:scale-95'}`}
-                title={selectedRoom?.room_name || 'Room'}
-              >
-                <DoorOpen size={13} className="text-amber-700 shrink-0" />
-                <span className="truncate">{selectedRoom?.room_name || 'Room'}</span>
-              </button>
+              {/* Room Name Dropdown */}
+              <div className="relative shrink-0">
+                <button
+                  onClick={() => {
+                    if (myCartelas.length === 0) {
+                      setShowRoomDropdown(prev => !prev);
+                      setShowStakeDropdown(false);
+                    }
+                  }}
+                  className={`flex items-center gap-1 bg-amber-100/90 border border-amber-300/80 rounded-xl px-2 h-9 text-amber-900 font-black text-xs shrink-0 max-w-[125px] shadow-xs ${myCartelas.length > 0 ? 'opacity-70 cursor-not-allowed' : 'active:scale-95 cursor-pointer'}`}
+                  title={selectedRoom?.room_name || 'Room'}
+                >
+                  <DoorOpen size={13} className="text-amber-700 shrink-0" />
+                  <span className="truncate">{selectedRoom?.room_name || 'Room'}</span>
+                  <ChevronDown size={11} className={`text-amber-700 shrink-0 transition-transform ${showRoomDropdown ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Room Dropdown Menu */}
+                {showRoomDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowRoomDropdown(false)} />
+                    <div className="absolute top-[calc(100%+8px)] left-0 w-48 max-h-60 overflow-y-auto bg-white border border-amber-200 rounded-xl shadow-xl z-50 py-1" style={{ scrollbarWidth: 'none' }}>
+                      <div className="px-3 py-1.5 border-b border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                          {language === 'am' ? 'ክፍል ምረጥ' : 'Select Room'}
+                        </p>
+                      </div>
+                      {(rooms.filter(r => !r.status || r.status === 'active').length > 0 ? rooms.filter(r => !r.status || r.status === 'active') : rooms).map(r => {
+                        const isCurrent = r.id === selectedRoomId;
+                        return (
+                          <button
+                            key={r.id}
+                            onClick={() => {
+                              if (r.id !== selectedRoomId) {
+                                setSelectedRoomId(r.id);
+                                setSearchParams(params => {
+                                  params.set('room', r.id);
+                                  if (selectedStake) params.set('stake', String(selectedStake));
+                                  return params;
+                                });
+                                setGame(null);
+                                setMyCard(null);
+                                setMyCartelas([]);
+                                setActiveCartelaIdx(0);
+                                setTaken([]);
+                              }
+                              setShowRoomDropdown(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 flex items-center justify-between border-b border-slate-50 last:border-0 hover:bg-amber-50 active:bg-amber-100 transition-colors ${
+                              isCurrent ? 'bg-amber-50 text-amber-800 font-black' : 'text-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <DoorOpen size={13} className={isCurrent ? 'text-amber-600' : 'text-slate-400'} />
+                              <div className="truncate">
+                                <p className="font-black text-xs truncate leading-tight">{r.room_name}</p>
+                                <p className="text-[9px] text-slate-400 font-semibold leading-none mt-0.5">👥 {r.total_players || 0}</p>
+                              </div>
+                            </div>
+                            {isCurrent && <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 ml-1.5" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
 
               {/* Stake Dropdown */}
               <div className="relative shrink-0">
                 <button 
                   onClick={() => {
-                    if (myCartelas.length === 0) setShowStakeDropdown(!showStakeDropdown);
+                    if (myCartelas.length === 0) {
+                      setShowStakeDropdown(prev => !prev);
+                      setShowRoomDropdown(false);
+                    }
                   }}
-                  className={`flex items-center gap-1.5 bg-white border border-amber-200/80 rounded-xl px-2.5 h-9 text-slate-800 font-black text-xs transition-colors shadow-xs ${myCartelas.length > 0 ? 'opacity-50 cursor-not-allowed' : 'active:bg-amber-50'}`}
+                  className={`flex items-center gap-1.5 bg-white border border-amber-200/80 rounded-xl px-2.5 h-9 text-slate-800 font-black text-xs transition-colors shadow-xs ${myCartelas.length > 0 ? 'opacity-50 cursor-not-allowed' : 'active:bg-amber-50 cursor-pointer'}`}
                 >
                   <span>{selectedStake} ETB</span>
                   <ChevronDown size={12} className={`text-slate-400 transition-transform ${showStakeDropdown ? 'rotate-180' : ''}`} />
@@ -1728,6 +1805,11 @@ export default function BingoGame() {
                           key={val}
                           onClick={() => {
                             setSelectedStake(val);
+                            setSearchParams(params => {
+                              params.set('stake', String(val));
+                              if (selectedRoomId) params.set('room', selectedRoomId);
+                              return params;
+                            });
                             setGame(null); setMyCard(null); setMyCartelas([]); setActiveCartelaIdx(0); setTaken([]);
                             setShowStakeDropdown(false);
                           }}
