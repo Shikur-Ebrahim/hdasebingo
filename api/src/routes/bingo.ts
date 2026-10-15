@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { AuthRequest, validateTelegramAuth } from '../middleware/auth';
 import { supabase } from '../services/supabase';
-import { generateBingoCard, checkBingo } from '../services/BingoEngine';
+import { generateBingoCard, checkBingo, engine } from '../services/BingoEngine';
 import { getSettings } from './adminSettings';
 
 const router = Router();
@@ -54,19 +54,64 @@ router.get('/current', validateTelegramAuth, async (req: AuthRequest, res) => {
   const stake = Number(req.query.stake) || 10;
   const roomId = (req.query.room || req.query.roomId) as string | undefined;
 
-  let query = supabase
+  let baseQuery = supabase
     .from('bingo_games')
     .select('*')
     .eq('stake', stake);
 
   if (roomId) {
-    query = query.eq('room_id', roomId);
+    baseQuery = baseQuery.eq('room_id', roomId);
   }
 
-  const { data: game } = await query
+  // 1. First look for an active non-finished game (waiting or calling)
+  let { data: game } = await baseQuery
+    .in('status', ['waiting', 'calling'])
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  // 2. If no active game, check if a game finished very recently (< 4 seconds ago)
+  // so players still in the calling room receive the final celebration
+  if (!game) {
+    let finishedQuery = supabase
+      .from('bingo_games')
+      .select('*')
+      .eq('stake', stake)
+      .eq('status', 'finished');
+    if (roomId) finishedQuery = finishedQuery.eq('room_id', roomId);
+
+    const { data: recentFinished } = await finishedQuery
+      .order('finished_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (recentFinished && recentFinished.finished_at) {
+      const msSinceFinish = Date.now() - new Date(recentFinished.finished_at).getTime();
+      if (msSinceFinish < 4000) {
+        game = recentFinished;
+      }
+    }
+  }
+
+  // 3. If STILL no active game (or finished game is older than 4s):
+  // Auto-create next waiting game immediately with zero delay
+  if (!game) {
+    if (roomId) {
+      game = await engine.createGame(roomId, stake);
+    } else {
+      const start_at = new Date(Date.now() + 86400000 * 365).toISOString();
+      const { data: newGame } = await supabase.from('bingo_games').insert({
+        room_id: null,
+        stake,
+        prize_pool: 0,
+        total_players: 0,
+        status: 'waiting',
+        called_numbers: [],
+        start_at,
+      }).select('*').single();
+      game = newGame;
+    }
+  }
 
   if (!game) { res.json({ game: null, taken_cartelas: [], my_card: null, my_cartelas: [], max_players: 150, max_cartelas_per_user: 2 }); return; }
 

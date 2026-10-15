@@ -102,10 +102,25 @@ class BingoEngine {
     }
   }
 
-  private async createGame(roomId: string, stake: number) {
+  public async createGame(roomId: string, stake: number) {
+    // Prevent duplicate active games: check if a waiting or calling game already exists
+    const { data: existing } = await supabase
+      .from('bingo_games')
+      .select('id')
+      .eq('room_id', roomId)
+      .eq('stake', stake)
+      .in('status', ['waiting', 'calling'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      return existing;
+    }
+
     const start_at = new Date(Date.now() + 86400000 * 365).toISOString();
 
-    const { data: newGame } = await supabase.from('bingo_games').insert({
+    const { data: newGame, error } = await supabase.from('bingo_games').insert({
       room_id: roomId,
       stake,
       prize_pool: 0,
@@ -114,8 +129,15 @@ class BingoEngine {
       called_numbers: [],
       start_at,
     }).select('id').single();
+
+    if (error) {
+      console.error(`❌ Failed to create game for room ${roomId} (Stake: ${stake}):`, error);
+      return null;
+    }
+
     const displayId = formatGameId(newGame?.id);
     console.log(`🎰 Room ${roomId} Game #${displayId} (Stake: ${stake}) created, waiting for first player`);
+    return newGame;
   }
 
   private async handleWaiting(game: any) {
@@ -268,6 +290,7 @@ class BingoEngine {
       }).eq('id', game.id);
       if (game.room_id) {
         await this.incrementRoomGames(game.room_id);
+        await this.createGame(game.room_id, game.stake);
       }
       return;
     }
@@ -384,6 +407,9 @@ class BingoEngine {
       await notify(w.telegram_id, msg);
       console.log(`🏆 Game #${formatGameId(gameId)}: Single winner ${w.first_name} — ${finalPrize} ETB`);
       await this.incrementRoomGames(roomId);
+      if (roomId) {
+        await this.createGame(roomId, stake);
+      }
       return;
     }
 
@@ -422,6 +448,9 @@ class BingoEngine {
       }
       console.log(`🤝 Game #${formatGameId(gameId)}: 2-way tie — ${w1.first_name} & ${w2.first_name} — ${splitPrize} ETB each`);
       await this.incrementRoomGames(roomId);
+      if (roomId) {
+        await this.createGame(roomId, stake);
+      }
       return;
     }
 
@@ -455,6 +484,9 @@ class BingoEngine {
       );
     }
     await this.incrementRoomGames(roomId);
+    if (roomId) {
+      await this.createGame(roomId, stake);
+    }
   }
 
   private async incrementRoomGames(roomId?: string) {

@@ -671,6 +671,13 @@ export default function BingoGame() {
     // Guard: wait for backend to finish populating winner fields before celebrating
     if (!game.winner_cartela && game.winner_first_name !== 'REMATCH') return;
 
+    // Guard: Never celebrate stale finished game if user opens the page > 5s after game finished
+    if (game.finished_at && (Date.now() - new Date(game.finished_at).getTime()) > 5000) {
+      celebratedGamesRef.current.add(game.id);
+      fetchState();
+      return;
+    }
+
     celebratedGamesRef.current.add(game.id);
     if (celebratedGamesRef.current.size > 20) {
       const [oldest] = celebratedGamesRef.current;
