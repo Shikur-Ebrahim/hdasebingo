@@ -353,42 +353,33 @@ export default function Home() {
           </button>
         </div>
 
-        <Link to="/bingo/live" className="block relative rounded-2xl overflow-hidden shadow-lg h-52 flex flex-col items-center justify-center border border-white/10">
-          {/* Checkerboard background */}
-          <div className="absolute inset-0 bg-black" />
-          <div
-            className="absolute inset-0"
-            style={{
-              backgroundImage: `
-                linear-gradient(45deg, #1a1a1a 25%, transparent 25%),
-                linear-gradient(-45deg, #1a1a1a 25%, transparent 25%),
-                linear-gradient(45deg, transparent 75%, #1a1a1a 75%),
-                linear-gradient(-45deg, transparent 75%, #1a1a1a 75%)
-              `,
-              backgroundSize: '24px 24px',
-              backgroundPosition: '0 0, 0 12px, 12px -12px, -12px 0px',
-              backgroundColor: '#111',
-            }}
-          />
-          {/* Subtle dark overlay for depth */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/60" />
+        <Link to="/bingo/live" className="block relative rounded-2xl overflow-hidden shadow-md h-52 flex flex-col items-center justify-center border border-amber-100">
+          {/* Light gradient background — matches loading screen */}
+          <div className="absolute inset-0" style={{
+            background: 'linear-gradient(135deg, #fffbf0 0%, #fef3c7 40%, #fff8e8 70%, #fffbf0 100%)',
+          }} />
+          {/* Subtle radial glow in center */}
+          <div className="absolute inset-0" style={{
+            background: 'radial-gradient(ellipse at 50% 60%, rgba(251,191,36,0.18) 0%, transparent 70%)',
+          }} />
+          {/* Top border accent */}
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-400" />
 
-          {/* Scrolling marquee strip — live room names from DB */}
-          <div className="absolute top-0 left-0 right-0 overflow-hidden py-1.5 bg-yellow-400/10 border-b border-yellow-400/20">
+          {/* Scrolling marquee strip — live room names */}
+          <div className="absolute top-1 left-0 right-0 overflow-hidden py-1.5 bg-amber-50/80 border-b border-amber-200/60" style={{ top: '4px' }}>
             {rooms.length > 0 ? (
               <div className="flex whitespace-nowrap animate-marquee">
-                {/* Duplicate twice so the loop is seamless */}
                 {[...rooms, ...rooms].map((room, i) => (
-                  <span key={i} className="text-yellow-400 font-black text-[10px] uppercase tracking-[0.2em] px-4 shrink-0">
-                    🎯 {room.room_name} &nbsp;·&nbsp;
+                  <span key={i} className="text-amber-700 font-black text-[10px] uppercase tracking-[0.2em] px-4 shrink-0 flex items-center gap-1">
+                    🚪 {room.room_name} &nbsp;·&nbsp;
                   </span>
                 ))}
               </div>
             ) : (
               <div className="flex whitespace-nowrap animate-marquee">
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <span key={i} className="text-yellow-400 font-black text-[10px] uppercase tracking-[0.25em] px-5 shrink-0">
-                    🎯 HDASE BINGO &nbsp;·&nbsp; 🏆 Live Rooms &nbsp;·&nbsp; 🔥 Play Now &nbsp;·&nbsp;
+                  <span key={i} className="text-amber-700 font-black text-[10px] uppercase tracking-[0.25em] px-5 shrink-0">
+                    🚪 HDASE BINGO &nbsp;·&nbsp; 🏆 Live Rooms &nbsp;·&nbsp; 🔥 Play Now &nbsp;·&nbsp;
                   </span>
                 ))}
               </div>
@@ -397,14 +388,16 @@ export default function Home() {
 
           {/* Main content */}
           <div className="relative z-10 flex flex-col items-center text-center px-4">
-            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               LIVE BINGO
             </span>
-            <span className="text-yellow-400 font-black text-4xl mb-5 drop-shadow-[0_0_16px_rgba(250,204,21,0.7)] tracking-wide">
-              HDASE BINGO
-            </span>
-            <div className="bg-yellow-400 text-yellow-950 px-10 py-2.5 rounded-full font-black text-sm shadow-[0_0_20px_rgba(250,204,21,0.5)] active:scale-95 transition-transform">
+            {/* Split color title: HDASE dark, BINGO orange */}
+            <div className="mb-5 flex items-baseline gap-2">
+              <span className="text-slate-900 font-black text-4xl tracking-wide leading-none drop-shadow-sm">HDASE</span>
+              <span className="text-orange-500 font-black text-4xl tracking-wide leading-none drop-shadow-sm">BINGO</span>
+            </div>
+            <div className="bg-orange-500 hover:bg-orange-600 text-white px-10 py-2.5 rounded-full font-black text-sm shadow-[0_4px_16px_rgba(249,115,22,0.4)] active:scale-95 transition-all">
               PLAY NOW →
             </div>
           </div>
