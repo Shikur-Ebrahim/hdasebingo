@@ -453,7 +453,7 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
       .eq('room_id', room.id)
       .eq('status', 'finished')
       .order('finished_at', { ascending: false })
-      .limit(30);
+      .limit(100);
 
     const mappedRecentGames = (finishedGames || []).map((g: any) => {
       const stake = Number(g.stake || 0);

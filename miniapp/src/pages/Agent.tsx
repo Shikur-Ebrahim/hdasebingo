@@ -119,6 +119,8 @@ export default function Agent() {
   const [chartMetric, setChartMetric] = useState<'games' | 'commission' | 'volume'>('games');
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
   const [reportSearchQuery, setReportSearchQuery] = useState('');
+  const [reportPeriod, setReportPeriod] = useState<'all' | 'today' | 'yesterday' | 'weekly' | 'monthly'>('all');
+  const [reportStake, setReportStake] = useState<number | 'all'>('all');
 
   if (user?.role !== 'agent') {
     return <Navigate to="/" replace />;
@@ -208,18 +210,75 @@ export default function Agent() {
     }
   };
 
-  // Filtered games report
+  const availableStakes = useMemo(() => {
+    const set = new Set<number>();
+    recentGames.forEach((g) => {
+      if (g.stake) set.add(Number(g.stake));
+    });
+    const sorted = Array.from(set).sort((a, b) => a - b);
+    return sorted.length > 0 ? sorted : [10, 20, 50, 100];
+  }, [recentGames]);
+
+  // Filtered games report by Search + Stake + Period Category
   const filteredReportGames = useMemo(() => {
-    if (!reportSearchQuery.trim()) return recentGames;
-    const q = reportSearchQuery.toLowerCase();
-    return recentGames.filter(
-      (g) =>
-        g.winner_first_name.toLowerCase().includes(q) ||
-        g.id.toLowerCase().includes(q) ||
-        formatGameId(g.id).toLowerCase().includes(q) ||
-        g.stake.toString().includes(q)
-    );
-  }, [recentGames, reportSearchQuery]);
+    return recentGames.filter((g) => {
+      // 1. Search filter
+      if (reportSearchQuery.trim()) {
+        const q = reportSearchQuery.toLowerCase();
+        const matchSearch =
+          g.winner_first_name.toLowerCase().includes(q) ||
+          g.id.toLowerCase().includes(q) ||
+          formatGameId(g.id).toLowerCase().includes(q) ||
+          g.stake.toString().includes(q);
+        if (!matchSearch) return false;
+      }
+
+      // 2. Stake filter
+      if (reportStake !== 'all' && Number(g.stake) !== Number(reportStake)) {
+        return false;
+      }
+
+      // 3. Period category filter
+      if (reportPeriod !== 'all') {
+        const gDate = new Date(g.finished_at || g.created_at);
+        const now = new Date();
+
+        if (reportPeriod === 'today') {
+          const isToday =
+            gDate.getDate() === now.getDate() &&
+            gDate.getMonth() === now.getMonth() &&
+            gDate.getFullYear() === now.getFullYear();
+          if (!isToday) return false;
+        } else if (reportPeriod === 'yesterday') {
+          const yesterday = new Date();
+          yesterday.setDate(now.getDate() - 1);
+          const isYesterday =
+            gDate.getDate() === yesterday.getDate() &&
+            gDate.getMonth() === yesterday.getMonth() &&
+            gDate.getFullYear() === yesterday.getFullYear();
+          if (!isYesterday) return false;
+        } else if (reportPeriod === 'weekly') {
+          const weekAgo = new Date();
+          weekAgo.setDate(now.getDate() - 7);
+          if (gDate < weekAgo) return false;
+        } else if (reportPeriod === 'monthly') {
+          const monthAgo = new Date();
+          monthAgo.setDate(now.getDate() - 30);
+          if (gDate < monthAgo) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [recentGames, reportSearchQuery, reportStake, reportPeriod]);
+
+  const filteredCommissionSum = useMemo(() => {
+    return filteredReportGames.reduce((acc, g) => acc + (Number(g.agent_commission) || 0), 0);
+  }, [filteredReportGames]);
+
+  const filteredPotSum = useMemo(() => {
+    return filteredReportGames.reduce((acc, g) => acc + (Number(g.prize_pool) || 0), 0);
+  }, [filteredReportGames]);
 
   // Chart computations
   const maxChartValue = useMemo(() => {
@@ -258,60 +317,45 @@ export default function Agent() {
       <div className="bg-white border-b border-gray-100 px-4 py-2.5 sticky top-0 z-30 shadow-2xs">
         <div className="flex items-center justify-between max-w-md mx-auto">
           {/* Agent Avatar & Profile / Room info */}
-          <div className="flex items-center space-x-2.5 min-w-0 flex-1 mr-2">
+          <div className="flex items-center space-x-2.5 min-w-0 flex-1 mr-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-orange-500 via-amber-500 to-yellow-400 flex items-center justify-center text-white font-black text-sm shadow-sm ring-2 ring-orange-200 shrink-0">
               {(user?.first_name || 'A').charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0">
-              <div className="flex items-center space-x-1.5">
+              <div className="flex items-center space-x-1.5 flex-wrap">
                 <span className="text-sm font-black text-slate-900 leading-tight truncate">
-                  {room?.room_name || user?.first_name || 'Agent Room'}
+                  {room?.room_name || user?.first_name || 'Agent'}
                 </span>
-                {room && (
-                  <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 shrink-0">
-                    {room.commission_rate ?? 8}% Comm
-                  </span>
-                )}
+                <span className="inline-flex items-center space-x-0.5 text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                  <Zap size={10} className="text-emerald-500 fill-emerald-500" />
+                  <span>{room?.commission_rate ?? 8}% Commission</span>
+                </span>
               </div>
-              <p className="text-[10px] text-slate-400 font-medium truncate">
+              <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
                 {user?.first_name} • {user?.username ? `@${user.username}` : `ID: ${user?.telegram_id}`}
               </p>
             </div>
           </div>
 
-          {/* Right: Enter Room, Live Wallet Balance & Refresh */}
-          <div className="flex items-center space-x-2 shrink-0">
-            {room && (
-              <button
-                onClick={() => {
-                  triggerHaptic('medium');
-                  navigate(`/bingo/live?room=${room.id}`);
-                }}
-                className="px-2.5 py-1.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl text-xs font-black flex items-center space-x-1 shadow-xs active:scale-95 transition-all"
-                title="Enter Room & Play"
-              >
-                <Play size={11} fill="currentColor" />
-                <span>Play</span>
-              </button>
-            )}
-
+          {/* Right: Live Wallet Balance & Refresh */}
+          <div className="flex items-center space-x-2.5 shrink-0">
             <div className="text-right">
               <div className="flex items-center justify-end space-x-1 text-slate-400">
-                <Wallet size={10} />
-                <span className="text-[8px] font-bold uppercase tracking-wider">Wallet</span>
+                <Wallet size={11} />
+                <span className="text-[9px] font-bold uppercase tracking-wider">Wallet</span>
               </div>
-              <p className="text-xs font-black text-emerald-600 leading-tight">
-                {(user?.main_balance ?? 0).toLocaleString()} <span className="text-[9px] font-extrabold">ETB</span>
+              <p className="text-sm font-black text-emerald-600 leading-tight">
+                {(user?.main_balance ?? 0).toLocaleString()} <span className="text-[10px] font-extrabold">ETB</span>
               </p>
             </div>
 
             <button
               onClick={handleManualRefresh}
               disabled={refreshing}
-              className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center active:scale-95 transition-all shadow-2xs"
+              className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center active:scale-95 transition-all shadow-2xs"
               title="Refresh Balance & Games"
             >
-              <RefreshCw size={12} className={refreshing ? 'animate-spin text-orange-500' : ''} />
+              <RefreshCw size={13} className={refreshing ? 'animate-spin text-orange-500' : ''} />
             </button>
           </div>
         </div>
@@ -409,53 +453,61 @@ export default function Agent() {
           <div className="space-y-4 animate-in fade-in duration-200">
             {/* ADVANCED PERFORMANCE GRAPH CARD */}
             <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-sm space-y-3.5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center space-x-1 text-slate-800">
-                    <TrendingUp size={15} className="text-orange-500" />
-                    <h3 className="text-xs font-black uppercase tracking-wider">
-                      Room Activity & Trends
-                    </h3>
-                  </div>
-                  <p className="text-[10px] text-slate-400 font-medium">Last 7 Days Room Performance</p>
+              {/* Header Title full width */}
+              <div className="space-y-0.5">
+                <div className="flex items-center space-x-1.5 text-slate-800">
+                  <TrendingUp size={16} className="text-orange-500" />
+                  <h3 className="text-xs font-black uppercase tracking-wider">
+                    Room Activity & Trends
+                  </h3>
                 </div>
+                <p className="text-[10px] text-slate-400 font-medium">Last 7 Days Room Performance</p>
+              </div>
 
-                {/* Metric Selector Pills */}
-                <div className="flex bg-slate-100 p-0.5 rounded-xl space-x-0.5 text-[9px] font-black">
-                  <button
-                    onClick={() => {
-                      triggerHaptic('light');
-                      setChartMetric('games');
-                    }}
-                    className={`px-2 py-1 rounded-lg transition-all ${
-                      chartMetric === 'games' ? 'bg-orange-500 text-white shadow-2xs' : 'text-slate-600'
-                    }`}
-                  >
-                    Games
-                  </button>
-                  <button
-                    onClick={() => {
-                      triggerHaptic('light');
-                      setChartMetric('commission');
-                    }}
-                    className={`px-2 py-1 rounded-lg transition-all ${
-                      chartMetric === 'commission' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600'
-                    }`}
-                  >
-                    Comm (ETB)
-                  </button>
-                  <button
-                    onClick={() => {
-                      triggerHaptic('light');
-                      setChartMetric('volume');
-                    }}
-                    className={`px-2 py-1 rounded-lg transition-all ${
-                      chartMetric === 'volume' ? 'bg-slate-800 text-white shadow-2xs' : 'text-slate-600'
-                    }`}
-                  >
-                    Pot (ETB)
-                  </button>
-                </div>
+              {/* Metric Selector 3 Horizontal Buttons Below the Text */}
+              <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-2xl text-[10px] font-black">
+                <button
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setChartMetric('games');
+                  }}
+                  className={`py-2 rounded-xl transition-all flex items-center justify-center space-x-1 ${
+                    chartMetric === 'games'
+                      ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Gamepad2 size={12} />
+                  <span>Games</span>
+                </button>
+                <button
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setChartMetric('commission');
+                  }}
+                  className={`py-2 rounded-xl transition-all flex items-center justify-center space-x-1 ${
+                    chartMetric === 'commission'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <DollarSign size={12} />
+                  <span>Comm (ETB)</span>
+                </button>
+                <button
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setChartMetric('volume');
+                  }}
+                  className={`py-2 rounded-xl transition-all flex items-center justify-center space-x-1 ${
+                    chartMetric === 'volume'
+                      ? 'bg-slate-800 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Trophy size={12} />
+                  <span>Pot (ETB)</span>
+                </button>
               </div>
 
               {/* Interactive SVG Bar & Trend Chart */}
@@ -564,88 +616,6 @@ export default function Agent() {
                     {chartData.reduce((acc, c) => acc + c.volume, 0).toLocaleString()} ETB
                   </span>
                 </div>
-              </div>
-            </div>
-
-            {/* 4 LIVE AGENT METRIC CARDS */}
-            <div className="grid grid-cols-2 gap-2.5">
-              {/* Active Games */}
-              <div className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center shadow-2xs shrink-0">
-                  <Gamepad2 size={18} />
-                </div>
-                <div>
-                  <p className="text-lg font-black text-slate-900 leading-none">{activeGames.length}</p>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Active Games</p>
-                </div>
-              </div>
-
-              {/* Live Players */}
-              <div className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shadow-2xs shrink-0">
-                  <Users size={18} />
-                </div>
-                <div>
-                  <p className="text-lg font-black text-slate-900 leading-none">
-                    {activeGames.reduce((sum, g) => sum + (g.total_players || 0), 0)}
-                  </p>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Live Players</p>
-                </div>
-              </div>
-
-              {/* Main Wallet Balance */}
-              <div className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-2xs shrink-0">
-                  <Wallet size={18} />
-                </div>
-                <div>
-                  <p className="text-lg font-black text-emerald-600 leading-none">
-                    {(user?.main_balance ?? 0).toLocaleString()}
-                  </p>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Wallet (ETB)</p>
-                </div>
-              </div>
-
-              {/* Total Room Volume */}
-              <div className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center shadow-2xs shrink-0">
-                  <Trophy size={18} />
-                </div>
-                <div>
-                  <p className="text-lg font-black text-purple-600 leading-none">
-                    {(stats?.total_volume_all_time ?? 0).toLocaleString()}
-                  </p>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">Pot Volume</p>
-                </div>
-              </div>
-            </div>
-
-            {/* QUICK INVITE LINK BANNER */}
-            <div className="bg-white rounded-2xl p-3 border border-slate-100 shadow-2xs flex items-center justify-between space-x-2">
-              <div className="flex items-center space-x-2 min-w-0 flex-1">
-                <DoorOpen size={16} className="text-orange-500 shrink-0" />
-                <span className="font-mono text-[11px] text-slate-600 truncate select-all">{roomInviteLink}</span>
-              </div>
-              <div className="flex items-center space-x-1.5 shrink-0">
-                <button
-                  onClick={handleShareRoom}
-                  className="px-2.5 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 rounded-xl text-xs font-black flex items-center space-x-1 transition-all active:scale-95 shadow-2xs"
-                  title="Share Room to Telegram"
-                >
-                  <Share2 size={12} />
-                  <span>Share</span>
-                </button>
-                <button
-                  onClick={handleCopyRoomLink}
-                  className={`px-2.5 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1 transition-all active:scale-95 ${
-                    copiedLink
-                      ? 'bg-emerald-600 text-white'
-                      : 'bg-orange-500 hover:bg-orange-600 text-white shadow-xs'
-                  }`}
-                >
-                  {copiedLink ? <Check size={12} /> : <Copy size={12} />}
-                  <span>{copiedLink ? 'Copied' : 'Copy'}</span>
-                </button>
               </div>
             </div>
           </div>
@@ -758,6 +728,65 @@ export default function Agent() {
               </span>
             </div>
 
+            {/* Period Category Filter Pills */}
+            <div className="flex space-x-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
+              {[
+                { key: 'all', label: 'All Time' },
+                { key: 'today', label: 'Today' },
+                { key: 'yesterday', label: 'Yesterday' },
+                { key: 'weekly', label: 'This Week' },
+                { key: 'monthly', label: 'This Month' },
+              ].map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setReportPeriod(p.key as any);
+                  }}
+                  className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-black border transition-all ${
+                    reportPeriod === p.key
+                      ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Stake Filter Pills */}
+            <div className="flex space-x-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
+              <button
+                onClick={() => {
+                  triggerHaptic('light');
+                  setReportStake('all');
+                }}
+                className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-black border transition-all ${
+                  reportStake === 'all'
+                    ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-orange-300'
+                }`}
+              >
+                All Stakes
+              </button>
+              {availableStakes.map((stk) => (
+                <button
+                  key={stk}
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setReportStake(stk);
+                  }}
+                  className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-black border transition-all ${
+                    reportStake === stk
+                      ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-orange-300'
+                  }`}
+                >
+                  {stk} ETB
+                </button>
+              ))}
+            </div>
+
             {/* Search Games Input */}
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -768,6 +797,14 @@ export default function Agent() {
                 onChange={(e) => setReportSearchQuery(e.target.value)}
                 className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:border-orange-500 shadow-2xs"
               />
+            </div>
+
+            {/* Filtered Summary Strip */}
+            <div className="flex items-center justify-between bg-slate-100/90 px-3 py-1.5 rounded-xl text-[10px] text-slate-600 font-bold">
+              <span>Showing {filteredReportGames.length} of {recentGames.length} games</span>
+              <span className="text-emerald-700 font-black">
+                Total Comm: +{filteredCommissionSum.toFixed(2)} ETB
+              </span>
             </div>
 
             {filteredReportGames.length > 0 ? (
