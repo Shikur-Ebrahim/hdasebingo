@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { 
   ArrowLeft, Share2, Copy, Check, Gift, QrCode, Link2, 
-  Download, Maximize2, X, Sparkles, CheckCircle2 
+  Download, Maximize2, X, Sparkles, CheckCircle2, Crown, RefreshCw 
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
@@ -509,101 +509,183 @@ export default function Invite() {
           </button>
         </div>
 
-        {/* TAB 1: ADVANCED QR CODE CARD */}
+        {/* TAB 1: LUXURY CANVAS QR CODE POSTER (MATCHING AGENT SECTION) */}
         {activeTab === 'qr' && (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col items-center shrink-0">
-            {/* Top header info */}
-            <div className="flex items-center justify-between w-full mb-3">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide">
-                  {t[language].invite.scanToJoin || 'Scan to Join & Play'}
-                </span>
-              </div>
-              <button
-                onClick={() => setShowFullscreenQR(true)}
-                className="flex items-center gap-1 px-2.5 py-1 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg text-[10px] font-bold active:scale-95 transition-all"
-                title={t[language].invite.tapToExpand || 'Fullscreen'}
-              >
-                <Maximize2 size={11} />
-                <span>{language === 'am' ? 'አጉላ' : 'Enlarge'}</span>
-              </button>
-            </div>
-
-            {/* QR Code Frame with interactive scanner corners */}
-            <div 
-              onClick={() => setShowFullscreenQR(true)}
-              className="relative p-3.5 bg-gradient-to-b from-purple-50/60 to-amber-50/50 dark:from-slate-800/80 dark:to-slate-800/40 rounded-2xl border border-purple-200/80 dark:border-purple-800/40 cursor-pointer group shadow-inner transition-transform active:scale-98"
+          <div className="flex flex-col space-y-3 shrink-0">
+            {/* LUXURY POSTER FRAME */}
+            <div
+              className="relative overflow-hidden rounded-3xl border-2 border-[#c59b27] p-4 text-center shadow-md shrink-0"
+              style={{
+                background: 'linear-gradient(180deg, #ffffff 0%, #fdfcf9 40%, #faf4e8 100%)',
+              }}
             >
-              {/* Corner brackets */}
-              <div className="absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 border-purple-500 rounded-tl-sm pointer-events-none" />
-              <div className="absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2 border-purple-500 rounded-tr-sm pointer-events-none" />
-              <div className="absolute bottom-2 left-2 w-4 h-4 border-b-2 border-l-2 border-purple-500 rounded-bl-sm pointer-events-none" />
-              <div className="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-purple-500 rounded-br-sm pointer-events-none" />
-
-              <div className="bg-white p-2.5 rounded-xl shadow-xs relative">
-                <QRCodeCanvas
-                  ref={qrCanvasRef}
-                  value={inviteLink}
-                  size={180}
-                  level="H"
-                  includeMargin={false}
-                  fgColor="#0f172a"
-                  bgColor="#ffffff"
-                />
-
-                {/* Center Badge */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="bg-gradient-to-r from-amber-500 to-yellow-400 border-2 border-white shadow-lg rounded-xl px-2 py-1 flex flex-col items-center justify-center" style={{ minWidth: 64 }}>
-                    <span className="text-[8px] font-black text-white/80 uppercase tracking-widest leading-none">HDASE</span>
-                    <span className="text-[11px] font-black text-white leading-none tracking-wider">BINGO</span>
+              {/* Inner thin gold accent border */}
+              <div className="border border-[#e6c86e]/70 rounded-2xl p-3.5 space-y-2.5">
+                {/* 1. Royal Crown & Medallion Emblem */}
+                <div className="flex flex-col items-center justify-center">
+                  <div className="flex items-center space-x-1.5 text-[#b8860b]">
+                    <span className="w-8 h-px bg-[#d4af37]" />
+                    <Crown size={22} className="text-[#d4af37] fill-[#d4af37]/20 drop-shadow-xs" />
+                    <span className="w-8 h-px bg-[#d4af37]" />
+                  </div>
+                  {/* Circular Medallion */}
+                  <div className="w-9 h-9 rounded-full bg-[#1b140c] border-2 border-[#d4af37] ring-1 ring-[#fef08a] flex items-center justify-center mt-1 shadow-sm">
+                    <span className="font-serif font-black text-xs text-[#fef08a] tracking-wider">HB</span>
                   </div>
                 </div>
 
+                {/* 2. Main Title "HDASE BINGO" */}
+                <div>
+                  <h3 className="font-serif font-black text-2xl tracking-[0.15em] text-[#140f09] uppercase drop-shadow-2xs">
+                    HDASE BINGO
+                  </h3>
+                  <div className="flex items-center justify-center space-x-2 text-[10px] font-bold text-[#8a6a1d] uppercase tracking-wider mt-0.5">
+                    <span className="w-6 h-px bg-[#d4af37]" />
+                    <span>PLAYER INVITE • {((user?.first_name || user?.username || 'PLAYER') + "'S INVITATION").toUpperCase()}</span>
+                    <span className="w-6 h-px bg-[#d4af37]" />
+                  </div>
+                </div>
+
+                {/* 3. Bold "SCAN TO JOIN" */}
+                <div className="flex items-center justify-center space-x-2 pt-0.5">
+                  <span className="text-[#c59b27] font-black text-sm">⮞</span>
+                  <span className="font-serif font-black text-lg text-[#140f09] tracking-wider">
+                    SCAN TO JOIN
+                  </span>
+                  <span className="text-[#c59b27] font-black text-sm">⮜</span>
+                </div>
+
+                {/* 4. Golden Ribbon Banner */}
+                <div
+                  className="mx-auto px-4 py-1.5 rounded-full border border-[#a67718] shadow-2xs max-w-xs flex items-center justify-center space-x-1"
+                  style={{
+                    background: 'linear-gradient(90deg, #ebd596 0%, #deb55b 50%, #ebd596 100%)',
+                  }}
+                >
+                  <span className="text-[10px] font-black text-[#3a2707] uppercase tracking-wider">
+                    Scan the QR code to
+                  </span>
+                  <span className="font-serif italic font-black text-xs text-[#831414]">
+                    Join & Win Bonus!
+                  </span>
+                </div>
+
+                {/* 5. Central White QR Code Card with double gold border */}
+                <div
+                  onClick={() => setShowFullscreenQR(true)}
+                  className="relative mx-auto w-fit p-3 bg-white rounded-3xl border-[3px] border-[#c59b27] ring-2 ring-[#fae596] shadow-sm my-1 cursor-pointer active:scale-98 transition-transform"
+                >
+                  {/* Corner decorative brackets */}
+                  <div className="absolute top-2 left-2 w-3.5 h-3.5 border-t-2 border-l-2 border-[#b8860b] rounded-tl-sm pointer-events-none" />
+                  <div className="absolute top-2 right-2 w-3.5 h-3.5 border-t-2 border-r-2 border-[#b8860b] rounded-tr-sm pointer-events-none" />
+                  <div className="absolute bottom-2 left-2 w-3.5 h-3.5 border-b-2 border-l-2 border-[#b8860b] rounded-bl-sm pointer-events-none" />
+                  <div className="absolute bottom-2 right-2 w-3.5 h-3.5 border-b-2 border-r-2 border-[#b8860b] rounded-br-sm pointer-events-none" />
+
+                  <div className="relative">
+                    <QRCodeCanvas
+                      ref={qrCanvasRef}
+                      value={inviteLink}
+                      size={200}
+                      level="H"
+                      includeMargin={false}
+                      fgColor="#0f172a"
+                      bgColor="#ffffff"
+                    />
+
+                    {/* Center HDASE BINGO Badge */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="bg-gradient-to-r from-amber-500 to-yellow-400 border-2 border-white shadow-lg rounded-xl px-2.5 py-1 flex flex-col items-center justify-center" style={{ minWidth: 68 }}>
+                        <span className="text-[8px] font-black text-white/80 uppercase tracking-widest leading-none">HDASE</span>
+                        <span className="text-[11px] font-black text-white leading-none tracking-wider">BINGO</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 6. 4 Features row (10% Bonus, Instant Pay, 75 Bingo, Verified) */}
+                <div className="grid grid-cols-4 divide-x divide-[#d4af37]/50 pt-1 text-center">
+                  <div className="px-1">
+                    <p className="text-sm">🎁</p>
+                    <p className="text-[8.5px] font-black text-[#6b4f14] uppercase">10% Bonus</p>
+                  </div>
+                  <div className="px-1">
+                    <p className="text-sm">⚡</p>
+                    <p className="text-[8.5px] font-black text-[#6b4f14] uppercase">Instant</p>
+                  </div>
+                  <div className="px-1">
+                    <p className="text-sm">🎱</p>
+                    <p className="text-[8.5px] font-black text-[#6b4f14] uppercase">75 Bingo</p>
+                  </div>
+                  <div className="px-1">
+                    <p className="text-sm">🛡️</p>
+                    <p className="text-[8.5px] font-black text-[#6b4f14] uppercase">Verified</p>
+                  </div>
+                </div>
+
+                {/* 7. Cursive motto */}
+                <p className="font-serif italic font-bold text-xs text-[#221609] pt-0.5">
+                  Invite Friends &nbsp;•&nbsp; Play Together &nbsp;•&nbsp; Win Big
+                </p>
+
+                {/* 8. Referral Code Box */}
+                <div className="mx-auto w-fit px-4 py-1.5 bg-[#fbf6ea] border border-[#c59b27] rounded-xl shadow-2xs flex items-center gap-2">
+                  <span className="font-mono font-bold text-xs text-[#664a10] tracking-wide">{refCode}</span>
+                  <button
+                    onClick={handleCopyCode}
+                    className="text-[10px] font-bold text-amber-700 hover:text-amber-900 flex items-center gap-0.5 active:scale-95 transition-transform"
+                  >
+                    {copiedCode ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                    <span>{copiedCode ? (language === 'am' ? 'ተቀድቷል' : 'Copied') : (language === 'am' ? 'ቅዳ' : 'Copy')}</span>
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* Referral Code Chip */}
-            <div className="mt-3 w-full flex items-center justify-between bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3 py-2">
-              <div className="flex flex-col text-left truncate mr-2">
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                  {t[language].invite.referralCode || 'Referral Code'}
-                </span>
-                <span className="font-mono text-xs font-black text-slate-800 dark:text-slate-100 truncate">
-                  {refCode}
-                </span>
-              </div>
-              <button
-                onClick={handleCopyCode}
-                className="shrink-0 px-2.5 py-1 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 rounded-lg text-[10px] font-bold active:scale-95 transition-all flex items-center gap-1 shadow-2xs"
-              >
-                {copiedCode ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
-                <span>{copiedCode ? (language === 'am' ? 'ተቀድቷል' : 'Copied') : (language === 'am' ? 'ቅዳ' : 'Copy')}</span>
-              </button>
-            </div>
+            {/* DOWNLOAD FLYER BUTTON */}
+            <button
+              onClick={handleDownloadQR}
+              className={`w-full py-3.5 px-4 rounded-2xl font-black text-sm shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 border ${
+                downloaded
+                  ? 'bg-emerald-600 text-white border-emerald-600'
+                  : 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white border-orange-400 shadow-orange-500/25'
+              }`}
+            >
+              {downloaded ? (
+                <>
+                  <CheckCircle2 size={18} />
+                  <span>Poster Saved Successfully!</span>
+                </>
+              ) : (
+                <>
+                  <Download size={18} />
+                  <span>Download Printable Flyer (HD PNG)</span>
+                </>
+              )}
+            </button>
 
-            {/* Action Buttons Row */}
-            <div className="grid grid-cols-2 gap-2 w-full mt-3">
+            {/* Link display & copy */}
+            <div className="w-full p-2.5 bg-white rounded-2xl border border-slate-200 flex items-center justify-between shadow-2xs">
+              <span className="font-mono text-[11px] text-slate-600 truncate mr-2 select-all">
+                {inviteLink}
+              </span>
               <button
-                onClick={handleDownloadQR}
-                className={`py-2.5 px-3 rounded-xl font-black text-xs shadow-xs transition-all active:scale-95 flex items-center justify-center gap-1.5 border ${
-                  downloaded 
-                    ? 'bg-emerald-500 text-white border-emerald-500' 
-                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                onClick={handleCopyLink}
+                className={`px-3.5 py-2 rounded-xl text-xs font-black shrink-0 transition-all active:scale-95 ${
+                  copiedLink ? 'bg-emerald-600 text-white' : 'bg-orange-500 text-white'
                 }`}
               >
-                {downloaded ? <CheckCircle2 size={15} /> : <Download size={15} className="text-purple-600 dark:text-purple-400" />}
-                <span>{downloaded ? (language === 'am' ? 'ወርዷል!' : 'Saved!') : (t[language].invite.downloadQR || 'Save QR')}</span>
-              </button>
-
-              <button
-                onClick={handleShareQR}
-                className="py-2.5 px-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-black text-xs shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 hover:opacity-95"
-              >
-                <Share2 size={15} />
-                <span>{t[language].invite.shareQR || 'Share QR'}</span>
+                {copiedLink ? (language === 'am' ? 'ተቀድቷል!' : 'Copied!') : (language === 'am' ? 'ቅዳ' : 'Copy')}
               </button>
             </div>
+
+            {/* Share to Telegram button */}
+            <button
+              onClick={handleShare}
+              className="w-full py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl font-black text-xs shadow-sm transition-all active:scale-98 flex items-center justify-center gap-2"
+            >
+              <Share2 size={15} className="text-orange-400" />
+              <span>Share Link to Telegram Chats / Channels</span>
+            </button>
           </div>
         )}
 
@@ -748,14 +830,14 @@ export default function Invite() {
             <div className="grid grid-cols-2 gap-2 w-full mt-4">
               <button
                 onClick={handleDownloadQR}
-                className="py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                className="py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm"
               >
                 <Download size={14} />
                 <span>{downloaded ? 'Saved!' : 'Save'}</span>
               </button>
               <button
                 onClick={handleShare}
-                className="py-2.5 bg-purple-600 text-white hover:bg-purple-700 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm"
+                className="py-2.5 bg-slate-800 text-white hover:bg-slate-900 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm"
               >
                 <Share2 size={14} />
                 <span>{t[language].invite.shareBtn}</span>
