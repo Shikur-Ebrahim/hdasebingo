@@ -1026,7 +1026,7 @@ router.get('/agents/search/:telegramId', async (req, res) => {
 // POST /admin/agents/assign-room — assign or create a room for an agent
 router.post('/agents/assign-room', async (req, res) => {
   try {
-    const { telegramId, roomName, status } = req.body;
+    const { telegramId, roomName, status, commission_rate, is_pinned } = req.body;
     if (!telegramId) {
       res.status(400).json({ error: 'telegramId is required' });
       return;
@@ -1052,6 +1052,8 @@ router.post('/agents/assign-room', async (req, res) => {
 
     const assignedRoomName = roomName?.trim() || `${user.first_name || user.username || 'Agent'}'s Room`;
     const roomStatus = status || 'active';
+    const commRate = commission_rate !== undefined ? Number(commission_rate) : 8;
+    const isPinned = is_pinned !== undefined ? Boolean(is_pinned) : false;
 
     const { data: room, error: rErr } = await supabase
       .from('rooms')
@@ -1061,6 +1063,8 @@ router.post('/agents/assign-room', async (req, res) => {
         agent_name: user.first_name || user.username || 'Agent',
         total_games: 0,
         status: roomStatus,
+        commission_rate: commRate,
+        is_pinned: isPinned,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'agent_id' })
       .select()
@@ -1074,7 +1078,7 @@ router.post('/agents/assign-room', async (req, res) => {
   }
 });
 
-// GET /admin/rooms — get all rooms (enriched with real player count from users table)
+// GET /admin/rooms — get all rooms (enriched with real player count, agent balance, pinned status)
 router.get('/rooms', async (_req, res) => {
   try {
     const { data: rooms, error } = await supabase
@@ -1087,19 +1091,38 @@ router.get('/rooms', async (_req, res) => {
     const enriched = await Promise.all(
       (rooms || []).map(async (r) => {
         let players = 0;
+        let agent_balance = 0;
         if (r.agent_id) {
           const { count } = await supabase
             .from('users')
             .select('id', { count: 'exact', head: true })
             .eq('inviter_id', r.agent_id);
           players = count || 0;
+
+          const { data: agUser } = await supabase
+            .from('users')
+            .select('main_balance')
+            .eq('telegram_id', r.agent_id)
+            .maybeSingle();
+          if (agUser) agent_balance = Number(agUser.main_balance || 0);
         }
         return {
           ...r,
+          commission_rate: r.commission_rate ?? 8,
+          is_pinned: Boolean(r.is_pinned),
           total_players: players,
+          agent_balance,
         };
       })
     );
+
+    // Pinned rooms ALWAYS come first
+    enriched.sort((a, b) => {
+      if (Boolean(b.is_pinned) !== Boolean(a.is_pinned)) {
+        return b.is_pinned ? 1 : -1;
+      }
+      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+    });
 
     res.json({ rooms: enriched });
   } catch (err: any) {
@@ -1114,6 +1137,8 @@ router.put('/rooms/:id', async (req, res) => {
     if (req.body.room_name !== undefined) updates.room_name = req.body.room_name;
     if (req.body.status !== undefined) updates.status = req.body.status;
     if (req.body.total_games !== undefined) updates.total_games = Number(req.body.total_games);
+    if (req.body.commission_rate !== undefined) updates.commission_rate = Number(req.body.commission_rate);
+    if (req.body.is_pinned !== undefined) updates.is_pinned = Boolean(req.body.is_pinned);
 
     const { data: room, error } = await supabase
       .from('rooms')

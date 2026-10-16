@@ -450,6 +450,9 @@ export default function Home() {
           const filteredHomeRooms = [...rooms]
             .filter(r => !homeRoomSearch.trim() || r.room_name.toLowerCase().includes(homeRoomSearch.trim().toLowerCase()))
             .sort((a, b) => {
+              if (Boolean(b.is_pinned) !== Boolean(a.is_pinned)) {
+                return b.is_pinned ? 1 : -1;
+              }
               if (homeRoomSortFilter === 'most_players') return (b.total_players || 0) - (a.total_players || 0);
               if (homeRoomSortFilter === 'most_games') return (b.total_games || 0) - (a.total_games || 0);
               return 0;
@@ -476,10 +479,18 @@ export default function Home() {
                       fetch(`${API_URL}/player/rooms/${room.id}/enter`, { method: 'POST' }).catch(() => {});
                       navigate(`/bingo/live?room=${room.id}`);
                     }}
-                    className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all"
+                    className={`bg-white dark:bg-slate-900 rounded-xl shadow-sm border overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all ${
+                      room.is_pinned ? 'border-amber-400/80 ring-1 ring-amber-400/40 shadow-amber-500/10' : 'border-gray-100 dark:border-slate-800'
+                    }`}
                   >
                     {/* Same black header for all rooms */}
                     <div className="h-16 bg-black flex flex-col items-center justify-center relative px-2 text-center">
+                      {room.is_pinned && (
+                        <div className="absolute top-2 left-2 flex items-center space-x-0.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
+                          <span>📌</span>
+                          <span>TOP</span>
+                        </div>
+                      )}
                       <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm" />
                       <span className="text-white font-black text-sm leading-tight line-clamp-2 px-1">
                         {room.room_name}

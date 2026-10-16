@@ -330,9 +330,8 @@ router.get('/rooms', async (_req, res) => {
   try {
     const { data: rooms, error } = await supabase
       .from('rooms')
-      .select('id, room_name, agent_id, agent_name, total_games, status, created_at')
-      .eq('status', 'active')
-      .order('created_at', { ascending: true });
+      .select('*')
+      .eq('status', 'active');
 
     if (error) throw error;
 
@@ -351,9 +350,19 @@ router.get('/rooms', async (_req, res) => {
 
     const enrichedRooms = (rooms || []).map((room) => ({
       ...room,
+      is_pinned: Boolean(room.is_pinned),
+      commission_rate: room.commission_rate ?? 8,
       total_players: roomPlayersMap[room.id] || 0,
       total_games: Number(room.total_games || 0)
     }));
+
+    // Pinned rooms ALWAYS come first
+    enrichedRooms.sort((a, b) => {
+      if (Boolean(b.is_pinned) !== Boolean(a.is_pinned)) {
+        return b.is_pinned ? 1 : -1;
+      }
+      return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+    });
 
     res.json({ rooms: enrichedRooms });
   } catch (err: any) {

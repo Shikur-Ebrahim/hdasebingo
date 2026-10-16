@@ -30,6 +30,9 @@ export interface Room {
   total_players: number;
   total_games: number;
   status: string;
+  commission_rate?: number;
+  is_pinned?: boolean;
+  created_at?: string;
 }
 
 interface GameStore {
@@ -102,9 +105,8 @@ export const useGameStore = create<GameStore>()(
           if (!loadedRooms || loadedRooms.length === 0) {
             const { data: dbRooms, error } = await supabase
               .from('rooms')
-              .select('id, room_name, agent_id, agent_name, total_games, status, created_at')
-              .eq('status', 'active')
-              .order('created_at', { ascending: true });
+              .select('*')
+              .eq('status', 'active');
 
             if (!error && Array.isArray(dbRooms) && dbRooms.length > 0) {
               const { data: activeGames } = await supabase
@@ -127,7 +129,18 @@ export const useGameStore = create<GameStore>()(
                 total_games: Number(r.total_games || 0),
                 total_players: roomPlayersMap[r.id] || 0,
                 status: r.status,
+                is_pinned: Boolean(r.is_pinned),
+                commission_rate: r.commission_rate ?? 8,
+                created_at: r.created_at,
               }));
+
+              // Pinned rooms ALWAYS come first
+              loadedRooms.sort((a, b) => {
+                if (Boolean(b.is_pinned) !== Boolean(a.is_pinned)) {
+                  return b.is_pinned ? 1 : -1;
+                }
+                return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+              });
             }
           }
 

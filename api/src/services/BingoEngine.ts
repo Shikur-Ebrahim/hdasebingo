@@ -406,6 +406,7 @@ class BingoEngine {
         
       await notify(w.telegram_id, msg);
       console.log(`🏆 Game #${formatGameId(gameId)}: Single winner ${w.first_name} — ${finalPrize} ETB`);
+      await this.awardAgentCommission(roomId, players.length, stake, gameId);
       await this.incrementRoomGames(roomId);
       if (roomId) {
         await this.createGame(roomId, stake);
@@ -447,6 +448,7 @@ class BingoEngine {
         );
       }
       console.log(`🤝 Game #${formatGameId(gameId)}: 2-way tie — ${w1.first_name} & ${w2.first_name} — ${splitPrize} ETB each`);
+      await this.awardAgentCommission(roomId, players.length, stake, gameId);
       await this.incrementRoomGames(roomId);
       if (roomId) {
         await this.createGame(roomId, stake);
@@ -503,7 +505,63 @@ class BingoEngine {
       console.error('Failed to increment room total_games', e);
     }
   }
+
+  private async awardAgentCommission(
+    roomId: string | undefined | null,
+    totalCartelas: number,
+    stake: number,
+    gameId: string
+  ) {
+    if (!roomId || totalCartelas <= 0 || stake <= 0) return;
+    try {
+      const { data: room, error: rErr } = await supabase
+        .from('rooms')
+        .select('id, agent_id, commission_rate, room_name')
+        .eq('id', roomId)
+        .maybeSingle();
+
+      if (rErr || !room || !room.agent_id) return;
+
+      // Default commission is 8%
+      const commRate = Number(room.commission_rate ?? 8);
+      if (commRate <= 0) return;
+
+      const totalPot = totalCartelas * stake;
+      const commAmount = Number(((totalPot * commRate) / 100).toFixed(2));
+      if (commAmount <= 0) return;
+
+      const { data: agentUser } = await supabase
+        .from('users')
+        .select('main_balance')
+        .eq('telegram_id', room.agent_id)
+        .maybeSingle();
+
+      if (agentUser) {
+        await supabase.from('users').update({
+          main_balance: Number(agentUser.main_balance || 0) + commAmount,
+        }).eq('telegram_id', room.agent_id);
+
+        console.log(`💼 Room Commission: Agent ${room.agent_id} credited +${commAmount} ETB (${commRate}%) for Game #${formatGameId(gameId)} in "${room.room_name}"`);
+
+        const token = process.env.BOT_TOKEN;
+        if (token) {
+          await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: room.agent_id,
+              text: `💼 *Room Commission Earned!*\n\n🏠 Room: *${room.room_name}*\n💰 Amount: *+${commAmount} ETB* (${commRate}% commission)\n🎮 Game: #${formatGameId(gameId)} (${totalCartelas} cartelas @ ${stake} ETB)\n\n✅ Credited directly to your Main Balance!`,
+              parse_mode: 'Markdown',
+            }),
+          }).catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.error('Error awarding agent room commission:', e);
+    }
+  }
 }
 
 export const engine = new BingoEngine();
+
 

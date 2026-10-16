@@ -24,6 +24,8 @@ interface AgentRoom {
   total_players: number;
   total_games: number;
   status: 'active' | 'inactive' | 'paused';
+  commission_rate?: number;
+  is_pinned?: boolean;
   created_at: string;
 }
 
@@ -173,10 +175,22 @@ export default function Agent() {
             <div className="flex items-start justify-between relative">
               <div className="flex-1">
                 <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">Your Room</p>
-                <h2 className="text-2xl font-black text-white">{room.room_name}</h2>
-                {room.agent_name && (
-                  <p className="text-sm text-amber-400/80 font-medium mt-0.5">{room.agent_name}</p>
-                )}
+                <div className="flex items-center space-x-2">
+                  <h2 className="text-2xl font-black text-white">{room.room_name}</h2>
+                  {room.is_pinned && (
+                    <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-black">
+                      📌 Pinned
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center space-x-2 mt-1">
+                  {room.agent_name && (
+                    <span className="text-xs text-amber-400/80 font-medium">{room.agent_name}</span>
+                  )}
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-black">
+                    💰 {room.commission_rate ?? 8}% Commission per game
+                  </span>
+                </div>
               </div>
               <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
                 <Building2 size={20} className="text-amber-400" />

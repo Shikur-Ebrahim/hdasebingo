@@ -217,15 +217,17 @@ export default function BingoGame() {
     });
   };
 
-  // Filter/sort rooms in BingoGame rooms page
+  // Filter/sort rooms in BingoGame rooms page (Pinned rooms always at the top)
   const filteredRooms = [...rooms]
     .filter(r => !roomSearch.trim() || r.room_name.toLowerCase().includes(roomSearch.trim().toLowerCase()))
     .sort((a, b) => {
-    if (roomSortFilter === 'most_players') return (b.total_players || 0) - (a.total_players || 0);
-    if (roomSortFilter === 'most_games') return (b.total_games || 0) - (a.total_games || 0);
-    if (roomSortFilter === 'newest') return 0; // already ordered by created_at from API
-    return 0; // 'all' — keep original order
-  });
+      if (Boolean(b.is_pinned) !== Boolean(a.is_pinned)) {
+        return b.is_pinned ? 1 : -1;
+      }
+      if (roomSortFilter === 'most_players') return (b.total_players || 0) - (a.total_players || 0);
+      if (roomSortFilter === 'most_games') return (b.total_games || 0) - (a.total_games || 0);
+      return 0;
+    });
 
   const BINGO_FILTER_OPTIONS = [
     { key: 'all', label: language === 'am' ? 'ሁሉም ክፍሎች' : 'All Rooms', icon: '🏠' },
@@ -1147,6 +1149,12 @@ export default function BingoGame() {
                     >
                       {/* Same black header for all rooms */}
                       <div className="h-20 bg-black flex flex-col items-center justify-center relative px-2.5 text-center">
+                        {room.is_pinned && (
+                          <div className="absolute top-2 left-2 flex items-center space-x-0.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
+                            <span>📌</span>
+                            <span>TOP</span>
+                          </div>
+                        )}
                         <div className="absolute top-2 right-2 flex items-center space-x-1 bg-white/10 px-1.5 py-0.5 rounded-full">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                           <span className="text-[7px] font-black text-white uppercase tracking-wider">LIVE</span>
@@ -1739,7 +1747,10 @@ export default function BingoGame() {
                           {language === 'am' ? 'ክፍል ምረጥ' : 'Select Room'}
                         </p>
                       </div>
-                      {(rooms.filter(r => !r.status || r.status === 'active').length > 0 ? rooms.filter(r => !r.status || r.status === 'active') : rooms).map(r => {
+                      {((rooms.filter(r => !r.status || r.status === 'active').length > 0 ? rooms.filter(r => !r.status || r.status === 'active') : rooms).slice().sort((a, b) => {
+                        if (Boolean(b.is_pinned) !== Boolean(a.is_pinned)) return b.is_pinned ? 1 : -1;
+                        return 0;
+                      })).map(r => {
                         const isCurrent = r.id === selectedRoomId;
                         return (
                           <button
@@ -1767,7 +1778,10 @@ export default function BingoGame() {
                             <div className="flex items-center gap-2 truncate">
                               <DoorOpen size={13} className={isCurrent ? 'text-amber-600' : 'text-slate-400'} />
                               <div className="truncate">
-                                <p className="font-black text-xs truncate leading-tight">{r.room_name}</p>
+                                <div className="flex items-center space-x-1">
+                                  {r.is_pinned && <span className="text-[10px]">📌</span>}
+                                  <p className="font-black text-xs truncate leading-tight">{r.room_name}</p>
+                                </div>
                                 <p className="text-[9px] text-slate-400 font-semibold leading-none mt-0.5">👥 {r.total_players || 0}</p>
                               </div>
                             </div>
