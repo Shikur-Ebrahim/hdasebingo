@@ -9,7 +9,6 @@ import {
   Wifi,
   WifiOff,
   Clock,
-  DollarSign,
   Trophy,
   RefreshCw,
   Building2,
@@ -119,9 +118,13 @@ export default function Agent() {
   const [chartMetric, setChartMetric] = useState<'games' | 'commission' | 'volume'>('games');
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
   const [reportSearchQuery, setReportSearchQuery] = useState('');
-  const [reportPeriod, setReportPeriod] = useState<'all' | 'today' | 'yesterday' | 'weekly' | 'monthly'>('all');
+  const [reportPeriod, setReportPeriod] = useState<'all' | 'today' | 'yesterday' | 'weekly' | 'monthly' | '3months' | 'yearly' | 'custom'>('all');
   const [reportStake, setReportStake] = useState<number | 'all'>('all');
   const [selectedLiveStake, setSelectedLiveStake] = useState<number | null>(null);
+  const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
+  const [customRangeText, setCustomRangeText] = useState('');
+  const [customDateFrom, setCustomDateFrom] = useState('');
+  const [customDateTo, setCustomDateTo] = useState('');
 
   if (user?.role !== 'agent') {
     return <Navigate to="/" replace />;
@@ -266,12 +269,56 @@ export default function Agent() {
           const monthAgo = new Date();
           monthAgo.setDate(now.getDate() - 30);
           if (gDate < monthAgo) return false;
+        } else if (reportPeriod === '3months') {
+          const threeMonthsAgo = new Date();
+          threeMonthsAgo.setMonth(now.getMonth() - 3);
+          if (gDate < threeMonthsAgo) return false;
+        } else if (reportPeriod === 'yearly') {
+          const oneYearAgo = new Date();
+          oneYearAgo.setFullYear(now.getFullYear() - 1);
+          if (gDate < oneYearAgo) return false;
+        } else if (reportPeriod === 'custom') {
+          // Parse range like "13-29", "13 - 29", "13/10-29/10", or single "13"
+          const raw = customRangeText.trim() || (customDateFrom && customDateTo ? `${customDateFrom}-${customDateTo}` : customDateFrom || '');
+          if (raw) {
+            const parts = raw.split(/\s*-\s*|\s+to\s+/i);
+            const partFrom = parts[0]?.trim() || '';
+            const partTo = (parts[1] || parts[0])?.trim() || '';
+
+            const parseDatePart = (input: string, isEnd: boolean): Date | null => {
+              if (!input) return null;
+              if (input.includes('/') || (input.includes('-') && input.length > 4)) {
+                const sub = input.split(/[-/]/);
+                const day = parseInt(sub[0]);
+                const month = sub[1] ? parseInt(sub[1]) - 1 : now.getMonth();
+                const year = sub[2] ? parseInt(sub[2]) : now.getFullYear();
+                if (isNaN(day)) return null;
+                const d = new Date(year, isNaN(month) ? now.getMonth() : month, day);
+                if (isEnd) d.setHours(23, 59, 59, 999);
+                else d.setHours(0, 0, 0, 0);
+                return d;
+              } else {
+                const day = parseInt(input);
+                if (isNaN(day) || day < 1 || day > 31) return null;
+                const d = new Date(now.getFullYear(), now.getMonth(), day);
+                if (isEnd) d.setHours(23, 59, 59, 999);
+                else d.setHours(0, 0, 0, 0);
+                return d;
+              }
+            };
+
+            const from = parseDatePart(partFrom, false);
+            const to = parseDatePart(partTo, true);
+
+            if (from && gDate < from) return false;
+            if (to && gDate > to) return false;
+          }
         }
       }
 
       return true;
     });
-  }, [recentGames, reportSearchQuery, reportStake, reportPeriod]);
+  }, [recentGames, reportSearchQuery, reportStake, reportPeriod, customRangeText, customDateFrom, customDateTo]);
 
   const filteredCommissionSum = useMemo(() => {
     return filteredReportGames.reduce((acc, g) => acc + (Number(g.agent_commission) || 0), 0);
@@ -454,7 +501,7 @@ export default function Agent() {
           </div>
         )}
 
-        {/* ─── HDASE BINGO HERO BANNER (Agent "See Games" CTA) ─── */}
+        {/* ─── HDASE BINGO HERO BANNER (Exact User Home Section Style) ─── */}
         {room && (
           <div
             onClick={() => {
@@ -462,80 +509,55 @@ export default function Agent() {
               setActiveTab('live');
               setSelectedLiveStake(null);
             }}
-            className="relative overflow-hidden rounded-3xl cursor-pointer active:scale-[.98] transition-all shadow-lg"
-            style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%)' }}
+            className="block relative rounded-2xl overflow-hidden shadow-md h-52 flex flex-col items-center justify-center border border-amber-100 cursor-pointer active:scale-98 transition-all"
           >
-            {/* Animated decorative blobs */}
-            <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full opacity-20 animate-pulse"
-              style={{ background: 'radial-gradient(circle, #f97316, transparent)' }} />
-            <div className="absolute -bottom-8 -left-4 w-24 h-24 rounded-full opacity-15 animate-pulse"
-              style={{ background: 'radial-gradient(circle, #fb923c, transparent)', animationDelay: '1s' }} />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full opacity-5"
-              style={{ background: 'radial-gradient(circle, #fbbf24, transparent)' }} />
+            {/* Light gradient background — exact match from user Home page */}
+            <div
+              className="absolute inset-0"
+              style={{
+                background: 'linear-gradient(135deg, #fffbf0 0%, #fef3c7 40%, #fff8e8 70%, #fffbf0 100%)',
+              }}
+            />
+            {/* Subtle radial glow in center */}
+            <div
+              className="absolute inset-0"
+              style={{
+                background: 'radial-gradient(ellipse at 50% 60%, rgba(251,191,36,0.18) 0%, transparent 70%)',
+              }}
+            />
+            {/* Top border accent */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-400" />
 
-            {/* Scrolling room-name ticker at top */}
-            <div className="bg-black/30 px-3 py-1 overflow-hidden">
-              <div className="flex items-center space-x-6 text-[9px] font-black text-white/50 tracking-widest uppercase whitespace-nowrap animate-[marquee_12s_linear_infinite]">
-                {['• YOUR ROOM', `• ${room.room_name}`, '• LIVE BINGO', '• AGENT CONTROL', '• EARN COMMISSION', `• ${room.commission_rate ?? 8}% CUT`].map((t, i) => (
-                  <span key={i}>{t}</span>
+            {/* Scrolling marquee strip — live room names */}
+            <div className="absolute top-1 left-0 right-0 overflow-hidden py-1.5 bg-amber-50/80 border-b border-amber-200/60" style={{ top: '4px' }}>
+              <div className="flex whitespace-nowrap animate-marquee">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <span key={i} className="text-amber-700 font-black text-[10px] uppercase tracking-[0.2em] px-4 shrink-0 flex items-center gap-1">
+                    🚪 {room.room_name} &nbsp;·&nbsp;
+                  </span>
                 ))}
               </div>
             </div>
 
             {/* Main content */}
-            <div className="px-5 py-4 flex items-center justify-between">
-              <div className="space-y-1.5">
-                {/* Live indicator */}
-                <div className="flex items-center space-x-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
-                  <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">
-                    {activeGames.length > 0 ? `${activeGames.length} Tables Active` : 'Live Bingo'}
-                  </span>
-                </div>
-
-                {/* Big title */}
-                <div>
-                  <p className="text-2xl font-black leading-none text-white tracking-tight">
-                    HDASE{' '}
-                    <span className="text-orange-400">BINGO</span>
-                  </p>
-                  <p className="text-[10px] text-white/60 font-semibold mt-0.5">
-                    Monitor your room's live tables
-                  </p>
-                </div>
-
-                {/* CTA Button */}
-                <div className="inline-flex items-center space-x-1.5 bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded-full text-[11px] font-black shadow-md shadow-orange-500/30 mt-1">
-                  <Gamepad2 size={12} />
-                  <span>SEE GAMES →</span>
-                </div>
+            <div className="relative z-10 flex flex-col items-center text-center px-4 pt-4">
+              <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                LIVE BINGO
+              </span>
+              {/* Split color title: HDASE dark, BINGO orange */}
+              <div className="mb-5 flex items-baseline gap-2">
+                <span className="text-slate-900 font-black text-4xl tracking-wide leading-none drop-shadow-sm">HDASE</span>
+                <span className="text-orange-500 font-black text-4xl tracking-wide leading-none drop-shadow-sm">BINGO</span>
               </div>
-
-              {/* Right side: stake quick-view badges */}
-              <div className="flex flex-col items-end space-y-1.5 shrink-0">
-                {[10, 20, 50, 100].map((stk) => {
-                  const hasGame = activeGames.some((g) => Number(g.stake) === stk);
-                  return (
-                    <div
-                      key={stk}
-                      className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[9px] font-black border ${
-                        hasGame
-                          ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
-                          : 'bg-white/5 border-white/10 text-white/40'
-                      }`}
-                    >
-                      {hasGame && <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse inline-block" />}
-                      <span>{stk} ETB</span>
-                      {hasGame && <span className="text-emerald-400">●</span>}
-                    </div>
-                  );
-                })}
+              <div className="bg-orange-500 hover:bg-orange-600 text-white px-10 py-2.5 rounded-full font-black text-sm shadow-[0_4px_16px_rgba(249,115,22,0.4)] active:scale-95 transition-all">
+                SEE GAMES →
               </div>
             </div>
           </div>
         )}
 
-        {/* ─── TAB NAVIGATION BAR (Mobile-First Pills) ─── */}
+
         {room && (
           <div className="flex bg-slate-200/80 p-1 rounded-2xl space-x-1 text-[11px] font-black">
             <button
@@ -1091,63 +1113,144 @@ export default function Agent() {
               </span>
             </div>
 
-            {/* Period Category Filter Pills */}
-            <div className="flex space-x-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
-              {[
-                { key: 'all', label: 'All Time' },
-                { key: 'today', label: 'Today' },
-                { key: 'yesterday', label: 'Yesterday' },
-                { key: 'weekly', label: 'This Week' },
-                { key: 'monthly', label: 'This Month' },
-              ].map((p) => (
+            {/* ─── COMBINED FILTER BAR: Period toggle + Stake pills on ONE row ─── */}
+            <div className="space-y-2">
+              {/* Single scrollable row: [All Time ▾] | [All] [10] [20] [50] [100] */}
+              <div className="flex items-center space-x-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
+                {/* Period dropdown toggle */}
                 <button
-                  key={p.key}
                   onClick={() => {
                     triggerHaptic('light');
-                    setReportPeriod(p.key as any);
+                    setShowPeriodDropdown((v) => !v);
                   }}
-                  className={`shrink-0 px-3 py-1 rounded-full text-[10px] font-black border transition-all ${
-                    reportPeriod === p.key
+                  className={`shrink-0 flex items-center space-x-1 px-3 py-1.5 rounded-full text-[10px] font-black border transition-all ${
+                    reportPeriod !== 'all'
                       ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                      : showPeriodDropdown
+                      ? 'bg-slate-100 text-slate-800 border-slate-300'
+                      : 'bg-white text-slate-600 border-slate-200'
                   }`}
                 >
-                  {p.label}
+                  <span>
+                    {reportPeriod === 'all' ? 'All Time' :
+                     reportPeriod === 'today' ? 'Today' :
+                     reportPeriod === 'yesterday' ? 'Yesterday' :
+                     reportPeriod === 'weekly' ? 'This Week' :
+                     reportPeriod === 'monthly' ? 'This Month' :
+                     reportPeriod === '3months' ? '3 Months' :
+                     reportPeriod === 'yearly' ? '1 Year' :
+                     customRangeText ? `Days ${customRangeText}` : 'Custom'}
+                  </span>
+                  <ChevronRight size={10} className={`transition-transform ${showPeriodDropdown ? 'rotate-90' : ''}`} />
                 </button>
-              ))}
-            </div>
 
-            {/* Stake Filter Pills */}
-            <div className="flex space-x-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
-              <button
-                onClick={() => {
-                  triggerHaptic('light');
-                  setReportStake('all');
-                }}
-                className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-black border transition-all ${
-                  reportStake === 'all'
-                    ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-orange-300'
-                }`}
-              >
-                All Stakes
-              </button>
-              {availableStakes.map((stk) => (
+                {/* Divider */}
+                <div className="w-px h-5 bg-slate-200 shrink-0" />
+
+                {/* Default Stake pill: "All" */}
                 <button
-                  key={stk}
                   onClick={() => {
                     triggerHaptic('light');
-                    setReportStake(stk);
+                    setReportStake('all');
                   }}
-                  className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-black border transition-all ${
-                    reportStake === stk
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-[10px] font-black border transition-all ${
+                    reportStake === 'all'
                       ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
                       : 'bg-white text-slate-600 border-slate-200 hover:border-orange-300'
                   }`}
                 >
-                  {stk} ETB
+                  All
                 </button>
-              ))}
+
+                {/* Stake pills inline: [10] [20] [50] [100] */}
+                {[10, 20, 50, 100].map((stk) => (
+                  <button
+                    key={stk}
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setReportStake(stk);
+                    }}
+                    className={`shrink-0 px-2.5 py-1.5 rounded-full text-[10px] font-black border transition-all ${
+                      reportStake === stk
+                        ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-orange-300'
+                    }`}
+                  >
+                    {stk}
+                  </button>
+                ))}
+              </div>
+
+              {/* Collapsible Vertical Period Dropdown */}
+              {showPeriodDropdown && (
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-md p-3 space-y-2 animate-in fade-in duration-150">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Select Period</p>
+                  
+                  {/* Vertical options list */}
+                  <div className="space-y-1">
+                    {[
+                      { key: 'all', label: 'All Time' },
+                      { key: 'today', label: 'Today' },
+                      { key: 'yesterday', label: 'Yesterday' },
+                      { key: 'weekly', label: 'This Week' },
+                      { key: 'monthly', label: 'This Month' },
+                      { key: '3months', label: 'Last 3 Months' },
+                      { key: 'yearly', label: 'Last 1 Year' },
+                      { key: 'custom', label: 'Custom Day Range (e.g. 13-29)' },
+                    ].map((p) => (
+                      <button
+                        key={p.key}
+                        onClick={() => {
+                          triggerHaptic('light');
+                          setReportPeriod(p.key as any);
+                          if (p.key !== 'custom') {
+                            setCustomRangeText('');
+                            setShowPeriodDropdown(false);
+                          }
+                        }}
+                        className={`w-full py-2 px-3 rounded-xl text-xs font-black border transition-all text-left flex items-center justify-between ${
+                          reportPeriod === p.key
+                            ? 'bg-slate-800 text-white border-slate-800'
+                            : 'bg-slate-50 text-slate-700 border-slate-100 hover:border-slate-300'
+                        }`}
+                      >
+                        <span>{p.label}</span>
+                        {reportPeriod === p.key && <Check size={13} className="text-orange-400" />}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Custom day range input — allows typing 13-29 or single day */}
+                  {reportPeriod === 'custom' && (
+                    <div className="pt-2 border-t border-slate-100 space-y-2">
+                      <p className="text-[10px] font-bold text-slate-500">
+                        Enter day range (e.g. <span className="font-mono text-orange-600 font-bold">13-29</span> or <span className="font-mono text-orange-600 font-bold">13</span>)
+                      </p>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="text"
+                          placeholder="e.g. 13-29 or 13"
+                          value={customRangeText}
+                          onChange={(e) => {
+                            setCustomRangeText(e.target.value);
+                            setReportPeriod('custom');
+                          }}
+                          className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-orange-500"
+                        />
+                        <button
+                          onClick={() => {
+                            triggerHaptic('light');
+                            setShowPeriodDropdown(false);
+                          }}
+                          className="px-4 py-2 bg-orange-500 text-white rounded-xl text-xs font-bold shrink-0 shadow-sm"
+                        >
+                          Apply
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Search Games Input */}
@@ -1195,9 +1298,8 @@ export default function Agent() {
                           <span className="text-slate-400">{formattedTime}</span>
                         </div>
 
-                        {/* Commission Badge */}
-                        <div className="inline-flex items-center space-x-1 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full text-emerald-700 font-black">
-                          <DollarSign size={11} className="text-emerald-600" />
+                        {/* Commission Badge (NO $ sign) */}
+                        <div className="inline-flex items-center space-x-1 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full text-emerald-700 font-black">
                           <span>+{game.agent_commission} ETB</span>
                           <span className="text-[8px] font-bold text-emerald-500">
                             ({game.commission_rate ?? 8}%)
