@@ -32,6 +32,7 @@ const ROLE_COLORS: Record<string, string> = {
   admin: 'bg-rose-100 text-rose-700',
   worker: 'bg-orange-100 text-orange-700',
   agent: 'bg-blue-100 text-blue-700',
+  promoter: 'bg-purple-100 text-purple-700',
   user: 'bg-slate-100 text-slate-600',
 };
 
@@ -389,11 +390,11 @@ export default function AdminUsers() {
                 {/* ─── CHANGE ROLE ─── */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-3 mb-3">
                   <p className="text-[11px] font-black text-slate-700 mb-2">🛡️ Change Role</p>
-                  <div className="flex space-x-1.5">
-                    {['user', 'agent', 'worker', 'admin'].map(r => (
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {['user', 'agent', 'worker', 'promoter', 'admin'].map(r => (
                       <button key={r} onClick={() => changeRole(r)} disabled={roleSaving || selected.role === r}
-                        className={`flex-1 py-1.5 rounded-xl text-[10px] font-black border transition-all disabled:opacity-50 ${selected.role === r ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 active:scale-95'}`}>
-                        {r === 'admin' ? '👑 Admin' : r === 'worker' ? '🔧 Worker' : r === 'agent' ? '🤝 Agent' : '👤 User'}
+                        className={`py-1.5 rounded-xl text-[10px] font-black border transition-all disabled:opacity-50 ${selected.role === r ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 active:scale-95'}`}>
+                        {r === 'admin' ? '👑 Admin' : r === 'worker' ? '🔧 Worker' : r === 'agent' ? '🤝 Agent' : r === 'promoter' ? '📣 Promoter' : '👤 User'}
                       </button>
                     ))}
                   </div>

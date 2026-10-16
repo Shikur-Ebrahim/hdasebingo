@@ -57,10 +57,11 @@ function Navigation() {
   const location = useLocation();
   const { user, isProfileOpen, setProfileOpen, language } = useGameStore();
 
-  // Hide the player bottom navigation if the user is an Admin, Worker, or Agent
-  if (user?.role === 'admin' || user?.role === 'worker' || user?.role === 'agent') {
+  // Hide the player bottom navigation if the user is an Admin, Worker, Agent, or Promoter
+  if (user?.role === 'admin' || user?.role === 'worker' || user?.role === 'agent' || user?.role === 'promoter') {
     return null;
   }
+
 
 
   const navItems = [
@@ -128,9 +129,14 @@ function RoleRouter() {
     return <Navigate to="/agent" replace />;
   }
 
+  if (user?.role === 'promoter') {
+    return <Navigate to="/promoter" replace />;
+  }
+
   // Default user role sees the normal bingo home page
   return <Home />;
 }
+
 
 
 import AdminDepositMethods from './pages/AdminDepositMethods';
@@ -146,6 +152,8 @@ import AdminAgents from './pages/AdminAgents';
 import AdminSupportVideos from './pages/AdminSupportVideos';
 import SupportVideos from './pages/SupportVideos';
 import Agent from './pages/Agent';
+import Promoter from './pages/Promoter';
+
 
 
 import DepositHistory from './pages/DepositHistory';
@@ -329,6 +337,8 @@ function App() {
           <Route path="/help-videos" element={<SupportVideos />} />
           <Route path="/worker" element={<Worker />} />
           <Route path="/agent" element={<Agent />} />
+          <Route path="/promoter" element={<Promoter />} />
+
 
         </Routes></ErrorBoundary>
         <Profile />

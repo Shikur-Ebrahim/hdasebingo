@@ -5,7 +5,7 @@ export interface User {
   first_name: string;
   main_balance: number;
   bonus_balance: number;
-  role: 'admin' | 'worker' | 'agent' | 'user';
+  role: 'admin' | 'worker' | 'agent' | 'promoter' | 'user';
   permissions?: Record<string, boolean>;
   total_games?: number;
   total_wins: number;
