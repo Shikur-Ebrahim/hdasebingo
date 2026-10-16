@@ -121,6 +121,7 @@ export default function Agent() {
   const [reportSearchQuery, setReportSearchQuery] = useState('');
   const [reportPeriod, setReportPeriod] = useState<'all' | 'today' | 'yesterday' | 'weekly' | 'monthly'>('all');
   const [reportStake, setReportStake] = useState<number | 'all'>('all');
+  const [selectedLiveStake, setSelectedLiveStake] = useState<number | null>(null);
 
   if (user?.role !== 'agent') {
     return <Navigate to="/" replace />;
@@ -311,8 +312,83 @@ export default function Agent() {
     return <WifiOff size={11} className="text-slate-400" />;
   };
 
+  // ─── LOADING SKELETON ───
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col select-none font-sans">
+        {/* Skeleton top bar */}
+        <div className="bg-white border-b border-gray-100 px-4 py-2.5 shadow-2xs">
+          <div className="flex items-center justify-between max-w-md mx-auto">
+            <div className="flex items-center space-x-2.5">
+              <div className="w-10 h-10 rounded-2xl bg-slate-200 animate-pulse" />
+              <div className="space-y-1.5">
+                <div className="h-3 w-28 bg-slate-200 rounded-full animate-pulse" />
+                <div className="h-2 w-16 bg-slate-100 rounded-full animate-pulse" />
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="h-8 w-16 bg-slate-200 rounded-xl animate-pulse" />
+              <div className="w-8 h-8 bg-slate-100 rounded-xl animate-pulse" />
+            </div>
+          </div>
+        </div>
+
+        {/* Skeleton body */}
+        <div className="max-w-md mx-auto w-full p-4 space-y-3.5">
+          {/* Tab nav skeleton */}
+          <div className="h-10 bg-slate-200/80 rounded-2xl animate-pulse" />
+
+          {/* Chart card skeleton */}
+          <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-sm space-y-3.5">
+            <div className="space-y-1.5">
+              <div className="h-3 w-40 bg-slate-200 rounded-full animate-pulse" />
+              <div className="h-2 w-28 bg-slate-100 rounded-full animate-pulse" />
+            </div>
+            <div className="h-8 bg-slate-100 rounded-2xl animate-pulse" />
+            <div className="h-36 flex items-end justify-between space-x-2 px-1 pt-2">
+              {[...Array(7)].map((_, i) => (
+                <div key={i} className="flex-1 flex flex-col items-center h-full justify-end space-y-1.5">
+                  <div
+                    className="w-full max-w-[28px] bg-slate-200 rounded-lg animate-pulse"
+                    style={{ height: `${20 + Math.random() * 60}%` }}
+                  />
+                  <div className="h-2 w-4 bg-slate-100 rounded-full animate-pulse" />
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="h-10 bg-slate-100 rounded-xl animate-pulse" />
+              <div className="h-10 bg-slate-100 rounded-xl animate-pulse" />
+            </div>
+          </div>
+
+          {/* Card skeletons */}
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs space-y-2.5">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-slate-200 animate-pulse shrink-0" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3 w-3/4 bg-slate-200 rounded-full animate-pulse" />
+                  <div className="h-2 w-1/2 bg-slate-100 rounded-full animate-pulse" />
+                </div>
+                <div className="h-6 w-16 bg-slate-100 rounded-full animate-pulse" />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Centered spinner badge */}
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center space-x-2 bg-white px-4 py-2 rounded-full shadow-lg border border-orange-100">
+          <RefreshCw size={14} className="animate-spin text-orange-500" />
+          <span className="text-xs font-black text-slate-600">Loading your room...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 select-none pb-24 font-sans">
+
       {/* ─── STICKY TOP APP BAR (Mobile-First) ─── */}
       <div className="bg-white border-b border-gray-100 px-4 py-2.5 sticky top-0 z-30 shadow-2xs">
         <div className="flex items-center justify-between max-w-md mx-auto">
@@ -331,9 +407,7 @@ export default function Agent() {
                   <span>{room?.commission_rate ?? 8}% Commission</span>
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
-                {user?.first_name} • {user?.username ? `@${user.username}` : `ID: ${user?.telegram_id}`}
-              </p>
+
             </div>
           </div>
 
@@ -491,7 +565,7 @@ export default function Agent() {
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  <DollarSign size={12} />
+                  <TrendingUp size={12} />
                   <span>Comm (ETB)</span>
                 </button>
                 <button
@@ -621,97 +695,305 @@ export default function Agent() {
           </div>
         )}
 
-        {/* ─── TAB 2: LIVE GAMES IN ROOM ─── */}
-        {room && activeTab === 'live' && (
-          <div className="space-y-3 animate-in fade-in duration-200">
-            <div className="flex items-center justify-between px-1">
-              <div>
-                <h3 className="text-xs font-black uppercase text-slate-700 tracking-wider">
-                  Active Tables ({activeGames.length})
-                </h3>
-                <p className="text-[10px] text-slate-400">Games currently open for players in your room</p>
-              </div>
-              <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">
-                Auto-Managed
-              </span>
-            </div>
+        {/* ─── TAB 2: LIVE — STAKE PRESET ROOM MONITOR ─── */}
+        {room && activeTab === 'live' && (() => {
+          const STAKE_PRESETS = [10, 20, 50, 100];
+          // Build full stake list: union of presets + any active game stakes
+          const allStakes = Array.from(new Set([
+            ...STAKE_PRESETS,
+            ...activeGames.map((g) => Number(g.stake)),
+          ])).sort((a, b) => a - b);
 
-            {activeGames.length > 0 ? (
-              <div className="space-y-2.5">
-                {activeGames.map((game) => {
-                  const estPot = game.prize_pool || game.stake * (game.total_players || 0);
-                  const estComm = (estPot * (room.commission_rate ?? 8)) / 100;
-                  return (
-                    <div
-                      key={game.id}
-                      className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-sm space-y-2.5 hover:border-orange-200 transition-all"
-                    >
+          // Find the active game for a given stake
+          const gameForStake = (stk: number) =>
+            activeGames.find((g) => Number(g.stake) === stk) || null;
+
+          // If a stake is selected, show detail view
+          if (selectedLiveStake !== null) {
+            const detailGame = gameForStake(selectedLiveStake);
+            const estPot = detailGame
+              ? detailGame.prize_pool || detailGame.stake * (detailGame.total_players || 0)
+              : 0;
+            const estComm = (estPot * (room.commission_rate ?? 8)) / 100;
+            const lastWin = recentGames.find((g) => Number(g.stake) === selectedLiveStake);
+
+            return (
+              <div className="space-y-3 animate-in fade-in duration-200">
+                {/* Back button header */}
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => { triggerHaptic('light'); setSelectedLiveStake(null); }}
+                    className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-600 active:scale-95 transition-all shadow-2xs shrink-0"
+                  >
+                    <ChevronRight size={16} className="rotate-180" />
+                  </button>
+                  <div>
+                    <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                      {selectedLiveStake} ETB Table Monitor
+                    </h3>
+                    <p className="text-[10px] text-slate-400">Live room control panel</p>
+                  </div>
+                </div>
+
+                {detailGame ? (
+                  <>
+                    {/* Live Status Header Card */}
+                    <div className={`rounded-2xl p-4 space-y-3 border shadow-sm ${
+                      detailGame.status === 'calling'
+                        ? 'bg-gradient-to-br from-emerald-500 to-teal-600 border-emerald-400 text-white'
+                        : 'bg-gradient-to-br from-amber-400 to-orange-500 border-amber-300 text-white'
+                    }`}>
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2.5">
-                          <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex flex-col items-center justify-center font-black leading-none shrink-0">
-                            <span className="text-xs">{game.stake}</span>
-                            <span className="text-[8px] font-bold">ETB</span>
+                        <div>
+                          <div className="flex items-center space-x-1.5">
+                            {detailGame.status === 'calling'
+                              ? <Wifi size={13} className="animate-pulse" />
+                              : <Clock size={13} />
+                            }
+                            <span className="text-xs font-black uppercase tracking-wider">
+                              {detailGame.status === 'calling' ? 'CALLING LIVE' : 'WAITING FOR PLAYERS'}
+                            </span>
                           </div>
-                          <div>
-                            <div className="flex items-center space-x-1.5">
-                              <span className="text-xs font-black text-slate-800">
-                                Stake: {game.stake} ETB
-                              </span>
-                              <span
-                                className={`text-[9px] font-black px-1.5 py-0.2 rounded-full border ${
-                                  game.status === 'calling'
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                    : 'bg-amber-50 text-amber-700 border-amber-200'
-                                }`}
-                              >
-                                {game.status === 'calling' ? 'Calling Live' : 'Waiting Players'}
-                              </span>
-                            </div>
-                            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
-                              👥 {game.total_players} players registered
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="text-right">
-                          <div className="flex items-center justify-end space-x-1 text-slate-800">
-                            <Trophy size={13} className="text-amber-500" />
-                            <span className="text-xs font-black">{game.prize_pool || 0} ETB</span>
-                          </div>
-                          <p className="text-[9px] text-emerald-600 font-bold mt-0.5">
-                            +{Number(estComm.toFixed(1))} ETB est. cut
+                          <p className="text-[10px] font-medium opacity-80 mt-0.5">
+                            Game #{formatGameId(detailGame.id)}
                           </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-black leading-none">{selectedLiveStake}</p>
+                          <p className="text-[10px] font-black opacity-80">ETB STAKE</p>
                         </div>
                       </div>
 
-                      {/* Direct Play/Spectate Button */}
-                      <button
-                        onClick={() => {
-                          triggerHaptic('light');
-                          navigate(`/bingo/live?game=${game.id}&room=${room.id}`);
-                        }}
-                        className="w-full py-2 bg-slate-50 hover:bg-orange-50 text-slate-700 hover:text-orange-600 border border-slate-200 rounded-xl text-xs font-black flex items-center justify-center space-x-1 transition-all active:scale-98"
-                      >
-                        <Play size={12} fill="currentColor" />
-                        <span>Enter This Table</span>
-                      </button>
+                      {/* 3 Quick Stats */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="bg-white/20 rounded-xl p-2 text-center">
+                          <p className="text-base font-black leading-none">{detailGame.total_players}</p>
+                          <p className="text-[9px] font-bold opacity-80 mt-0.5">Players</p>
+                        </div>
+                        <div className="bg-white/20 rounded-xl p-2 text-center">
+                          <p className="text-base font-black leading-none">{detailGame.prize_pool || estPot}</p>
+                          <p className="text-[9px] font-bold opacity-80 mt-0.5">Pot (ETB)</p>
+                        </div>
+                        <div className="bg-white/20 rounded-xl p-2 text-center">
+                          <p className="text-base font-black leading-none">{Number(estComm.toFixed(1))}</p>
+                          <p className="text-[9px] font-bold opacity-80 mt-0.5">Your Cut</p>
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Commission Earned Card */}
+                    <div className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                            <TrendingUp size={16} />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase">Est. Agent Commission</p>
+                            <p className="text-sm font-black text-emerald-600">+{Number(estComm.toFixed(2))} ETB</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[9px] text-slate-400 font-medium">Rate</p>
+                          <p className="text-xs font-black text-slate-800">{room.commission_rate ?? 8}%</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Game Status Info */}
+                    <div className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs space-y-2">
+                      <p className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Active Players</p>
+                      <div className="flex items-center space-x-2">
+                        <div className="flex -space-x-2">
+                          {[...Array(Math.min(detailGame.total_players, 5))].map((_, i) => (
+                            <div key={i} className={`w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-black text-white ${
+                              ['bg-orange-400', 'bg-emerald-400', 'bg-blue-400', 'bg-purple-400', 'bg-amber-400'][i % 5]
+                            }`}>
+                              {i + 1}
+                            </div>
+                          ))}
+                          {detailGame.total_players > 5 && (
+                            <div className="w-7 h-7 rounded-full border-2 border-white bg-slate-300 flex items-center justify-center text-[9px] font-black text-slate-700">
+                              +{detailGame.total_players - 5}
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 font-semibold">
+                          {detailGame.total_players} player{detailGame.total_players !== 1 ? 's' : ''} registered for this game
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  /* No Active Game — Show Last Winner for this stake */
+                  <div className="bg-white rounded-2xl p-4 border border-dashed border-slate-200 text-center space-y-2 shadow-2xs">
+                    <div className="w-12 h-12 bg-slate-100 rounded-2xl mx-auto flex items-center justify-center">
+                      <Gamepad2 size={24} className="text-slate-300" />
+                    </div>
+                    <p className="text-xs font-black text-slate-600">No Active Game at {selectedLiveStake} ETB</p>
+                    <p className="text-[10px] text-slate-400">
+                      Players join via your room link to start a new table.
+                    </p>
+                  </div>
+                )}
+
+                {/* Last Winner for this stake */}
+                {lastWin && (
+                  <div className="bg-white rounded-2xl p-3.5 border border-amber-100 shadow-2xs space-y-1.5">
+                    <p className="text-[10px] font-black text-slate-700 uppercase tracking-wider flex items-center space-x-1">
+                      <Trophy size={11} className="text-amber-500" />
+                      <span>Last Winner at {selectedLiveStake} ETB</span>
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-black text-slate-800">🏆 {lastWin.winner_first_name}</p>
+                        {lastWin.winner_cartela && (
+                          <p className="text-[10px] text-slate-400">Cartela #{lastWin.winner_cartela}</p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-black text-amber-600">{lastWin.winner_prize} ETB</p>
+                        <p className="text-[9px] text-emerald-600 font-bold">Your cut: +{lastWin.agent_commission} ETB</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          // ── STAKE PRESET CARD GRID ──
+          return (
+            <div className="space-y-3 animate-in fade-in duration-200">
+              {/* Header */}
+              <div className="flex items-center justify-between px-1">
+                <div>
+                  <h3 className="text-xs font-black uppercase text-slate-700 tracking-wider">
+                    Room Live Monitor
+                  </h3>
+                  <p className="text-[10px] text-slate-400">Tap a stake table to monitor its game</p>
+                </div>
+                {activeGames.length > 0 && (
+                  <span className="flex items-center space-x-1 text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                    <span>{activeGames.length} Live</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Stake Preset Grid — 2×2 */}
+              <div className="grid grid-cols-2 gap-2.5">
+                {allStakes.map((stk) => {
+                  const game = gameForStake(stk);
+                  const isLive = !!game;
+                  const estPot = game ? (game.prize_pool || stk * (game.total_players || 0)) : 0;
+                  const estComm = (estPot * (room.commission_rate ?? 8)) / 100;
+                  const lastW = recentGames.find((g) => Number(g.stake) === stk);
+
+                  return (
+                    <button
+                      key={stk}
+                      onClick={() => {
+                        triggerHaptic('medium');
+                        setSelectedLiveStake(stk);
+                      }}
+                      className={`rounded-2xl p-4 border text-left space-y-3 active:scale-[.97] transition-all shadow-sm ${
+                        isLive
+                          ? game?.status === 'calling'
+                            ? 'bg-gradient-to-br from-emerald-500 to-teal-600 border-emerald-400 text-white'
+                            : 'bg-gradient-to-br from-orange-400 to-amber-500 border-orange-300 text-white'
+                          : 'bg-white border-slate-200 hover:border-orange-200'
+                      }`}
+                    >
+                      {/* Stake label + status */}
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className={`text-2xl font-black leading-none ${isLive ? 'text-white' : 'text-slate-800'}`}>
+                            {stk}
+                          </p>
+                          <p className={`text-[9px] font-black ${isLive ? 'text-white/80' : 'text-slate-400'}`}>
+                            ETB STAKE
+                          </p>
+                        </div>
+                        <div className={`px-2 py-0.5 rounded-full text-[8px] font-black border ${
+                          isLive
+                            ? game?.status === 'calling'
+                              ? 'bg-white/20 text-white border-white/30'
+                              : 'bg-white/20 text-white border-white/30'
+                            : 'bg-slate-100 text-slate-500 border-slate-200'
+                        }`}>
+                          {isLive
+                            ? game?.status === 'calling' ? '🔴 LIVE' : '⏳ WAIT'
+                            : '😴 IDLE'}
+                        </div>
+                      </div>
+
+                      {/* Stats row */}
+                      {isLive ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-bold text-white/70">Players</span>
+                            <span className="text-xs font-black text-white">{game?.total_players ?? 0}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-bold text-white/70">Est. Comm</span>
+                            <span className="text-xs font-black text-white">+{Number(estComm.toFixed(1))} ETB</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-bold text-slate-400">Last Winner</span>
+                            <span className="text-[9px] font-black text-slate-600 truncate max-w-[60px]">
+                              {lastW ? lastW.winner_first_name : '—'}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-bold text-slate-400">Last Comm</span>
+                            <span className="text-[9px] font-black text-emerald-600">
+                              {lastW ? `+${lastW.agent_commission} ETB` : '—'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Arrow indicator */}
+                      <div className={`flex items-center justify-end text-[9px] font-black ${isLive ? 'text-white/70' : 'text-slate-400'}`}>
+                        <span>View Details</span>
+                        <ChevronRight size={11} className="ml-0.5" />
+                      </div>
+                    </button>
                   );
                 })}
               </div>
-            ) : (
-              <div className="bg-white rounded-3xl p-8 border border-dashed border-slate-200 text-center space-y-2 shadow-2xs">
-                <Gamepad2 size={32} className="mx-auto text-slate-300" />
-                <p className="text-xs font-black text-slate-600">No active tables right now</p>
-                <p className="text-[10px] text-slate-400 max-w-xs mx-auto">
-                  New games are auto-created when players join your room or enter through your invite link.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
 
-        {/* ─── TAB 3: GAMES & COMMISSION REPORT (The Full Room Game History) ─── */}
+              {/* Quick Stats Strip */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-white rounded-xl p-2.5 border border-slate-100 shadow-2xs text-center">
+                  <p className="text-sm font-black text-orange-500">{activeGames.length}</p>
+                  <p className="text-[9px] text-slate-400 font-bold">Active Games</p>
+                </div>
+                <div className="bg-white rounded-xl p-2.5 border border-slate-100 shadow-2xs text-center">
+                  <p className="text-sm font-black text-slate-800">
+                    {activeGames.reduce((acc, g) => acc + (g.total_players || 0), 0)}
+                  </p>
+                  <p className="text-[9px] text-slate-400 font-bold">Live Players</p>
+                </div>
+                <div className="bg-white rounded-xl p-2.5 border border-slate-100 shadow-2xs text-center">
+                  <p className="text-sm font-black text-emerald-600">
+                    {activeGames.reduce((acc, g) => {
+                      const pot = g.prize_pool || g.stake * (g.total_players || 0);
+                      return acc + (pot * (room.commission_rate ?? 8)) / 100;
+                    }, 0).toFixed(1)}
+                  </p>
+                  <p className="text-[9px] text-slate-400 font-bold">Est. Comm</p>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+
         {room && activeTab === 'report' && (
           <div className="space-y-3 animate-in fade-in duration-200">
             <div className="flex items-center justify-between px-1">
@@ -949,15 +1231,7 @@ export default function Agent() {
           </div>
         )}
 
-        {/* ─── FOOTER SYNC BAR ─── */}
-        <div className="flex flex-col items-center space-y-1 pt-2 text-center">
-          <p className="text-[10px] text-slate-400 font-medium">
-            Last synced: {lastRefresh.toLocaleTimeString()} · Realtime Auto-Refresh Active
-          </p>
-          <p className="text-[9px] text-slate-400 font-semibold">
-            🇪🇹 HDASE BINGO • Official Agent Room Network
-          </p>
-        </div>
+
       </div>
     </div>
   );
