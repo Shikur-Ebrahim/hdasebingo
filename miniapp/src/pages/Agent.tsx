@@ -255,54 +255,69 @@ export default function Agent() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 select-none pb-24 font-sans">
       {/* ─── STICKY TOP APP BAR (Mobile-First) ─── */}
-      <div className="bg-white border-b border-gray-100 px-4 py-3 sticky top-0 z-30 shadow-2xs">
+      <div className="bg-white border-b border-gray-100 px-4 py-2.5 sticky top-0 z-30 shadow-2xs">
         <div className="flex items-center justify-between max-w-md mx-auto">
-          {/* Agent Avatar & Profile info */}
-          <div className="flex items-center space-x-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-orange-500 via-amber-500 to-yellow-400 flex items-center justify-center text-white font-black text-sm shadow-sm ring-2 ring-orange-200">
+          {/* Agent Avatar & Profile / Room info */}
+          <div className="flex items-center space-x-2.5 min-w-0 flex-1 mr-2">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-orange-500 via-amber-500 to-yellow-400 flex items-center justify-center text-white font-black text-sm shadow-sm ring-2 ring-orange-200 shrink-0">
               {(user?.first_name || 'A').charAt(0).toUpperCase()}
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center space-x-1.5">
-                <span className="text-sm font-black text-slate-900 leading-tight">
-                  {user?.first_name || 'Agent'}
+                <span className="text-sm font-black text-slate-900 leading-tight truncate">
+                  {room?.room_name || user?.first_name || 'Agent Room'}
                 </span>
-                <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 flex items-center space-x-0.5">
-                  <ShieldCheck size={10} />
-                  <span>AGENT</span>
-                </span>
+                {room && (
+                  <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 shrink-0">
+                    {room.commission_rate ?? 8}% Comm
+                  </span>
+                )}
               </div>
-              <p className="text-[10px] text-slate-400 font-medium truncate max-w-[130px]">
-                {user?.username ? `@${user.username}` : `ID: ${user?.telegram_id}`}
+              <p className="text-[10px] text-slate-400 font-medium truncate">
+                {user?.first_name} • {user?.username ? `@${user.username}` : `ID: ${user?.telegram_id}`}
               </p>
             </div>
           </div>
 
-          {/* Right: Live Wallet Balance from users table */}
-          <div className="flex items-center space-x-2.5">
+          {/* Right: Enter Room, Live Wallet Balance & Refresh */}
+          <div className="flex items-center space-x-2 shrink-0">
+            {room && (
+              <button
+                onClick={() => {
+                  triggerHaptic('medium');
+                  navigate(`/bingo/live?room=${room.id}`);
+                }}
+                className="px-2.5 py-1.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl text-xs font-black flex items-center space-x-1 shadow-xs active:scale-95 transition-all"
+                title="Enter Room & Play"
+              >
+                <Play size={11} fill="currentColor" />
+                <span>Play</span>
+              </button>
+            )}
+
             <div className="text-right">
               <div className="flex items-center justify-end space-x-1 text-slate-400">
-                <Wallet size={11} />
-                <span className="text-[9px] font-bold uppercase tracking-wider">Wallet</span>
+                <Wallet size={10} />
+                <span className="text-[8px] font-bold uppercase tracking-wider">Wallet</span>
               </div>
-              <p className="text-sm font-black text-emerald-600 leading-tight">
-                {(user?.main_balance ?? 0).toLocaleString()} <span className="text-[10px] font-extrabold">ETB</span>
+              <p className="text-xs font-black text-emerald-600 leading-tight">
+                {(user?.main_balance ?? 0).toLocaleString()} <span className="text-[9px] font-extrabold">ETB</span>
               </p>
             </div>
 
             <button
               onClick={handleManualRefresh}
               disabled={refreshing}
-              className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center active:scale-95 transition-all shadow-2xs"
+              className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center active:scale-95 transition-all shadow-2xs"
               title="Refresh Balance & Games"
             >
-              <RefreshCw size={13} className={refreshing ? 'animate-spin text-orange-500' : ''} />
+              <RefreshCw size={12} className={refreshing ? 'animate-spin text-orange-500' : ''} />
             </button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-md mx-auto p-4 space-y-4">
+      <div className="max-w-md mx-auto p-4 space-y-3.5">
         {/* Error notification */}
         {error && (
           <div className="flex items-center space-x-2 bg-rose-50 border border-rose-200 rounded-2xl px-3.5 py-2.5 shadow-2xs">
@@ -311,113 +326,7 @@ export default function Agent() {
           </div>
         )}
 
-        {/* ─── REDESIGNED HERO SECTION: ADVANCED OFFICIAL ROOM BANNER ─── */}
-        {room ? (
-          <div className="relative overflow-hidden bg-gradient-to-br from-amber-500/10 via-orange-500/10 to-yellow-500/15 border-2 border-orange-200 rounded-3xl p-4.5 shadow-sm space-y-3.5">
-            {/* Ambient background glows */}
-            <div className="absolute -top-12 -right-12 w-44 h-44 bg-gradient-to-br from-orange-400/20 to-yellow-400/10 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute -bottom-10 -left-10 w-36 h-36 bg-amber-400/15 rounded-full blur-2xl pointer-events-none" />
-
-            {/* Top Badge Strip */}
-            <div className="flex items-center justify-between relative z-10">
-              <div className="flex items-center space-x-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse ring-2 ring-emerald-200" />
-                <span className="text-[10px] font-black uppercase text-emerald-800 tracking-wider">
-                  Live Agent Room
-                </span>
-                {room.is_pinned && (
-                  <span className="inline-flex items-center space-x-0.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-2xs">
-                    <span>📌</span>
-                    <span>PINNED</span>
-                  </span>
-                )}
-              </div>
-
-              <div className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-black border ${statusColor(room.status)}`}>
-                {statusIcon(room.status)}
-                <span>{room.status.toUpperCase()}</span>
-              </div>
-            </div>
-
-            {/* Room Name & Profile Title */}
-            <div className="relative z-10 text-center space-y-1 py-0.5">
-              <div className="inline-flex items-center space-x-1 text-slate-500 text-[10px] font-black uppercase tracking-widest">
-                <Building2 size={11} className="text-orange-500" />
-                <span>Official Partner Room</span>
-              </div>
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-tight">
-                {room.room_name}
-              </h2>
-
-              {/* Commission Highlight Pill */}
-              <div className="pt-1 flex justify-center">
-                <div className="inline-flex items-center space-x-1.5 bg-white/95 border border-orange-300 shadow-2xs px-3 py-1 rounded-full backdrop-blur-xs">
-                  <Zap size={13} className="text-amber-500 fill-amber-500" />
-                  <span className="text-xs font-black text-orange-600">
-                    {room.commission_rate ?? 8}% Commission
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-semibold">• Pot House Cut</span>
-                </div>
-              </div>
-            </div>
-
-            {/* 4-Column Room Stats Grid inside Hero */}
-            <div className="relative z-10 grid grid-cols-4 gap-1.5 bg-white/80 p-2.5 rounded-2xl border border-orange-200/70 backdrop-blur-xs text-center shadow-2xs">
-              <div className="space-y-0.5">
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Players</p>
-                <p className="text-xs font-black text-slate-900">{stats?.total_referred_players ?? room.total_players ?? 0}</p>
-              </div>
-              <div className="space-y-0.5 border-l border-slate-100">
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Total Games</p>
-                <p className="text-xs font-black text-slate-900">{stats?.total_games_finished ?? room.total_games ?? 0}</p>
-              </div>
-              <div className="space-y-0.5 border-l border-slate-100">
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Today</p>
-                <p className="text-xs font-black text-orange-600">{stats?.today_games ?? 0} gms</p>
-              </div>
-              <div className="space-y-0.5 border-l border-slate-100">
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Earnings</p>
-                <p className="text-xs font-black text-emerald-600">+{stats?.total_commission_all_time ?? 0}</p>
-              </div>
-            </div>
-
-            {/* Enter Room & Share Action Buttons */}
-            <div className="relative z-10 flex space-x-2 pt-0.5">
-              <button
-                onClick={() => {
-                  triggerHaptic('medium');
-                  navigate(`/bingo/live?room=${room.id}`);
-                }}
-                className="flex-1 py-3 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:from-orange-600 hover:to-amber-600 text-white rounded-2xl font-black text-xs flex items-center justify-center space-x-1.5 shadow-md shadow-orange-500/25 active:scale-98 transition-all"
-              >
-                <Play size={14} fill="currentColor" />
-                <span>Enter Room & Play</span>
-              </button>
-
-              <button
-                onClick={handleShareRoom}
-                className="px-3.5 py-3 bg-white hover:bg-orange-50 border border-orange-300 text-orange-700 rounded-2xl font-black text-xs flex items-center justify-center space-x-1 active:scale-95 transition-all shadow-2xs"
-                title="Share Room link"
-              >
-                <Share2 size={14} />
-                <span>Share</span>
-              </button>
-
-              <button
-                onClick={handleCopyRoomLink}
-                className={`px-3.5 py-3 rounded-2xl font-black text-xs flex items-center justify-center space-x-1 border transition-all active:scale-95 shadow-2xs ${
-                  copiedLink
-                    ? 'bg-emerald-600 text-white border-emerald-600'
-                    : 'bg-white hover:bg-orange-50 text-slate-700 border-orange-200'
-                }`}
-                title="Copy Room Link"
-              >
-                {copiedLink ? <Check size={14} /> : <Copy size={14} />}
-                <span>{copiedLink ? 'Copied' : 'Link'}</span>
-              </button>
-            </div>
-          </div>
-        ) : !loading && (
+        {!room && !loading && (
           <div className="bg-white rounded-3xl p-8 border border-gray-100 text-center space-y-3 shadow-sm">
             <Building2 size={36} className="mx-auto text-slate-300" />
             <p className="text-sm font-black text-slate-800">No Room Assigned Yet</p>
@@ -717,17 +626,27 @@ export default function Agent() {
                 <DoorOpen size={16} className="text-orange-500 shrink-0" />
                 <span className="font-mono text-[11px] text-slate-600 truncate select-all">{roomInviteLink}</span>
               </div>
-              <button
-                onClick={handleCopyRoomLink}
-                className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1 transition-all active:scale-95 ${
-                  copiedLink
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-orange-500 hover:bg-orange-600 text-white shadow-xs'
-                }`}
-              >
-                {copiedLink ? <Check size={12} /> : <Copy size={12} />}
-                <span>{copiedLink ? 'Copied' : 'Copy'}</span>
-              </button>
+              <div className="flex items-center space-x-1.5 shrink-0">
+                <button
+                  onClick={handleShareRoom}
+                  className="px-2.5 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 rounded-xl text-xs font-black flex items-center space-x-1 transition-all active:scale-95 shadow-2xs"
+                  title="Share Room to Telegram"
+                >
+                  <Share2 size={12} />
+                  <span>Share</span>
+                </button>
+                <button
+                  onClick={handleCopyRoomLink}
+                  className={`px-2.5 py-1.5 rounded-xl text-xs font-black flex items-center space-x-1 transition-all active:scale-95 ${
+                    copiedLink
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-orange-500 hover:bg-orange-600 text-white shadow-xs'
+                  }`}
+                >
+                  {copiedLink ? <Check size={12} /> : <Copy size={12} />}
+                  <span>{copiedLink ? 'Copied' : 'Copy'}</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
