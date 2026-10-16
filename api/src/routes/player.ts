@@ -397,17 +397,17 @@ router.get('/support-videos', async (req, res) => {
   }
 });
 
-// GET /player/agent-room — get room assigned to current agent
+// GET /player/agent-room — get room assigned to current agent with live stats & game analytics
 router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) => {
   try {
     const telegramId = req.telegramUser!.id.toString();
     const { data: currentUser } = await supabase
       .from('users')
-      .select('id')
+      .select('id, telegram_id, main_balance, first_name, username')
       .eq('telegram_id', telegramId)
       .maybeSingle();
 
-    let room = null;
+    let room: any = null;
     if (currentUser?.id) {
       const { data: r1 } = await supabase
         .from('rooms')
@@ -425,18 +425,138 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
       room = r2;
     }
 
-    let activeGames: any[] = [];
-    if (room?.id) {
-      const { data: games } = await supabase
-        .from('bingo_games')
-        .select('id, stake, prize_pool, total_players, status, start_at')
-        .eq('room_id', room.id)
-        .in('status', ['waiting', 'calling'])
-        .order('created_at', { ascending: false });
-      activeGames = games || [];
+    if (!room?.id) {
+      return res.json({
+        room: null,
+        active_games: [],
+        recent_games: [],
+        stats: null,
+        chart_data: [],
+      });
     }
 
-    res.json({ room: room || null, active_games: activeGames });
+    const commRate = Number(room.commission_rate ?? 8);
+
+    // 1. Fetch active games (waiting or calling)
+    const { data: games } = await supabase
+      .from('bingo_games')
+      .select('id, stake, prize_pool, total_players, status, start_at, created_at')
+      .eq('room_id', room.id)
+      .in('status', ['waiting', 'calling'])
+      .order('created_at', { ascending: false });
+    const activeGames = games || [];
+
+    // 2. Fetch recent finished games (up to 30) for history report
+    const { data: finishedGames } = await supabase
+      .from('bingo_games')
+      .select('id, stake, prize_pool, winner_prize, winner_first_name, winner_telegram_id, winner_cartela, total_players, status, created_at, finished_at')
+      .eq('room_id', room.id)
+      .eq('status', 'finished')
+      .order('finished_at', { ascending: false })
+      .limit(30);
+
+    const mappedRecentGames = (finishedGames || []).map((g: any) => {
+      const stake = Number(g.stake || 0);
+      const players = Number(g.total_players || 0);
+      const pot = Number(g.prize_pool || (stake * players) || 0);
+      const comm = players >= 3 ? Number(((pot * commRate) / 100).toFixed(2)) : 0;
+      return {
+        id: g.id,
+        stake,
+        total_players: players,
+        prize_pool: pot,
+        winner_prize: Number(g.winner_prize || 0),
+        winner_first_name: g.winner_first_name || 'Anonymous',
+        winner_cartela: g.winner_cartela,
+        agent_commission: comm,
+        commission_rate: commRate,
+        created_at: g.created_at,
+        finished_at: g.finished_at,
+        status: g.status,
+      };
+    });
+
+    // 3. Fetch all finished games for full metrics & 7-day trend
+    const { data: allFinished } = await supabase
+      .from('bingo_games')
+      .select('id, stake, prize_pool, total_players, finished_at, created_at')
+      .eq('room_id', room.id)
+      .eq('status', 'finished')
+      .order('finished_at', { ascending: false });
+
+    // 4. Count referred players for this agent
+    const { count: referredCount } = await supabase
+      .from('users')
+      .select('id', { count: 'exact', head: true })
+      .eq('inviter_id', telegramId);
+
+    // Build 7-day trend map
+    const daysMap: Record<string, { date: string; label: string; games_count: number; commission: number; volume: number }> = {};
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      daysMap[dateStr] = {
+        date: dateStr,
+        label: dayNames[d.getDay()],
+        games_count: 0,
+        commission: 0,
+        volume: 0,
+      };
+    }
+
+    const now = new Date();
+    const todayDateStr = now.toISOString().split('T')[0];
+    let todayGames = 0;
+    let todayCommission = 0;
+    let totalCommissionAllTime = 0;
+    let totalPotVolume = 0;
+
+    (allFinished || []).forEach((g: any) => {
+      const pot = Number(g.prize_pool || (Number(g.stake || 0) * Number(g.total_players || 0)) || 0);
+      const comm = (Number(g.total_players || 0) >= 3) ? Number(((pot * commRate) / 100).toFixed(2)) : 0;
+
+      totalPotVolume += pot;
+      totalCommissionAllTime += comm;
+
+      const fDate = (g.finished_at || g.created_at || '').split('T')[0];
+      if (fDate === todayDateStr) {
+        todayGames++;
+        todayCommission += comm;
+      }
+
+      if (daysMap[fDate]) {
+        daysMap[fDate].games_count += 1;
+        daysMap[fDate].commission = Number((daysMap[fDate].commission + comm).toFixed(2));
+        daysMap[fDate].volume = Number((daysMap[fDate].volume + pot).toFixed(2));
+      }
+    });
+
+    const chartData = Object.values(daysMap);
+
+    const roomPayload = {
+      ...room,
+      total_players: referredCount ?? (room.total_players || 0),
+      total_games: (allFinished?.length ?? 0) || (room.total_games || 0),
+    };
+
+    res.json({
+      room: roomPayload,
+      active_games: activeGames,
+      recent_games: mappedRecentGames,
+      stats: {
+        today_games: todayGames,
+        today_commission: Number(todayCommission.toFixed(2)),
+        total_games_finished: allFinished?.length || 0,
+        total_commission_all_time: Number(totalCommissionAllTime.toFixed(2)),
+        total_volume_all_time: Number(totalPotVolume.toFixed(2)),
+        total_referred_players: referredCount || 0,
+        commission_rate: commRate,
+      },
+      chart_data: chartData,
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
