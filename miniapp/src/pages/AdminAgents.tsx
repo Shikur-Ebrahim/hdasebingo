@@ -522,14 +522,14 @@ export default function AdminAgents() {
                   </div>
 
                   {/* Game Commission Rate % */}
-                  <div className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-200/80 space-y-2">
+                  <div className="bg-slate-50/70 p-3 rounded-2xl border border-slate-200/80 space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-bold text-slate-600 uppercase flex items-center space-x-1">
+                      <label className="text-[10px] font-bold text-slate-700 uppercase flex items-center space-x-1">
                         <Percent size={11} className="text-emerald-600" />
-                        <span>Game Commission Rate (% per pot)</span>
+                        <span>Agent Commission (from Platform 20% Fee)</span>
                       </label>
                       <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                        {newCommissionRate}%
+                        {newCommissionRate}% of pot
                       </span>
                     </div>
 
@@ -551,8 +551,25 @@ export default function AdminAgents() {
                       ))}
                     </div>
 
+                    {/* Split Formula Breakdown Card */}
+                    <div className="p-2.5 bg-white rounded-xl border border-slate-200/70 text-[10px] space-y-1">
+                      <p className="font-black text-slate-600 text-[9px] uppercase tracking-wider">Example Pot Split (100 ETB Pot):</p>
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span>🏆 Player Winner Prize:</span>
+                        <span className="font-black text-emerald-600">80% (80 ETB)</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span>💼 Agent Room Commission:</span>
+                        <span className="font-black text-sky-600">{newCommissionRate}% ({newCommissionRate} ETB)</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-600 border-t border-slate-100 pt-1">
+                        <span>🏛️ Platform Net Cut:</span>
+                        <span className="font-black text-slate-700">{Math.max(0, 20 - newCommissionRate)}% ({Math.max(0, 20 - newCommissionRate)} ETB)</span>
+                      </div>
+                    </div>
+
                     <p className="text-[9px] text-slate-400 font-medium leading-tight">
-                      Agent automatically receives {newCommissionRate}% of the total game pot when a game finishes in this room.
+                      ℹ️ Player winner prize (80%) is strictly controlled in Bingo Monitoring and is <b>never reduced</b>. The agent commission is paid exclusively out of the platform's 20% fee.
                     </p>
                   </div>
 
@@ -784,14 +801,14 @@ export default function AdminAgents() {
             </div>
 
             {/* Commission Rate (%) */}
-            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 space-y-1.5">
+            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-[10px] font-bold text-slate-600 uppercase flex items-center space-x-1">
+                <label className="text-[10px] font-bold text-slate-700 uppercase flex items-center space-x-1">
                   <Percent size={11} className="text-emerald-600" />
-                  <span>Agent Commission Rate (%)</span>
+                  <span>Agent Commission (from Platform 20% Fee)</span>
                 </label>
                 <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                  {editCommissionRate}%
+                  {editCommissionRate}% of pot
                 </span>
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -806,9 +823,12 @@ export default function AdminAgents() {
                         : 'bg-white text-slate-600 border-slate-200'
                     }`}
                   >
-                    {preset}%
+                    {preset}% {preset === 8 && '(Default)'}
                   </button>
                 ))}
+              </div>
+              <div className="text-[9px] text-slate-500 bg-white p-2 rounded-lg border border-slate-200/60 leading-tight">
+                Winner Prize: <b>80% (Unchanged)</b> · Agent Cut: <b>{editCommissionRate}%</b> · Platform Net: <b>{Math.max(0, 20 - editCommissionRate)}%</b>
               </div>
             </div>
 

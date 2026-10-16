@@ -404,9 +404,11 @@ class BingoEngine {
         ? `🚀 EARLY CALL BINGO (${called.length} calls)! You won ${finalPrize} ETB on Cartela #${w.cartela_number}!`
         : `🎉 BINGO! You won ${finalPrize} ETB on Cartela #${w.cartela_number}!`;
         
+      const uniquePlayersCount = new Set((players || []).map(p => p.telegram_id)).size;
+
       await notify(w.telegram_id, msg);
       console.log(`🏆 Game #${formatGameId(gameId)}: Single winner ${w.first_name} — ${finalPrize} ETB`);
-      await this.awardAgentCommission(roomId, players.length, stake, gameId);
+      await this.awardAgentCommission(roomId, players.length, stake, gameId, uniquePlayersCount);
       await this.incrementRoomGames(roomId);
       if (roomId) {
         await this.createGame(roomId, stake);
@@ -448,7 +450,8 @@ class BingoEngine {
         );
       }
       console.log(`🤝 Game #${formatGameId(gameId)}: 2-way tie — ${w1.first_name} & ${w2.first_name} — ${splitPrize} ETB each`);
-      await this.awardAgentCommission(roomId, players.length, stake, gameId);
+      const uniquePlayersCount = new Set((players || []).map(p => p.telegram_id)).size;
+      await this.awardAgentCommission(roomId, players.length, stake, gameId, uniquePlayersCount);
       await this.incrementRoomGames(roomId);
       if (roomId) {
         await this.createGame(roomId, stake);
@@ -510,9 +513,16 @@ class BingoEngine {
     roomId: string | undefined | null,
     totalCartelas: number,
     stake: number,
-    gameId: string
+    gameId: string,
+    uniquePlayers: number
   ) {
     if (!roomId || totalCartelas <= 0 || stake <= 0) return;
+    // Commission only applies if platform charged a house cut (unique players >= 3)
+    if (uniquePlayers < 3) {
+      console.log(`ℹ️ Room Commission skipped: Game #${formatGameId(gameId)} had ${uniquePlayers} players (100% pot paid to winner, 0% platform fee)`);
+      return;
+    }
+
     try {
       const { data: room, error: rErr } = await supabase
         .from('rooms')
@@ -522,7 +532,7 @@ class BingoEngine {
 
       if (rErr || !room || !room.agent_id) return;
 
-      // Default commission is 8%
+      // Default commission is 8% of the total pot (paid out of the platform's 20% cut)
       const commRate = Number(room.commission_rate ?? 8);
       if (commRate <= 0) return;
 
@@ -541,7 +551,7 @@ class BingoEngine {
           main_balance: Number(agentUser.main_balance || 0) + commAmount,
         }).eq('telegram_id', room.agent_id);
 
-        console.log(`💼 Room Commission: Agent ${room.agent_id} credited +${commAmount} ETB (${commRate}%) for Game #${formatGameId(gameId)} in "${room.room_name}"`);
+        console.log(`💼 Room Commission: Agent ${room.agent_id} credited +${commAmount} ETB (${commRate}% of pot, from platform fee) for Game #${formatGameId(gameId)} in "${room.room_name}"`);
 
         const token = process.env.BOT_TOKEN;
         if (token) {
@@ -550,7 +560,7 @@ class BingoEngine {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               chat_id: room.agent_id,
-              text: `💼 *Room Commission Earned!*\n\n🏠 Room: *${room.room_name}*\n💰 Amount: *+${commAmount} ETB* (${commRate}% commission)\n🎮 Game: #${formatGameId(gameId)} (${totalCartelas} cartelas @ ${stake} ETB)\n\n✅ Credited directly to your Main Balance!`,
+              text: `💼 *Room Commission Earned!*\n\n🏠 Room: *${room.room_name}*\n💰 Your Commission: *+${commAmount} ETB* (${commRate}% of game pot)\n🎮 Game: #${formatGameId(gameId)} (${totalCartelas} cartelas @ ${stake} ETB)\n🏆 Winner Prize: 80% (Unchanged)\n\n✅ Added to your Main Balance!`,
               parse_mode: 'Markdown',
             }),
           }).catch(() => {});
