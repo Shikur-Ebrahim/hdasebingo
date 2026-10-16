@@ -60,97 +60,341 @@ export default function Invite() {
     }
   };
 
-  // Generate and download a branded invitation poster
-  const handleDownloadQR = () => {
+  // Generate the luxury branded invite canvas (same style as Agent flyer)
+  const generateInviteCanvas = (): HTMLCanvasElement | null => {
     const qrCanvas = qrCanvasRef.current;
-    if (!qrCanvas) return;
+    if (!qrCanvas) return null;
 
     try {
       const canvas = document.createElement('canvas');
-      const width = 600;
-      const height = 750;
+      const width = 800;
+      const height = 1150;
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      if (!ctx) return null;
 
-      // Dark luxury gradient background
-      const bgGrad = ctx.createLinearGradient(0, 0, width, height);
-      bgGrad.addColorStop(0, '#0f172a');
-      bgGrad.addColorStop(0.5, '#1e1b4b');
-      bgGrad.addColorStop(1, '#020617');
+      // 1. Warm ivory luxury background
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+      bgGrad.addColorStop(0, '#ffffff');
+      bgGrad.addColorStop(0.3, '#fdfcf9');
+      bgGrad.addColorStop(0.7, '#faf5ea');
+      bgGrad.addColorStop(1, '#f5edd9');
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, width, height);
 
-      // Decorative ambient glow
-      ctx.fillStyle = 'rgba(245, 158, 11, 0.12)';
+      // Radial ambient lighting
+      const radial = ctx.createRadialGradient(width / 2, 450, 50, width / 2, 450, 550);
+      radial.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+      radial.addColorStop(1, 'rgba(245, 235, 215, 0)');
+      ctx.fillStyle = radial;
+      ctx.fillRect(0, 0, width, height);
+
+      // 2. Double gold ornate border frame
+      ctx.strokeStyle = '#c59b27';
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(20, 20, width - 40, height - 40);
+      ctx.strokeStyle = '#e6c86e';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(26, 26, width - 52, height - 52);
+
+      // Corner diamond ornaments
+      const drawDiamond = (x: number, y: number, s: number) => {
+        ctx.fillStyle = '#b8860b';
+        ctx.beginPath();
+        ctx.moveTo(x, y - s);
+        ctx.lineTo(x + s, y);
+        ctx.lineTo(x, y + s);
+        ctx.lineTo(x - s, y);
+        ctx.closePath();
+        ctx.fill();
+      };
+      drawDiamond(26, 26, 4);
+      drawDiamond(width - 26, 26, 4);
+      drawDiamond(26, height - 26, 4);
+      drawDiamond(width - 26, height - 26, 4);
+
+      // 3. Top Royal Crown & Medallion Emblem
+      const emblemY = 82;
+      const emblemX = width / 2;
+
+      ctx.fillStyle = '#d4af37';
       ctx.beginPath();
-      ctx.arc(100, 100, 140, 0, Math.PI * 2);
+      ctx.roundRect(emblemX - 22, emblemY - 34, 44, 7, 2);
       ctx.fill();
 
-      ctx.fillStyle = 'rgba(147, 51, 234, 0.15)';
       ctx.beginPath();
-      ctx.arc(500, 650, 180, 0, Math.PI * 2);
+      ctx.moveTo(emblemX - 22, emblemY - 34);
+      ctx.lineTo(emblemX - 25, emblemY - 52);
+      ctx.lineTo(emblemX - 12, emblemY - 40);
+      ctx.lineTo(emblemX, emblemY - 56);
+      ctx.lineTo(emblemX + 12, emblemY - 40);
+      ctx.lineTo(emblemX + 25, emblemY - 52);
+      ctx.lineTo(emblemX + 22, emblemY - 34);
+      ctx.closePath();
       ctx.fill();
 
-      // Brand Title
-      ctx.fillStyle = '#f59e0b';
-      ctx.font = '900 36px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('HDASE BINGO', width / 2, 70);
+      ctx.fillStyle = '#fef08a';
+      [-25, -12, 0, 12, 25].forEach((px, idx) => {
+        const py = idx === 2 ? emblemY - 57 : (idx === 0 || idx === 4) ? emblemY - 53 : emblemY - 41;
+        ctx.beginPath();
+        ctx.arc(emblemX + px, py, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
 
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '600 15px sans-serif';
-      ctx.fillText('Official Ethiopian Bingo • Scan to Play & Win', width / 2, 102);
-
-      // White card container with rounded corners
-      const cardX = 80;
-      const cardY = 135;
-      const cardW = 440;
-      const cardH = 440;
-      const radius = 24;
-
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = '#1c150c';
       ctx.beginPath();
-      ctx.roundRect(cardX, cardY, cardW, cardH, radius);
+      ctx.arc(emblemX, emblemY - 10, 24, 0, Math.PI * 2);
       ctx.fill();
-
-      ctx.strokeStyle = '#f1f5f9';
-      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#d4af37';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.strokeStyle = '#fef08a';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(emblemX, emblemY - 10, 20, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Draw QR code onto white card
-      const qrDrawSize = 350;
-      const qrDrawX = (width - qrDrawSize) / 2;
-      const qrDrawY = cardY + 45;
-      ctx.drawImage(qrCanvas, qrDrawX, qrDrawY, qrDrawSize, qrDrawSize);
-
-      // Center Bingo Badge on card
-      const centerX = width / 2;
-      const centerY = qrDrawY + qrDrawSize / 2;
-      ctx.fillStyle = '#f59e0b';
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, 24, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '900 18px sans-serif';
+      ctx.fillStyle = '#fef08a';
+      ctx.font = '900 18px "Times New Roman", Georgia, serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('75', centerX, centerY);
+      ctx.fillText('HB', emblemX, emblemY - 9);
       ctx.textBaseline = 'alphabetic';
 
-      // Referral code text
+      ctx.strokeStyle = '#c59b27';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(emblemX - 35, emblemY - 10);
+      ctx.bezierCurveTo(emblemX - 55, emblemY - 24, emblemX - 70, emblemY + 2, emblemX - 90, emblemY - 6);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(emblemX + 35, emblemY - 10);
+      ctx.bezierCurveTo(emblemX + 55, emblemY - 24, emblemX + 70, emblemY + 2, emblemX + 90, emblemY - 6);
+      ctx.stroke();
+
+      // 4. Main Title
+      ctx.fillStyle = '#140f09';
+      ctx.font = '900 40px "Times New Roman", Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('HDASE BINGO', width / 2, 142);
+
+      // 5. Subtitle with divider lines
+      ctx.fillStyle = '#8a6a1d';
+      ctx.font = 'bold 12.5px sans-serif';
+      const subText = 'INVITE A FRIEND  \u2022  EARN REWARDS';
+      ctx.fillText(subText, width / 2, 172);
+
+      const subWidth = ctx.measureText(subText).width;
+      const lineY = 168;
+      const lineLen = 65;
+      ctx.strokeStyle = '#d4af37';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(width / 2 - subWidth / 2 - 12 - lineLen, lineY);
+      ctx.lineTo(width / 2 - subWidth / 2 - 12, lineY);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(width / 2 + subWidth / 2 + 12, lineY);
+      ctx.lineTo(width / 2 + subWidth / 2 + 12 + lineLen, lineY);
+      ctx.stroke();
+
+      // 6. "SCAN TO JOIN" with wing ornaments
+      const scanY = 224;
+      ctx.fillStyle = '#17120a';
+      ctx.font = '900 35px "Times New Roman", Georgia, sans-serif';
+      ctx.fillText('SCAN TO JOIN', width / 2, scanY);
+
+      const scanWidth = ctx.measureText('SCAN TO JOIN').width;
+      const wingLeftX = width / 2 - scanWidth / 2 - 25;
+      const wingRightX = width / 2 + scanWidth / 2 + 25;
+
+      const drawWing = (cx: number, cy: number, isRight: boolean) => {
+        ctx.fillStyle = '#c59b27';
+        const dir = isRight ? 1 : -1;
+        for (let i = -1; i <= 1; i++) {
+          ctx.beginPath();
+          ctx.ellipse(cx + dir * 10, cy + i * 8, 11, 4, (dir * (i * 25) * Math.PI) / 180, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.beginPath();
+        ctx.moveTo(cx + dir * 26, cy);
+        ctx.lineTo(cx + dir * 18, cy - 7);
+        ctx.lineTo(cx + dir * 18, cy + 7);
+        ctx.closePath();
+        ctx.fill();
+      };
+      drawWing(wingLeftX, scanY - 11, false);
+      drawWing(wingRightX, scanY - 11, true);
+
+      // 7. Gold Ribbon Banner
+      const ribbonW = 460;
+      const ribbonH = 40;
+      const ribbonX = (width - ribbonW) / 2;
+      const ribbonY = 248;
+
+      const ribGrad = ctx.createLinearGradient(ribbonX, ribbonY, ribbonX + ribbonW, ribbonY);
+      ribGrad.addColorStop(0, '#ebd596');
+      ribGrad.addColorStop(0.5, '#deb55b');
+      ribGrad.addColorStop(1, '#ebd596');
+      ctx.fillStyle = ribGrad;
+      ctx.beginPath();
+      ctx.roundRect(ribbonX, ribbonY, ribbonW, ribbonH, 20);
+      ctx.fill();
+      ctx.strokeStyle = '#a67718';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      const midRibY = ribbonY + ribbonH / 2;
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillStyle = '#3a2707';
+      const part1 = 'SCAN THE QR CODE TO ';
+      const p1W = ctx.measureText(part1).width;
+      ctx.font = 'italic bold 18px "Brush Script MT", "Great Vibes", "Lucida Calligraphy", cursive';
+      const part2 = 'Join & Win Bonus!';
+      const p2W = ctx.measureText(part2).width;
+      const startRibTextX = width / 2 - (p1W + p2W) / 2;
+
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillStyle = '#3a2707';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(part1, startRibTextX, midRibY);
+      ctx.font = 'italic bold 19px "Brush Script MT", "Great Vibes", "Lucida Calligraphy", cursive';
+      ctx.fillStyle = '#831414';
+      ctx.fillText(part2, startRibTextX + p1W, midRibY);
+      ctx.textBaseline = 'alphabetic';
+
+      // 8. Central White Card with QR Code
+      const cardW = 530;
+      const cardH = 530;
+      const cardX = (width - cardW) / 2;
+      const cardY = 308;
+      const cardRadius = 32;
+
+      ctx.shadowColor = 'rgba(120, 80, 20, 0.12)';
+      ctx.shadowBlur = 24;
+      ctx.shadowOffsetY = 8;
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 22px monospace';
-      ctx.fillText(`CODE: ${refCode}`, width / 2, 625);
+      ctx.beginPath();
+      ctx.roundRect(cardX, cardY, cardW, cardH, cardRadius);
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+      ctx.strokeStyle = '#c59b27';
+      ctx.lineWidth = 4.5;
+      ctx.stroke();
+      ctx.strokeStyle = '#fae596';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(cardX + 4, cardY + 4, cardW - 8, cardH - 8, cardRadius - 4);
+      ctx.stroke();
 
-      // Subtitle
-      ctx.fillStyle = '#a855f7';
-      ctx.font = 'bold 15px sans-serif';
-      ctx.fillText('Scan with Camera or Telegram to Join & Earn Bonus!', width / 2, 660);
+      // Draw QR Code
+      const qrSize = 440;
+      const qrX = cardX + (cardW - qrSize) / 2;
+      const qrY = cardY + (cardH - qrSize) / 2;
+      ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
 
-      // Download trigger
+      // HDASE BINGO Badge on QR
+      const centerBadgeW = 114;
+      const centerBadgeH = 50;
+      const centerBadgeX = width / 2 - centerBadgeW / 2;
+      const centerBadgeY = qrY + qrSize / 2 - centerBadgeH / 2;
+
+      const badgeGrad = ctx.createLinearGradient(centerBadgeX, centerBadgeY, centerBadgeX + centerBadgeW, centerBadgeY + centerBadgeH);
+      badgeGrad.addColorStop(0, '#f59e0b');
+      badgeGrad.addColorStop(1, '#d97706');
+      ctx.fillStyle = badgeGrad;
+      ctx.beginPath();
+      ctx.roundRect(centerBadgeX, centerBadgeY, centerBadgeW, centerBadgeH, 12);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3.5;
+      ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 10.5px sans-serif';
+      ctx.fillText('HDASE', width / 2, centerBadgeY + 18);
+      ctx.font = '900 16px sans-serif';
+      ctx.fillText('BINGO', width / 2, centerBadgeY + 38);
+
+      // 9. Feature icons row
+      ctx.strokeStyle = '#c59b27';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(width / 2, 830, 360, 0.25 * Math.PI, 0.75 * Math.PI);
+      ctx.stroke();
+
+      const featY = 880;
+      const feats = [
+        { icon: '\uD83C\uDF81', text: '10% BONUS' },
+        { icon: '\u26A1', text: 'INSTANT PAY' },
+        { icon: '\uD83C\uDFB1', text: '75 BINGO' },
+        { icon: '\uD83D\uDEE1\uFE0F', text: 'VERIFIED' },
+      ];
+      const colW = (width - 120) / 4;
+      feats.forEach((f, idx) => {
+        const colX = 60 + idx * colW + colW / 2;
+        ctx.font = '24px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(f.icon, colX, featY);
+        ctx.fillStyle = '#6b4f14';
+        ctx.font = '900 10px sans-serif';
+        ctx.fillText(f.text, colX, featY + 22);
+        if (idx < 3) {
+          const divX = 60 + (idx + 1) * colW;
+          ctx.strokeStyle = '#d4af37';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(divX, featY - 14);
+          ctx.lineTo(divX, featY + 24);
+          ctx.stroke();
+        }
+      });
+
+      // 10. Cursive Motto
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#221609';
+      ctx.font = 'italic bold 23px "Brush Script MT", "Great Vibes", "Lucida Calligraphy", cursive';
+      ctx.fillText('Invite Friends  \u2022  Play Together  \u2022  Win Big', width / 2, 955);
+
+      // 11. Referral Code Box
+      const codeBoxW = 360;
+      const codeBoxH = 36;
+      const codeBoxX = (width - codeBoxW) / 2;
+      const codeBoxY = 988;
+
+      ctx.fillStyle = '#fbf6ea';
+      ctx.beginPath();
+      ctx.roundRect(codeBoxX, codeBoxY, codeBoxW, codeBoxH, 10);
+      ctx.fill();
+      ctx.strokeStyle = '#c59b27';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = '#664a10';
+      ctx.font = 'bold 14px monospace';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`MY REFERRAL CODE: ${refCode}`, width / 2, codeBoxY + codeBoxH / 2);
+      ctx.textBaseline = 'alphabetic';
+
+      // 12. Footer
+      ctx.fillStyle = '#9c8141';
+      ctx.font = '600 11px sans-serif';
+      ctx.fillText('Official Player Invitation \u2022 Powered by HDASE BINGO', width / 2, 1056);
+
+      return canvas;
+    } catch (e) {
+      console.error('Error generating invite canvas', e);
+      return null;
+    }
+  };
+
+  // Download the luxury branded invitation poster
+  const handleDownloadQR = () => {
+    const canvas = generateInviteCanvas();
+    if (!canvas) return;
+
+    try {
       const dataUrl = canvas.toDataURL('image/png');
       const a = document.createElement('a');
       a.href = dataUrl;
@@ -168,15 +412,15 @@ export default function Invite() {
   };
 
   const handleShareQR = () => {
-    const qrCanvas = qrCanvasRef.current;
-    if (qrCanvas && navigator.canShare) {
+    const canvas = generateInviteCanvas();
+    if (canvas && navigator.canShare) {
       try {
-        qrCanvas.toBlob(blob => {
+        canvas.toBlob(blob => {
           if (!blob) {
             handleShare();
             return;
           }
-          const file = new File([blob], `hdasebingo-qr-${user?.telegram_id || 'invite'}.png`, { type: 'image/png' });
+          const file = new File([blob], `hdasebingo-invite-${user?.telegram_id || 'invite'}.png`, { type: 'image/png' });
           if (navigator.canShare({ files: [file] })) {
             navigator.share({
               title: 'Hdasebingo Invite',
