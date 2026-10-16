@@ -454,6 +454,87 @@ export default function Agent() {
           </div>
         )}
 
+        {/* ─── HDASE BINGO HERO BANNER (Agent "See Games" CTA) ─── */}
+        {room && (
+          <div
+            onClick={() => {
+              triggerHaptic('medium');
+              setActiveTab('live');
+              setSelectedLiveStake(null);
+            }}
+            className="relative overflow-hidden rounded-3xl cursor-pointer active:scale-[.98] transition-all shadow-lg"
+            style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%)' }}
+          >
+            {/* Animated decorative blobs */}
+            <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full opacity-20 animate-pulse"
+              style={{ background: 'radial-gradient(circle, #f97316, transparent)' }} />
+            <div className="absolute -bottom-8 -left-4 w-24 h-24 rounded-full opacity-15 animate-pulse"
+              style={{ background: 'radial-gradient(circle, #fb923c, transparent)', animationDelay: '1s' }} />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full opacity-5"
+              style={{ background: 'radial-gradient(circle, #fbbf24, transparent)' }} />
+
+            {/* Scrolling room-name ticker at top */}
+            <div className="bg-black/30 px-3 py-1 overflow-hidden">
+              <div className="flex items-center space-x-6 text-[9px] font-black text-white/50 tracking-widest uppercase whitespace-nowrap animate-[marquee_12s_linear_infinite]">
+                {['• YOUR ROOM', `• ${room.room_name}`, '• LIVE BINGO', '• AGENT CONTROL', '• EARN COMMISSION', `• ${room.commission_rate ?? 8}% CUT`].map((t, i) => (
+                  <span key={i}>{t}</span>
+                ))}
+              </div>
+            </div>
+
+            {/* Main content */}
+            <div className="px-5 py-4 flex items-center justify-between">
+              <div className="space-y-1.5">
+                {/* Live indicator */}
+                <div className="flex items-center space-x-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
+                  <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">
+                    {activeGames.length > 0 ? `${activeGames.length} Tables Active` : 'Live Bingo'}
+                  </span>
+                </div>
+
+                {/* Big title */}
+                <div>
+                  <p className="text-2xl font-black leading-none text-white tracking-tight">
+                    HDASE{' '}
+                    <span className="text-orange-400">BINGO</span>
+                  </p>
+                  <p className="text-[10px] text-white/60 font-semibold mt-0.5">
+                    Monitor your room's live tables
+                  </p>
+                </div>
+
+                {/* CTA Button */}
+                <div className="inline-flex items-center space-x-1.5 bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded-full text-[11px] font-black shadow-md shadow-orange-500/30 mt-1">
+                  <Gamepad2 size={12} />
+                  <span>SEE GAMES →</span>
+                </div>
+              </div>
+
+              {/* Right side: stake quick-view badges */}
+              <div className="flex flex-col items-end space-y-1.5 shrink-0">
+                {[10, 20, 50, 100].map((stk) => {
+                  const hasGame = activeGames.some((g) => Number(g.stake) === stk);
+                  return (
+                    <div
+                      key={stk}
+                      className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[9px] font-black border ${
+                        hasGame
+                          ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-300'
+                          : 'bg-white/5 border-white/10 text-white/40'
+                      }`}
+                    >
+                      {hasGame && <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse inline-block" />}
+                      <span>{stk} ETB</span>
+                      {hasGame && <span className="text-emerald-400">●</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ─── TAB NAVIGATION BAR (Mobile-First Pills) ─── */}
         {room && (
           <div className="flex bg-slate-200/80 p-1 rounded-2xl space-x-1 text-[11px] font-black">
