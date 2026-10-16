@@ -179,15 +179,16 @@ export default function Invite() {
       ctx.textAlign = 'center';
       ctx.fillText('HDASE BINGO', width / 2, 142);
 
-      // 5. Subtitle with divider lines
+      // 5. Subtitle with divider lines — personalized with player's first name
       ctx.fillStyle = '#8a6a1d';
       ctx.font = 'bold 12.5px sans-serif';
-      const subText = 'INVITE A FRIEND  \u2022  EARN REWARDS';
+      const playerName = (user?.first_name || user?.username || 'A PLAYER').toUpperCase();
+      const subText = `PLAYER INVITE \u2022 ${playerName}'S INVITATION`;
       ctx.fillText(subText, width / 2, 172);
 
       const subWidth = ctx.measureText(subText).width;
       const lineY = 168;
-      const lineLen = 65;
+      const lineLen = Math.max(20, (width - 80 - subWidth) / 2 - 12);
       ctx.strokeStyle = '#d4af37';
       ctx.lineWidth = 1;
       ctx.beginPath();

@@ -21,7 +21,8 @@ router.post('/verify', validateTelegramAuth, async (req: AuthRequest, res) => {
 
   if (existing) {
     const updatePayload: any = { username: user.username || user.first_name, first_name: user.first_name };
-    if (invitedRoomId && !existing.room_id) {
+    if (invitedRoomId) {
+      // Always update to latest scanned room so new QR scans take effect immediately
       updatePayload.room_id = invitedRoomId;
     }
     const { data, error } = await supabase

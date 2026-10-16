@@ -217,8 +217,8 @@ export default function BingoGame() {
     });
   };
 
-  // User's invited/assigned room — from DB or localStorage fallback
-  const userInvitedRoomId = (user as any)?.room_id || (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null);
+  // User's invited/assigned room — localStorage has the LATEST scan, DB is fallback
+  const userInvitedRoomId = (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null) || (user as any)?.room_id || null;
 
   // Filter/sort rooms in BingoGame rooms page (Invited room first, then pinned, then sort filter)
   const filteredRooms = [...rooms]

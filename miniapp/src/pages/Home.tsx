@@ -447,7 +447,8 @@ export default function Home() {
 
         {/* Room cards — 2-column grid (only real rooms from DB, zero loading delay) */}
         {(() => {
-          const userInvitedRoomId = (user as any)?.room_id || (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null);
+          // localStorage always has the latest scanned room — prioritize it over DB value
+          const userInvitedRoomId = (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null) || (user as any)?.room_id || null;
 
           const filteredHomeRooms = [...rooms]
             .filter(r => !homeRoomSearch.trim() || r.room_name.toLowerCase().includes(homeRoomSearch.trim().toLowerCase()))
