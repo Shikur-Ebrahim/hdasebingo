@@ -217,10 +217,18 @@ export default function BingoGame() {
     });
   };
 
-  // Filter/sort rooms in BingoGame rooms page (Pinned rooms always at the top)
+  // User's invited/assigned room — from DB or localStorage fallback
+  const userInvitedRoomId = (user as any)?.room_id || (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null);
+
+  // Filter/sort rooms in BingoGame rooms page (Invited room first, then pinned, then sort filter)
   const filteredRooms = [...rooms]
     .filter(r => !roomSearch.trim() || r.room_name.toLowerCase().includes(roomSearch.trim().toLowerCase()))
     .sort((a, b) => {
+      // 1. User's invited/assigned room ALWAYS first
+      const aInv = Boolean(userInvitedRoomId && a.id === userInvitedRoomId);
+      const bInv = Boolean(userInvitedRoomId && b.id === userInvitedRoomId);
+      if (aInv !== bInv) return aInv ? -1 : 1;
+      // 2. Pinned rooms next
       if (Boolean(b.is_pinned) !== Boolean(a.is_pinned)) {
         return b.is_pinned ? 1 : -1;
       }
@@ -1141,15 +1149,22 @@ export default function BingoGame() {
             ) : (
               <div className="grid grid-cols-2 gap-3 pb-2">
                 {filteredRooms.map((room) => {
+                  const isInvitedRoom = Boolean(userInvitedRoomId && room.id === userInvitedRoomId);
                   return (
                     <div
                       key={room.id}
                       onClick={() => handleSelectRoom(room)}
-                      className="bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all duration-200 hover:shadow-md"
+                      className={`bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all duration-200 hover:shadow-md ${isInvitedRoom ? 'border-2 border-orange-500 ring-2 ring-orange-300/60' : 'border border-slate-200/90'}`}
                     >
                       {/* Same black header for all rooms */}
                       <div className="h-20 bg-black flex flex-col items-center justify-center relative px-2.5 text-center">
-                        {room.is_pinned && (
+                        {isInvitedRoom && (
+                          <div className="absolute top-2 left-2 flex items-center space-x-0.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
+                            <span>⭐</span>
+                            <span>YOUR ROOM</span>
+                          </div>
+                        )}
+                        {!isInvitedRoom && room.is_pinned && (
                           <div className="absolute top-2 left-2 flex items-center space-x-0.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
                             <span>📌</span>
                             <span>TOP</span>
