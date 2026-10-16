@@ -673,7 +673,7 @@ router.put('/users/:telegramId/balance', async (req, res) => {
 
 router.put('/users/:telegramId/role', async (req, res) => {
   const { role } = req.body;
-  if (!['user', 'agent', 'worker', 'admin'].includes(role)) { res.status(400).json({ error: 'Invalid role' }); return; }
+  if (!['user', 'agent', 'worker', 'promoter', 'admin'].includes(role)) { res.status(400).json({ error: 'Invalid role' }); return; }
   const { error } = await supabase.from('users').update({ role }).eq('telegram_id', req.params.telegramId);
   if (error) { res.status(500).json({ error: error.message }); return; }
   res.json({ success: true });
