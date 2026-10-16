@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { AuthRequest, validateTelegramAuth } from '../middleware/auth';
 import { supabase } from '../services/supabase';
+import { uploadToR2 } from '../services/r2';
 
 const router = Router();
 
@@ -559,6 +560,67 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /player/send-flyer — saves flyer to R2 and delivers high-res photo directly to user's Telegram chat so it can be saved to Gallery
+router.post('/send-flyer', validateTelegramAuth, async (req: AuthRequest, res) => {
+  try {
+    const telegramId = req.telegramUser!.id.toString();
+    const { image_base64, room_name } = req.body;
+
+    if (!image_base64) {
+      res.status(400).json({ error: 'image_base64 is required' });
+      return;
+    }
+
+    const base64Data = image_base64.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    const key = `flyers/${telegramId}/${Date.now()}_table_flyer.png`;
+    let publicUrl = '';
+    try {
+      publicUrl = await uploadToR2(key, buffer, 'image/png');
+    } catch (uploadErr) {
+      console.error('Error uploading flyer to R2:', uploadErr);
+    }
+
+    const botToken = process.env.BOT_TOKEN;
+    let botSent = false;
+
+    if (botToken && publicUrl) {
+      const caption = `🖼️ <b>Official Table Flyer • ${room_name || 'HDASE BINGO'}</b>\n\n` +
+        `📥 <b>To save directly to your Phone's Gallery:</b>\n` +
+        `1️⃣ Tap on this image to open it.\n` +
+        `2️⃣ Tap the <b>⋮</b> (three dots) in the top-right corner.\n` +
+        `3️⃣ Tap <b>"Save to Gallery"</b> (or Save to Downloads)!\n\n` +
+        `🖨️ <i>Ready for high-resolution printing for tables & flyers.</i>`;
+
+      try {
+        const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: telegramId,
+            photo: publicUrl,
+            caption,
+            parse_mode: 'HTML',
+          }),
+        });
+        botSent = tgRes.ok;
+      } catch (tgErr) {
+        console.error('Failed to send flyer photo via Telegram Bot API:', tgErr);
+      }
+    }
+
+    res.json({
+      success: true,
+      publicUrl,
+      botSent,
+    });
+  } catch (err: any) {
+    console.error('send-flyer error:', err);
+    res.status(500).json({ error: err.message || 'Internal server error' });
   }
 });
 

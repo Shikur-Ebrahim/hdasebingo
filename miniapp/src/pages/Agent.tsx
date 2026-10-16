@@ -35,7 +35,11 @@ import {
   Download,
   CheckCircle2,
   Crown,
-  Printer
+  Printer,
+  Send,
+  ExternalLink,
+  X,
+  Image
 } from 'lucide-react';
 
 interface AgentRoom {
@@ -131,6 +135,11 @@ export default function Agent() {
   const [customDateTo, setCustomDateTo] = useState('');
   const [downloaded, setDownloaded] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [isSavingFlyer, setIsSavingFlyer] = useState(false);
+  const [flyerModalOpen, setFlyerModalOpen] = useState(false);
+  const [flyerPreviewUrl, setFlyerPreviewUrl] = useState('');
+  const [flyerPublicUrl, setFlyerPublicUrl] = useState('');
+  const [flyerSentToTg, setFlyerSentToTg] = useState(false);
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   if (user?.role !== 'agent') {
@@ -231,9 +240,9 @@ export default function Agent() {
     });
   };
 
-  const handleDownloadQR = () => {
+  const generateFlyerCanvas = (): HTMLCanvasElement | null => {
     const qrCanvas = qrCanvasRef.current;
-    if (!qrCanvas || !room) return;
+    if (!qrCanvas || !room) return null;
 
     try {
       const canvas = document.createElement('canvas');
@@ -242,7 +251,7 @@ export default function Agent() {
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      if (!ctx) return null;
 
       // 1. Warm ivory luxury background (matching restaurant poster)
       const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
@@ -578,20 +587,148 @@ export default function Agent() {
       ctx.font = '600 11px sans-serif';
       ctx.fillText('Official Partner Network • Powered by HDASE BINGO', width / 2, 1056);
 
-      // Trigger download
+      return canvas;
+    } catch (e) {
+      console.error('Error generating flyer canvas', e);
+      return null;
+    }
+  };
+
+  const handleSaveToGallery = async () => {
+    if (!room || isSavingFlyer) return;
+    setIsSavingFlyer(true);
+    triggerHaptic('medium');
+
+    try {
+      const canvas = generateFlyerCanvas();
+      if (!canvas) {
+        setIsSavingFlyer(false);
+        return;
+      }
+
       const dataUrl = canvas.toDataURL('image/png');
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = `hdasebingo-table-flyer-${room.room_name.replace(/\s+/g, '_')}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      setFlyerPreviewUrl(dataUrl);
+
+      // Convert canvas to Blob
+      const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) {
+        setIsSavingFlyer(false);
+        return;
+      }
+
+      const fileName = `hdasebingo-table-flyer-${room.id}.png`;
+      const file = new File([blob], fileName, { type: 'image/png' });
+
+      // 1. Send to backend: uploads to R2 and delivers high-res photo to Telegram Chat
+      let publicUrl = '';
+      try {
+        const res = await fetch(`${API}/player/send-flyer`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-telegram-init-data': WebApp.initData,
+          },
+          body: JSON.stringify({
+            image_base64: dataUrl,
+            room_name: room.room_name,
+            room_id: room.id,
+          }),
+        });
+        if (res.ok) {
+          const resData = await res.json();
+          publicUrl = resData.publicUrl || '';
+          setFlyerPublicUrl(publicUrl);
+          setFlyerSentToTg(!!resData.botSent);
+        }
+      } catch (err) {
+        console.error('Failed to send flyer to backend:', err);
+      }
+
+      // 2. Telegram Native downloadFile (Telegram client 8.0+)
+      if (publicUrl && typeof WebApp !== 'undefined' && typeof (WebApp as any).downloadFile === 'function') {
+        try {
+          (WebApp as any).downloadFile({
+            url: publicUrl,
+            file_name: fileName,
+          }, (accepted: boolean) => {
+            console.log('Telegram downloadFile choice:', accepted);
+          });
+        } catch (tgErr) {
+          console.log('Telegram downloadFile error:', tgErr);
+        }
+      }
+
+      // 3. Web Share API (Android native share sheet -> allows user to tap "Save to device" / "Gallery" / "Photos")
+      if (typeof navigator !== 'undefined' && 'canShare' in navigator) {
+        try {
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: `${room.room_name} - Table Flyer`,
+              text: `Official Table Tent Flyer for HDASE BINGO Room "${room.room_name}"`,
+            });
+          }
+        } catch (shareErr) {
+          console.log('Native share closed/cancelled:', shareErr);
+        }
+      }
+
+      // 4. Browser fallback anchor download
+      try {
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+      } catch (aErr) {
+        console.log('Anchor click fallback error:', aErr);
+      }
 
       setDownloaded(true);
       triggerSuccessHaptic();
-      setTimeout(() => setDownloaded(false), 2500);
+      setFlyerModalOpen(true);
+      setTimeout(() => setDownloaded(false), 3000);
     } catch (e) {
-      console.error('Download flyer failed', e);
+      console.error('Error during flyer saving:', e);
+    } finally {
+      setIsSavingFlyer(false);
+    }
+  };
+
+  const handleDownloadQR = handleSaveToGallery;
+
+  const handleReShareFlyer = async () => {
+    if (!room) return;
+    const canvas = generateFlyerCanvas();
+    if (!canvas) return;
+    const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) return;
+    const file = new File([blob], `hdasebingo-table-flyer-${room.id}.png`, { type: 'image/png' });
+    if (typeof navigator !== 'undefined' && 'canShare' in navigator && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: `${room.room_name} - Table Flyer`,
+          text: `Official Table Tent Flyer for HDASE BINGO Room "${room.room_name}"`,
+        });
+      } catch (e) {
+        console.log('Share dismissed', e);
+      }
+    } else {
+      handleCopyRoomLink();
+    }
+  };
+
+  const handleOpenBotChat = () => {
+    triggerHaptic('medium');
+    const url = `https://t.me/${botUsername}`;
+    if (typeof WebApp !== 'undefined' && WebApp.openTelegramLink) {
+      WebApp.openTelegramLink(url);
+    } else {
+      window.open(url, '_blank');
     }
   };
 
@@ -1852,27 +1989,55 @@ export default function Agent() {
               </div>
             </div>
 
-            {/* DOWNLOAD FLYER BUTTON (High-Res Restaurant Table Poster) */}
-            <button
-              onClick={handleDownloadQR}
-              className={`w-full py-3.5 px-4 rounded-2xl font-black text-sm shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 border ${
-                downloaded
-                  ? 'bg-emerald-600 text-white border-emerald-600'
-                  : 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white border-orange-400 shadow-orange-500/25'
-              }`}
-            >
-              {downloaded ? (
-                <>
-                  <CheckCircle2 size={18} />
-                  <span>Poster Downloaded Successfully!</span>
-                </>
-              ) : (
-                <>
-                  <Download size={18} />
-                  <span>Download Printable Flyer (HD PNG)</span>
-                </>
-              )}
-            </button>
+            {/* DOWNLOAD & SAVE FLYER BUTTONS (High-Res Restaurant Table Poster) */}
+            <div className="space-y-2 w-full">
+              <button
+                onClick={handleSaveToGallery}
+                disabled={isSavingFlyer}
+                className={`w-full py-3.5 px-4 rounded-2xl font-black text-sm shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 border ${
+                  isSavingFlyer
+                    ? 'bg-amber-600 text-white border-amber-600 opacity-90 cursor-wait'
+                    : downloaded
+                    ? 'bg-emerald-600 text-white border-emerald-600'
+                    : 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white border-orange-400 shadow-orange-500/25'
+                }`}
+              >
+                {isSavingFlyer ? (
+                  <>
+                    <RefreshCw size={18} className="animate-spin text-white" />
+                    <span>Generating & Saving to Gallery...</span>
+                  </>
+                ) : downloaded ? (
+                  <>
+                    <CheckCircle2 size={18} />
+                    <span>Flyer Saved & Sent to Telegram Chat!</span>
+                  </>
+                ) : (
+                  <>
+                    <Download size={18} />
+                    <span>Save Poster to Gallery / Download (HD)</span>
+                  </>
+                )}
+              </button>
+
+              {/* Send directly to Telegram Chat button */}
+              <button
+                onClick={handleSaveToGallery}
+                disabled={isSavingFlyer}
+                className="w-full py-2.5 px-4 rounded-xl font-bold text-xs text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all active:scale-98 flex items-center justify-center gap-2 shadow-2xs"
+              >
+                <Send size={14} className="text-blue-600" />
+                <span>Send HD Poster to Telegram Chat (@{botUsername})</span>
+              </button>
+
+              {/* Helpful gallery tip banner */}
+              <div className="bg-amber-50/90 border border-amber-200/90 rounded-xl px-3 py-2 text-left flex items-start space-x-2">
+                <span className="text-sm leading-none mt-0.5">💡</span>
+                <p className="text-[10px] text-amber-900 leading-snug">
+                  <b>Guaranteed Gallery Save:</b> Tapping the button sends the HD poster straight to your Telegram chat with <b>@{botUsername}</b>. Open the photo in chat → tap ⋮ (top-right) → <b>"Save to Gallery"</b>!
+                </p>
+              </div>
+            </div>
 
             {/* Room ID Code Chip */}
             <div className="w-full flex items-center justify-between bg-white border border-slate-200 rounded-2xl px-3.5 py-2.5 shadow-2xs">
@@ -1931,9 +2096,103 @@ export default function Agent() {
             </div>
           </div>
         )}
-
-
       </div>
+
+      {/* Interactive Table Tent Flyer Modal */}
+      {flyerModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-sm max-h-[92vh] flex flex-col overflow-hidden shadow-2xl border border-amber-300">
+            {/* Header */}
+            <div className="px-4 py-3 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Sparkles size={18} className="text-yellow-200" />
+                <h3 className="font-black text-sm tracking-wide">Poster Ready & Delivered!</h3>
+              </div>
+              <button
+                onClick={() => setFlyerModalOpen(false)}
+                className="p-1 rounded-full hover:bg-white/20 active:scale-90 transition-all text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-3.5 overflow-y-auto space-y-3 text-center flex-1">
+              {/* Tip Card */}
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-2.5 text-left flex items-start space-x-2 shadow-2xs">
+                <span className="text-base leading-none">📱</span>
+                <div className="text-[11px] text-amber-900 leading-tight space-y-1">
+                  <p className="font-black text-amber-950">How to Save Directly to Gallery:</p>
+                  <p className="text-amber-800">
+                    1. <b>Long-press (press & hold)</b> the flyer photo below, then tap <b>"Save image"</b> or <b>"Download image"</b>.
+                  </p>
+                  {flyerSentToTg && (
+                    <p className="text-amber-800">
+                      2. We also sent this HD photo to your <b>Telegram Chat with @{botUsername}</b>! In chat, tap the photo → tap ⋮ (top-right) → <b>"Save to Gallery"</b>.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Flyer Photo Preview */}
+              {flyerPreviewUrl && (
+                <div className="relative mx-auto max-w-[240px] rounded-2xl overflow-hidden border-2 border-amber-400 shadow-md">
+                  <img
+                    src={flyerPreviewUrl}
+                    alt="HDASE BINGO Table Flyer"
+                    className="w-full h-auto object-contain select-auto pointer-events-auto"
+                  />
+                  <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md backdrop-blur-xs">
+                    HD 800×1150
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="space-y-2 pt-1">
+                {flyerSentToTg && (
+                  <button
+                    onClick={handleOpenBotChat}
+                    className="w-full py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 active:scale-98 transition-all"
+                  >
+                    <Send size={14} />
+                    <span>Open in Telegram Chat (@{botUsername})</span>
+                  </button>
+                )}
+
+                {typeof navigator !== 'undefined' && 'share' in navigator && (
+                  <button
+                    onClick={handleReShareFlyer}
+                    className="w-full py-2.5 px-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 active:scale-98 transition-all"
+                  >
+                    <Share2 size={14} />
+                    <span>Save / Share via Phone System</span>
+                  </button>
+                )}
+
+                {flyerPublicUrl && (
+                  <a
+                    href={flyerPublicUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl flex items-center justify-center gap-2 active:scale-98 transition-all border border-slate-200"
+                  >
+                    <ExternalLink size={14} />
+                    <span>Open Full Image in Browser</span>
+                  </a>
+                )}
+
+                <button
+                  onClick={() => setFlyerModalOpen(false)}
+                  className="w-full py-2 text-slate-500 hover:text-slate-700 font-bold text-xs rounded-xl"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
