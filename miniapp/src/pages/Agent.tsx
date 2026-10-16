@@ -33,7 +33,9 @@ import {
   ChevronRight,
   Info,
   Download,
-  CheckCircle2
+  CheckCircle2,
+  Crown,
+  Printer
 } from 'lucide-react';
 
 interface AgentRoom {
@@ -235,111 +237,361 @@ export default function Agent() {
 
     try {
       const canvas = document.createElement('canvas');
-      const width = 600;
-      const height = 750;
+      const width = 800;
+      const height = 1150;
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      // Dark luxury gradient background
-      const bgGrad = ctx.createLinearGradient(0, 0, width, height);
-      bgGrad.addColorStop(0, '#0f172a');
-      bgGrad.addColorStop(0.5, '#1e1b4b');
-      bgGrad.addColorStop(1, '#020617');
+      // 1. Warm ivory luxury background (matching restaurant poster)
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+      bgGrad.addColorStop(0, '#ffffff');
+      bgGrad.addColorStop(0.3, '#fdfcf9');
+      bgGrad.addColorStop(0.7, '#faf5ea');
+      bgGrad.addColorStop(1, '#f5edd9');
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, width, height);
 
-      // Ambient glows
-      ctx.fillStyle = 'rgba(249, 115, 22, 0.15)';
+      // Radial ambient lighting in center
+      const radial = ctx.createRadialGradient(width / 2, 450, 50, width / 2, 450, 550);
+      radial.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+      radial.addColorStop(1, 'rgba(245, 235, 215, 0)');
+      ctx.fillStyle = radial;
+      ctx.fillRect(0, 0, width, height);
+
+      // 2. Double gold ornate border frame
+      ctx.strokeStyle = '#c59b27';
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(20, 20, width - 40, height - 40);
+
+      ctx.strokeStyle = '#e6c86e';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(26, 26, width - 52, height - 52);
+
+      // Corner diamond ornaments
+      const drawDiamond = (x: number, y: number, s: number) => {
+        ctx.fillStyle = '#b8860b';
+        ctx.beginPath();
+        ctx.moveTo(x, y - s);
+        ctx.lineTo(x + s, y);
+        ctx.lineTo(x, y + s);
+        ctx.lineTo(x - s, y);
+        ctx.closePath();
+        ctx.fill();
+      };
+      drawDiamond(26, 26, 4);
+      drawDiamond(width - 26, 26, 4);
+      drawDiamond(26, height - 26, 4);
+      drawDiamond(width - 26, height - 26, 4);
+
+      // 3. Top Royal Crown & Medallion Emblem
+      const emblemY = 82;
+      const emblemX = width / 2;
+
+      // Gold Crown
+      ctx.fillStyle = '#d4af37';
       ctx.beginPath();
-      ctx.arc(120, 120, 160, 0, Math.PI * 2);
+      ctx.roundRect(emblemX - 22, emblemY - 34, 44, 7, 2);
       ctx.fill();
 
-      ctx.fillStyle = 'rgba(234, 179, 8, 0.12)';
+      // Crown spikes (5 peaks)
       ctx.beginPath();
-      ctx.arc(480, 640, 180, 0, Math.PI * 2);
+      ctx.moveTo(emblemX - 22, emblemY - 34);
+      ctx.lineTo(emblemX - 25, emblemY - 52);
+      ctx.lineTo(emblemX - 12, emblemY - 40);
+      ctx.lineTo(emblemX, emblemY - 56);
+      ctx.lineTo(emblemX + 12, emblemY - 40);
+      ctx.lineTo(emblemX + 25, emblemY - 52);
+      ctx.lineTo(emblemX + 22, emblemY - 34);
+      ctx.closePath();
       ctx.fill();
 
-      // Brand Title
-      ctx.fillStyle = '#f97316';
-      ctx.font = '900 36px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('HDASE BINGO', width / 2, 70);
+      // Crown pearls
+      ctx.fillStyle = '#fef08a';
+      [-25, -12, 0, 12, 25].forEach((px, idx) => {
+        const py = idx === 2 ? emblemY - 57 : (idx === 0 || idx === 4) ? emblemY - 53 : emblemY - 41;
+        ctx.beginPath();
+        ctx.arc(emblemX + px, py, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
 
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '600 16px sans-serif';
-      ctx.fillText(`Official Room: ${room.room_name}`, width / 2, 102);
-
-      // White card container with rounded corners
-      const cardX = 80;
-      const cardY = 135;
-      const cardW = 440;
-      const cardH = 440;
-      const radius = 24;
-
-      ctx.fillStyle = '#ffffff';
+      // Medallion Circle with HB Monogram
+      ctx.fillStyle = '#1c150c';
       ctx.beginPath();
-      ctx.roundRect(cardX, cardY, cardW, cardH, radius);
+      ctx.arc(emblemX, emblemY - 10, 24, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.strokeStyle = '#fdba74';
-      ctx.lineWidth = 4;
-      ctx.stroke();
-
-      // Draw QR code onto card
-      const qrDrawSize = 350;
-      const qrDrawX = (width - qrDrawSize) / 2;
-      const qrDrawY = cardY + 45;
-      ctx.drawImage(qrCanvas, qrDrawX, qrDrawY, qrDrawSize, qrDrawSize);
-
-      // Center HDASE BINGO Badge on card
-      const centerX = width / 2;
-      const centerY = qrDrawY + qrDrawSize / 2;
-      const badgeW = 100;
-      const badgeH = 42;
-      const badgeR = 10;
-      ctx.fillStyle = '#f97316';
-      ctx.beginPath();
-      ctx.roundRect(centerX - badgeW / 2, centerY - badgeH / 2, badgeW, badgeH, badgeR);
-      ctx.fill();
-      ctx.strokeStyle = '#ffffff';
+      ctx.strokeStyle = '#d4af37';
       ctx.lineWidth = 3;
       ctx.stroke();
 
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '900 11px sans-serif';
+      ctx.strokeStyle = '#fef08a';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(emblemX, emblemY - 10, 20, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Monogram text HB
+      ctx.fillStyle = '#fef08a';
+      ctx.font = '900 18px "Times New Roman", Georgia, serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('HDASE', centerX, centerY - 8);
-      ctx.font = '900 15px sans-serif';
-      ctx.fillText('BINGO', centerX, centerY + 8);
+      ctx.fillText('HB', emblemX, emblemY - 9);
       ctx.textBaseline = 'alphabetic';
 
-      // Room ID text
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 20px monospace';
-      ctx.fillText(`ROOM ID: ${room.id}`, width / 2, 625);
+      // Symmetrical scrolls
+      ctx.strokeStyle = '#c59b27';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(emblemX - 35, emblemY - 10);
+      ctx.bezierCurveTo(emblemX - 55, emblemY - 24, emblemX - 70, emblemY + 2, emblemX - 90, emblemY - 6);
+      ctx.stroke();
 
-      // Subtitle
-      ctx.fillStyle = '#fb923c';
-      ctx.font = 'bold 15px sans-serif';
-      ctx.fillText('Scan with Camera or Telegram to Join Official Room!', width / 2, 660);
+      ctx.beginPath();
+      ctx.moveTo(emblemX + 35, emblemY - 10);
+      ctx.bezierCurveTo(emblemX + 55, emblemY - 24, emblemX + 70, emblemY + 2, emblemX + 90, emblemY - 6);
+      ctx.stroke();
+
+      // 4. Main Title "HDASE BINGO" (like GRAND HERITAGE RETREAT)
+      ctx.fillStyle = '#140f09';
+      ctx.font = '900 40px "Times New Roman", Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('HDASE BINGO', width / 2, 142);
+
+      // 5. Subtitle "OFFICIAL AGENT ROOM • [NAME]" with divider lines
+      ctx.fillStyle = '#8a6a1d';
+      ctx.font = 'bold 12.5px sans-serif';
+      const subText = `OFFICIAL AGENT ROOM • ${room.room_name.toUpperCase()}`;
+      ctx.fillText(subText, width / 2, 172);
+
+      const subWidth = ctx.measureText(subText).width;
+      const lineY = 168;
+      const lineLen = 65;
+      ctx.strokeStyle = '#d4af37';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(width / 2 - subWidth / 2 - 12 - lineLen, lineY);
+      ctx.lineTo(width / 2 - subWidth / 2 - 12, lineY);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(width / 2 + subWidth / 2 + 12, lineY);
+      ctx.lineTo(width / 2 + subWidth / 2 + 12 + lineLen, lineY);
+      ctx.stroke();
+
+      // 6. Bold "SCAN TO PLAY" with wheat/arrow wings
+      const scanY = 224;
+      ctx.fillStyle = '#17120a';
+      ctx.font = '900 35px "Times New Roman", Georgia, sans-serif';
+      ctx.fillText('SCAN TO PLAY', width / 2, scanY);
+
+      const scanWidth = ctx.measureText('SCAN TO PLAY').width;
+      const wingLeftX = width / 2 - scanWidth / 2 - 25;
+      const wingRightX = width / 2 + scanWidth / 2 + 25;
+
+      const drawWing = (cx: number, cy: number, isRight: boolean) => {
+        ctx.fillStyle = '#c59b27';
+        const dir = isRight ? 1 : -1;
+        for (let i = -1; i <= 1; i++) {
+          ctx.beginPath();
+          ctx.ellipse(cx + dir * 10, cy + i * 8, 11, 4, (dir * (i * 25) * Math.PI) / 180, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.beginPath();
+        ctx.moveTo(cx + dir * 26, cy);
+        ctx.lineTo(cx + dir * 18, cy - 7);
+        ctx.lineTo(cx + dir * 18, cy + 7);
+        ctx.closePath();
+        ctx.fill();
+      };
+      drawWing(wingLeftX, scanY - 11, false);
+      drawWing(wingRightX, scanY - 11, true);
+
+      // 7. Gold Ribbon Banner "SCAN THE QR CODE TO Play & Win Daily!"
+      const ribbonW = 460;
+      const ribbonH = 40;
+      const ribbonX = (width - ribbonW) / 2;
+      const ribbonY = 248;
+
+      const ribGrad = ctx.createLinearGradient(ribbonX, ribbonY, ribbonX + ribbonW, ribbonY);
+      ribGrad.addColorStop(0, '#ebd596');
+      ribGrad.addColorStop(0.5, '#deb55b');
+      ribGrad.addColorStop(1, '#ebd596');
+      ctx.fillStyle = ribGrad;
+      ctx.beginPath();
+      ctx.roundRect(ribbonX, ribbonY, ribbonW, ribbonH, 20);
+      ctx.fill();
+
+      ctx.strokeStyle = '#a67718';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      const midRibY = ribbonY + ribbonH / 2;
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillStyle = '#3a2707';
+      const part1 = 'SCAN THE QR CODE TO ';
+      const p1W = ctx.measureText(part1).width;
+
+      ctx.font = 'italic bold 18px "Brush Script MT", "Great Vibes", "Lucida Calligraphy", cursive';
+      const part2 = 'Play & Win Cash!';
+      const p2W = ctx.measureText(part2).width;
+
+      const totalRibTextW = p1W + p2W;
+      const startRibTextX = width / 2 - totalRibTextW / 2;
+
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillStyle = '#3a2707';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(part1, startRibTextX, midRibY);
+
+      ctx.font = 'italic bold 19px "Brush Script MT", "Great Vibes", "Lucida Calligraphy", cursive';
+      ctx.fillStyle = '#831414'; // Ruby red cursive text
+      ctx.fillText(part2, startRibTextX + p1W, midRibY);
+      ctx.textBaseline = 'alphabetic';
+
+      // 8. Central White Card with Gold Border & QR Code
+      const cardW = 530;
+      const cardH = 530;
+      const cardX = (width - cardW) / 2;
+      const cardY = 308;
+      const cardRadius = 32;
+
+      ctx.shadowColor = 'rgba(120, 80, 20, 0.12)';
+      ctx.shadowBlur = 24;
+      ctx.shadowOffsetY = 8;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.roundRect(cardX, cardY, cardW, cardH, cardRadius);
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+
+      ctx.strokeStyle = '#c59b27';
+      ctx.lineWidth = 4.5;
+      ctx.stroke();
+
+      ctx.strokeStyle = '#fae596';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(cardX + 4, cardY + 4, cardW - 8, cardH - 8, cardRadius - 4);
+      ctx.stroke();
+
+      // Draw QR Code
+      const qrSize = 440;
+      const qrX = cardX + (cardW - qrSize) / 2;
+      const qrY = cardY + (cardH - qrSize) / 2;
+      ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
+
+      // Central HDASE BINGO Badge on QR Code
+      const centerBadgeW = 114;
+      const centerBadgeH = 50;
+      const centerBadgeX = width / 2 - centerBadgeW / 2;
+      const centerBadgeY = qrY + qrSize / 2 - centerBadgeH / 2;
+
+      const badgeGrad = ctx.createLinearGradient(centerBadgeX, centerBadgeY, centerBadgeX + centerBadgeW, centerBadgeY + centerBadgeH);
+      badgeGrad.addColorStop(0, '#f59e0b');
+      badgeGrad.addColorStop(1, '#d97706');
+      ctx.fillStyle = badgeGrad;
+      ctx.beginPath();
+      ctx.roundRect(centerBadgeX, centerBadgeY, centerBadgeW, centerBadgeH, 12);
+      ctx.fill();
+
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3.5;
+      ctx.stroke();
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 10.5px sans-serif';
+      ctx.fillText('HDASE', width / 2, centerBadgeY + 18);
+      ctx.font = '900 16px sans-serif';
+      ctx.fillText('BINGO', width / 2, centerBadgeY + 38);
+
+      // 9. Bottom Section: 4 feature icons + motto
+      ctx.strokeStyle = '#c59b27';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(width / 2, 830, 360, 0.25 * Math.PI, 0.75 * Math.PI);
+      ctx.stroke();
+
+      const featY = 880;
+      const feats = [
+        { icon: '🏆', text: 'JACKPOT' },
+        { icon: '⚡', text: 'INSTANT PAY' },
+        { icon: '🎱', text: '75 BINGO' },
+        { icon: '🛡️', text: 'VERIFIED' }
+      ];
+
+      const colW = (width - 120) / 4;
+      feats.forEach((f, idx) => {
+        const colX = 60 + idx * colW + colW / 2;
+
+        ctx.font = '24px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(f.icon, colX, featY);
+
+        ctx.fillStyle = '#6b4f14';
+        ctx.font = '900 10px sans-serif';
+        ctx.fillText(f.text, colX, featY + 22);
+
+        if (idx < 3) {
+          const divX = 60 + (idx + 1) * colW;
+          ctx.strokeStyle = '#d4af37';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(divX, featY - 14);
+          ctx.lineTo(divX, featY + 24);
+          ctx.stroke();
+        }
+      });
+
+      // 10. Cursive Motto "Real Players • Good Luck • Big Wins"
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#221609';
+      ctx.font = 'italic bold 23px "Brush Script MT", "Great Vibes", "Lucida Calligraphy", cursive';
+      ctx.fillText('Real Players  •  Good Luck  •  Big Wins', width / 2, 955);
+
+      // 11. Official Room ID Box
+      const codeBoxW = 340;
+      const codeBoxH = 34;
+      const codeBoxX = (width - codeBoxW) / 2;
+      const codeBoxY = 990;
+
+      ctx.fillStyle = '#fbf6ea';
+      ctx.beginPath();
+      ctx.roundRect(codeBoxX, codeBoxY, codeBoxW, codeBoxH, 10);
+      ctx.fill();
+
+      ctx.strokeStyle = '#c59b27';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.fillStyle = '#664a10';
+      ctx.font = 'bold 12.5px monospace';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`ROOM ID: ${room.id}`, width / 2, codeBoxY + codeBoxH / 2);
+      ctx.textBaseline = 'alphabetic';
+
+      // 12. Footer
+      ctx.fillStyle = '#9c8141';
+      ctx.font = '600 11px sans-serif';
+      ctx.fillText('Official Partner Network • Powered by HDASE BINGO', width / 2, 1056);
 
       // Trigger download
       const dataUrl = canvas.toDataURL('image/png');
       const a = document.createElement('a');
       a.href = dataUrl;
-      a.download = `hdasebingo-room-${room.room_name.replace(/\s+/g, '_')}-qr.png`;
+      a.download = `hdasebingo-table-flyer-${room.room_name.replace(/\s+/g, '_')}.png`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
 
       setDownloaded(true);
       triggerSuccessHaptic();
-      setTimeout(() => setDownloaded(false), 2000);
+      setTimeout(() => setDownloaded(false), 2500);
     } catch (e) {
-      console.error('Download QR failed', e);
+      console.error('Download flyer failed', e);
     }
   };
 
@@ -1483,53 +1735,147 @@ export default function Agent() {
           </div>
         )}
 
-        {/* ─── TAB 4: ROOM LINK & QR CODE (Invite.tsx Style) ─── */}
+        {/* ─── TAB 4: ROOM LINK & PRINTABLE FLYER (Restaurant Flyer Style) ─── */}
         {room && activeTab === 'qr' && (
-          <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-sm flex flex-col items-center shrink-0 space-y-3 animate-in fade-in duration-200">
-            {/* Top header status */}
-            <div className="flex items-center justify-between w-full px-1">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                  Official Room QR Code
-                </span>
-              </div>
-              <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-200">
-                {room.commission_rate ?? 8}% Commission
-              </span>
-            </div>
-
-            {/* QR Code Frame with interactive scanner corners */}
-            <div className="relative p-3.5 bg-gradient-to-b from-orange-50/80 to-amber-50/60 rounded-2xl border border-orange-200 shadow-inner">
-              {/* Corner brackets */}
-              <div className="absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 border-orange-500 rounded-tl-sm pointer-events-none" />
-              <div className="absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2 border-orange-500 rounded-tr-sm pointer-events-none" />
-              <div className="absolute bottom-2 left-2 w-4 h-4 border-b-2 border-l-2 border-orange-500 rounded-bl-sm pointer-events-none" />
-              <div className="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-orange-500 rounded-br-sm pointer-events-none" />
-
-              <div className="bg-white p-3 rounded-xl shadow-xs relative">
-                <QRCodeCanvas
-                  ref={qrCanvasRef}
-                  value={roomInviteLink}
-                  size={190}
-                  level="H"
-                  includeMargin={false}
-                  fgColor="#0f172a"
-                  bgColor="#ffffff"
-                />
-
-                {/* Center HDASE BINGO Badge */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="bg-gradient-to-r from-amber-500 to-yellow-400 border-2 border-white shadow-lg rounded-xl px-2.5 py-1 flex flex-col items-center justify-center" style={{ minWidth: 68 }}>
-                    <span className="text-[8px] font-black text-white/80 uppercase tracking-widest leading-none">HDASE</span>
-                    <span className="text-[11px] font-black text-white leading-none tracking-wider">BINGO</span>
+          <div className="space-y-4 animate-in fade-in duration-200">
+            {/* Printable Table Flyer Preview Card */}
+            <div
+              className="relative overflow-hidden rounded-3xl border-2 border-[#c59b27] p-4 text-center shadow-md"
+              style={{
+                background: 'linear-gradient(180deg, #ffffff 0%, #fdfcf9 40%, #faf4e8 100%)',
+              }}
+            >
+              {/* Inner thin gold accent border */}
+              <div className="border border-[#e6c86e]/70 rounded-2xl p-3.5 space-y-2.5">
+                {/* 1. Royal Crown & Medallion Emblem */}
+                <div className="flex flex-col items-center justify-center">
+                  <div className="flex items-center space-x-1.5 text-[#b8860b]">
+                    <span className="w-8 h-px bg-[#d4af37]" />
+                    <Crown size={22} className="text-[#d4af37] fill-[#d4af37]/20 drop-shadow-xs" />
+                    <span className="w-8 h-px bg-[#d4af37]" />
+                  </div>
+                  {/* Circular Medallion */}
+                  <div className="w-9 h-9 rounded-full bg-[#1b140c] border-2 border-[#d4af37] ring-1 ring-[#fef08a] flex items-center justify-center mt-1 shadow-sm">
+                    <span className="font-serif font-black text-xs text-[#fef08a] tracking-wider">HB</span>
                   </div>
                 </div>
+
+                {/* 2. Main Title "HDASE BINGO" (like GRAND HERITAGE RETREAT) */}
+                <div>
+                  <h3 className="font-serif font-black text-2xl tracking-[0.15em] text-[#140f09] uppercase drop-shadow-2xs">
+                    HDASE BINGO
+                  </h3>
+                  <div className="flex items-center justify-center space-x-2 text-[10px] font-bold text-[#8a6a1d] uppercase tracking-wider mt-0.5">
+                    <span className="w-6 h-px bg-[#d4af37]" />
+                    <span>Official Agent Room • {room.room_name}</span>
+                    <span className="w-6 h-px bg-[#d4af37]" />
+                  </div>
+                </div>
+
+                {/* 3. Bold "SCAN TO PLAY" */}
+                <div className="flex items-center justify-center space-x-2 pt-0.5">
+                  <span className="text-[#c59b27] font-black text-sm">⮞</span>
+                  <span className="font-serif font-black text-lg text-[#140f09] tracking-wider">
+                    SCAN TO PLAY
+                  </span>
+                  <span className="text-[#c59b27] font-black text-sm">⮜</span>
+                </div>
+
+                {/* 4. Golden Ribbon Banner */}
+                <div
+                  className="mx-auto px-4 py-1.5 rounded-full border border-[#a67718] shadow-2xs max-w-xs flex items-center justify-center space-x-1"
+                  style={{
+                    background: 'linear-gradient(90deg, #ebd596 0%, #deb55b 50%, #ebd596 100%)',
+                  }}
+                >
+                  <span className="text-[10px] font-black text-[#3a2707] uppercase tracking-wider">
+                    Scan the QR code to
+                  </span>
+                  <span className="font-serif italic font-black text-xs text-[#831414]">
+                    Play & Win Cash!
+                  </span>
+                </div>
+
+                {/* 5. Central White QR Code Card with double gold border */}
+                <div className="relative mx-auto w-fit p-3 bg-white rounded-3xl border-[3px] border-[#c59b27] ring-2 ring-[#fae596] shadow-sm my-1">
+                  {/* Corner decorative brackets */}
+                  <div className="absolute top-2 left-2 w-3.5 h-3.5 border-t-2 border-l-2 border-[#b8860b] rounded-tl-sm pointer-events-none" />
+                  <div className="absolute top-2 right-2 w-3.5 h-3.5 border-t-2 border-r-2 border-[#b8860b] rounded-tr-sm pointer-events-none" />
+                  <div className="absolute bottom-2 left-2 w-3.5 h-3.5 border-b-2 border-l-2 border-[#b8860b] rounded-bl-sm pointer-events-none" />
+                  <div className="absolute bottom-2 right-2 w-3.5 h-3.5 border-b-2 border-r-2 border-[#b8860b] rounded-br-sm pointer-events-none" />
+
+                  <div className="relative">
+                    <QRCodeCanvas
+                      ref={qrCanvasRef}
+                      value={roomInviteLink}
+                      size={200}
+                      level="H"
+                      includeMargin={false}
+                      fgColor="#0f172a"
+                      bgColor="#ffffff"
+                    />
+
+                    {/* Center HDASE BINGO Badge */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="bg-gradient-to-r from-amber-500 to-yellow-400 border-2 border-white shadow-lg rounded-xl px-2.5 py-1 flex flex-col items-center justify-center" style={{ minWidth: 68 }}>
+                        <span className="text-[8px] font-black text-white/80 uppercase tracking-widest leading-none">HDASE</span>
+                        <span className="text-[11px] font-black text-white leading-none tracking-wider">BINGO</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 6. 4 Features row (Jackpot, Instant Pay, 75 Bingo, 100% Safe) */}
+                <div className="grid grid-cols-4 divide-x divide-[#d4af37]/50 pt-1 text-center">
+                  <div className="px-1">
+                    <p className="text-sm">🏆</p>
+                    <p className="text-[8.5px] font-black text-[#6b4f14] uppercase">Jackpot</p>
+                  </div>
+                  <div className="px-1">
+                    <p className="text-sm">⚡</p>
+                    <p className="text-[8.5px] font-black text-[#6b4f14] uppercase">Instant</p>
+                  </div>
+                  <div className="px-1">
+                    <p className="text-sm">🎱</p>
+                    <p className="text-[8.5px] font-black text-[#6b4f14] uppercase">75 Bingo</p>
+                  </div>
+                  <div className="px-1">
+                    <p className="text-sm">🛡️</p>
+                    <p className="text-[8.5px] font-black text-[#6b4f14] uppercase">Verified</p>
+                  </div>
+                </div>
+
+                {/* 7. Cursive motto (like Good Food • Good Mood • Good Time) */}
+                <p className="font-serif italic font-bold text-xs text-[#221609] pt-0.5">
+                  Real Players &nbsp;•&nbsp; Good Luck &nbsp;•&nbsp; Big Wins
+                </p>
               </div>
             </div>
 
-            {/* Room ID Code Chip — invitation code is the room ID */}
-            <div className="w-full flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+            {/* DOWNLOAD FLYER BUTTON (High-Res Restaurant Table Poster) */}
+            <button
+              onClick={handleDownloadQR}
+              className={`w-full py-3.5 px-4 rounded-2xl font-black text-sm shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 border ${
+                downloaded
+                  ? 'bg-emerald-600 text-white border-emerald-600'
+                  : 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white border-orange-400 shadow-orange-500/25'
+              }`}
+            >
+              {downloaded ? (
+                <>
+                  <CheckCircle2 size={18} />
+                  <span>Poster Downloaded Successfully!</span>
+                </>
+              ) : (
+                <>
+                  <Download size={18} />
+                  <span>Download Printable Flyer (HD PNG)</span>
+                </>
+              )}
+            </button>
+
+            {/* Room ID Code Chip */}
+            <div className="w-full flex items-center justify-between bg-white border border-slate-200 rounded-2xl px-3.5 py-2.5 shadow-2xs">
               <div className="flex flex-col text-left truncate mr-2">
                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
                   Room Invitation Code
@@ -1540,7 +1886,7 @@ export default function Agent() {
               </div>
               <button
                 onClick={handleCopyRoomCode}
-                className="shrink-0 px-2.5 py-1 bg-white text-slate-700 border border-slate-200 rounded-lg text-[10px] font-bold active:scale-95 transition-all flex items-center gap-1 shadow-2xs"
+                className="shrink-0 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-[10px] font-bold active:scale-95 transition-all flex items-center gap-1 shadow-2xs"
               >
                 {copiedCode ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
                 <span>{copiedCode ? 'Copied' : 'Copy'}</span>
@@ -1548,13 +1894,13 @@ export default function Agent() {
             </div>
 
             {/* Link display & copy */}
-            <div className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+            <div className="w-full p-2.5 bg-white rounded-2xl border border-slate-200 flex items-center justify-between shadow-2xs">
               <span className="font-mono text-[11px] text-slate-600 truncate mr-2 select-all">
                 {roomInviteLink}
               </span>
               <button
                 onClick={handleCopyRoomLink}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black shrink-0 transition-all active:scale-95 ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-black shrink-0 transition-all active:scale-95 ${
                   copiedLink ? 'bg-emerald-600 text-white' : 'bg-orange-500 text-white'
                 }`}
               >
@@ -1562,31 +1908,17 @@ export default function Agent() {
               </button>
             </div>
 
-            {/* Action Buttons Row: Download QR Poster & Share to Telegram */}
-            <div className="grid grid-cols-2 gap-2 w-full">
-              <button
-                onClick={handleDownloadQR}
-                className={`py-2.5 px-3 rounded-xl font-black text-xs shadow-xs transition-all active:scale-95 flex items-center justify-center gap-1.5 border ${
-                  downloaded 
-                    ? 'bg-emerald-500 text-white border-emerald-500' 
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                {downloaded ? <CheckCircle2 size={15} /> : <Download size={15} className="text-orange-500" />}
-                <span>{downloaded ? 'Saved Poster!' : 'Save Poster'}</span>
-              </button>
-
-              <button
-                onClick={handleShareRoom}
-                className="py-2.5 px-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-black text-xs shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 hover:opacity-95"
-              >
-                <Share2 size={15} />
-                <span>Share Link</span>
-              </button>
-            </div>
+            {/* Share to Telegram button */}
+            <button
+              onClick={handleShareRoom}
+              className="w-full py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl font-black text-xs shadow-sm transition-all active:scale-98 flex items-center justify-center gap-2"
+            >
+              <Share2 size={15} className="text-orange-400" />
+              <span>Share Link to Telegram Chats / Channels</span>
+            </button>
 
             {/* Commission Rule Info */}
-            <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3 text-left space-y-1.5 w-full">
+            <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3.5 text-left space-y-1.5 w-full">
               <div className="flex items-center space-x-1.5 text-amber-800 font-black text-[11px]">
                 <Info size={13} className="text-amber-600" />
                 <span>How Your Agent Commission Works</span>
