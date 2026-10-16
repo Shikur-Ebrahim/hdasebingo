@@ -1159,15 +1159,8 @@ export default function BingoGame() {
                       {/* Same black header for all rooms */}
                       <div className="h-20 bg-black flex flex-col items-center justify-center relative px-2.5 text-center">
                         {isInvitedRoom && (
-                          <div className="absolute top-2 left-2 flex items-center space-x-0.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
+                          <div className="absolute top-2 left-2 flex items-center justify-center bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[10px] w-5 h-5 rounded-full shadow-sm">
                             <span>⭐</span>
-                            <span>YOUR ROOM</span>
-                          </div>
-                        )}
-                        {!isInvitedRoom && room.is_pinned && (
-                          <div className="absolute top-2 left-2 flex items-center space-x-0.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
-                            <span>📌</span>
-                            <span>TOP</span>
                           </div>
                         )}
                         <div className="absolute top-2 right-2 flex items-center space-x-1 bg-white/10 px-1.5 py-0.5 rounded-full">

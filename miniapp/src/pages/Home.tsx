@@ -492,24 +492,16 @@ export default function Home() {
                     className={`bg-white dark:bg-slate-900 rounded-xl shadow-sm border overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all ${
                       isInvitedRoom
                         ? 'border-orange-500 ring-2 ring-orange-400/50 shadow-orange-500/10'
-                        : room.is_pinned
-                        ? 'border-amber-400/80 ring-1 ring-amber-400/40 shadow-amber-500/10'
                         : 'border-gray-100 dark:border-slate-800'
                     }`}
                   >
                     {/* Header for room card */}
                     <div className="h-16 bg-black flex flex-col items-center justify-center relative px-2 text-center">
-                      {isInvitedRoom ? (
-                        <div className="absolute top-2 left-2 flex items-center space-x-0.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
+                      {isInvitedRoom && (
+                        <div className="absolute top-2 left-2 flex items-center justify-center bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[10px] w-5 h-5 rounded-full shadow-sm">
                           <span>⭐</span>
-                          <span>YOUR ROOM</span>
                         </div>
-                      ) : room.is_pinned ? (
-                        <div className="absolute top-2 left-2 flex items-center space-x-0.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
-                          <span>📌</span>
-                          <span>TOP</span>
-                        </div>
-                      ) : null}
+                      )}
                       <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm" />
                       <span className="text-white font-black text-sm leading-tight line-clamp-2 px-1">
                         {room.room_name}
