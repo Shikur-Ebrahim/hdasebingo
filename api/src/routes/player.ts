@@ -445,7 +445,19 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
       .eq('room_id', room.id)
       .in('status', ['waiting', 'calling'])
       .order('created_at', { ascending: false });
-    const activeGames = games || [];
+    const activeGames = (games || []).map((g: any) => {
+      const stake = Number(g.stake || 0);
+      const players = Number(g.total_players || 0);
+      const rawPool = Number(g.prize_pool || 0);
+      const totalPot = (players >= 3 && rawPool > 0)
+        ? Math.round(rawPool / 0.8)
+        : (rawPool || stake * players);
+      return {
+        ...g,
+        prize_pool: totalPot,
+        winner_prize: rawPool,
+      };
+    });
 
     // 2. Fetch recent finished games (up to 30) for history report
     const { data: finishedGames } = await supabase
@@ -459,14 +471,19 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
     const mappedRecentGames = (finishedGames || []).map((g: any) => {
       const stake = Number(g.stake || 0);
       const players = Number(g.total_players || 0);
-      const pot = Number(g.prize_pool || (stake * players) || 0);
-      const comm = players >= 3 ? Number(((pot * commRate) / 100).toFixed(2)) : 0;
+      const winnerPrize = Number(g.winner_prize || 0);
+      const rawPool = Number(g.prize_pool || winnerPrize || 0);
+      // Winner prize is 80% when players >= 3; raw total stake (100% pot) is rawPool / 0.8
+      const totalAmount = (players >= 3 && rawPool > 0)
+        ? Math.round(rawPool / 0.8) 
+        : (rawPool || (stake * players) || 0);
+      const comm = players >= 3 ? Number(((totalAmount * commRate) / 100).toFixed(2)) : 0;
       return {
         id: g.id,
         stake,
         total_players: players,
-        prize_pool: pot,
-        winner_prize: Number(g.winner_prize || 0),
+        prize_pool: totalAmount,
+        winner_prize: winnerPrize || (players >= 3 ? Math.floor(totalAmount * 0.8) : totalAmount),
         winner_first_name: g.winner_first_name || 'Anonymous',
         winner_cartela: g.winner_cartela,
         agent_commission: comm,
@@ -516,10 +533,15 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
     let totalPotVolume = 0;
 
     (allFinished || []).forEach((g: any) => {
-      const pot = Number(g.prize_pool || (Number(g.stake || 0) * Number(g.total_players || 0)) || 0);
-      const comm = (Number(g.total_players || 0) >= 3) ? Number(((pot * commRate) / 100).toFixed(2)) : 0;
+      const stake = Number(g.stake || 0);
+      const players = Number(g.total_players || 0);
+      const rawPool = Number(g.prize_pool || 0);
+      const totalAmount = (players >= 3 && rawPool > 0)
+        ? Math.round(rawPool / 0.8)
+        : (rawPool || (stake * players) || 0);
+      const comm = (players >= 3) ? Number(((totalAmount * commRate) / 100).toFixed(2)) : 0;
 
-      totalPotVolume += pot;
+      totalPotVolume += totalAmount;
       totalCommissionAllTime += comm;
 
       const fDate = (g.finished_at || g.created_at || '').split('T')[0];
@@ -531,7 +553,7 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
       if (daysMap[fDate]) {
         daysMap[fDate].games_count += 1;
         daysMap[fDate].commission = Number((daysMap[fDate].commission + comm).toFixed(2));
-        daysMap[fDate].volume = Number((daysMap[fDate].volume + pot).toFixed(2));
+        daysMap[fDate].volume = Number((daysMap[fDate].volume + totalAmount).toFixed(2));
       }
     });
 

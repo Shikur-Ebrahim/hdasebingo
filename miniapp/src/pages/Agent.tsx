@@ -105,6 +105,20 @@ const formatGameId = (id: string | null | undefined): string => {
   return id.replace(/-/g, '').substring(0, 8).toUpperCase();
 };
 
+const formatAmount = (num: number | string | undefined | null): string => {
+  if (num === undefined || num === null || isNaN(Number(num))) return '0';
+  const val = Number(num);
+  if (Math.abs(val) >= 1_000_000) {
+    const formatted = (val / 1_000_000).toFixed(val % 1_000_000 === 0 ? 0 : 1);
+    return `${formatted}M`;
+  }
+  if (Math.abs(val) >= 1_000) {
+    const formatted = (val / 1_000).toFixed(val % 1_000 === 0 ? 0 : 1);
+    return `${formatted}k`;
+  }
+  return val % 1 === 0 ? val.toString() : Number(val.toFixed(2)).toString();
+};
+
 export default function Agent() {
   const { user, fetchUser } = useGameStore();
   const navigate = useNavigate();
@@ -1236,7 +1250,7 @@ export default function Agent() {
                               : 'text-slate-400 opacity-70 group-hover:opacity-100'
                           }`}
                         >
-                          {chartMetric === 'games' ? val : Math.round(val)}
+                          {chartMetric === 'games' ? val : formatAmount(val)}
                         </span>
 
                         {/* Bar Pillar */}
@@ -1293,7 +1307,7 @@ export default function Agent() {
                   <div className="text-right">
                     <p className="text-[10px] font-bold text-slate-400 uppercase leading-none">Commission</p>
                     <p className="text-xs font-black text-emerald-600 mt-0.5">
-                      +{selectedDay.commission} ETB
+                      +{formatAmount(selectedDay.commission)} ETB
                     </p>
                   </div>
                 </div>
@@ -1303,12 +1317,12 @@ export default function Agent() {
               <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 text-center">
                 <div className="bg-slate-50/70 p-2 rounded-xl">
                   <span className="text-[9px] text-slate-400 font-bold uppercase">Today's Earned:</span>{' '}
-                  <span className="text-xs font-black text-emerald-600">+{stats?.today_commission ?? 0} ETB</span>
+                  <span className="text-xs font-black text-emerald-600">+{formatAmount(stats?.today_commission ?? 0)} ETB</span>
                 </div>
                 <div className="bg-slate-50/70 p-2 rounded-xl">
                   <span className="text-[9px] text-slate-400 font-bold uppercase">7-Day Total Pot:</span>{' '}
                   <span className="text-xs font-black text-slate-800">
-                    {chartData.reduce((acc, c) => acc + c.volume, 0).toLocaleString()} ETB
+                    {formatAmount(chartData.reduce((acc, c) => acc + c.volume, 0))} ETB
                   </span>
                 </div>
               </div>
@@ -1332,8 +1346,12 @@ export default function Agent() {
           // If a stake is selected, show detail view
           if (selectedLiveStake !== null) {
             const detailGame = gameForStake(selectedLiveStake);
+            const rawPool = Number(detailGame?.prize_pool || 0);
+            const players = Number(detailGame?.total_players || 0);
             const estPot = detailGame
-              ? detailGame.prize_pool || detailGame.stake * (detailGame.total_players || 0)
+              ? (players >= 3 && rawPool > 0
+                  ? Math.round(rawPool / 0.8)
+                  : (rawPool || detailGame.stake * players))
               : 0;
             const estComm = (estPot * (room.commission_rate ?? 8)) / 100;
             const lastWin = recentGames.find((g) => Number(g.stake) === selectedLiveStake);
@@ -1392,11 +1410,11 @@ export default function Agent() {
                           <p className="text-[9px] font-bold opacity-80 mt-0.5">Players</p>
                         </div>
                         <div className="bg-white/20 rounded-xl p-2 text-center">
-                          <p className="text-base font-black leading-none">{detailGame.prize_pool || estPot}</p>
+                          <p className="text-base font-black leading-none">{formatAmount(estPot)}</p>
                           <p className="text-[9px] font-bold opacity-80 mt-0.5">Pot (ETB)</p>
                         </div>
                         <div className="bg-white/20 rounded-xl p-2 text-center">
-                          <p className="text-base font-black leading-none">{Number(estComm.toFixed(1))}</p>
+                          <p className="text-base font-black leading-none">{formatAmount(estComm)}</p>
                           <p className="text-[9px] font-bold opacity-80 mt-0.5">Your Cut</p>
                         </div>
                       </div>
@@ -1411,7 +1429,7 @@ export default function Agent() {
                           </div>
                           <div>
                             <p className="text-[10px] font-bold text-slate-400 uppercase">Est. Agent Commission</p>
-                            <p className="text-sm font-black text-emerald-600">+{Number(estComm.toFixed(2))} ETB</p>
+                            <p className="text-sm font-black text-emerald-600">+{formatAmount(estComm)} ETB</p>
                           </div>
                         </div>
                         <div className="text-right">
@@ -1473,8 +1491,8 @@ export default function Agent() {
                         )}
                       </div>
                       <div className="text-right">
-                        <p className="text-xs font-black text-amber-600">{lastWin.winner_prize} ETB</p>
-                        <p className="text-[9px] text-emerald-600 font-bold">Your cut: +{lastWin.agent_commission} ETB</p>
+                        <p className="text-xs font-black text-amber-600">{formatAmount(lastWin.winner_prize)} ETB</p>
+                        <p className="text-[9px] text-emerald-600 font-bold">Your cut: +{formatAmount(lastWin.agent_commission)} ETB</p>
                       </div>
                     </div>
                   </div>
@@ -1507,7 +1525,11 @@ export default function Agent() {
                 {allStakes.map((stk) => {
                   const game = gameForStake(stk);
                   const isLive = !!game;
-                  const estPot = game ? (game.prize_pool || stk * (game.total_players || 0)) : 0;
+                  const estPot = game
+                    ? (Number(game.total_players) >= 3 && game.prize_pool
+                        ? Math.round(game.prize_pool / 0.8)
+                        : (game.prize_pool || stk * (game.total_players || 0)))
+                    : 0;
                   const estComm = (estPot * (room.commission_rate ?? 8)) / 100;
                   const lastW = recentGames.find((g) => Number(g.stake) === stk);
 
@@ -1558,7 +1580,7 @@ export default function Agent() {
                           </div>
                           <div className="flex items-center justify-between">
                             <span className="text-[9px] font-bold text-white/70">Est. Comm</span>
-                            <span className="text-xs font-black text-white">+{Number(estComm.toFixed(1))} ETB</span>
+                            <span className="text-xs font-black text-white">+{formatAmount(estComm)} ETB</span>
                           </div>
                         </div>
                       ) : (
@@ -1572,7 +1594,7 @@ export default function Agent() {
                           <div className="flex items-center justify-between">
                             <span className="text-[9px] font-bold text-slate-400">Last Comm</span>
                             <span className="text-[9px] font-black text-emerald-600">
-                              {lastW ? `+${lastW.agent_commission} ETB` : '—'}
+                              {lastW ? `+${formatAmount(lastW.agent_commission)} ETB` : '—'}
                             </span>
                           </div>
                         </div>
@@ -1602,10 +1624,12 @@ export default function Agent() {
                 </div>
                 <div className="bg-white rounded-xl p-2.5 border border-slate-100 shadow-2xs text-center">
                   <p className="text-sm font-black text-emerald-600">
-                    {activeGames.reduce((acc, g) => {
-                      const pot = g.prize_pool || g.stake * (g.total_players || 0);
+                    +{formatAmount(activeGames.reduce((acc, g) => {
+                      const raw = Number(g.prize_pool || 0);
+                      const players = Number(g.total_players || 0);
+                      const pot = players >= 3 && raw > 0 ? Math.round(raw / 0.8) : (raw || g.stake * players);
                       return acc + (pot * (room.commission_rate ?? 8)) / 100;
-                    }, 0).toFixed(1)}
+                    }, 0))} ETB
                   </p>
                   <p className="text-[9px] text-slate-400 font-bold">Est. Comm</p>
                 </div>
@@ -1793,7 +1817,7 @@ export default function Agent() {
             <div className="flex items-center justify-between bg-slate-100/90 px-3 py-1.5 rounded-xl text-[10px] text-slate-600 font-bold">
               <span>Showing {filteredReportGames.length} of {recentGames.length} games</span>
               <span className="text-emerald-700 font-black">
-                Total Comm: +{filteredCommissionSum.toFixed(2)} ETB
+                Total Comm: +{formatAmount(filteredCommissionSum)} ETB
               </span>
             </div>
 
@@ -1824,7 +1848,7 @@ export default function Agent() {
 
                         {/* Commission Badge (NO $ sign) */}
                         <div className="inline-flex items-center space-x-1 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full text-emerald-700 font-black">
-                          <span>+{game.agent_commission} ETB</span>
+                          <span>+{formatAmount(game.agent_commission)} ETB</span>
                           <span className="text-[8px] font-bold text-emerald-500">
                             ({game.commission_rate ?? 8}%)
                           </span>
@@ -1846,7 +1870,7 @@ export default function Agent() {
                         <div className="text-right">
                           <p className="text-[8px] font-bold text-slate-400 uppercase">Pot / Stake</p>
                           <p className="font-black text-slate-800">
-                            {game.prize_pool} ETB <span className="text-slate-400 font-normal">(@{game.stake})</span>
+                            {formatAmount(game.prize_pool)} ETB <span className="text-slate-400 font-normal">(@{formatAmount(game.stake)})</span>
                           </p>
                         </div>
                       </div>

@@ -554,19 +554,6 @@ class BingoEngine {
         }).eq('id', agentUser.id);
 
         console.log(`💼 Room Commission: Agent ${agentUser.first_name} (ID: ${agentUser.id}, TG: ${agentUser.telegram_id}) credited +${commAmount} ETB (${commRate}% of pot, from platform fee) for Game #${formatGameId(gameId)} in "${room.room_name}"`);
-
-        const token = process.env.BOT_TOKEN;
-        if (token && agentUser.telegram_id) {
-          await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: agentUser.telegram_id,
-              text: `💼 *Room Commission Earned!*\n\n🏠 Room: *${room.room_name}*\n💰 Your Commission: *+${commAmount} ETB* (${commRate}% of game pot)\n🎮 Game: #${formatGameId(gameId)} (${totalCartelas} cartelas @ ${stake} ETB)\n🏆 Winner Prize: 80% (Unchanged)\n\n✅ Added to your Main Balance!`,
-              parse_mode: 'Markdown',
-            }),
-          }).catch(() => {});
-        }
       }
     } catch (e) {
       console.error('Error awarding agent room commission:', e);
