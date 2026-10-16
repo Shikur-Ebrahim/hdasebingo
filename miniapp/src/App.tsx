@@ -173,6 +173,27 @@ function App() {
     // Always start with profile closed (prevent persisted open state)
     setProfileOpen(false);
 
+    // Capture agent room invite start_param if present
+    try {
+      let detectedRoomId: string | null = null;
+      if (typeof WebApp !== 'undefined' && WebApp.initDataUnsafe?.start_param) {
+        const sp = String(WebApp.initDataUnsafe.start_param).trim();
+        if (sp.startsWith('room_')) {
+          detectedRoomId = sp.replace('room_', '');
+        }
+      }
+      if (!detectedRoomId && typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const qStart = params.get('start') || params.get('startapp') || params.get('room');
+        if (qStart) {
+          detectedRoomId = qStart.startsWith('room_') ? qStart.replace('room_', '') : qStart;
+        }
+      }
+      if (detectedRoomId) {
+        localStorage.setItem('hdase_invited_room_id', detectedRoomId);
+      }
+    } catch {}
+
     // Apply dark mode on initial load
     if (isDarkMode) {
       document.documentElement.classList.add('dark');

@@ -145,6 +145,16 @@ export const useGameStore = create<GameStore>()(
           }
 
           if (loadedRooms && loadedRooms.length > 0) {
+            const invitedRoomId = (get().user as any)?.room_id || (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null);
+            loadedRooms.sort((a, b) => {
+              const aInv = Boolean(invitedRoomId && a.id === invitedRoomId);
+              const bInv = Boolean(invitedRoomId && b.id === invitedRoomId);
+              if (aInv !== bInv) return aInv ? -1 : 1;
+              if (Boolean(b.is_pinned) !== Boolean(a.is_pinned)) {
+                return b.is_pinned ? 1 : -1;
+              }
+              return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+            });
             set({ rooms: loadedRooms });
           }
         } catch (err) {
@@ -197,6 +207,8 @@ export const useGameStore = create<GameStore>()(
           if (typeof WebApp !== 'undefined' && WebApp.initData) {
             initData = WebApp.initData;
           }
+
+          const invitedRoomId = typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null;
           
           // Silently fetch real data in background
           const response = await fetch(`${API_URL}/auth/verify`, {
@@ -205,6 +217,7 @@ export const useGameStore = create<GameStore>()(
               'Content-Type': 'application/json',
               'x-telegram-init-data': initData,
             },
+            body: JSON.stringify({ room_id: invitedRoomId }),
           });
 
           if (response.ok) {

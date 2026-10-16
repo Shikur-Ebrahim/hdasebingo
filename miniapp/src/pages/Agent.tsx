@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import WebApp from '@twa-dev/sdk';
@@ -31,7 +31,9 @@ import {
   QrCode,
   Flame,
   ChevronRight,
-  Info
+  Info,
+  Download,
+  CheckCircle2
 } from 'lucide-react';
 
 interface AgentRoom {
@@ -125,6 +127,9 @@ export default function Agent() {
   const [customRangeText, setCustomRangeText] = useState('');
   const [customDateFrom, setCustomDateFrom] = useState('');
   const [customDateTo, setCustomDateTo] = useState('');
+  const [downloaded, setDownloaded] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   if (user?.role !== 'agent') {
     return <Navigate to="/" replace />;
@@ -134,6 +139,7 @@ export default function Agent() {
   const roomInviteLink = room
     ? `https://t.me/${botUsername}?start=room_${room.id}`
     : `https://t.me/${botUsername}?start=ref_${user?.telegram_id}`;
+  const roomCode = room ? room.id : '';
 
   const triggerHaptic = (style: 'light' | 'medium' | 'heavy' = 'light') => {
     if (typeof WebApp !== 'undefined' && WebApp.HapticFeedback) {
@@ -211,6 +217,129 @@ export default function Agent() {
       }).catch(() => {});
     } else {
       handleCopyRoomLink();
+    }
+  };
+
+  const handleCopyRoomCode = () => {
+    if (!roomCode) return;
+    navigator.clipboard.writeText(roomCode).then(() => {
+      setCopiedCode(true);
+      triggerSuccessHaptic();
+      setTimeout(() => setCopiedCode(false), 2000);
+    });
+  };
+
+  const handleDownloadQR = () => {
+    const qrCanvas = qrCanvasRef.current;
+    if (!qrCanvas || !room) return;
+
+    try {
+      const canvas = document.createElement('canvas');
+      const width = 600;
+      const height = 750;
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Dark luxury gradient background
+      const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+      bgGrad.addColorStop(0, '#0f172a');
+      bgGrad.addColorStop(0.5, '#1e1b4b');
+      bgGrad.addColorStop(1, '#020617');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      // Ambient glows
+      ctx.fillStyle = 'rgba(249, 115, 22, 0.15)';
+      ctx.beginPath();
+      ctx.arc(120, 120, 160, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(234, 179, 8, 0.12)';
+      ctx.beginPath();
+      ctx.arc(480, 640, 180, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Brand Title
+      ctx.fillStyle = '#f97316';
+      ctx.font = '900 36px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('HDASE BINGO', width / 2, 70);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '600 16px sans-serif';
+      ctx.fillText(`Official Room: ${room.room_name}`, width / 2, 102);
+
+      // White card container with rounded corners
+      const cardX = 80;
+      const cardY = 135;
+      const cardW = 440;
+      const cardH = 440;
+      const radius = 24;
+
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.roundRect(cardX, cardY, cardW, cardH, radius);
+      ctx.fill();
+
+      ctx.strokeStyle = '#fdba74';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      // Draw QR code onto card
+      const qrDrawSize = 350;
+      const qrDrawX = (width - qrDrawSize) / 2;
+      const qrDrawY = cardY + 45;
+      ctx.drawImage(qrCanvas, qrDrawX, qrDrawY, qrDrawSize, qrDrawSize);
+
+      // Center HDASE BINGO Badge on card
+      const centerX = width / 2;
+      const centerY = qrDrawY + qrDrawSize / 2;
+      const badgeW = 100;
+      const badgeH = 42;
+      const badgeR = 10;
+      ctx.fillStyle = '#f97316';
+      ctx.beginPath();
+      ctx.roundRect(centerX - badgeW / 2, centerY - badgeH / 2, badgeW, badgeH, badgeR);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('HDASE', centerX, centerY - 8);
+      ctx.font = '900 15px sans-serif';
+      ctx.fillText('BINGO', centerX, centerY + 8);
+      ctx.textBaseline = 'alphabetic';
+
+      // Room ID text
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 20px monospace';
+      ctx.fillText(`ROOM ID: ${room.id}`, width / 2, 625);
+
+      // Subtitle
+      ctx.fillStyle = '#fb923c';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.fillText('Scan with Camera or Telegram to Join Official Room!', width / 2, 660);
+
+      // Trigger download
+      const dataUrl = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `hdasebingo-room-${room.room_name.replace(/\s+/g, '_')}-qr.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      setDownloaded(true);
+      triggerSuccessHaptic();
+      setTimeout(() => setDownloaded(false), 2000);
+    } catch (e) {
+      console.error('Download QR failed', e);
     }
   };
 
@@ -1115,34 +1244,111 @@ export default function Agent() {
 
             {/* ─── COMBINED FILTER BAR: Period toggle + Stake pills on ONE row ─── */}
             <div className="space-y-2">
-              {/* Single scrollable row: [All Time ▾] | [All] [10] [20] [50] [100] */}
-              <div className="flex items-center space-x-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
-                {/* Period dropdown toggle */}
-                <button
-                  onClick={() => {
-                    triggerHaptic('light');
-                    setShowPeriodDropdown((v) => !v);
-                  }}
-                  className={`shrink-0 flex items-center space-x-1 px-3 py-1.5 rounded-full text-[10px] font-black border transition-all ${
-                    reportPeriod !== 'all'
-                      ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
-                      : showPeriodDropdown
-                      ? 'bg-slate-100 text-slate-800 border-slate-300'
-                      : 'bg-white text-slate-600 border-slate-200'
-                  }`}
-                >
-                  <span>
-                    {reportPeriod === 'all' ? 'All Time' :
-                     reportPeriod === 'today' ? 'Today' :
-                     reportPeriod === 'yesterday' ? 'Yesterday' :
-                     reportPeriod === 'weekly' ? 'This Week' :
-                     reportPeriod === 'monthly' ? 'This Month' :
-                     reportPeriod === '3months' ? '3 Months' :
-                     reportPeriod === 'yearly' ? '1 Year' :
-                     customRangeText ? `Days ${customRangeText}` : 'Custom'}
-                  </span>
-                  <ChevronRight size={10} className={`transition-transform ${showPeriodDropdown ? 'rotate-90' : ''}`} />
-                </button>
+              {/* Single row: [All Time ▾] | [All] [10] [20] [50] [100] */}
+              <div className="flex items-center space-x-1.5 overflow-x-visible pb-0.5">
+                {/* Period dropdown toggle wrapper */}
+                <div className="relative shrink-0">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      triggerHaptic('light');
+                      setShowPeriodDropdown((v) => !v);
+                    }}
+                    className={`flex items-center space-x-1 px-3 py-1.5 rounded-full text-[10px] font-black border transition-all ${
+                      reportPeriod !== 'all'
+                        ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
+                        : showPeriodDropdown
+                        ? 'bg-slate-100 text-slate-800 border-slate-300'
+                        : 'bg-white text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    <span>
+                      {reportPeriod === 'all' ? 'All Time' :
+                       reportPeriod === 'today' ? 'Today' :
+                       reportPeriod === 'yesterday' ? 'Yesterday' :
+                       reportPeriod === 'weekly' ? 'This Week' :
+                       reportPeriod === 'monthly' ? 'This Month' :
+                       reportPeriod === '3months' ? '3 Months' :
+                       reportPeriod === 'yearly' ? '1 Year' :
+                       customRangeText ? `Days ${customRangeText}` : 'Custom'}
+                    </span>
+                    <ChevronRight size={10} className={`transition-transform ${showPeriodDropdown ? 'rotate-90' : ''}`} />
+                  </button>
+
+                  {/* Compact overlay dropdown — NOT full width! Positioned right below button */}
+                  {showPeriodDropdown && (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute left-0 top-full mt-1.5 z-40 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-2.5 space-y-1.5 min-w-[210px] w-max max-w-[270px] animate-in fade-in duration-150"
+                    >
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">Select Period</p>
+                      
+                      {/* Vertical options list */}
+                      <div className="space-y-0.5 max-h-56 overflow-y-auto">
+                        {[
+                          { key: 'all', label: 'All Time' },
+                          { key: 'today', label: 'Today' },
+                          { key: 'yesterday', label: 'Yesterday' },
+                          { key: 'weekly', label: 'This Week' },
+                          { key: 'monthly', label: 'This Month' },
+                          { key: '3months', label: 'Last 3 Months' },
+                          { key: 'yearly', label: 'Last 1 Year' },
+                          { key: 'custom', label: 'Custom (e.g. 13-29)' },
+                        ].map((p) => (
+                          <button
+                            key={p.key}
+                            onClick={() => {
+                              triggerHaptic('light');
+                              setReportPeriod(p.key as any);
+                              if (p.key !== 'custom') {
+                                setCustomRangeText('');
+                                setShowPeriodDropdown(false);
+                              }
+                            }}
+                            className={`w-full py-1.5 px-2.5 rounded-xl text-[11px] font-black border transition-all text-left flex items-center justify-between ${
+                              reportPeriod === p.key
+                                ? 'bg-slate-800 text-white border-slate-800 shadow-2xs'
+                                : 'bg-slate-50 text-slate-700 border-transparent hover:bg-slate-100 hover:border-slate-200'
+                            }`}
+                          >
+                            <span>{p.label}</span>
+                            {reportPeriod === p.key && <Check size={12} className="text-orange-400" />}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Custom day range input */}
+                      {reportPeriod === 'custom' && (
+                        <div className="pt-2 border-t border-slate-100 space-y-1.5 px-0.5">
+                          <p className="text-[9px] font-bold text-slate-500">
+                            Day range (e.g. <span className="font-mono text-orange-600 font-bold">13-29</span>)
+                          </p>
+                          <div className="flex items-center space-x-1.5">
+                            <input
+                              type="text"
+                              placeholder="e.g. 13-29 or 13"
+                              value={customRangeText}
+                              onChange={(e) => {
+                                setCustomRangeText(e.target.value);
+                                setReportPeriod('custom');
+                              }}
+                              className="w-28 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-orange-500"
+                            />
+                            <button
+                              onClick={() => {
+                                triggerHaptic('light');
+                                setShowPeriodDropdown(false);
+                              }}
+                              className="px-2.5 py-1 bg-orange-500 text-white rounded-lg text-[10px] font-bold shadow-2xs"
+                            >
+                              Apply
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {/* Divider */}
                 <div className="w-px h-5 bg-slate-200 shrink-0" />
@@ -1180,77 +1386,6 @@ export default function Agent() {
                   </button>
                 ))}
               </div>
-
-              {/* Collapsible Vertical Period Dropdown */}
-              {showPeriodDropdown && (
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-md p-3 space-y-2 animate-in fade-in duration-150">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Select Period</p>
-                  
-                  {/* Vertical options list */}
-                  <div className="space-y-1">
-                    {[
-                      { key: 'all', label: 'All Time' },
-                      { key: 'today', label: 'Today' },
-                      { key: 'yesterday', label: 'Yesterday' },
-                      { key: 'weekly', label: 'This Week' },
-                      { key: 'monthly', label: 'This Month' },
-                      { key: '3months', label: 'Last 3 Months' },
-                      { key: 'yearly', label: 'Last 1 Year' },
-                      { key: 'custom', label: 'Custom Day Range (e.g. 13-29)' },
-                    ].map((p) => (
-                      <button
-                        key={p.key}
-                        onClick={() => {
-                          triggerHaptic('light');
-                          setReportPeriod(p.key as any);
-                          if (p.key !== 'custom') {
-                            setCustomRangeText('');
-                            setShowPeriodDropdown(false);
-                          }
-                        }}
-                        className={`w-full py-2 px-3 rounded-xl text-xs font-black border transition-all text-left flex items-center justify-between ${
-                          reportPeriod === p.key
-                            ? 'bg-slate-800 text-white border-slate-800'
-                            : 'bg-slate-50 text-slate-700 border-slate-100 hover:border-slate-300'
-                        }`}
-                      >
-                        <span>{p.label}</span>
-                        {reportPeriod === p.key && <Check size={13} className="text-orange-400" />}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Custom day range input — allows typing 13-29 or single day */}
-                  {reportPeriod === 'custom' && (
-                    <div className="pt-2 border-t border-slate-100 space-y-2">
-                      <p className="text-[10px] font-bold text-slate-500">
-                        Enter day range (e.g. <span className="font-mono text-orange-600 font-bold">13-29</span> or <span className="font-mono text-orange-600 font-bold">13</span>)
-                      </p>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="text"
-                          placeholder="e.g. 13-29 or 13"
-                          value={customRangeText}
-                          onChange={(e) => {
-                            setCustomRangeText(e.target.value);
-                            setReportPeriod('custom');
-                          }}
-                          className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-orange-500"
-                        />
-                        <button
-                          onClick={() => {
-                            triggerHaptic('light');
-                            setShowPeriodDropdown(false);
-                          }}
-                          className="px-4 py-2 bg-orange-500 text-white rounded-xl text-xs font-bold shrink-0 shadow-sm"
-                        >
-                          Apply
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
 
             {/* Search Games Input */}
@@ -1348,41 +1483,78 @@ export default function Agent() {
           </div>
         )}
 
-        {/* ─── TAB 4: ROOM LINK & QR CODE MODAL / TAB ─── */}
+        {/* ─── TAB 4: ROOM LINK & QR CODE (Invite.tsx Style) ─── */}
         {room && activeTab === 'qr' && (
-          <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4 animate-in fade-in duration-200 text-center">
-            <div className="space-y-1">
-              <div className="inline-flex p-2 rounded-2xl bg-orange-100 text-orange-600 mb-1">
-                <QrCode size={24} />
+          <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-sm flex flex-col items-center shrink-0 space-y-3 animate-in fade-in duration-200">
+            {/* Top header status */}
+            <div className="flex items-center justify-between w-full px-1">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
+                  Official Room QR Code
+                </span>
               </div>
-              <h3 className="text-base font-black text-slate-800">
-                Invite Players to {room.room_name}
-              </h3>
-              <p className="text-xs text-slate-400 max-w-xs mx-auto">
-                Players who scan this QR code or click your link will automatically enter your room and earn you continuous game commission!
-              </p>
+              <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-full border border-orange-200">
+                {room.commission_rate ?? 8}% Commission
+              </span>
             </div>
 
-            {/* QR Code Canvas */}
-            <div className="flex justify-center p-4 bg-slate-50 border-2 border-orange-100 rounded-3xl w-fit mx-auto shadow-inner">
-              <QRCodeCanvas
-                value={roomInviteLink}
-                size={180}
-                bgColor="#f8fafc"
-                fgColor="#0f172a"
-                level="M"
-                includeMargin={false}
-              />
+            {/* QR Code Frame with interactive scanner corners */}
+            <div className="relative p-3.5 bg-gradient-to-b from-orange-50/80 to-amber-50/60 rounded-2xl border border-orange-200 shadow-inner">
+              {/* Corner brackets */}
+              <div className="absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 border-orange-500 rounded-tl-sm pointer-events-none" />
+              <div className="absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2 border-orange-500 rounded-tr-sm pointer-events-none" />
+              <div className="absolute bottom-2 left-2 w-4 h-4 border-b-2 border-l-2 border-orange-500 rounded-bl-sm pointer-events-none" />
+              <div className="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-orange-500 rounded-br-sm pointer-events-none" />
+
+              <div className="bg-white p-3 rounded-xl shadow-xs relative">
+                <QRCodeCanvas
+                  ref={qrCanvasRef}
+                  value={roomInviteLink}
+                  size={190}
+                  level="H"
+                  includeMargin={false}
+                  fgColor="#0f172a"
+                  bgColor="#ffffff"
+                />
+
+                {/* Center HDASE BINGO Badge */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="bg-gradient-to-r from-amber-500 to-yellow-400 border-2 border-white shadow-lg rounded-xl px-2.5 py-1 flex flex-col items-center justify-center" style={{ minWidth: 68 }}>
+                    <span className="text-[8px] font-black text-white/80 uppercase tracking-widest leading-none">HDASE</span>
+                    <span className="text-[11px] font-black text-white leading-none tracking-wider">BINGO</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Room ID Code Chip — invitation code is the room ID */}
+            <div className="w-full flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+              <div className="flex flex-col text-left truncate mr-2">
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                  Room Invitation Code
+                </span>
+                <span className="font-mono text-xs font-black text-slate-800 truncate">
+                  {roomCode}
+                </span>
+              </div>
+              <button
+                onClick={handleCopyRoomCode}
+                className="shrink-0 px-2.5 py-1 bg-white text-slate-700 border border-slate-200 rounded-lg text-[10px] font-bold active:scale-95 transition-all flex items-center gap-1 shadow-2xs"
+              >
+                {copiedCode ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                <span>{copiedCode ? 'Copied' : 'Copy'}</span>
+              </button>
             </div>
 
             {/* Link display & copy */}
-            <div className="p-2.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
+            <div className="w-full p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
               <span className="font-mono text-[11px] text-slate-600 truncate mr-2 select-all">
                 {roomInviteLink}
               </span>
               <button
                 onClick={handleCopyRoomLink}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black shrink-0 transition-all active:scale-95 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-black shrink-0 transition-all active:scale-95 ${
                   copiedLink ? 'bg-emerald-600 text-white' : 'bg-orange-500 text-white'
                 }`}
               >
@@ -1390,17 +1562,31 @@ export default function Agent() {
               </button>
             </div>
 
-            {/* Share to Telegram button */}
-            <button
-              onClick={handleShareRoom}
-              className="w-full py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-2xl font-black text-xs flex items-center justify-center space-x-2 shadow-md shadow-orange-500/20 active:scale-98 transition-all"
-            >
-              <Share2 size={15} />
-              <span>Share to Telegram Chat / Channels</span>
-            </button>
+            {/* Action Buttons Row: Download QR Poster & Share to Telegram */}
+            <div className="grid grid-cols-2 gap-2 w-full">
+              <button
+                onClick={handleDownloadQR}
+                className={`py-2.5 px-3 rounded-xl font-black text-xs shadow-xs transition-all active:scale-95 flex items-center justify-center gap-1.5 border ${
+                  downloaded 
+                    ? 'bg-emerald-500 text-white border-emerald-500' 
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {downloaded ? <CheckCircle2 size={15} /> : <Download size={15} className="text-orange-500" />}
+                <span>{downloaded ? 'Saved Poster!' : 'Save Poster'}</span>
+              </button>
+
+              <button
+                onClick={handleShareRoom}
+                className="py-2.5 px-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-black text-xs shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 hover:opacity-95"
+              >
+                <Share2 size={15} />
+                <span>Share Link</span>
+              </button>
+            </div>
 
             {/* Commission Rule Info */}
-            <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3 text-left space-y-1.5">
+            <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-3 text-left space-y-1.5 w-full">
               <div className="flex items-center space-x-1.5 text-amber-800 font-black text-[11px]">
                 <Info size={13} className="text-amber-600" />
                 <span>How Your Agent Commission Works</span>
