@@ -401,13 +401,29 @@ router.get('/support-videos', async (req, res) => {
 router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) => {
   try {
     const telegramId = req.telegramUser!.id.toString();
-    const { data: room, error } = await supabase
-      .from('rooms')
-      .select('*')
-      .eq('agent_id', telegramId)
+    const { data: currentUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('telegram_id', telegramId)
       .maybeSingle();
 
-    if (error && !error.message.includes('does not exist')) throw error;
+    let room = null;
+    if (currentUser?.id) {
+      const { data: r1 } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('agent_id', currentUser.id)
+        .maybeSingle();
+      room = r1;
+    }
+    if (!room) {
+      const { data: r2 } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('agent_id', telegramId)
+        .maybeSingle();
+      room = r2;
+    }
 
     let activeGames: any[] = [];
     if (room?.id) {

@@ -29,6 +29,7 @@ interface AgentRoom {
   id: string;
   room_name: string;
   agent_id: string;
+  agent_telegram_id?: string;
   agent_name?: string;
   total_players: number;
   total_games: number;
@@ -314,7 +315,8 @@ export default function AdminAgents() {
       return (
         r.room_name.toLowerCase().includes(q) ||
         (r.agent_name || '').toLowerCase().includes(q) ||
-        (r.agent_id || '').includes(q)
+        (r.agent_id || '').toLowerCase().includes(q) ||
+        (r.agent_telegram_id || '').toLowerCase().includes(q)
       );
     });
 
@@ -700,7 +702,7 @@ export default function AdminAgents() {
                         </span>
                       </div>
                       <p className="text-[10px] text-slate-400 font-medium truncate">
-                        Agent: <span className="font-bold text-slate-700">{room.agent_name || 'Agent'}</span> (ID: {room.agent_id})
+                        Agent: <span className="font-bold text-slate-700">{room.agent_name || 'Agent'}</span> (TG: {room.agent_telegram_id || room.agent_id})
                         {room.agent_balance !== undefined && (
                           <span className="ml-1 text-emerald-600 font-bold">· Bal: {room.agent_balance} ETB</span>
                         )}

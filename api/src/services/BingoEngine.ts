@@ -540,26 +540,28 @@ class BingoEngine {
       const commAmount = Number(((totalPot * commRate) / 100).toFixed(2));
       if (commAmount <= 0) return;
 
-      const { data: agentUser } = await supabase
-        .from('users')
-        .select('main_balance')
-        .eq('telegram_id', room.agent_id)
-        .maybeSingle();
+      // Agent ID in rooms can be either users.id (UUID) or telegram_id (text)
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(room.agent_id);
+      const agentQuery = isUuid
+        ? supabase.from('users').select('id, telegram_id, main_balance, first_name').eq('id', room.agent_id)
+        : supabase.from('users').select('id, telegram_id, main_balance, first_name').eq('telegram_id', room.agent_id);
+
+      const { data: agentUser } = await agentQuery.maybeSingle();
 
       if (agentUser) {
         await supabase.from('users').update({
           main_balance: Number(agentUser.main_balance || 0) + commAmount,
-        }).eq('telegram_id', room.agent_id);
+        }).eq('id', agentUser.id);
 
-        console.log(`💼 Room Commission: Agent ${room.agent_id} credited +${commAmount} ETB (${commRate}% of pot, from platform fee) for Game #${formatGameId(gameId)} in "${room.room_name}"`);
+        console.log(`💼 Room Commission: Agent ${agentUser.first_name} (ID: ${agentUser.id}, TG: ${agentUser.telegram_id}) credited +${commAmount} ETB (${commRate}% of pot, from platform fee) for Game #${formatGameId(gameId)} in "${room.room_name}"`);
 
         const token = process.env.BOT_TOKEN;
-        if (token) {
+        if (token && agentUser.telegram_id) {
           await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              chat_id: room.agent_id,
+              chat_id: agentUser.telegram_id,
               text: `💼 *Room Commission Earned!*\n\n🏠 Room: *${room.room_name}*\n💰 Your Commission: *+${commAmount} ETB* (${commRate}% of game pot)\n🎮 Game: #${formatGameId(gameId)} (${totalCartelas} cartelas @ ${stake} ETB)\n🏆 Winner Prize: 80% (Unchanged)\n\n✅ Added to your Main Balance!`,
               parse_mode: 'Markdown',
             }),

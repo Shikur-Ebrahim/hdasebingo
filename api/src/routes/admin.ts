@@ -983,11 +983,14 @@ router.get('/agents', async (_req, res) => {
     const { data: rooms, error: rErr } = await supabase.from('rooms').select('*');
     if (rErr && !rErr.message.includes('does not exist')) throw rErr;
 
-    const roomMap = new Map((rooms || []).map((r: any) => [r.agent_id, r]));
+    const roomByAgent = new Map<string, any>();
+    (rooms || []).forEach((r: any) => {
+      if (r.agent_id) roomByAgent.set(r.agent_id, r);
+    });
 
     const result = (agents || []).map((a: any) => ({
       ...a,
-      room: roomMap.get(a.telegram_id) || null,
+      room: roomByAgent.get(a.id) || roomByAgent.get(a.telegram_id) || null,
     }));
 
     res.json({ agents: result });
@@ -1011,11 +1014,23 @@ router.get('/agents/search/:telegramId', async (req, res) => {
       return;
     }
 
-    const { data: room } = await supabase
+    // Check room by user.id (UUID) OR telegram_id
+    let room = null;
+    const { data: r1 } = await supabase
       .from('rooms')
       .select('*')
-      .eq('agent_id', req.params.telegramId)
+      .eq('agent_id', user.id)
       .maybeSingle();
+    room = r1;
+
+    if (!room) {
+      const { data: r2 } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('agent_id', req.params.telegramId)
+        .maybeSingle();
+      room = r2;
+    }
 
     res.json({ user, room: room || null });
   } catch (err: any) {
@@ -1055,24 +1070,55 @@ router.post('/agents/assign-room', async (req, res) => {
     const commRate = commission_rate !== undefined ? Number(commission_rate) : 8;
     const isPinned = is_pinned !== undefined ? Boolean(is_pinned) : false;
 
-    const { data: room, error: rErr } = await supabase
-      .from('rooms')
-      .upsert({
-        agent_id: telegramId,
-        room_name: assignedRoomName,
-        agent_name: user.first_name || user.username || 'Agent',
-        total_games: 0,
-        status: roomStatus,
-        commission_rate: commRate,
-        is_pinned: isPinned,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'agent_id' })
-      .select()
-      .single();
+    // Check if room already exists by user.id (UUID) or telegramId
+    let existingRoom = null;
+    const { data: er1 } = await supabase.from('rooms').select('id').eq('agent_id', user.id).maybeSingle();
+    existingRoom = er1;
+    if (!existingRoom) {
+      const { data: er2 } = await supabase.from('rooms').select('id').eq('agent_id', telegramId).maybeSingle();
+      existingRoom = er2;
+    }
 
-    if (rErr) throw rErr;
+    let roomResult = null;
+    if (existingRoom) {
+      // Update existing room with user.id (UUID) as agent_id
+      const { data: updated, error: uErr } = await supabase
+        .from('rooms')
+        .update({
+          agent_id: user.id, // Store users.id UUID!
+          room_name: assignedRoomName,
+          agent_name: user.first_name || user.username || 'Agent',
+          status: roomStatus,
+          commission_rate: commRate,
+          is_pinned: isPinned,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingRoom.id)
+        .select()
+        .single();
+      if (uErr) throw uErr;
+      roomResult = updated;
+    } else {
+      // Insert new room with user.id (UUID) as agent_id
+      const { data: inserted, error: iErr } = await supabase
+        .from('rooms')
+        .insert({
+          agent_id: user.id, // Store users.id UUID!
+          room_name: assignedRoomName,
+          agent_name: user.first_name || user.username || 'Agent',
+          total_games: 0,
+          status: roomStatus,
+          commission_rate: commRate,
+          is_pinned: isPinned,
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+      if (iErr) throw iErr;
+      roomResult = inserted;
+    }
 
-    res.json({ success: true, room });
+    res.json({ success: true, room: roomResult });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -1092,19 +1138,28 @@ router.get('/rooms', async (_req, res) => {
       (rooms || []).map(async (r) => {
         let players = 0;
         let agent_balance = 0;
-        if (r.agent_id) {
-          const { count } = await supabase
-            .from('users')
-            .select('id', { count: 'exact', head: true })
-            .eq('inviter_id', r.agent_id);
-          players = count || 0;
+        let agent_telegram_id = '';
+        let agent_first_name = r.agent_name || 'Agent';
 
-          const { data: agUser } = await supabase
-            .from('users')
-            .select('main_balance')
-            .eq('telegram_id', r.agent_id)
-            .maybeSingle();
-          if (agUser) agent_balance = Number(agUser.main_balance || 0);
+        if (r.agent_id) {
+          // Check if agent_id is UUID or telegram_id
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(r.agent_id);
+          const { data: agUser } = await (isUuid
+            ? supabase.from('users').select('id, telegram_id, main_balance, first_name, username').eq('id', r.agent_id)
+            : supabase.from('users').select('id, telegram_id, main_balance, first_name, username').eq('telegram_id', r.agent_id)
+          ).maybeSingle();
+
+          if (agUser) {
+            agent_balance = Number(agUser.main_balance || 0);
+            agent_telegram_id = agUser.telegram_id;
+            agent_first_name = agUser.first_name || agUser.username || agent_first_name;
+
+            const { count } = await supabase
+              .from('users')
+              .select('id', { count: 'exact', head: true })
+              .eq('inviter_id', agUser.telegram_id);
+            players = count || 0;
+          }
         }
         return {
           ...r,
@@ -1112,6 +1167,8 @@ router.get('/rooms', async (_req, res) => {
           is_pinned: Boolean(r.is_pinned),
           total_players: players,
           agent_balance,
+          agent_telegram_id,
+          agent_name: agent_first_name,
         };
       })
     );
