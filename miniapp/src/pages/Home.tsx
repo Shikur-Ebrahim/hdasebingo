@@ -497,11 +497,15 @@ export default function Home() {
                   >
                     {/* Header for room card */}
                     <div className="h-16 bg-black flex flex-col items-center justify-center relative px-2 text-center">
-                      {isInvitedRoom && (
+                      {isInvitedRoom ? (
                         <div className="absolute top-2 left-2 flex items-center justify-center bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[10px] w-5 h-5 rounded-full shadow-sm">
                           <span>⭐</span>
                         </div>
-                      )}
+                      ) : room.is_pinned ? (
+                        <div className="absolute top-2 left-2 flex items-center justify-center bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 text-[10px] w-5 h-5 rounded-full shadow-sm">
+                          <span>📌</span>
+                        </div>
+                      ) : null}
                       <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm" />
                       <span className="text-white font-black text-sm leading-tight line-clamp-2 px-1">
                         {room.room_name}

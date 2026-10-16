@@ -67,7 +67,7 @@ export async function startCommand(ctx: Context) {
   const inviteLink = `https://t.me/${botUsername}?start=ref_${user.id}`;
   const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent('🎮 Play Hdasebingo with me! Join and let\'s win together! 🎱')}`;
 
-  const playButtonText = invitedRoomName ? `🎱 ወደ ${invitedRoomName} ግባ (PLAY!)` : '🎱 START PLAYING!';
+  const playButtonText = '🎱 PLAY NOW!';
 
   const keyboard = {
     inline_keyboard: [
@@ -83,13 +83,9 @@ export async function startCommand(ctx: Context) {
     ],
   };
 
-  const roomNotice = invitedRoomName
-    ? `\n\n🏠 *የተጋበዙበት ክፍል:* \`${invitedRoomName}\`\n⭐ ክፍሉ በዋናው ገጽ ላይ ከላይ ተቀምጧል!`
-    : '';
-
   const caption =
     `🎉 *እንኳን በደህና መጡ, ${user.first_name}!*\n\n` +
-    `⚡ *ታላቁ የህዳሴ ቢንጎ • Hdasebingo* ላይ እንኳን ደህና መጡ! 🇪🇹${roomNotice}\n\n` +
+    `⚡ *ታላቁ የህዳሴ ቢንጎ • Hdasebingo* ላይ እንኳን ደህና መጡ! 🇪🇹\n\n` +
     `🌊 ከጓደኞችዎ ጋር ቢንጎ ይጫወቱ፣ ታላላቅ ሽልማቶችን ያሸንፉ! 🏆\n\n` +
     `✨ *ታላቁ የኢትዮጵያ ህዳሴ ግድብ 🇪🇹*`;
 

@@ -1158,11 +1158,15 @@ export default function BingoGame() {
                     >
                       {/* Same black header for all rooms */}
                       <div className="h-20 bg-black flex flex-col items-center justify-center relative px-2.5 text-center">
-                        {isInvitedRoom && (
+                        {isInvitedRoom ? (
                           <div className="absolute top-2 left-2 flex items-center justify-center bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[10px] w-5 h-5 rounded-full shadow-sm">
                             <span>⭐</span>
                           </div>
-                        )}
+                        ) : room.is_pinned ? (
+                          <div className="absolute top-2 left-2 flex items-center justify-center bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 text-[10px] w-5 h-5 rounded-full shadow-sm">
+                            <span>📌</span>
+                          </div>
+                        ) : null}
                         <div className="absolute top-2 right-2 flex items-center space-x-1 bg-white/10 px-1.5 py-0.5 rounded-full">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                           <span className="text-[7px] font-black text-white uppercase tracking-wider">LIVE</span>
