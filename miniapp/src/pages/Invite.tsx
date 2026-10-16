@@ -359,9 +359,9 @@ export default function Invite() {
       ctx.font = 'italic bold 23px "Brush Script MT", "Great Vibes", "Lucida Calligraphy", cursive';
       ctx.fillText('Invite Friends  \u2022  Play Together  \u2022  Win Big', width / 2, 955);
 
-      // 11. Referral Code Box
-      const codeBoxW = 360;
-      const codeBoxH = 36;
+      // 11. Official Bot Invite Link Box
+      const codeBoxW = 540;
+      const codeBoxH = 38;
       const codeBoxX = (width - codeBoxW) / 2;
       const codeBoxY = 988;
 
@@ -373,9 +373,9 @@ export default function Invite() {
       ctx.lineWidth = 1;
       ctx.stroke();
       ctx.fillStyle = '#664a10';
-      ctx.font = 'bold 14px monospace';
+      ctx.font = 'bold 13px monospace';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`MY REFERRAL CODE: ${refCode}`, width / 2, codeBoxY + codeBoxH / 2);
+      ctx.fillText(inviteLink, width / 2, codeBoxY + codeBoxH / 2);
       ctx.textBaseline = 'alphabetic';
 
       // 12. Footer
@@ -627,65 +627,23 @@ export default function Invite() {
                   Invite Friends &nbsp;•&nbsp; Play Together &nbsp;•&nbsp; Win Big
                 </p>
 
-                {/* 8. Referral Code Box */}
-                <div className="mx-auto w-fit px-4 py-1.5 bg-[#fbf6ea] border border-[#c59b27] rounded-xl shadow-2xs flex items-center gap-2">
-                  <span className="font-mono font-bold text-xs text-[#664a10] tracking-wide">{refCode}</span>
+                {/* 8. Full Start Bot Invite Link Box with Copy Button */}
+                <div className="mx-auto w-full max-w-xs px-2.5 py-1.5 bg-[#fbf6ea] border border-[#c59b27] rounded-xl shadow-2xs flex items-center justify-between gap-1.5">
+                  <span className="font-mono text-[10px] text-[#664a10] truncate select-all">
+                    {inviteLink}
+                  </span>
                   <button
-                    onClick={handleCopyCode}
-                    className="text-[10px] font-bold text-amber-700 hover:text-amber-900 flex items-center gap-0.5 active:scale-95 transition-transform"
+                    onClick={handleCopyLink}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black shrink-0 transition-all active:scale-95 flex items-center gap-1 ${
+                      copiedLink ? 'bg-emerald-600 text-white' : 'bg-[#c59b27] hover:bg-[#b8860b] text-white shadow-2xs'
+                    }`}
                   >
-                    {copiedCode ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
-                    <span>{copiedCode ? (language === 'am' ? 'ተቀድቷል' : 'Copied') : (language === 'am' ? 'ቅዳ' : 'Copy')}</span>
+                    {copiedLink ? <Check size={11} /> : <Copy size={11} />}
+                    <span>{copiedLink ? (language === 'am' ? 'ተቀድቷል!' : 'Copied!') : (language === 'am' ? 'ቅዳ' : 'Copy')}</span>
                   </button>
                 </div>
               </div>
             </div>
-
-            {/* DOWNLOAD FLYER BUTTON */}
-            <button
-              onClick={handleDownloadQR}
-              className={`w-full py-3.5 px-4 rounded-2xl font-black text-sm shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 border ${
-                downloaded
-                  ? 'bg-emerald-600 text-white border-emerald-600'
-                  : 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white border-orange-400 shadow-orange-500/25'
-              }`}
-            >
-              {downloaded ? (
-                <>
-                  <CheckCircle2 size={18} />
-                  <span>Poster Saved Successfully!</span>
-                </>
-              ) : (
-                <>
-                  <Download size={18} />
-                  <span>Download Printable Flyer (HD PNG)</span>
-                </>
-              )}
-            </button>
-
-            {/* Link display & copy */}
-            <div className="w-full p-2.5 bg-white rounded-2xl border border-slate-200 flex items-center justify-between shadow-2xs">
-              <span className="font-mono text-[11px] text-slate-600 truncate mr-2 select-all">
-                {inviteLink}
-              </span>
-              <button
-                onClick={handleCopyLink}
-                className={`px-3.5 py-2 rounded-xl text-xs font-black shrink-0 transition-all active:scale-95 ${
-                  copiedLink ? 'bg-emerald-600 text-white' : 'bg-orange-500 text-white'
-                }`}
-              >
-                {copiedLink ? (language === 'am' ? 'ተቀድቷል!' : 'Copied!') : (language === 'am' ? 'ቅዳ' : 'Copy')}
-              </button>
-            </div>
-
-            {/* Share to Telegram button */}
-            <button
-              onClick={handleShare}
-              className="w-full py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl font-black text-xs shadow-sm transition-all active:scale-98 flex items-center justify-center gap-2"
-            >
-              <Share2 size={15} className="text-orange-400" />
-              <span>Share Link to Telegram Chats / Channels</span>
-            </button>
           </div>
         )}
 
@@ -722,46 +680,6 @@ export default function Invite() {
             </button>
           </div>
         )}
-
-        {/* COMPACT HOW IT WORKS */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-slate-800">
-          <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-1.5">
-            <Sparkles size={14} className="text-amber-500" />
-            <span>{t[language].invite.howItWorks}</span>
-          </h3>
-          <div className="space-y-3">
-            <div className="flex items-center">
-              <div className="w-7 h-7 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-black text-[11px] shrink-0 mr-3 shadow-2xs">
-                1
-              </div>
-              <div>
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{t[language].invite.step1Title}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                  {language === 'am' ? 'የመጋበዣ ሊንክዎን ወይም QR ኮድዎን ለጓደኞች ያጋሩ።' : 'Send your invite link or show your QR code to friends.'}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center">
-              <div className="w-7 h-7 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-black text-[11px] shrink-0 mr-3 shadow-2xs">
-                2
-              </div>
-              <div>
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{t[language].invite.step2Title}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">{t[language].invite.step2Desc}</p>
-              </div>
-            </div>
-            <div className="flex items-center">
-              <div className="w-7 h-7 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center font-black text-[11px] shrink-0 mr-3 shadow-2xs">
-                3
-              </div>
-              <div>
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{t[language].invite.step3Title}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">{t[language].invite.step3Desc}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
       </div>
 
       {/* FULLSCREEN IN-PERSON SCAN MODAL */}
