@@ -184,7 +184,12 @@ function App() {
       }
       if (!detectedRoomId && typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
-        const qStart = params.get('start') || params.get('startapp') || params.get('room');
+        let qStart = params.get('room') || params.get('startapp') || params.get('start') || params.get('tgWebAppStartParam');
+        if (!qStart && window.location.hash) {
+          const hashStr = window.location.hash.startsWith('#') ? window.location.hash.substring(1) : window.location.hash;
+          const hashParams = new URLSearchParams(hashStr);
+          qStart = hashParams.get('tgWebAppStartParam') || hashParams.get('room') || hashParams.get('startapp') || hashParams.get('start');
+        }
         if (qStart) {
           detectedRoomId = qStart.startsWith('room_') ? qStart.replace('room_', '') : qStart;
         }
