@@ -169,7 +169,7 @@ import Invite from './pages/Invite';
 import InvitedPeople from './pages/InvitedPeople';
 
 function App() {
-  const { fetchUser, fetchRooms, subscribeToBalance, isDarkMode, isBlocked, setProfileOpen } = useGameStore();
+  const { user, fetchUser, fetchRooms, subscribeToBalance, isDarkMode, isBlocked, setProfileOpen } = useGameStore();
   const [supportUsername, setSupportUsername] = useState<string>('');
   const [isAppInitializing, setIsAppInitializing] = useState(true);
 
@@ -230,7 +230,7 @@ function App() {
       fetchRooms(),
       new Promise(resolve => setTimeout(resolve, 1100)) // smooth display duration
     ]).then(async () => {
-      // If user is an agent, prefetch agent room so Agent dashboard opens immediately with zero second loader
+      // If user is an agent or promoter, prefetch dashboard so it opens immediately with zero second loader
       try {
         const currentUser = useGameStore.getState().user;
         if (currentUser?.role === 'agent') {
@@ -241,9 +241,17 @@ function App() {
             const data = await res.json();
             localStorage.setItem('hdase_agent_cache', JSON.stringify(data));
           }
+        } else if (currentUser?.role === 'promoter') {
+          const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/player/promoter-dashboard`, {
+            headers: { 'x-telegram-init-data': WebApp.initData },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            localStorage.setItem('hdase_promoter_cache', JSON.stringify(data));
+          }
         }
       } catch (e) {
-        console.error('Agent prefetch error:', e);
+        console.error('Dashboard prefetch error:', e);
       }
       setIsAppInitializing(false);
       const unsub = subscribeToBalance();
@@ -322,7 +330,11 @@ function App() {
               />
             </div>
             <p className="text-[11px] text-slate-500 font-medium tracking-wide">
-              በመጫን ላይ... Loading game rooms
+              {user?.role === 'promoter'
+                ? 'በመጫን ላይ... Loading promoter room'
+                : user?.role === 'agent'
+                ? 'በመጫን ላይ... Loading your room'
+                : 'በመጫን ላይ... Loading game rooms'}
             </p>
           </div>
         </div>

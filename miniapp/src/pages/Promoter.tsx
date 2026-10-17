@@ -117,13 +117,25 @@ const formatAmount = (num: number | string | undefined | null): string => {
 
 export default function Promoter() {
   const { user, fetchUser, rooms, fetchRooms, subscribeToRooms } = useGameStore();
-  const [promotedRooms, setPromotedRooms] = useState<PromotedRoom[]>([]);
-  const [selectedRoom, setSelectedRoom] = useState<PromotedRoom | null>(null);
-  const [activeGames, setActiveGames] = useState<ActiveGame[]>([]);
-  const [recentGames, setRecentGames] = useState<FinishedGame[]>([]);
-  const [stats, setStats] = useState<PromoterStats | null>(null);
-  const [chartData, setChartData] = useState<ChartDay[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  // Instant cache retrieval to prevent any second loading flash
+  const initialCache = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('hdase_promoter_cache');
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return null;
+  }, []);
+
+  const [promotedRooms, setPromotedRooms] = useState<PromotedRoom[]>(initialCache?.rooms || []);
+  const [selectedRoom, setSelectedRoom] = useState<PromotedRoom | null>(
+    initialCache?.selected_room || (initialCache?.rooms && initialCache.rooms[0]) || null
+  );
+  const [activeGames, setActiveGames] = useState<ActiveGame[]>(initialCache?.active_games || []);
+  const [recentGames, setRecentGames] = useState<FinishedGame[]>(initialCache?.recent_games || []);
+  const [stats, setStats] = useState<PromoterStats | null>(initialCache?.stats || null);
+  const [chartData, setChartData] = useState<ChartDay[]>(initialCache?.chart_data || []);
+  const [loading, setLoading] = useState(!initialCache);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
@@ -136,7 +148,11 @@ export default function Promoter() {
 
   // Analytics chart metric: 'games' (orange) | 'commission' (emerald green) | 'volume' (slate/black)
   const [chartMetric, setChartMetric] = useState<'games' | 'commission' | 'volume'>('games');
-  const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(
+    initialCache?.chart_data && initialCache.chart_data.length > 0
+      ? initialCache.chart_data.length - 1
+      : null
+  );
 
   // Report filters: Room category filter ('all' or specific room_id) + Advanced Date/Period filter
   const [reportRoomFilter, setReportRoomFilter] = useState<string>('all');
@@ -201,6 +217,12 @@ export default function Promoter() {
 
       if (data.chart_data && data.chart_data.length > 0) {
         setSelectedDayIndex(data.chart_data.length - 1);
+      }
+
+      if (data) {
+        try {
+          localStorage.setItem('hdase_promoter_cache', JSON.stringify(data));
+        } catch {}
       }
     } catch (e: any) {
       setError(e.message || 'Unknown error');
@@ -576,7 +598,7 @@ export default function Promoter() {
               />
             </div>
             <p className="text-[11px] text-slate-500 font-medium tracking-wide">
-              በመጫን ላይ... Loading game rooms
+              በመጫን ላይ... Loading promoter room
             </p>
           </div>
         </div>
