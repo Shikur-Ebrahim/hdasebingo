@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { supabase } from '../lib/supabase';
 import WebApp from '@twa-dev/sdk';
@@ -119,6 +119,7 @@ const formatAmount = (num: number | string | undefined | null): string => {
 
 export default function Promoter() {
   const { user, fetchUser, rooms, fetchRooms, subscribeToRooms } = useGameStore();
+  const navigate = useNavigate();
 
   // Instant cache retrieval to prevent any second loading flash
   const initialCache = useMemo(() => {
@@ -1117,13 +1118,22 @@ export default function Promoter() {
             </button>
 
             {/* Center "SUPPORT" badge with arrows pointing toward USA & Ethiopia */}
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100/90 border border-amber-300/70 shadow-2xs backdrop-blur-xs select-none">
-              <span className="text-xs font-black text-amber-700 leading-none">←</span>
-              <span className="text-[9px] font-black tracking-widest text-amber-900 uppercase leading-none">
+            <button
+              type="button"
+              onClick={e => {
+                e.preventDefault();
+                e.stopPropagation();
+                triggerHaptic('medium');
+                navigate('/support');
+              }}
+              className="pointer-events-auto flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-cyan-400 via-cyan-400 to-teal-400 text-slate-900 border border-cyan-200/90 shadow-sm active:scale-95 transition-all select-none"
+            >
+              <span className="text-xs font-black text-slate-900 leading-none">←</span>
+              <span className="text-[9.5px] font-black tracking-widest uppercase leading-none">
                 SUPPORT
               </span>
-              <span className="text-xs font-black text-amber-700 leading-none">→</span>
-            </div>
+              <span className="text-xs font-black text-slate-900 leading-none">→</span>
+            </button>
 
             {/* Ethiopia — bottom right */}
             <button
