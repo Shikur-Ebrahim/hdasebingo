@@ -496,15 +496,51 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
       .eq('room_id', room.id)
       .in('status', ['waiting', 'calling'])
       .order('created_at', { ascending: false });
-    const activeGames = (games || []).map((g: any) => {
+
+    // Deduplicate by stake: keep 'calling' first, then latest created (max 1 game per stake)
+    const stakeMap = new Map<number, any>();
+    for (const g of games || []) {
       const stake = Number(g.stake || 0);
-      const players = Number(g.total_players || 0);
+      const existing = stakeMap.get(stake);
+      if (!existing) {
+        stakeMap.set(stake, g);
+      } else if (existing.status !== 'calling' && g.status === 'calling') {
+        stakeMap.set(stake, g);
+      }
+    }
+    const deduplicatedGames = Array.from(stakeMap.values());
+
+    // Enrich with exact unique players from bingo_players table
+    const activeGameIds = deduplicatedGames.map((g: any) => g.id).filter(Boolean);
+    let gameUniquePlayersMap: Record<string, number> = {};
+    if (activeGameIds.length > 0) {
+      const { data: playerRows } = await supabase
+        .from('bingo_players')
+        .select('game_id, telegram_id')
+        .in('game_id', activeGameIds);
+
+      if (playerRows && playerRows.length > 0) {
+        const setsMap: Record<string, Set<string>> = {};
+        playerRows.forEach((row: any) => {
+          if (!setsMap[row.game_id]) setsMap[row.game_id] = new Set();
+          setsMap[row.game_id].add(row.telegram_id);
+        });
+        for (const [gid, set] of Object.entries(setsMap)) {
+          gameUniquePlayersMap[gid] = set.size;
+        }
+      }
+    }
+
+    const activeGames = deduplicatedGames.map((g: any) => {
+      const stake = Number(g.stake || 0);
+      const players = gameUniquePlayersMap[g.id] ?? Number(g.total_players || 0);
       const rawPool = Number(g.prize_pool || 0);
       const totalPot = (players >= 3 && rawPool > 0)
         ? Math.round(rawPool / 0.8)
         : (rawPool || stake * players);
       return {
         ...g,
+        total_players: players,
         prize_pool: totalPot,
         winner_prize: rawPool,
       };
@@ -804,7 +840,20 @@ router.get('/promoter-dashboard', validateTelegramAuth, async (req: AuthRequest,
       .in('status', ['waiting', 'calling'])
       .order('created_at', { ascending: false });
 
-    const selectedActiveIds = (games || []).map((g: any) => g.id).filter(Boolean);
+    // Deduplicate by stake: keep 'calling' first, then latest created
+    const stakeMap = new Map<number, any>();
+    for (const g of games || []) {
+      const stake = Number(g.stake || 0);
+      const existing = stakeMap.get(stake);
+      if (!existing) {
+        stakeMap.set(stake, g);
+      } else if (existing.status !== 'calling' && g.status === 'calling') {
+        stakeMap.set(stake, g);
+      }
+    }
+    const deduplicatedGames = Array.from(stakeMap.values());
+
+    const selectedActiveIds = deduplicatedGames.map((g: any) => g.id).filter(Boolean);
     let selectedGamePlayersMap: Record<string, number> = {};
     if (selectedActiveIds.length > 0) {
       const { data: sRows } = await supabase
@@ -823,7 +872,7 @@ router.get('/promoter-dashboard', validateTelegramAuth, async (req: AuthRequest,
       }
     }
 
-    const activeGames = (games || []).map((g: any) => {
+    const activeGames = deduplicatedGames.map((g: any) => {
       const stake = Number(g.stake || 0);
       const players = selectedGamePlayersMap[g.id] ?? Number(g.total_players || 0);
       const rawPool = Number(g.prize_pool || 0);

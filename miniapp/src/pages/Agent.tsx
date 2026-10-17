@@ -165,6 +165,19 @@ export default function Agent() {
   const [flyerSentToTg, setFlyerSentToTg] = useState(false);
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  // Only calling games count as live matches (waiting games are not live yet)
+  const callingGames = useMemo(() => activeGames.filter(g => g.status === 'calling'), [activeGames]);
+  const callingGamesCount = callingGames.length;
+  const liveCallingPlayers = useMemo(() => callingGames.reduce((acc, g) => acc + (g.total_players || 0), 0), [callingGames]);
+  const liveCallingComm = useMemo(() => {
+    return callingGames.reduce((acc, g) => {
+      const raw = Number(g.prize_pool || 0);
+      const players = Number(g.total_players || 0);
+      const pot = players >= 3 && raw > 0 ? Math.round(raw / 0.8) : (raw || Number(g.stake || 0) * players);
+      return acc + (pot * (room?.commission_rate ?? 8)) / 100;
+    }, 0);
+  }, [callingGames, room]);
+
   if (user?.role !== 'agent') {
     return <Navigate to="/" replace />;
   }
@@ -1123,8 +1136,8 @@ export default function Agent() {
               }`}
             >
               <Gamepad2 size={13} className={activeTab === 'live' ? 'text-orange-500' : ''} />
-              <span>Live ({activeGames.length})</span>
-              {activeGames.length > 0 && (
+              <span>Live ({callingGamesCount})</span>
+              {callingGamesCount > 0 && (
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               )}
             </button>
@@ -1336,12 +1349,7 @@ export default function Agent() {
 
         {/* ─── TAB 2: LIVE — STAKE PRESET ROOM MONITOR ─── */}
         {room && activeTab === 'live' && (() => {
-          const STAKE_PRESETS = [10, 20, 50, 100];
-          // Build full stake list: union of presets + any active game stakes
-          const allStakes = Array.from(new Set([
-            ...STAKE_PRESETS,
-            ...activeGames.map((g) => Number(g.stake)),
-          ])).sort((a, b) => a - b);
+          const allStakes = [10, 20, 50, 100];
 
           // Find the active game for a given stake
           const gameForStake = (stk: number) =>
@@ -1516,10 +1524,14 @@ export default function Agent() {
                   </h3>
                   <p className="text-[10px] text-slate-400">Tap a stake table to monitor its game</p>
                 </div>
-                {activeGames.length > 0 && (
-                  <span className="flex items-center space-x-1 text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                {callingGamesCount > 0 ? (
+                  <span className="flex items-center space-x-1 text-[10px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
-                    <span>{activeGames.length} Live</span>
+                    <span>{callingGamesCount} Live</span>
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                    0 Live
                   </span>
                 )}
               </div>
@@ -1528,12 +1540,12 @@ export default function Agent() {
               <div className="grid grid-cols-2 gap-2.5">
                 {allStakes.map((stk) => {
                   const game = gameForStake(stk);
-                  const isLive = !!game;
-                  const estPot = game
-                    ? (Number(game.total_players) >= 3 && game.prize_pool
-                        ? Math.round(game.prize_pool / 0.8)
-                        : (game.prize_pool || stk * (game.total_players || 0)))
-                    : 0;
+                  const isCalling = game?.status === 'calling';
+                  const isWaiting = game?.status === 'waiting';
+                  const playerCount = game?.total_players || 0;
+                  const estPot = (playerCount >= 3 && game?.prize_pool)
+                    ? game.prize_pool
+                    : stk * playerCount;
                   const estComm = (estPot * (room.commission_rate ?? 8)) / 100;
                   const lastW = recentGames.find((g) => Number(g.stake) === stk);
 
@@ -1544,46 +1556,49 @@ export default function Agent() {
                         triggerHaptic('medium');
                         setSelectedLiveStake(stk);
                       }}
-                      className={`rounded-2xl p-4 border text-left space-y-3 active:scale-[.97] transition-all shadow-sm ${
-                        isLive
-                          ? game?.status === 'calling'
-                            ? 'bg-gradient-to-br from-emerald-500 to-teal-600 border-emerald-400 text-white'
-                            : 'bg-gradient-to-br from-orange-400 to-amber-500 border-orange-300 text-white'
+                      className={`relative overflow-hidden rounded-2xl p-4 border text-left space-y-3 active:scale-[.97] transition-all shadow-sm ${
+                        isCalling
+                          ? 'bg-gradient-to-br from-emerald-500 via-teal-500 to-emerald-600 border-emerald-400 text-white shadow-emerald-500/20'
+                          : isWaiting
+                          ? 'bg-gradient-to-br from-orange-400 via-amber-500 to-orange-500 border-orange-300 text-white'
                           : 'bg-white border-slate-200 hover:border-orange-200'
                       }`}
                     >
+                      {/* Green pulse ring when calling */}
+                      {isCalling && (
+                        <div className="absolute -top-3 -right-3 w-16 h-16 rounded-full bg-emerald-400/20 animate-ping pointer-events-none" />
+                      )}
+
                       {/* Stake label + status */}
-                      <div className="flex items-start justify-between">
+                      <div className="flex items-start justify-between relative z-10">
                         <div>
-                          <p className={`text-2xl font-black leading-none ${isLive ? 'text-white' : 'text-slate-800'}`}>
+                          <p className={`text-2xl font-black leading-none ${isCalling || isWaiting ? 'text-white' : 'text-slate-800'}`}>
                             {formatAmount(stk)}
                           </p>
-                          <p className={`text-[9px] font-black ${isLive ? 'text-white/80' : 'text-slate-400'}`}>
+                          <p className={`text-[9px] font-black ${isCalling ? 'text-emerald-100' : isWaiting ? 'text-amber-100' : 'text-slate-400'}`}>
                             ETB STAKE
                           </p>
                         </div>
                         <div className={`px-2 py-0.5 rounded-full text-[8px] font-black border ${
-                          isLive
-                            ? game?.status === 'calling'
-                              ? 'bg-white/20 text-white border-white/30'
-                              : 'bg-white/20 text-white border-white/30'
+                          isCalling
+                            ? 'bg-white/25 text-white border-white/30'
+                            : isWaiting
+                            ? 'bg-black/20 text-white border-white/20'
                             : 'bg-slate-100 text-slate-500 border-slate-200'
                         }`}>
-                          {isLive
-                            ? game?.status === 'calling' ? '🔴 LIVE' : '⏳ WAIT'
-                            : '😴 IDLE'}
+                          {isCalling ? '🔴 LIVE' : isWaiting ? '⏳ WAIT' : '😴 IDLE'}
                         </div>
                       </div>
 
                       {/* Stats row */}
-                      {isLive ? (
-                        <div className="space-y-1">
+                      {isCalling || isWaiting ? (
+                        <div className="space-y-1 relative z-10">
                           <div className="flex items-center justify-between">
-                            <span className="text-[9px] font-bold text-white/70">Players</span>
-                            <span className="text-xs font-black text-white">{game?.total_players ?? 0}</span>
+                            <span className={`text-[9px] font-bold ${isCalling ? 'text-emerald-100' : 'text-amber-100'}`}>Players</span>
+                            <span className="text-xs font-black text-white">{playerCount}</span>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="text-[9px] font-bold text-white/70">Est. Comm</span>
+                            <span className={`text-[9px] font-bold ${isCalling ? 'text-emerald-100' : 'text-amber-100'}`}>Est. Comm</span>
                             <span className="text-xs font-black text-white">+{formatAmount(estComm)} ETB</span>
                           </div>
                         </div>
@@ -1605,7 +1620,7 @@ export default function Agent() {
                       )}
 
                       {/* Arrow indicator */}
-                      <div className={`flex items-center justify-end text-[9px] font-black ${isLive ? 'text-white/70' : 'text-slate-400'}`}>
+                      <div className={`flex items-center justify-end text-[9px] font-black ${isCalling || isWaiting ? 'text-white/80' : 'text-slate-400'} relative z-10`}>
                         <span>View Details</span>
                         <ChevronRight size={11} className="ml-0.5" />
                       </div>
@@ -1614,26 +1629,21 @@ export default function Agent() {
                 })}
               </div>
 
-              {/* Quick Stats Strip */}
+              {/* Quick Stats Strip — Only Calling games count as Live */}
               <div className="grid grid-cols-3 gap-2">
                 <div className="bg-white rounded-xl p-2.5 border border-slate-100 shadow-2xs text-center">
-                  <p className="text-sm font-black text-orange-500">{activeGames.length}</p>
-                  <p className="text-[9px] text-slate-400 font-bold">Active Games</p>
+                  <p className="text-sm font-black text-orange-500">{callingGamesCount}</p>
+                  <p className="text-[9px] text-slate-400 font-bold">Calling Games</p>
                 </div>
                 <div className="bg-white rounded-xl p-2.5 border border-slate-100 shadow-2xs text-center">
                   <p className="text-sm font-black text-slate-800">
-                    {activeGames.reduce((acc, g) => acc + (g.total_players || 0), 0)}
+                    {liveCallingPlayers}
                   </p>
                   <p className="text-[9px] text-slate-400 font-bold">Live Players</p>
                 </div>
                 <div className="bg-white rounded-xl p-2.5 border border-slate-100 shadow-2xs text-center">
                   <p className="text-sm font-black text-emerald-600">
-                    +{formatAmount(activeGames.reduce((acc, g) => {
-                      const raw = Number(g.prize_pool || 0);
-                      const players = Number(g.total_players || 0);
-                      const pot = players >= 3 && raw > 0 ? Math.round(raw / 0.8) : (raw || g.stake * players);
-                      return acc + (pot * (room.commission_rate ?? 8)) / 100;
-                    }, 0))} ETB
+                    +{formatAmount(liveCallingComm)} ETB
                   </p>
                   <p className="text-[9px] text-slate-400 font-bold">Est. Comm</p>
                 </div>

@@ -1218,10 +1218,16 @@ export default function Promoter() {
                     </h3>
                     <p className="text-[10px] text-slate-400">Tap a table to monitor its active game</p>
                   </div>
+                {activeGames.filter(g => g.status === 'calling').length > 0 ? (
                   <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-black">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>4 Live</span>
+                    <span>{activeGames.filter(g => g.status === 'calling').length} Live</span>
                   </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                    0 Live
+                  </span>
+                )}
                 </div>
 
                 {/* 4 Stake Cards (10, 20, 50, 100 ETB) */}
