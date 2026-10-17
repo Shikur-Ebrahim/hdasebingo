@@ -1239,46 +1239,66 @@ export default function Promoter() {
                   {liveStakes.map((stake) => {
                     const game = activeGames.find((g) => Number(g.stake) === stake);
                     const isCalling = game?.status === 'calling';
+                    const isWaiting = game?.status === 'waiting';
+                    const hasGame = !!game;
                     const playerCount = game?.total_players || 0;
                     const estPot = (playerCount >= 3 && game?.prize_pool)
                       ? game.prize_pool
                       : stake * playerCount;
                     const estComm = (estPot * promoterRate) / 100;
 
+                    // Card color: green when calling/live, orange when waiting, slate when no game
+                    const cardGradient = isCalling
+                      ? 'bg-gradient-to-br from-emerald-500 via-teal-500 to-emerald-600 shadow-emerald-500/20'
+                      : isWaiting
+                        ? 'bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 shadow-orange-500/15'
+                        : 'bg-gradient-to-br from-slate-500 via-slate-600 to-slate-700 shadow-slate-500/15';
+
+                    const subtleText = isCalling ? 'text-emerald-100' : isWaiting ? 'text-amber-100' : 'text-slate-300';
+
                     return (
                       <div
                         key={stake}
                         onClick={() => { triggerHaptic('light'); setSelectedLiveStake(stake); }}
-                        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 text-white p-4 shadow-md shadow-orange-500/15 cursor-pointer active:scale-98 transition-all flex flex-col justify-between h-40"
+                        className={`relative overflow-hidden rounded-3xl ${cardGradient} text-white p-4 shadow-md cursor-pointer active:scale-98 transition-all flex flex-col justify-between h-40`}
                       >
+                        {/* Green pulse ring when LIVE */}
+                        {isCalling && (
+                          <div className="absolute -top-3 -right-3 w-16 h-16 rounded-full bg-emerald-400/20 animate-ping pointer-events-none" />
+                        )}
+
                         {/* Top Row: Stake & Status Badge */}
-                        <div className="flex items-start justify-between">
+                        <div className="flex items-start justify-between relative z-10">
                           <div>
                             <span className="text-3xl font-black tracking-tight leading-none">{stake}</span>
-                            <p className="text-[9px] font-black uppercase tracking-wider text-amber-100">ETB STAKE</p>
+                            <p className={`text-[9px] font-black uppercase tracking-wider ${subtleText}`}>ETB STAKE</p>
                           </div>
-                          <span className={`inline-flex items-center space-x-1 text-[9px] font-black px-2 py-0.5 rounded-full backdrop-blur-xs ${
-                            isCalling ? 'bg-emerald-400/90 text-slate-900' : 'bg-black/20 text-white border border-white/20'
+                          <span className={`inline-flex items-center space-x-1 text-[9px] font-black px-2 py-0.5 rounded-full ${
+                            isCalling
+                              ? 'bg-white/25 text-white border border-white/30'
+                              : isWaiting
+                                ? 'bg-black/20 text-white border border-white/20'
+                                : 'bg-white/10 text-slate-200 border border-white/10'
                           }`}>
-                            {isCalling ? <Flame size={9} /> : <Clock size={9} />}
-                            <span>{isCalling ? 'LIVE' : 'WAIT'}</span>
+                            {isCalling ? <Flame size={9} className="animate-pulse" /> : <Clock size={9} />}
+                            <span>{isCalling ? 'LIVE' : hasGame ? 'WAIT' : 'IDLE'}</span>
                           </span>
                         </div>
 
                         {/* Middle: Player count & Est. Comm */}
-                        <div className="space-y-0.5">
-                          <div className="flex justify-between text-[11px] text-amber-100">
+                        <div className="space-y-0.5 relative z-10">
+                          <div className={`flex justify-between text-[11px] ${subtleText}`}>
                             <span>Players</span>
                             <span className="font-black text-white">{playerCount}</span>
                           </div>
-                          <div className="flex justify-between text-[11px] text-amber-100">
+                          <div className={`flex justify-between text-[11px] ${subtleText}`}>
                             <span>Est. Comm</span>
                             <span className="font-black text-white">+{formatAmount(estComm)} ETB</span>
                           </div>
                         </div>
 
                         {/* Bottom: View Details link */}
-                        <div className="pt-2 border-t border-white/20 flex items-center justify-between text-[10px] font-bold text-amber-100">
+                        <div className={`pt-2 border-t border-white/20 flex items-center justify-between text-[10px] font-bold ${subtleText} relative z-10`}>
                           <span>View Details</span>
                           <ChevronRight size={13} />
                         </div>
