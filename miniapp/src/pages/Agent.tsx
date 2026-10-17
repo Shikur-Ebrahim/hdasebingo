@@ -123,13 +123,22 @@ export default function Agent() {
   const { user, fetchUser } = useGameStore();
   const navigate = useNavigate();
 
-  const [room, setRoom] = useState<AgentRoom | null>(null);
-  const [activeGames, setActiveGames] = useState<ActiveGame[]>([]);
-  const [recentGames, setRecentGames] = useState<FinishedGame[]>([]);
-  const [stats, setStats] = useState<RoomStats | null>(null);
-  const [chartData, setChartData] = useState<ChartDay[]>([]);
+  // Instant cache retrieval to prevent any second loading flash
+  const initialCache = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('hdase_agent_cache');
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return null;
+  }, []);
 
-  const [loading, setLoading] = useState(true);
+  const [room, setRoom] = useState<AgentRoom | null>(initialCache?.room || null);
+  const [activeGames, setActiveGames] = useState<ActiveGame[]>(initialCache?.active_games || []);
+  const [recentGames, setRecentGames] = useState<FinishedGame[]>(initialCache?.recent_games || []);
+  const [stats, setStats] = useState<RoomStats | null>(initialCache?.stats || null);
+  const [chartData, setChartData] = useState<ChartDay[]>(initialCache?.chart_data || []);
+
+  const [loading, setLoading] = useState(!initialCache?.room);
   const [refreshing, setRefreshing] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [error, setError] = useState('');
@@ -193,6 +202,10 @@ export default function Agent() {
       setChartData(data.chart_data || []);
       setLastRefresh(new Date());
 
+      if (data && data.room) {
+        localStorage.setItem('hdase_agent_cache', JSON.stringify(data));
+      }
+
       // Default selected day in chart to today (last item)
       if (data.chart_data && data.chart_data.length > 0) {
         setSelectedDayIndex(data.chart_data.length - 1);
@@ -212,6 +225,10 @@ export default function Agent() {
   };
 
   useEffect(() => {
+    // Hide Telegram's Back button so Telegram displays the native 'X' close/minimize button
+    if (typeof WebApp !== 'undefined' && WebApp.BackButton) {
+      WebApp.BackButton.hide();
+    }
     fetchData();
     fetchUser();
     const interval = setInterval(() => {
@@ -891,75 +908,63 @@ export default function Agent() {
     return <WifiOff size={11} className="text-slate-400" />;
   };
 
-  // ─── LOADING SKELETON ───
+  // ─── ATTRACTIVE ADVANCED BRAND LOADING SCREEN (Matches Image 2) ───
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col select-none font-sans">
-        {/* Skeleton top bar */}
-        <div className="bg-white border-b border-gray-100 px-4 py-2.5 shadow-2xs">
-          <div className="flex items-center justify-between max-w-md mx-auto">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-10 h-10 rounded-2xl bg-slate-200 animate-pulse" />
-              <div className="space-y-1.5">
-                <div className="h-3 w-28 bg-slate-200 rounded-full animate-pulse" />
-                <div className="h-2 w-16 bg-slate-100 rounded-full animate-pulse" />
+      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-between py-12 px-6 bg-gradient-to-b from-white via-slate-50 to-amber-50/30 text-slate-800 select-none overflow-hidden">
+        {/* Ambient soft background glows */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 translate-y-1/2 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="w-full" />
+
+        {/* Center brand & animated bingo badge */}
+        <div className="flex flex-col items-center text-center relative z-10 space-y-4">
+          <div className="relative">
+            <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-amber-400 via-yellow-400 to-amber-500 shadow-[0_12px_36px_rgba(245,158,11,0.25)] flex items-center justify-center p-1.5 animate-pulse">
+              <div className="w-full h-full rounded-[20px] bg-gradient-to-b from-white to-amber-50/90 flex flex-col items-center justify-center border border-amber-300/40 shadow-inner">
+                <span className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-br from-amber-600 via-yellow-600 to-amber-700">
+                  75
+                </span>
+                <span className="text-[9px] font-black tracking-widest text-amber-600 uppercase -mt-0.5">
+                  BINGO
+                </span>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className="h-8 w-16 bg-slate-200 rounded-xl animate-pulse" />
-              <div className="w-8 h-8 bg-slate-100 rounded-xl animate-pulse" />
+            {/* Spinning decorative orbit ring */}
+            <div className="absolute -inset-2.5 rounded-[32px] border border-amber-400/25 border-t-amber-500 animate-spin pointer-events-none" style={{ animationDuration: '3s' }} />
+          </div>
+
+          {/* Title */}
+          <div>
+            <h1 className="text-3xl font-black tracking-wider text-slate-900 drop-shadow-sm">
+              HDASE <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-500 to-yellow-600">BINGO</span>
+            </h1>
+            <p className="text-xs font-bold text-amber-700/80 tracking-widest uppercase mt-1">
+              ሕዳሴ ቢንጎ • ይጫወቱ ያሸንፉ
+            </p>
+          </div>
+
+          {/* Modern Glowing Loading Bar */}
+          <div className="w-48 space-y-2.5 pt-2">
+            <div className="h-2 w-full bg-slate-200/80 rounded-full overflow-hidden p-0.5 shadow-inner">
+              <div
+                className="h-full bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 rounded-full animate-pulse shadow-sm"
+                style={{
+                  width: '100%',
+                  animation: 'pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+                }}
+              />
             </div>
+            <p className="text-[11px] text-slate-500 font-medium tracking-wide">
+              በመጫን ላይ... Loading your room
+            </p>
           </div>
         </div>
 
-        {/* Skeleton body */}
-        <div className="max-w-md mx-auto w-full p-4 space-y-3.5">
-          {/* Tab nav skeleton */}
-          <div className="h-10 bg-slate-200/80 rounded-2xl animate-pulse" />
-
-          {/* Chart card skeleton */}
-          <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-sm space-y-3.5">
-            <div className="space-y-1.5">
-              <div className="h-3 w-40 bg-slate-200 rounded-full animate-pulse" />
-              <div className="h-2 w-28 bg-slate-100 rounded-full animate-pulse" />
-            </div>
-            <div className="h-8 bg-slate-100 rounded-2xl animate-pulse" />
-            <div className="h-36 flex items-end justify-between space-x-2 px-1 pt-2">
-              {[...Array(7)].map((_, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center h-full justify-end space-y-1.5">
-                  <div
-                    className="w-full max-w-[28px] bg-slate-200 rounded-lg animate-pulse"
-                    style={{ height: `${20 + Math.random() * 60}%` }}
-                  />
-                  <div className="h-2 w-4 bg-slate-100 rounded-full animate-pulse" />
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="h-10 bg-slate-100 rounded-xl animate-pulse" />
-              <div className="h-10 bg-slate-100 rounded-xl animate-pulse" />
-            </div>
-          </div>
-
-          {/* Card skeletons */}
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs space-y-2.5">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-xl bg-slate-200 animate-pulse shrink-0" />
-                <div className="flex-1 space-y-1.5">
-                  <div className="h-3 w-3/4 bg-slate-200 rounded-full animate-pulse" />
-                  <div className="h-2 w-1/2 bg-slate-100 rounded-full animate-pulse" />
-                </div>
-                <div className="h-6 w-16 bg-slate-100 rounded-full animate-pulse" />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Centered spinner badge */}
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center space-x-2 bg-white px-4 py-2 rounded-full shadow-lg border border-orange-100">
-          <RefreshCw size={14} className="animate-spin text-orange-500" />
-          <span className="text-xs font-black text-slate-600">Loading your room...</span>
+        {/* Footer security / platform note */}
+        <div className="text-center relative z-10 text-[10px] text-slate-400 font-semibold tracking-wider">
+          🇪🇹 Official Ethiopian Bingo Platform
         </div>
       </div>
     );
@@ -972,7 +977,21 @@ export default function Agent() {
       <div className="bg-white border-b border-gray-100 px-4 py-2.5 sticky top-0 z-30 shadow-2xs">
         <div className="flex items-center justify-between max-w-md mx-auto">
           {/* Agent Avatar & Profile / Room info */}
-          <div className="flex items-center space-x-2.5 min-w-0 flex-1 mr-3">
+          {/* Close / Minimize Button + Agent Avatar & Profile / Room info */}
+          <div className="flex items-center space-x-2 min-w-0 flex-1 mr-2">
+            <button
+              onClick={() => {
+                triggerHaptic('light');
+                if (typeof WebApp !== 'undefined' && WebApp.close) {
+                  WebApp.close();
+                }
+              }}
+              className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center active:scale-95 transition-all shadow-2xs shrink-0"
+              title="Close / Reduce Mini App"
+            >
+              <X size={16} strokeWidth={2.5} />
+            </button>
+
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-orange-500 via-amber-500 to-yellow-400 flex items-center justify-center text-white font-black text-sm shadow-sm ring-2 ring-orange-200 shrink-0">
               {(user?.first_name || 'A').charAt(0).toUpperCase()}
             </div>
@@ -986,7 +1005,6 @@ export default function Agent() {
                   <span>{room?.commission_rate ?? 8}% Commission</span>
                 </span>
               </div>
-
             </div>
           </div>
 
@@ -998,7 +1016,7 @@ export default function Agent() {
                 <span className="text-[9px] font-bold uppercase tracking-wider">Wallet</span>
               </div>
               <p className="text-sm font-black text-emerald-600 leading-tight">
-                {(user?.main_balance ?? 0).toLocaleString()} <span className="text-[10px] font-extrabold">ETB</span>
+                {formatAmount(user?.main_balance ?? 0)} <span className="text-[10px] font-extrabold">ETB</span>
               </p>
             </div>
 
@@ -1398,7 +1416,7 @@ export default function Agent() {
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-2xl font-black leading-none">{selectedLiveStake}</p>
+                          <p className="text-2xl font-black leading-none">{formatAmount(selectedLiveStake)}</p>
                           <p className="text-[10px] font-black opacity-80">ETB STAKE</p>
                         </div>
                       </div>
@@ -1552,7 +1570,7 @@ export default function Agent() {
                       <div className="flex items-start justify-between">
                         <div>
                           <p className={`text-2xl font-black leading-none ${isLive ? 'text-white' : 'text-slate-800'}`}>
-                            {stk}
+                            {formatAmount(stk)}
                           </p>
                           <p className={`text-[9px] font-black ${isLive ? 'text-white/80' : 'text-slate-400'}`}>
                             ETB STAKE
@@ -1795,7 +1813,7 @@ export default function Agent() {
                         : 'bg-white text-slate-600 border-slate-200 hover:border-orange-300'
                     }`}
                   >
-                    {stk}
+                    {formatAmount(stk)}
                   </button>
                 ))}
               </div>

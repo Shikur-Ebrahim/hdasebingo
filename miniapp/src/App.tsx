@@ -29,7 +29,12 @@ function TelegramBackButton() {
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
 
-  const isRoot = location.pathname === '/' || location.pathname === '/admin' || location.pathname === '/worker';
+  const isRoot =
+    location.pathname === '/' ||
+    location.pathname === '/admin' ||
+    location.pathname === '/worker' ||
+    location.pathname === '/agent' ||
+    location.pathname === '/promoter';
 
   useEffect(() => {
     if (!WebApp?.BackButton) return;
@@ -211,7 +216,22 @@ function App() {
       fetchUser(),
       fetchRooms(),
       new Promise(resolve => setTimeout(resolve, 1100)) // smooth display duration
-    ]).then(() => {
+    ]).then(async () => {
+      // If user is an agent, prefetch agent room so Agent dashboard opens immediately with zero second loader
+      try {
+        const currentUser = useGameStore.getState().user;
+        if (currentUser?.role === 'agent') {
+          const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/player/agent-room`, {
+            headers: { 'x-telegram-init-data': WebApp.initData },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            localStorage.setItem('hdase_agent_cache', JSON.stringify(data));
+          }
+        }
+      } catch (e) {
+        console.error('Agent prefetch error:', e);
+      }
       setIsAppInitializing(false);
       const unsub = subscribeToBalance();
       return unsub;
