@@ -640,6 +640,240 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
   }
 });
 
+// GET /player/promoter-dashboard — get promoted rooms, live games, 7-day analytics & reports for promoter
+router.get('/promoter-dashboard', validateTelegramAuth, async (req: AuthRequest, res) => {
+  try {
+    const telegramId = req.telegramUser!.id.toString();
+    const requestedRoomId = req.query.room_id as string | undefined;
+
+    const { data: currentUser } = await supabase
+      .from('users')
+      .select('id, telegram_id, main_balance, bonus_balance, first_name, username, role')
+      .eq('telegram_id', telegramId)
+      .maybeSingle();
+
+    if (!currentUser) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // 1. Find all rooms promoted by this user
+    // A) Directly linked via rooms.promoter_id
+    let roomQueries: any[] = [];
+    if (currentUser.id) {
+      const { data: r1 } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('promoter_id', currentUser.id);
+      if (r1) roomQueries = roomQueries.concat(r1);
+    }
+    const { data: r2 } = await supabase
+      .from('rooms')
+      .select('*')
+      .eq('promoter_id', telegramId);
+    if (r2) roomQueries = roomQueries.concat(r2);
+
+    // B) Indirectly linked: agents invited by this promoter
+    const { data: invitedAgents } = await supabase
+      .from('users')
+      .select('id, telegram_id')
+      .or(`inviter_id.eq.${currentUser.id},inviter_id.eq.${telegramId}`)
+      .eq('role', 'agent');
+
+    if (invitedAgents && invitedAgents.length > 0) {
+      const agentUuids = invitedAgents.map(a => a.id).filter(Boolean);
+      const agentTgIds = invitedAgents.map(a => a.telegram_id).filter(Boolean);
+      if (agentUuids.length > 0) {
+        const { data: rAgents } = await supabase.from('rooms').select('*').in('agent_id', agentUuids);
+        if (rAgents) roomQueries = roomQueries.concat(rAgents);
+      }
+      if (agentTgIds.length > 0) {
+        const { data: rTgAgents } = await supabase.from('rooms').select('*').in('agent_id', agentTgIds);
+        if (rTgAgents) roomQueries = roomQueries.concat(rTgAgents);
+      }
+    }
+
+    // Deduplicate rooms by id
+    const roomsMap = new Map<string, any>();
+    for (const r of roomQueries) {
+      if (r && r.id && !roomsMap.has(r.id)) {
+        roomsMap.set(r.id, {
+          ...r,
+          commission_rate: r.commission_rate ?? 8,
+          promoter_commission_rate: r.promoter_commission_rate ?? 3,
+        });
+      }
+    }
+    const promotedRooms = Array.from(roomsMap.values());
+
+    // 2. Select active room
+    let selectedRoom = promotedRooms.find(r => r.id === requestedRoomId) || promotedRooms[0] || null;
+
+    // 3. Count total players invited by this promoter
+    let refQ = supabase.from('users').select('id', { count: 'exact', head: true });
+    refQ = refQ.or(`inviter_id.eq.${currentUser.id},inviter_id.eq.${telegramId}`);
+    const { count: referredCount } = await refQ;
+
+    if (!selectedRoom) {
+      return res.json({
+        rooms: [],
+        selected_room: null,
+        active_games: [],
+        recent_games: [],
+        stats: {
+          today_games: 0,
+          today_commission: 0,
+          total_games_finished: 0,
+          total_commission_all_time: 0,
+          total_volume_all_time: 0,
+          total_referred_players: referredCount || 0,
+          promoter_commission_rate: 3,
+          total_promoted_rooms: 0,
+        },
+        chart_data: [],
+      });
+    }
+
+    const promoterRate = Number(selectedRoom.promoter_commission_rate ?? 3);
+
+    // 4. Fetch active games for this room
+    const { data: games } = await supabase
+      .from('bingo_games')
+      .select('id, stake, prize_pool, total_players, status, start_at, created_at')
+      .eq('room_id', selectedRoom.id)
+      .in('status', ['waiting', 'calling'])
+      .order('created_at', { ascending: false });
+
+    const activeGames = (games || []).map((g: any) => {
+      const stake = Number(g.stake || 0);
+      const players = Number(g.total_players || 0);
+      const rawPool = Number(g.prize_pool || 0);
+      const totalPot = (players >= 3 && rawPool > 0)
+        ? Math.round(rawPool / 0.8)
+        : (rawPool || stake * players);
+      return {
+        ...g,
+        prize_pool: totalPot,
+        winner_prize: rawPool,
+      };
+    });
+
+    // 5. Fetch finished games for this room
+    const { data: finishedGames } = await supabase
+      .from('bingo_games')
+      .select('id, stake, prize_pool, winner_prize, winner_first_name, winner_telegram_id, winner_cartela, total_players, status, created_at, finished_at')
+      .eq('room_id', selectedRoom.id)
+      .eq('status', 'finished')
+      .order('finished_at', { ascending: false })
+      .limit(100);
+
+    const mappedRecentGames = (finishedGames || []).map((g: any) => {
+      const stake = Number(g.stake || 0);
+      const players = Number(g.total_players || 0);
+      const winnerPrize = Number(g.winner_prize || 0);
+      const rawPool = Number(g.prize_pool || winnerPrize || 0);
+      const totalAmount = (players >= 3 && rawPool > 0)
+        ? Math.round(rawPool / 0.8) 
+        : (rawPool || (stake * players) || 0);
+      // Promoter gets promoterRate (default 3%) of total pot
+      const comm = players >= 3 ? Number(((totalAmount * promoterRate) / 100).toFixed(2)) : 0;
+      return {
+        id: g.id,
+        stake,
+        total_players: players,
+        prize_pool: totalAmount,
+        winner_prize: winnerPrize || (players >= 3 ? Math.floor(totalAmount * 0.8) : totalAmount),
+        winner_first_name: g.winner_first_name || 'Anonymous',
+        winner_cartela: g.winner_cartela,
+        agent_commission: comm, // promoter cut shown in badge
+        commission_rate: promoterRate,
+        created_at: g.created_at,
+        finished_at: g.finished_at,
+        status: g.status,
+      };
+    });
+
+    // 6. Fetch all finished games for full metrics & 7-day chart
+    const { data: allFinished } = await supabase
+      .from('bingo_games')
+      .select('id, stake, prize_pool, total_players, finished_at, created_at')
+      .eq('room_id', selectedRoom.id)
+      .eq('status', 'finished')
+      .order('finished_at', { ascending: false });
+
+    // Build 7-day trend map
+    const daysMap: Record<string, { date: string; label: string; games_count: number; commission: number; volume: number }> = {};
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      daysMap[dateStr] = {
+        date: dateStr,
+        label: dayNames[d.getDay()],
+        games_count: 0,
+        commission: 0,
+        volume: 0,
+      };
+    }
+
+    const now = new Date();
+    const todayDateStr = now.toISOString().split('T')[0];
+    let todayGames = 0;
+    let todayCommission = 0;
+    let totalCommissionAllTime = 0;
+    let totalPotVolume = 0;
+
+    (allFinished || []).forEach((g: any) => {
+      const stake = Number(g.stake || 0);
+      const players = Number(g.total_players || 0);
+      const rawPool = Number(g.prize_pool || 0);
+      const totalAmount = (players >= 3 && rawPool > 0)
+        ? Math.round(rawPool / 0.8)
+        : (rawPool || (stake * players) || 0);
+      const comm = (players >= 3) ? Number(((totalAmount * promoterRate) / 100).toFixed(2)) : 0;
+
+      totalPotVolume += totalAmount;
+      totalCommissionAllTime += comm;
+
+      const fDate = (g.finished_at || g.created_at || '').split('T')[0];
+      if (fDate === todayDateStr) {
+        todayGames++;
+        todayCommission += comm;
+      }
+
+      if (daysMap[fDate]) {
+        daysMap[fDate].games_count += 1;
+        daysMap[fDate].commission = Number((daysMap[fDate].commission + comm).toFixed(2));
+        daysMap[fDate].volume = Number((daysMap[fDate].volume + totalAmount).toFixed(2));
+      }
+    });
+
+    const chartData = Object.values(daysMap);
+
+    res.json({
+      rooms: promotedRooms,
+      selected_room: selectedRoom,
+      active_games: activeGames,
+      recent_games: mappedRecentGames,
+      stats: {
+        today_games: todayGames,
+        today_commission: Number(todayCommission.toFixed(2)),
+        total_games_finished: allFinished?.length || 0,
+        total_commission_all_time: Number(totalCommissionAllTime.toFixed(2)),
+        total_volume_all_time: Number(totalPotVolume.toFixed(2)),
+        total_referred_players: referredCount || 0,
+        promoter_commission_rate: promoterRate,
+        total_promoted_rooms: promotedRooms.length,
+      },
+      chart_data: chartData,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /player/send-flyer — saves flyer to R2 and delivers high-res photo directly to user's Telegram chat so it can be saved to Gallery
 router.post('/send-flyer', validateTelegramAuth, async (req: AuthRequest, res) => {
   try {

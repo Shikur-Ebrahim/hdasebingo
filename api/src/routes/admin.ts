@@ -1066,7 +1066,7 @@ router.get('/agents/search/:telegramId', async (req, res) => {
 // POST /admin/agents/assign-room — assign or create a room for an agent
 router.post('/agents/assign-room', async (req, res) => {
   try {
-    const { telegramId, roomName, status, commission_rate, is_pinned, is_private, promoter_id } = req.body;
+    const { telegramId, roomName, status, commission_rate, is_pinned, is_private, promoter_id, promoter_commission_rate } = req.body;
     if (!telegramId) {
       res.status(400).json({ error: 'telegramId is required' });
       return;
@@ -1095,6 +1095,7 @@ router.post('/agents/assign-room', async (req, res) => {
     const commRate = commission_rate !== undefined ? Number(commission_rate) : 8;
     const isPinned = is_pinned !== undefined ? Boolean(is_pinned) : false;
     const isPrivate = is_private !== undefined ? Boolean(is_private) : false;
+    const promoterCommRate = promoter_commission_rate !== undefined ? Number(promoter_commission_rate) : 3;
     // promoter_id: use provided promoter_id, or fallback to the agent's inviter_id (promoter UUID)
     let promoterId: string | null = null;
     if (promoter_id !== undefined && promoter_id !== null) {
@@ -1123,6 +1124,7 @@ router.post('/agents/assign-room', async (req, res) => {
         commission_rate: commRate,
         is_pinned: isPinned,
         is_private: isPrivate,
+        promoter_commission_rate: promoterCommRate,
         updated_at: new Date().toISOString(),
       };
       if (promoterId !== null) updateRoomPayload.promoter_id = promoterId;
@@ -1145,6 +1147,7 @@ router.post('/agents/assign-room', async (req, res) => {
         commission_rate: commRate,
         is_pinned: isPinned,
         is_private: isPrivate,
+        promoter_commission_rate: promoterCommRate,
         updated_at: new Date().toISOString(),
       };
       if (promoterId !== null) insertRoomPayload.promoter_id = promoterId;
@@ -1219,6 +1222,7 @@ router.get('/rooms', async (_req, res) => {
         return {
           ...r,
           commission_rate: r.commission_rate ?? 8,
+          promoter_commission_rate: r.promoter_commission_rate ?? 3,
           is_pinned: Boolean(r.is_pinned),
           is_private: Boolean(r.is_private),
           total_players: players,
@@ -1253,6 +1257,7 @@ router.put('/rooms/:id', async (req, res) => {
     if (req.body.status !== undefined) updates.status = req.body.status;
     if (req.body.total_games !== undefined) updates.total_games = Number(req.body.total_games);
     if (req.body.commission_rate !== undefined) updates.commission_rate = Number(req.body.commission_rate);
+    if (req.body.promoter_commission_rate !== undefined) updates.promoter_commission_rate = Number(req.body.promoter_commission_rate);
     if (req.body.is_pinned !== undefined) updates.is_pinned = Boolean(req.body.is_pinned);
     if (req.body.is_private !== undefined) updates.is_private = Boolean(req.body.is_private);
     if (req.body.promoter_id !== undefined) updates.promoter_id = req.body.promoter_id || null;
@@ -1261,6 +1266,75 @@ router.put('/rooms/:id', async (req, res) => {
       .from('rooms')
       .update(updates)
       .eq('id', req.params.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ success: true, room });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /admin/promoters — get all promoters with their linked rooms and metrics
+router.get('/promoters', async (_req, res) => {
+  try {
+    const { data: promoters, error: pErr } = await supabase
+      .from('users')
+      .select('id, telegram_id, username, first_name, role, status, main_balance, bonus_balance, created_at')
+      .eq('role', 'promoter')
+      .order('created_at', { ascending: false });
+
+    if (pErr) throw pErr;
+
+    const enriched = await Promise.all(
+      (promoters || []).map(async (p) => {
+        // Find rooms directly assigned to this promoter
+        const { data: rooms } = await supabase
+          .from('rooms')
+          .select('id, room_name, status, total_games, commission_rate, promoter_commission_rate, agent_name, agent_id')
+          .or(`promoter_id.eq.${p.id},promoter_id.eq.${p.telegram_id}`);
+
+        // Count users invited by this promoter
+        const { count: invitedCount } = await supabase
+          .from('users')
+          .select('id', { count: 'exact', head: true })
+          .or(`inviter_id.eq.${p.id},inviter_id.eq.${p.telegram_id}`);
+
+        return {
+          ...p,
+          rooms: rooms || [],
+          total_rooms: (rooms || []).length,
+          total_invited: invitedCount || 0,
+        };
+      })
+    );
+
+    res.json({ promoters: enriched });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/promoters/assign-room — assign or link a room to a promoter with custom commission rate
+router.post('/promoters/assign-room', async (req, res) => {
+  try {
+    const { roomId, promoterId, promoter_commission_rate } = req.body;
+    if (!roomId) {
+      res.status(400).json({ error: 'roomId is required' });
+      return;
+    }
+
+    const updates: any = {
+      promoter_id: promoterId ? String(promoterId).trim() : null,
+      promoter_commission_rate: promoter_commission_rate !== undefined ? Number(promoter_commission_rate) : 3,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data: room, error } = await supabase
+      .from('rooms')
+      .update(updates)
+      .eq('id', roomId)
       .select()
       .single();
 

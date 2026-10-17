@@ -526,37 +526,61 @@ class BingoEngine {
     try {
       const { data: room, error: rErr } = await supabase
         .from('rooms')
-        .select('id, agent_id, commission_rate, room_name')
+        .select('id, agent_id, commission_rate, promoter_id, promoter_commission_rate, room_name')
         .eq('id', roomId)
         .maybeSingle();
 
-      if (rErr || !room || !room.agent_id) return;
-
-      // Default commission is 8% of the total pot (paid out of the platform's 20% cut)
-      const commRate = Number(room.commission_rate ?? 8);
-      if (commRate <= 0) return;
+      if (rErr || !room) return;
 
       const totalPot = totalCartelas * stake;
-      const commAmount = Number(((totalPot * commRate) / 100).toFixed(2));
-      if (commAmount <= 0) return;
 
-      // Agent ID in rooms can be either users.id (UUID) or telegram_id (text)
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(room.agent_id);
-      const agentQuery = isUuid
-        ? supabase.from('users').select('id, telegram_id, main_balance, first_name').eq('id', room.agent_id)
-        : supabase.from('users').select('id, telegram_id, main_balance, first_name').eq('telegram_id', room.agent_id);
+      // 1. Award Agent Commission (default 8% of total pot)
+      if (room.agent_id) {
+        const commRate = Number(room.commission_rate ?? 8);
+        if (commRate > 0) {
+          const commAmount = Number(((totalPot * commRate) / 100).toFixed(2));
+          if (commAmount > 0) {
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(room.agent_id);
+            const agentQuery = isUuid
+              ? supabase.from('users').select('id, telegram_id, main_balance, first_name').eq('id', room.agent_id)
+              : supabase.from('users').select('id, telegram_id, main_balance, first_name').eq('telegram_id', room.agent_id);
 
-      const { data: agentUser } = await agentQuery.maybeSingle();
+            const { data: agentUser } = await agentQuery.maybeSingle();
+            if (agentUser) {
+              await supabase.from('users').update({
+                main_balance: Number(agentUser.main_balance || 0) + commAmount,
+              }).eq('id', agentUser.id);
 
-      if (agentUser) {
-        await supabase.from('users').update({
-          main_balance: Number(agentUser.main_balance || 0) + commAmount,
-        }).eq('id', agentUser.id);
+              console.log(`💼 Room Commission: Agent ${agentUser.first_name} (ID: ${agentUser.id}, TG: ${agentUser.telegram_id}) credited +${commAmount} ETB (${commRate}% of pot) for Game #${formatGameId(gameId)} in "${room.room_name}"`);
+            }
+          }
+        }
+      }
 
-        console.log(`💼 Room Commission: Agent ${agentUser.first_name} (ID: ${agentUser.id}, TG: ${agentUser.telegram_id}) credited +${commAmount} ETB (${commRate}% of pot, from platform fee) for Game #${formatGameId(gameId)} in "${room.room_name}"`);
+      // 2. Award Promoter Commission (default 3% of total pot)
+      if (room.promoter_id) {
+        const promRate = Number((room as any).promoter_commission_rate ?? 3);
+        if (promRate > 0) {
+          const promAmount = Number(((totalPot * promRate) / 100).toFixed(2));
+          if (promAmount > 0) {
+            const isUuidP = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(room.promoter_id);
+            const promQuery = isUuidP
+              ? supabase.from('users').select('id, telegram_id, main_balance, first_name').eq('id', room.promoter_id)
+              : supabase.from('users').select('id, telegram_id, main_balance, first_name').eq('telegram_id', room.promoter_id);
+
+            const { data: promUser } = await promQuery.maybeSingle();
+            if (promUser) {
+              await supabase.from('users').update({
+                main_balance: Number(promUser.main_balance || 0) + promAmount,
+              }).eq('id', promUser.id);
+
+              console.log(`🚀 Promoter Commission: Promoter ${promUser.first_name} (ID: ${promUser.id}, TG: ${promUser.telegram_id}) credited +${promAmount} ETB (${promRate}% of pot) for Game #${formatGameId(gameId)} in "${room.room_name}"`);
+            }
+          }
+        }
       }
     } catch (e) {
-      console.error('Error awarding agent room commission:', e);
+      console.error('Error awarding room commissions:', e);
     }
   }
 }
