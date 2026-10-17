@@ -803,7 +803,9 @@ router.get('/promoter-dashboard', validateTelegramAuth, async (req: AuthRequest,
     const promotedRooms = Array.from(roomsMap.values());
 
     // 2. Select active room
-    let selectedRoom = promotedRooms.find(r => r.id === requestedRoomId) || promotedRooms[0] || null;
+    let selectedRoom = (requestedRoomId ? promotedRooms.find(r => String(r.id) === String(requestedRoomId)) : null) 
+      || promotedRooms[0] 
+      || null;
 
     // 3. Count total players invited by this promoter
     let refQ = supabase.from('users').select('id', { count: 'exact', head: true });

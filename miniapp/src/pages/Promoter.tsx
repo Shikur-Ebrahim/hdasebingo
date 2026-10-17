@@ -132,6 +132,10 @@ export default function Promoter() {
   const [selectedRoom, setSelectedRoom] = useState<PromotedRoom | null>(
     initialCache?.selected_room || (initialCache?.rooms && initialCache.rooms[0]) || null
   );
+  const selectedRoomRef = useRef<PromotedRoom | null>(selectedRoom);
+  useEffect(() => {
+    selectedRoomRef.current = selectedRoom;
+  }, [selectedRoom]);
   const [activeGames, setActiveGames] = useState<ActiveGame[]>(initialCache?.active_games || []);
   const [recentGames, setRecentGames] = useState<FinishedGame[]>(initialCache?.recent_games || []);
   const [stats, setStats] = useState<PromoterStats | null>(initialCache?.stats || null);
@@ -197,9 +201,9 @@ export default function Promoter() {
     setError('');
     try {
       const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
-      const targetRoomId = roomIdToFetch || selectedRoom?.id || '';
+      const targetRoomId = roomIdToFetch || selectedRoomRef.current?.id || '';
       const url = targetRoomId
-        ? `${API}/player/promoter-dashboard?room_id=${targetRoomId}`
+        ? `${API}/player/promoter-dashboard?room_id=${encodeURIComponent(targetRoomId)}`
         : `${API}/player/promoter-dashboard`;
 
       const res = await fetch(url, {
@@ -209,8 +213,13 @@ export default function Promoter() {
       const data = await res.json();
 
       setPromotedRooms(data.rooms || []);
-      const active = data.selected_room || (data.rooms && data.rooms[0]) || null;
+      const currentId = targetRoomId || selectedRoomRef.current?.id;
+      const active = (currentId && data.rooms?.find((r: PromotedRoom) => String(r.id) === String(currentId)))
+        || data.selected_room
+        || (data.rooms && data.rooms[0])
+        || null;
       setSelectedRoom(active);
+      selectedRoomRef.current = active;
       setActiveGames(data.active_games || []);
       setRecentGames(data.recent_games || []);
       setStats(data.stats || null);
@@ -237,7 +246,7 @@ export default function Promoter() {
     if (typeof WebApp !== 'undefined' && WebApp.BackButton) {
       WebApp.BackButton.hide();
     }
-    fetchDashboardData(selectedRoom?.id);
+    fetchDashboardData(selectedRoomRef.current?.id);
     fetchUser();
     fetchRooms();
     const unsubRooms = subscribeToRooms();
@@ -246,21 +255,21 @@ export default function Promoter() {
     const channel = supabase
       .channel(`promoter-live-sync-${Date.now()}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bingo_games' }, () => {
-        fetchDashboardData(selectedRoom?.id);
+        fetchDashboardData(selectedRoomRef.current?.id);
         fetchRooms();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bingo_players' }, () => {
-        fetchDashboardData(selectedRoom?.id);
+        fetchDashboardData(selectedRoomRef.current?.id);
         fetchRooms();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, () => {
-        fetchDashboardData(selectedRoom?.id);
+        fetchDashboardData(selectedRoomRef.current?.id);
         fetchRooms();
       })
       .subscribe();
 
     const interval = setInterval(() => {
-      fetchDashboardData(selectedRoom?.id);
+      fetchDashboardData(selectedRoomRef.current?.id);
       fetchUser();
       fetchRooms();
     }, 15000);
@@ -270,17 +279,18 @@ export default function Promoter() {
       supabase.removeChannel(channel);
       clearInterval(interval);
     };
-  }, [selectedRoom?.id]);
+  }, []);
 
   const handleManualRefresh = async () => {
     triggerHaptic('medium');
     setRefreshing(true);
-    await Promise.all([fetchDashboardData(selectedRoom?.id), fetchUser(), fetchRooms()]);
+    await Promise.all([fetchDashboardData(selectedRoomRef.current?.id), fetchUser(), fetchRooms()]);
   };
 
   const handleOpenRoomDetail = (room: PromotedRoom) => {
     triggerHaptic('light');
     setSelectedRoom(room);
+    selectedRoomRef.current = room;
     setSelectedLiveStake(null);
     setRoomDetailMode(true);
     fetchDashboardData(room.id);
@@ -1209,10 +1219,13 @@ export default function Promoter() {
                     <span>All Rooms</span>
                   </button>
 
-                  <div className="text-right">
-                    <p className="text-xs font-black text-slate-900 truncate">{selectedRoom?.room_name}</p>
-                    <span className="text-[10px] font-bold text-emerald-600">
-                      ⚡ {promoterRate}% Promoter Cut
+                  <div className="text-right min-w-0 ml-3">
+                    <p className="text-sm font-black text-slate-900 truncate leading-tight">
+                      {selectedRoom?.room_name}
+                    </p>
+                    <span className="inline-flex items-center space-x-1 text-[10px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 mt-1">
+                      <Zap size={10} className="text-emerald-500 fill-emerald-500" />
+                      <span>{promoterRate}% Promoter Cut</span>
                     </span>
                   </div>
                 </div>
