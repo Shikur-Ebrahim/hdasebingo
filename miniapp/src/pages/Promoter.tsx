@@ -167,6 +167,7 @@ export default function Promoter() {
   const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
   const [customRangeText, setCustomRangeText] = useState('');
   const [reportSearchQuery, setReportSearchQuery] = useState('');
+  const [expandedRoomIds, setExpandedRoomIds] = useState<Record<string, boolean>>({});
 
   // Live stake details modal
   const [selectedLiveStake, setSelectedLiveStake] = useState<number | null>(null);
@@ -821,6 +822,79 @@ export default function Promoter() {
     return filteredRecentGames.reduce((acc, g) => acc + (g.agent_commission || 0), 0);
   }, [filteredRecentGames]);
 
+  // Group filtered finished games by room for collapsible room sections
+  const groupedRoomReports = useMemo(() => {
+    const map = new Map<string, {
+      roomId: string;
+      roomName: string;
+      games: typeof recentGames;
+      totalCommission: number;
+      totalPot: number;
+      totalPlayers: number;
+    }>();
+
+    filteredRecentGames.forEach((game) => {
+      const key = game.room_id || game.room_name || 'unassigned';
+      if (!map.has(key)) {
+        map.set(key, {
+          roomId: key,
+          roomName: game.room_name || 'Promoted Room',
+          games: [],
+          totalCommission: 0,
+          totalPot: 0,
+          totalPlayers: 0,
+        });
+      }
+      const entry = map.get(key)!;
+      entry.games.push(game);
+      entry.totalCommission += (game.agent_commission || 0);
+      entry.totalPot += (game.prize_pool || 0);
+      entry.totalPlayers += (game.total_players || 0);
+    });
+
+    return Array.from(map.values());
+  }, [filteredRecentGames]);
+
+  const areAllRoomsExpanded = useMemo(() => {
+    if (groupedRoomReports.length === 0) return false;
+    return groupedRoomReports.every((g) => expandedRoomIds[g.roomId]);
+  }, [groupedRoomReports, expandedRoomIds]);
+
+  const toggleRoomExpanded = (roomId: string) => {
+    triggerHaptic('light');
+    setExpandedRoomIds((prev) => ({
+      ...prev,
+      [roomId]: !prev[roomId],
+    }));
+  };
+
+  const toggleAllRooms = () => {
+    triggerHaptic('medium');
+    const newState = !areAllRoomsExpanded;
+    const next: Record<string, boolean> = {};
+    groupedRoomReports.forEach((g) => {
+      next[g.roomId] = newState;
+    });
+    setExpandedRoomIds(next);
+  };
+
+  // Promoter moving horizontal ticker items
+  const promoterMarqueeItems = useMemo(() => {
+    const promoterName = (user?.first_name || user?.username || 'PROMOTER').toUpperCase();
+    const items = [
+      `🏆 PROMOTER • ${promoterName}`,
+      '⚡ 3% COMMISSION PER MATCH',
+      '💰 PASSIVE DAILY EARNINGS',
+      '🎱 HDASE BINGO NETWORK',
+    ];
+    if (promotedRooms && promotedRooms.length > 0) {
+      promotedRooms.forEach((r) => {
+        items.push(`🏢 ${r.room_name}`);
+      });
+    }
+    return items;
+  }, [user, promotedRooms]);
+
   const liveStakes = [10, 20, 50, 100];
   const promoterRate = selectedRoom?.promoter_commission_rate ?? stats?.promoter_commission_rate ?? 3;
 
@@ -942,34 +1016,59 @@ export default function Promoter() {
           </div>
         )}
 
-        {/* ─── GOLDEN HERO CARD ─── */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-amber-100/90 via-amber-50/70 to-white border border-amber-200/80 p-5 shadow-sm">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-amber-400/20 to-orange-400/10 rounded-full blur-2xl pointer-events-none" />
-          <div className="relative z-10 flex flex-col items-center text-center space-y-3">
+        {/* ─── HDASE BINGO HERO BANNER (With Moving Promoter Marquee) ─── */}
+        <div
+          onClick={() => {
+            triggerHaptic('medium');
+            setActiveTab('rooms');
+            setRoomDetailMode(false);
+          }}
+          className="block relative rounded-3xl overflow-hidden shadow-md border border-amber-200/90 cursor-pointer active:scale-98 transition-all p-5 pt-7"
+          style={{
+            background: 'linear-gradient(135deg, #fffbf0 0%, #fef3c7 40%, #fff8e8 70%, #fffbf0 100%)',
+          }}
+        >
+          {/* Subtle radial glow in center */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background: 'radial-gradient(ellipse at 50% 60%, rgba(251,191,36,0.20) 0%, transparent 70%)',
+            }}
+          />
+          {/* Top border accent */}
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-400" />
+
+          {/* Scrolling marquee strip — live promoter info & rooms */}
+          <div className="absolute top-1 left-0 right-0 overflow-hidden py-1.5 bg-amber-50/80 border-b border-amber-200/60" style={{ top: '4px' }}>
+            <div className="flex whitespace-nowrap animate-marquee">
+              {Array.from({ length: 6 }).flatMap(() => promoterMarqueeItems).map((item, i) => (
+                <span key={i} className="text-amber-700 font-black text-[10px] uppercase tracking-[0.2em] px-4 shrink-0 flex items-center gap-1">
+                  {item} &nbsp;·&nbsp;
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Main content */}
+          <div className="relative z-10 flex flex-col items-center text-center space-y-2.5 pt-3">
             <div className="inline-flex items-center space-x-1.5 text-[10px] font-black tracking-wider uppercase text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-full">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span>LIVE BINGO • PROMOTER</span>
             </div>
 
             <div>
-              <h2 className="text-2xl font-black text-slate-900 tracking-wider">
-                HDASE <span className="text-amber-500">BINGO</span>
-              </h2>
-              <p className="text-xs font-bold text-slate-500 mt-0.5">
+              <div className="flex items-baseline justify-center gap-2">
+                <span className="text-slate-900 font-black text-3xl tracking-wide leading-none drop-shadow-sm">HDASE</span>
+                <span className="text-orange-500 font-black text-3xl tracking-wide leading-none drop-shadow-sm">BINGO</span>
+              </div>
+              <p className="text-xs font-bold text-slate-500 mt-1 max-w-xs">
                 Earn 3% commission on every game played in your invited rooms
               </p>
             </div>
 
-            <button
-              onClick={() => {
-                triggerHaptic('medium');
-                setActiveTab('rooms');
-                setRoomDetailMode(false);
-              }}
-              className="px-6 py-2.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white rounded-full text-xs font-black tracking-wider uppercase shadow-md shadow-orange-500/25 active:scale-95 transition-all flex items-center space-x-1.5"
-            >
+            <div className="px-6 py-2.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white rounded-full text-xs font-black tracking-wider uppercase shadow-md shadow-orange-500/25 active:scale-95 transition-all flex items-center space-x-1.5">
               <span>VIEW ROOMS →</span>
-            </button>
+            </div>
           </div>
         </div>
 
@@ -1808,99 +1907,217 @@ export default function Promoter() {
 
             {/* Summary Bar */}
             <div className="flex items-center justify-between px-1 text-xs font-bold text-slate-500">
-              <span>Showing {filteredRecentGames.length} of {recentGames.length} games</span>
+              <div className="flex items-center space-x-1.5">
+                <span>
+                  {groupedRoomReports.length} {groupedRoomReports.length === 1 ? 'Room' : 'Rooms'} ({filteredRecentGames.length} {filteredRecentGames.length === 1 ? 'game' : 'games'})
+                </span>
+                {groupedRoomReports.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={toggleAllRooms}
+                    className="text-[10px] text-amber-600 hover:text-amber-700 font-extrabold underline ml-1 active:scale-95 transition-all"
+                  >
+                    {areAllRoomsExpanded ? 'Collapse All' : 'Expand All'}
+                  </button>
+                )}
+              </div>
               <span className="text-emerald-600 font-black">
                 Total Comm: +{formatAmount(reportTotalCommission)} ETB
               </span>
             </div>
 
-            {/* List of Finished Game Cards */}
-            {filteredRecentGames.length === 0 ? (
+            {/* List of Collapsible Room Report Cards */}
+            {groupedRoomReports.length === 0 ? (
               <div className="bg-white rounded-3xl p-8 border border-slate-100 text-center text-slate-400">
                 <Trophy size={28} className="mx-auto text-slate-300 mb-2" />
                 <p className="text-xs font-black text-slate-700">No Finished Games Found</p>
                 <p className="text-[10px] text-slate-400 mt-1">Games played in your rooms will appear here with your commission.</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {filteredRecentGames.map((game) => (
-                  <div
-                    key={game.id}
-                    className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
-                  >
-                    {/* Top bar: Game ID + Room + Time */}
-                    <div className="flex items-center justify-between px-3.5 pt-3 pb-2">
-                      <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
-                        <span className="px-2 py-0.5 rounded-md bg-slate-100 font-mono text-[10px] font-black text-slate-700">
-                          #{formatGameId(game.id)}
-                        </span>
-                        {game.room_name && (
-                          <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-200">
-                            🏢 {game.room_name}
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-[9px] text-slate-400 shrink-0 ml-2">
-                        {new Date(game.finished_at || game.created_at).toLocaleString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                    </div>
+              <div className="space-y-3">
+                {groupedRoomReports.map((group) => {
+                  const isExpanded =
+                    reportSearchQuery.trim().length > 0 ||
+                    reportRoomFilter !== 'all' ||
+                    !!expandedRoomIds[group.roomId];
 
-                    {/* Middle: Winner row */}
-                    <div className="px-3.5 pb-2 flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center text-sm shrink-0">🏆</div>
-                        <div>
-                          <p className="text-[9px] text-slate-400 font-bold uppercase leading-none">Winner</p>
-                          <div className="flex items-center space-x-1.5 mt-0.5 flex-wrap">
-                            <span className="text-xs font-black text-slate-900 leading-tight">
-                              {game.winner_first_name}
-                            </span>
-                            {game.winner_cartela && (
-                              <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black tracking-tight shadow-2xs">
-                                <Ticket size={10} className="text-amber-600" />
-                                <span>{game.winner_cartela}</span>
+                  return (
+                    <div
+                      key={group.roomId}
+                      className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition-all duration-200"
+                    >
+                      {/* Clickable Room Header Banner (Click to toggle details) */}
+                      <button
+                        type="button"
+                        onClick={() => toggleRoomExpanded(group.roomId)}
+                        className={`w-full text-left p-3.5 transition-colors flex flex-col space-y-2.5 active:bg-amber-50/40 ${
+                          isExpanded
+                            ? 'bg-gradient-to-r from-amber-50/70 via-orange-50/30 to-white'
+                            : 'bg-white hover:bg-slate-50/60'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2.5 min-w-0">
+                            <div
+                              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition-all ${
+                                isExpanded
+                                  ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white border-amber-300 shadow-xs'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200/80'
+                              }`}
+                            >
+                              <Building2 size={18} />
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="text-xs font-black text-slate-900 truncate tracking-tight">
+                                {group.roomName}
+                              </h4>
+                              <p className="text-[10px] font-bold text-slate-400 flex items-center space-x-1.5 mt-0.5">
+                                <span className="text-amber-700 font-extrabold">
+                                  {group.games.length} finished {group.games.length === 1 ? 'game' : 'games'}
+                                </span>
+                                <span>•</span>
+                                <span>👥 {group.totalPlayers} total players</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-2 shrink-0">
+                            <div className="text-right">
+                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Earned</p>
+                              <span className="text-xs font-black text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-lg inline-block">
+                                +{formatAmount(group.totalCommission)} ETB
                               </span>
-                            )}
+                            </div>
+                            <div
+                              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-transform duration-200 ${
+                                isExpanded ? 'bg-amber-100 text-amber-800 rotate-180' : 'bg-slate-100 text-slate-500'
+                              }`}
+                            >
+                              <ChevronDown size={15} />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <span className="text-[10px] text-slate-400">👥 {game.total_players} players</span>
-                    </div>
 
-                    {/* Bottom: 3-chip horizontal stats row */}
-                    <div className="grid grid-cols-3 divide-x divide-slate-100 border-t border-slate-100">
-                      {/* Commission */}
-                      <div className="flex flex-col items-center py-2.5 px-1 bg-emerald-50">
-                        <p className="text-[8px] font-black text-emerald-600 uppercase tracking-wide">Commission</p>
-                        <p className="text-sm font-black text-emerald-700 leading-tight">
-                          +{formatAmount(game.agent_commission)}
-                        </p>
-                        <p className="text-[8px] text-emerald-500 font-bold">{game.commission_rate}% ETB</p>
-                      </div>
-                      {/* Pot */}
-                      <div className="flex flex-col items-center py-2.5 px-1">
-                        <p className="text-[8px] font-black text-slate-500 uppercase tracking-wide">Pot</p>
-                        <p className="text-sm font-black text-slate-800 leading-tight">
-                          {formatAmount(game.prize_pool)}
-                        </p>
-                        <p className="text-[8px] text-slate-400 font-bold">ETB</p>
-                      </div>
-                      {/* Stake */}
-                      <div className="flex flex-col items-center py-2.5 px-1 bg-slate-50">
-                        <p className="text-[8px] font-black text-slate-500 uppercase tracking-wide">Stake</p>
-                        <p className="text-sm font-black text-amber-600 leading-tight">
-                          {formatAmount(game.stake)}
-                        </p>
-                        <p className="text-[8px] text-slate-400 font-bold">ETB ✅</p>
-                      </div>
+                        {/* Room Mini Stat Bar */}
+                        <div className="grid grid-cols-3 divide-x divide-slate-100 bg-slate-50/90 rounded-xl py-1.5 px-1 border border-slate-100">
+                          <div className="text-center px-1">
+                            <span className="text-[8px] font-bold text-slate-400 uppercase">Games</span>
+                            <p className="text-[11px] font-black text-slate-800 leading-tight">
+                              {group.games.length}
+                            </p>
+                          </div>
+                          <div className="text-center px-1">
+                            <span className="text-[8px] font-bold text-slate-400 uppercase">Pot Pool</span>
+                            <p className="text-[11px] font-black text-slate-800 leading-tight">
+                              {formatAmount(group.totalPot)} ETB
+                            </p>
+                          </div>
+                          <div className="text-center px-1">
+                            <span className="text-[8px] font-bold text-emerald-600 uppercase">Commission</span>
+                            <p className="text-[11px] font-black text-emerald-600 leading-tight">
+                              +{formatAmount(group.totalCommission)} ETB
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Expand / Collapse Indicator Hint */}
+                        <div className="flex items-center justify-between text-[9px] font-bold px-0.5 pt-0.5">
+                          <span className={isExpanded ? 'text-amber-700' : 'text-slate-400'}>
+                            {isExpanded ? '▲ Hide room games report' : '▼ Click to view detailed room games'}
+                          </span>
+                          <span className="text-amber-600 font-extrabold">
+                            {isExpanded ? 'Collapse' : 'Details →'}
+                          </span>
+                        </div>
+                      </button>
+
+                      {/* Expanded Section: Individual Finished Games for this Room */}
+                      {isExpanded && (
+                        <div className="border-t border-slate-100 bg-slate-50/60 p-2.5 space-y-2 animate-in fade-in duration-200">
+                          {group.games.map((game) => (
+                            <div
+                              key={game.id}
+                              className="bg-white rounded-xl border border-slate-200/70 shadow-2xs overflow-hidden"
+                            >
+                              {/* Top bar: Game ID + Time */}
+                              <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
+                                <span className="px-2 py-0.5 rounded-md bg-slate-100 font-mono text-[10px] font-black text-slate-700">
+                                  #{formatGameId(game.id)}
+                                </span>
+                                <span className="text-[9px] text-slate-400 shrink-0">
+                                  {new Date(game.finished_at || game.created_at).toLocaleString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </span>
+                              </div>
+
+                              {/* Middle: Winner row */}
+                              <div className="px-3 pb-2 flex items-center justify-between">
+                                <div className="flex items-center space-x-2">
+                                  <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center text-xs shrink-0">
+                                    🏆
+                                  </div>
+                                  <div>
+                                    <p className="text-[8.5px] text-slate-400 font-bold uppercase leading-none">
+                                      Winner
+                                    </p>
+                                    <div className="flex items-center space-x-1.5 mt-0.5 flex-wrap">
+                                      <span className="text-xs font-black text-slate-900 leading-tight">
+                                        {game.winner_first_name}
+                                      </span>
+                                      {game.winner_cartela && (
+                                        <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-[9.5px] font-black tracking-tight shadow-2xs">
+                                          <Ticket size={9} className="text-amber-600" />
+                                          <span>{game.winner_cartela}</span>
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <span className="text-[9.5px] text-slate-400 font-medium">
+                                  👥 {game.total_players} players
+                                </span>
+                              </div>
+
+                              {/* Bottom: 3-chip horizontal stats row */}
+                              <div className="grid grid-cols-3 divide-x divide-slate-100 border-t border-slate-100">
+                                {/* Commission */}
+                                <div className="flex flex-col items-center py-2 px-1 bg-emerald-50">
+                                  <p className="text-[7.5px] font-black text-emerald-600 uppercase tracking-wide">
+                                    Commission
+                                  </p>
+                                  <p className="text-xs font-black text-emerald-700 leading-tight">
+                                    +{formatAmount(game.agent_commission)}
+                                  </p>
+                                  <p className="text-[7.5px] text-emerald-500 font-bold">{game.commission_rate}% ETB</p>
+                                </div>
+                                {/* Pot */}
+                                <div className="flex flex-col items-center py-2 px-1">
+                                  <p className="text-[7.5px] font-black text-slate-500 uppercase tracking-wide">Pot</p>
+                                  <p className="text-xs font-black text-slate-800 leading-tight">
+                                    {formatAmount(game.prize_pool)}
+                                  </p>
+                                  <p className="text-[7.5px] text-slate-400 font-bold">ETB</p>
+                                </div>
+                                {/* Stake */}
+                                <div className="flex flex-col items-center py-2 px-1 bg-slate-50">
+                                  <p className="text-[7.5px] font-black text-slate-500 uppercase tracking-wide">Stake</p>
+                                  <p className="text-xs font-black text-amber-600 leading-tight">
+                                    {formatAmount(game.stake)}
+                                  </p>
+                                  <p className="text-[7.5px] text-slate-400 font-bold">ETB ✅</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
