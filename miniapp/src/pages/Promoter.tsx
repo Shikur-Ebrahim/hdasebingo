@@ -530,6 +530,8 @@ export default function Promoter() {
   const liveStakes = [10, 20, 50, 100];
   const promoterRate = selectedRoom?.promoter_commission_rate ?? stats?.promoter_commission_rate ?? 3;
 
+  // Hold render until first data fetch completes — global splash stays visible
+  if (loading) return null;
 
   return (
     <div
