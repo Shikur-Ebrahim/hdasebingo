@@ -33,6 +33,7 @@ import {
   Calendar,
   ChevronDown,
   Ticket,
+  Crown,
 } from 'lucide-react';
 
 interface PromotedRoom {
@@ -316,101 +317,361 @@ export default function Promoter() {
     }
   };
 
-  // High-Res Flyer Generation using Promoter's Permanent Invitation Link
+  // High-Res Luxury Flyer Generation using Promoter's Permanent Invitation Link
   const generateFlyerImage = (): string | null => {
     const qrCanvas = qrCanvasRef.current;
     if (!qrCanvas) return null;
 
-    const width = 800;
-    const height = 1150;
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
+    try {
+      const width = 800;
+      const height = 1150;
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
 
-    // Background
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, width, height);
+      const promoterName = (user?.first_name || user?.username || 'PROMOTER').toUpperCase();
 
-    // Double Gold Border
-    ctx.strokeStyle = '#c59b27';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(22, 22, width - 44, height - 44);
-    ctx.strokeStyle = '#e6c875';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(32, 32, width - 64, height - 64);
+      // 1. Warm ivory luxury background (matching restaurant poster)
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+      bgGrad.addColorStop(0, '#ffffff');
+      bgGrad.addColorStop(0.3, '#fdfcf9');
+      bgGrad.addColorStop(0.7, '#faf5ea');
+      bgGrad.addColorStop(1, '#f5edd9');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, width, height);
 
-    // Monogram
-    const emblemX = width / 2;
-    const emblemY = 85;
-    ctx.fillStyle = '#1a1409';
-    ctx.beginPath();
-    ctx.arc(emblemX, emblemY, 26, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#d4af37';
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
+      // Radial ambient lighting in center
+      const radial = ctx.createRadialGradient(width / 2, 450, 50, width / 2, 450, 550);
+      radial.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+      radial.addColorStop(1, 'rgba(245, 235, 215, 0)');
+      ctx.fillStyle = radial;
+      ctx.fillRect(0, 0, width, height);
 
-    ctx.fillStyle = '#e5c158';
-    ctx.font = 'bold 15px "Times New Roman", serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('HB', emblemX, emblemY);
-    ctx.textBaseline = 'alphabetic';
+      // 2. Double gold ornate border frame
+      ctx.strokeStyle = '#c59b27';
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(20, 20, width - 40, height - 40);
 
-    // Title
-    ctx.fillStyle = '#140f09';
-    ctx.font = '900 40px "Times New Roman", Georgia, serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('HDASE BINGO', width / 2, 142);
+      ctx.strokeStyle = '#e6c86e';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(26, 26, width - 52, height - 52);
 
-    // Subtitle: Official Promoter Invitation
-    ctx.fillStyle = '#8a6a1d';
-    ctx.font = 'bold 13px sans-serif';
-    const subText = `OFFICIAL PROMOTER • ${(user?.first_name || 'PROMOTER').toUpperCase()}`;
-    ctx.fillText(subText, width / 2, 172);
+      // Corner diamond ornaments
+      const drawDiamond = (x: number, y: number, s: number) => {
+        ctx.fillStyle = '#b8860b';
+        ctx.beginPath();
+        ctx.moveTo(x, y - s);
+        ctx.lineTo(x + s, y);
+        ctx.lineTo(x, y + s);
+        ctx.lineTo(x - s, y);
+        ctx.closePath();
+        ctx.fill();
+      };
+      drawDiamond(26, 26, 4);
+      drawDiamond(width - 26, 26, 4);
+      drawDiamond(26, height - 26, 4);
+      drawDiamond(width - 26, height - 26, 4);
 
-    // Scan to Play
-    ctx.fillStyle = '#17120a';
-    ctx.font = '900 35px "Times New Roman", Georgia, sans-serif';
-    ctx.fillText('SCAN TO PLAY', width / 2, 224);
+      // 3. Top Royal Crown & Medallion Emblem
+      const emblemY = 82;
+      const emblemX = width / 2;
 
-    // Gold Ribbon
-    const ribY = 248;
-    const ribW = 540;
-    const ribH = 36;
-    const ribX = (width - ribW) / 2;
-    const ribGrad = ctx.createLinearGradient(ribX, ribY, ribX + ribW, ribY);
-    ribGrad.addColorStop(0, '#be942f');
-    ribGrad.addColorStop(0.5, '#f3d98b');
-    ribGrad.addColorStop(1, '#be942f');
-    ctx.fillStyle = ribGrad;
-    ctx.fillRect(ribX, ribY, ribW, ribH);
-    ctx.strokeStyle = '#856118';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(ribX, ribY, ribW, ribH);
+      // Gold Crown base
+      ctx.fillStyle = '#d4af37';
+      ctx.beginPath();
+      ctx.roundRect(emblemX - 22, emblemY - 34, 44, 7, 2);
+      ctx.fill();
 
-    ctx.fillStyle = '#2a1a04';
-    ctx.font = 'bold 13px sans-serif';
-    ctx.fillText('SCAN THE QR CODE TO PLAY & WIN CASH!', width / 2, ribY + 23);
+      // Crown spikes (5 peaks)
+      ctx.beginPath();
+      ctx.moveTo(emblemX - 22, emblemY - 34);
+      ctx.lineTo(emblemX - 25, emblemY - 52);
+      ctx.lineTo(emblemX - 12, emblemY - 40);
+      ctx.lineTo(emblemX, emblemY - 56);
+      ctx.lineTo(emblemX + 12, emblemY - 40);
+      ctx.lineTo(emblemX + 25, emblemY - 52);
+      ctx.lineTo(emblemX + 22, emblemY - 34);
+      ctx.closePath();
+      ctx.fill();
 
-    // QR Code
-    const qrSize = 420;
-    const qrX = (width - qrSize) / 2;
-    const qrY = 310;
-    ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
+      // Crown pearls
+      ctx.fillStyle = '#fef08a';
+      [-25, -12, 0, 12, 25].forEach((px, idx) => {
+        const py = idx === 2 ? emblemY - 57 : (idx === 0 || idx === 4) ? emblemY - 53 : emblemY - 41;
+        ctx.beginPath();
+        ctx.arc(emblemX + px, py, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
 
-    // Bottom Badge
-    const botY = 820;
-    ctx.fillStyle = '#1a1409';
-    ctx.font = '900 24px "Times New Roman", Georgia, serif';
-    ctx.fillText('HDASE BINGO', width / 2, botY);
-    ctx.fillStyle = '#8a6a1d';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.fillText('75-BALL MULTIPLAYER LIVE ETHIOPIAN BINGO', width / 2, botY + 22);
+      // Medallion Circle with HB Monogram
+      ctx.fillStyle = '#1c150c';
+      ctx.beginPath();
+      ctx.arc(emblemX, emblemY - 10, 24, 0, Math.PI * 2);
+      ctx.fill();
 
-    return canvas.toDataURL('image/png');
+      ctx.strokeStyle = '#d4af37';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.strokeStyle = '#fef08a';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(emblemX, emblemY - 10, 20, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Monogram text HB
+      ctx.fillStyle = '#fef08a';
+      ctx.font = '900 18px "Times New Roman", Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('HB', emblemX, emblemY - 9);
+      ctx.textBaseline = 'alphabetic';
+
+      // Symmetrical scrolls
+      ctx.strokeStyle = '#c59b27';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(emblemX - 35, emblemY - 10);
+      ctx.bezierCurveTo(emblemX - 55, emblemY - 24, emblemX - 70, emblemY + 2, emblemX - 90, emblemY - 6);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(emblemX + 35, emblemY - 10);
+      ctx.bezierCurveTo(emblemX + 55, emblemY - 24, emblemX + 70, emblemY + 2, emblemX + 90, emblemY - 6);
+      ctx.stroke();
+
+      // 4. Main Title "HDASE BINGO"
+      ctx.fillStyle = '#140f09';
+      ctx.font = '900 40px "Times New Roman", Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('HDASE BINGO', width / 2, 142);
+
+      // 5. Subtitle "OFFICIAL PROMOTER • [NAME]" with divider lines
+      ctx.fillStyle = '#8a6a1d';
+      ctx.font = 'bold 12.5px sans-serif';
+      const subText = `OFFICIAL PROMOTER • ${promoterName}`;
+      ctx.fillText(subText, width / 2, 172);
+
+      const subWidth = ctx.measureText(subText).width;
+      const lineY = 168;
+      const lineLen = 65;
+      ctx.strokeStyle = '#d4af37';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(width / 2 - subWidth / 2 - 12 - lineLen, lineY);
+      ctx.lineTo(width / 2 - subWidth / 2 - 12, lineY);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(width / 2 + subWidth / 2 + 12, lineY);
+      ctx.lineTo(width / 2 + subWidth / 2 + 12 + lineLen, lineY);
+      ctx.stroke();
+
+      // 6. Bold "SCAN TO PLAY" with wheat/arrow wings
+      const scanY = 224;
+      ctx.fillStyle = '#17120a';
+      ctx.font = '900 35px "Times New Roman", Georgia, sans-serif';
+      ctx.fillText('SCAN TO PLAY', width / 2, scanY);
+
+      const scanWidth = ctx.measureText('SCAN TO PLAY').width;
+      const wingLeftX = width / 2 - scanWidth / 2 - 25;
+      const wingRightX = width / 2 + scanWidth / 2 + 25;
+
+      const drawWing = (cx: number, cy: number, isRight: boolean) => {
+        ctx.fillStyle = '#c59b27';
+        const dir = isRight ? 1 : -1;
+        for (let i = -1; i <= 1; i++) {
+          ctx.beginPath();
+          ctx.ellipse(cx + dir * 10, cy + i * 8, 11, 4, (dir * (i * 25) * Math.PI) / 180, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.beginPath();
+        ctx.moveTo(cx + dir * 26, cy);
+        ctx.lineTo(cx + dir * 18, cy - 7);
+        ctx.lineTo(cx + dir * 18, cy + 7);
+        ctx.closePath();
+        ctx.fill();
+      };
+      drawWing(wingLeftX, scanY - 11, false);
+      drawWing(wingRightX, scanY - 11, true);
+
+      // 7. Gold Ribbon Banner "SCAN THE QR CODE TO Play & Win Cash!"
+      const ribbonW = 460;
+      const ribbonH = 40;
+      const ribbonX = (width - ribbonW) / 2;
+      const ribbonY = 248;
+
+      const ribGrad = ctx.createLinearGradient(ribbonX, ribbonY, ribbonX + ribbonW, ribbonY);
+      ribGrad.addColorStop(0, '#ebd596');
+      ribGrad.addColorStop(0.5, '#deb55b');
+      ribGrad.addColorStop(1, '#ebd596');
+      ctx.fillStyle = ribGrad;
+      ctx.beginPath();
+      ctx.roundRect(ribbonX, ribbonY, ribbonW, ribbonH, 20);
+      ctx.fill();
+
+      ctx.strokeStyle = '#a67718';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      const midRibY = ribbonY + ribbonH / 2;
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillStyle = '#3a2707';
+      const part1 = 'SCAN THE QR CODE TO ';
+      const p1W = ctx.measureText(part1).width;
+
+      ctx.font = 'italic bold 18px "Brush Script MT", "Great Vibes", "Lucida Calligraphy", cursive';
+      const part2 = 'Play & Win Cash!';
+      const p2W = ctx.measureText(part2).width;
+
+      const totalRibTextW = p1W + p2W;
+      const startRibTextX = width / 2 - totalRibTextW / 2;
+
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillStyle = '#3a2707';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(part1, startRibTextX, midRibY);
+
+      ctx.font = 'italic bold 19px "Brush Script MT", "Great Vibes", "Lucida Calligraphy", cursive';
+      ctx.fillStyle = '#831414'; // Ruby red cursive text
+      ctx.fillText(part2, startRibTextX + p1W, midRibY);
+      ctx.textBaseline = 'alphabetic';
+
+      // 8. Central White Card with Gold Border & QR Code
+      const cardW = 530;
+      const cardH = 530;
+      const cardX = (width - cardW) / 2;
+      const cardY = 308;
+      const cardRadius = 32;
+
+      ctx.shadowColor = 'rgba(120, 80, 20, 0.12)';
+      ctx.shadowBlur = 24;
+      ctx.shadowOffsetY = 8;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.roundRect(cardX, cardY, cardW, cardH, cardRadius);
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+
+      ctx.strokeStyle = '#c59b27';
+      ctx.lineWidth = 4.5;
+      ctx.stroke();
+
+      ctx.strokeStyle = '#fae596';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(cardX + 4, cardY + 4, cardW - 8, cardH - 8, cardRadius - 4);
+      ctx.stroke();
+
+      // Draw QR Code
+      const qrSize = 440;
+      const qrX = cardX + (cardW - qrSize) / 2;
+      const qrY = cardY + (cardH - qrSize) / 2;
+      ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
+
+      // Central HDASE BINGO Badge on QR Code
+      const centerBadgeW = 114;
+      const centerBadgeH = 50;
+      const centerBadgeX = width / 2 - centerBadgeW / 2;
+      const centerBadgeY = qrY + qrSize / 2 - centerBadgeH / 2;
+
+      const badgeGrad = ctx.createLinearGradient(centerBadgeX, centerBadgeY, centerBadgeX + centerBadgeW, centerBadgeY + centerBadgeH);
+      badgeGrad.addColorStop(0, '#f59e0b');
+      badgeGrad.addColorStop(1, '#d97706');
+      ctx.fillStyle = badgeGrad;
+      ctx.beginPath();
+      ctx.roundRect(centerBadgeX, centerBadgeY, centerBadgeW, centerBadgeH, 12);
+      ctx.fill();
+
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3.5;
+      ctx.stroke();
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 10.5px sans-serif';
+      ctx.fillText('HDASE', width / 2, centerBadgeY + 18);
+      ctx.font = '900 16px sans-serif';
+      ctx.fillText('BINGO', width / 2, centerBadgeY + 38);
+
+      // 9. Bottom Section: 4 feature icons + motto
+      ctx.strokeStyle = '#c59b27';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(width / 2, 830, 360, 0.25 * Math.PI, 0.75 * Math.PI);
+      ctx.stroke();
+
+      const featY = 880;
+      const feats = [
+        { icon: '🏆', text: 'JACKPOT' },
+        { icon: '⚡', text: 'INSTANT PAY' },
+        { icon: '🎱', text: '75 BINGO' },
+        { icon: '🛡️', text: 'VERIFIED' }
+      ];
+
+      const colW = (width - 120) / 4;
+      feats.forEach((f, idx) => {
+        const colX = 60 + idx * colW + colW / 2;
+
+        ctx.font = '24px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(f.icon, colX, featY);
+
+        ctx.fillStyle = '#6b4f14';
+        ctx.font = '900 10px sans-serif';
+        ctx.fillText(f.text, colX, featY + 22);
+
+        if (idx < 3) {
+          const divX = 60 + (idx + 1) * colW;
+          ctx.strokeStyle = '#d4af37';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(divX, featY - 14);
+          ctx.lineTo(divX, featY + 24);
+          ctx.stroke();
+        }
+      });
+
+      // 10. Cursive Motto "Real Players • Good Luck • Big Wins"
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#221609';
+      ctx.font = 'italic bold 23px "Brush Script MT", "Great Vibes", "Lucida Calligraphy", cursive';
+      ctx.fillText('Real Players  •  Good Luck  •  Big Wins', width / 2, 955);
+
+      // 11. Official Bot Link Box
+      const codeBoxW = 280;
+      const codeBoxH = 36;
+      const codeBoxX = (width - codeBoxW) / 2;
+      const codeBoxY = 988;
+
+      ctx.fillStyle = '#fbf6ea';
+      ctx.beginPath();
+      ctx.roundRect(codeBoxX, codeBoxY, codeBoxW, codeBoxH, 10);
+      ctx.fill();
+
+      ctx.strokeStyle = '#c59b27';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.fillStyle = '#664a10';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`@${botUsername}`, width / 2, codeBoxY + codeBoxH / 2);
+      ctx.textBaseline = 'alphabetic';
+
+      // 12. Footer
+      ctx.fillStyle = '#9c8141';
+      ctx.font = '600 11px sans-serif';
+      ctx.fillText('Official Promoter Invitation • Powered by HDASE BINGO', width / 2, 1056);
+
+      return canvas.toDataURL('image/png');
+    } catch (e) {
+      console.error('Error generating promoter flyer canvas', e);
+      return null;
+    }
   };
 
   const handleDownloadFlyer = () => {
@@ -1647,59 +1908,140 @@ export default function Promoter() {
 
         {/* ════════════ TAB 4: QR FLYER (PROMOTER'S PERMANENT INVITATION LINK) ════════════ */}
         {activeTab === 'qr' && (
-          <div className="space-y-3">
+          <div className="space-y-4 animate-in fade-in duration-200">
             {/* Table Flyer Card — Promotes the Promoter's Unique Invitation Link */}
-            <div className="bg-white rounded-3xl p-5 border-2 border-amber-300 shadow-md space-y-4 text-center relative overflow-hidden">
-              <div className="space-y-1">
-                <div className="w-10 h-10 rounded-full bg-slate-900 text-amber-400 mx-auto flex items-center justify-center font-black text-xs border-2 border-amber-400">
-                  HB
-                </div>
-                <h3 className="text-xl font-black text-slate-900 tracking-wider">HDASE BINGO</h3>
-                <p className="text-[10px] font-black tracking-widest uppercase text-amber-700">
-                  OFFICIAL PROMOTER • {user?.first_name || 'PROMOTER'}
-                </p>
-              </div>
-
-              <div className="space-y-1">
-                <h4 className="text-lg font-black text-slate-900 tracking-wide">SCAN TO PLAY</h4>
-                <div className="bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 text-slate-900 font-bold text-[10px] py-1 px-3 rounded-full uppercase tracking-wider inline-block">
-                  SCAN THE QR CODE TO Play & Win Cash!
-                </div>
-              </div>
-
-              {/* QR Canvas — ALWAYS Promoter Referral Link (ref_${telegram_id}) */}
-              <div className="p-3 bg-white border border-amber-200 rounded-2xl inline-block shadow-sm relative">
-                <QRCodeCanvas
-                  ref={qrCanvasRef}
-                  value={promoterInviteLink}
-                  size={200}
-                  level="H"
-                  includeMargin={false}
-                  fgColor="#1e293b"
-                  bgColor="#ffffff"
-                />
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="bg-gradient-to-r from-amber-500 to-yellow-400 border-2 border-white shadow-md rounded-xl px-2 py-0.5 flex flex-col items-center">
-                    <span className="text-[7px] font-black text-white leading-none">HDASE</span>
-                    <span className="text-[9px] font-black text-white leading-none">BINGO</span>
+            <div
+              className="relative overflow-hidden rounded-3xl border-2 border-[#c59b27] p-4 text-center shadow-md"
+              style={{
+                background: 'linear-gradient(180deg, #ffffff 0%, #fdfcf9 40%, #faf4e8 100%)',
+              }}
+            >
+              {/* Inner thin gold accent border */}
+              <div className="border border-[#e6c86e]/70 rounded-2xl p-3.5 space-y-2.5">
+                {/* 1. Royal Crown & Medallion Emblem */}
+                <div className="flex flex-col items-center justify-center">
+                  <div className="flex items-center space-x-1.5 text-[#b8860b]">
+                    <span className="w-8 h-px bg-[#d4af37]" />
+                    <Crown size={22} className="text-[#d4af37] fill-[#d4af37]/20 drop-shadow-xs" />
+                    <span className="w-8 h-px bg-[#d4af37]" />
+                  </div>
+                  {/* Circular Medallion */}
+                  <div className="w-9 h-9 rounded-full bg-[#1b140c] border-2 border-[#d4af37] ring-1 ring-[#fef08a] flex items-center justify-center mt-1 shadow-sm">
+                    <span className="font-serif font-black text-xs text-[#fef08a] tracking-wider">HB</span>
                   </div>
                 </div>
+
+                {/* 2. Main Title "HDASE BINGO" */}
+                <div>
+                  <h3 className="font-serif font-black text-2xl tracking-[0.15em] text-[#140f09] uppercase drop-shadow-2xs">
+                    HDASE BINGO
+                  </h3>
+                  <div className="flex items-center justify-center space-x-2 text-[10px] font-bold text-[#8a6a1d] uppercase tracking-wider mt-0.5">
+                    <span className="w-6 h-px bg-[#d4af37]" />
+                    <span>Official Promoter • {(user?.first_name || user?.username || 'Promoter').toUpperCase()}</span>
+                    <span className="w-6 h-px bg-[#d4af37]" />
+                  </div>
+                </div>
+
+                {/* 3. Bold "SCAN TO PLAY" */}
+                <div className="flex items-center justify-center space-x-2 pt-0.5">
+                  <span className="text-[#c59b27] font-black text-sm">⮞</span>
+                  <span className="font-serif font-black text-lg text-[#140f09] tracking-wider">
+                    SCAN TO PLAY
+                  </span>
+                  <span className="text-[#c59b27] font-black text-sm">⮜</span>
+                </div>
+
+                {/* 4. Golden Ribbon Banner */}
+                <div
+                  className="mx-auto px-4 py-1.5 rounded-full border border-[#a67718] shadow-2xs max-w-xs flex items-center justify-center space-x-1"
+                  style={{
+                    background: 'linear-gradient(90deg, #ebd596 0%, #deb55b 50%, #ebd596 100%)',
+                  }}
+                >
+                  <span className="text-[10px] font-black text-[#3a2707] uppercase tracking-wider">
+                    Scan the QR code to
+                  </span>
+                  <span className="font-serif italic font-black text-xs text-[#831414]">
+                    Play & Win Cash!
+                  </span>
+                </div>
+
+                {/* 5. Central White QR Code Card with double gold border */}
+                <div className="relative mx-auto w-fit p-3 bg-white rounded-3xl border-[3px] border-[#c59b27] ring-2 ring-[#fae596] shadow-sm my-1">
+                  {/* Corner decorative brackets */}
+                  <div className="absolute top-2 left-2 w-3.5 h-3.5 border-t-2 border-l-2 border-[#b8860b] rounded-tl-sm pointer-events-none" />
+                  <div className="absolute top-2 right-2 w-3.5 h-3.5 border-t-2 border-r-2 border-[#b8860b] rounded-tr-sm pointer-events-none" />
+                  <div className="absolute bottom-2 left-2 w-3.5 h-3.5 border-b-2 border-l-2 border-[#b8860b] rounded-bl-sm pointer-events-none" />
+                  <div className="absolute bottom-2 right-2 w-3.5 h-3.5 border-b-2 border-r-2 border-[#b8860b] rounded-br-sm pointer-events-none" />
+
+                  <div className="relative">
+                    <QRCodeCanvas
+                      ref={qrCanvasRef}
+                      value={promoterInviteLink}
+                      size={200}
+                      level="H"
+                      includeMargin={false}
+                      fgColor="#0f172a"
+                      bgColor="#ffffff"
+                    />
+
+                    {/* Center HDASE BINGO Badge */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="bg-gradient-to-r from-amber-500 to-yellow-400 border-2 border-white shadow-lg rounded-xl px-2.5 py-1 flex flex-col items-center justify-center" style={{ minWidth: 68 }}>
+                        <span className="text-[8px] font-black text-white/80 uppercase tracking-widest leading-none">HDASE</span>
+                        <span className="text-[11px] font-black text-white leading-none tracking-wider">BINGO</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 6. 4 Features row (Jackpot, Instant Pay, 75 Bingo, 100% Safe) */}
+                <div className="grid grid-cols-4 divide-x divide-[#d4af37]/50 pt-1 text-center">
+                  <div className="px-1">
+                    <p className="text-sm">🏆</p>
+                    <p className="text-[8.5px] font-black text-[#6b4f14] uppercase">Jackpot</p>
+                  </div>
+                  <div className="px-1">
+                    <p className="text-sm">⚡</p>
+                    <p className="text-[8.5px] font-black text-[#6b4f14] uppercase">Instant</p>
+                  </div>
+                  <div className="px-1">
+                    <p className="text-sm">🎱</p>
+                    <p className="text-[8.5px] font-black text-[#6b4f14] uppercase">75 Bingo</p>
+                  </div>
+                  <div className="px-1">
+                    <p className="text-sm">🛡️</p>
+                    <p className="text-[8.5px] font-black text-[#6b4f14] uppercase">Verified</p>
+                  </div>
+                </div>
+
+                {/* 7. Cursive motto */}
+                <p className="font-serif italic font-bold text-xs text-[#221609] pt-0.5">
+                  Real Players &nbsp;•&nbsp; Good Luck &nbsp;•&nbsp; Big Wins
+                </p>
+
+                {/* 8. Official Bot Link Box */}
+                <div className="mx-auto w-fit px-5 py-1.5 bg-[#fbf6ea] border border-[#c59b27] rounded-xl shadow-2xs">
+                  <span className="font-bold text-xs text-[#664a10] tracking-wide">@{botUsername}</span>
+                </div>
               </div>
 
-              <div className="flex space-x-2 pt-2">
+              {/* Action buttons */}
+              <div className="flex space-x-2 pt-3">
                 <button
                   onClick={handleDownloadFlyer}
-                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-black flex items-center justify-center space-x-1.5 active:scale-95 transition-all"
+                  className="flex-1 py-3 bg-slate-900 hover:bg-slate-800 text-[#fef08a] rounded-xl text-xs font-black flex items-center justify-center space-x-1.5 active:scale-95 transition-all shadow-sm border border-amber-500/30"
                 >
-                  {downloadedQR ? <CheckCircle2 size={14} className="text-emerald-600" /> : <Download size={14} />}
-                  <span>{downloadedQR ? 'Saved!' : 'Save Flyer'}</span>
+                  {downloadedQR ? <CheckCircle2 size={15} className="text-emerald-400" /> : <Download size={15} />}
+                  <span>{downloadedQR ? 'Saved to Gallery!' : 'Save Flyer'}</span>
                 </button>
                 <button
                   onClick={handleSendFlyerToTelegram}
                   disabled={isSavingFlyer}
-                  className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black flex items-center justify-center space-x-1.5 active:scale-95 transition-all shadow-sm"
+                  className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl text-xs font-black flex items-center justify-center space-x-1.5 active:scale-95 transition-all shadow-sm"
                 >
-                  <Send size={14} className={isSavingFlyer ? 'animate-spin' : ''} />
+                  <Send size={15} className={isSavingFlyer ? 'animate-spin' : ''} />
                   <span>{flyerSentToTg ? 'Sent to Bot!' : 'Send to Bot'}</span>
                 </button>
               </div>
