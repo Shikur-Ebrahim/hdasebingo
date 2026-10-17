@@ -67,7 +67,7 @@ export default function AdminWithdrawalMethods() {
   // Form State
   const [formData, setFormData] = useState({
     type: 'cbe',
-    min_withdrawal: 50,
+    min_withdrawal: 10,
   });
   const [file, setFile] = useState<File | null>(null);
   const [existingLogoUrl, setExistingLogoUrl] = useState('');
@@ -91,7 +91,7 @@ export default function AdminWithdrawalMethods() {
 
   const openNewModal = () => {
     setEditingId(null);
-    setFormData({ type: 'cbe', min_withdrawal: 50 });
+    setFormData({ type: 'cbe', min_withdrawal: 10 });
     setFile(null);
     setExistingLogoUrl('');
     setIsModalOpen(true);
@@ -281,7 +281,7 @@ export default function AdminWithdrawalMethods() {
                 <input
                   type="number"
                   required
-                  min="50"
+                  min="1"
                   className="w-full bg-slate-50  border border-gray-200 rounded-xl px-4 py-3.5 text-sm font-bold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
                   value={formData.min_withdrawal}
                   onChange={(e) => setFormData({ ...formData, min_withdrawal: Number(e.target.value) })}

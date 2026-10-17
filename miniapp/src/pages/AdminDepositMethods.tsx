@@ -51,7 +51,7 @@ export default function AdminDepositMethods() {
     type: 'cbe',
     name: '',
     account_number: '',
-    min_deposit: 50,
+    min_deposit: 10,
   });
   const [file, setFile] = useState<File | null>(null);
   const [existingLogoUrl, setExistingLogoUrl] = useState('');
@@ -80,7 +80,7 @@ export default function AdminDepositMethods() {
 
   const openNewModal = () => {
     setEditingId(null);
-    setFormData({ type: 'cbe', name: '', account_number: '', min_deposit: 50 });
+    setFormData({ type: 'cbe', name: '', account_number: '', min_deposit: 10 });
     setFile(null);
     setExistingLogoUrl('');
     setIsModalOpen(true);
@@ -320,7 +320,7 @@ export default function AdminDepositMethods() {
                 <input 
                   type="number" 
                   required
-                  min="50"
+                  min="1"
                   className="w-full bg-slate-50  border border-gray-200 rounded-xl px-4 py-3.5 text-sm font-bold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
                   value={formData.min_deposit}
                   onChange={(e) => setFormData({...formData, min_deposit: Number(e.target.value)})}
