@@ -178,7 +178,16 @@ export default function Promoter() {
   const [flyerSentToTg, setFlyerSentToTg] = useState(false);
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [supportPhoneUsa, setSupportPhoneUsa] = useState('+1 (984) 378-9510');
-  const [supportPhoneEth, setSupportPhoneEth] = useState('0999992524');
+  const [supportPhoneEth, setSupportPhoneEth] = useState('+251999992524');
+
+  const formatEthPhone = (phone: string) => {
+    if (!phone) return '+251999992524';
+    const clean = phone.trim();
+    if ((clean.startsWith('09') || clean.startsWith('07')) && clean.length === 10) {
+      return '+251' + clean.slice(1);
+    }
+    return clean;
+  };
 
   if (user?.role !== 'promoter') {
     return <Navigate to="/" replace />;
@@ -1090,8 +1099,8 @@ export default function Promoter() {
             </div>
           </div>
 
-          {/* ── Phone numbers — bottom corners (tiny gap to borders) ── */}
-          <div className="absolute bottom-1 left-1.5 right-1.5 flex justify-between items-end pointer-events-none z-20">
+          {/* ── Phone numbers & Support indicator — bottom corners ── */}
+          <div className="absolute bottom-1 left-1.5 right-1.5 flex justify-between items-center pointer-events-none z-20">
             {/* USA — bottom left */}
             <button
               type="button"
@@ -1101,11 +1110,20 @@ export default function Promoter() {
                 triggerHaptic('medium');
                 window.location.href = `tel:${supportPhoneUsa.replace(/[\s()\-]/g, '')}`;
               }}
-              className="pointer-events-auto flex items-center gap-1 p-0.5 rounded text-emerald-700 active:scale-95 active:opacity-75 transition-all"
+              className="pointer-events-auto flex items-center gap-1 p-0.5 rounded text-emerald-700 active:scale-95 active:opacity-75 transition-all shrink-0"
             >
-              <span className="text-sm leading-none" role="img" aria-label="USA">🇺🇸</span>
-              <span className="text-[10px] font-black leading-none tracking-tight">{supportPhoneUsa}</span>
+              <span className="text-[15px] leading-none" role="img" aria-label="USA">🇺🇸</span>
+              <span className="text-[11px] font-black leading-none tracking-tight">{supportPhoneUsa}</span>
             </button>
+
+            {/* Center "SUPPORT" badge with arrows pointing toward USA & Ethiopia */}
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100/90 border border-amber-300/70 shadow-2xs backdrop-blur-xs select-none">
+              <span className="text-xs font-black text-amber-700 leading-none">←</span>
+              <span className="text-[9px] font-black tracking-widest text-amber-900 uppercase leading-none">
+                SUPPORT
+              </span>
+              <span className="text-xs font-black text-amber-700 leading-none">→</span>
+            </div>
 
             {/* Ethiopia — bottom right */}
             <button
@@ -1114,12 +1132,12 @@ export default function Promoter() {
                 e.preventDefault();
                 e.stopPropagation();
                 triggerHaptic('medium');
-                window.location.href = `tel:${supportPhoneEth.replace(/[\s()\-]/g, '')}`;
+                window.location.href = `tel:${formatEthPhone(supportPhoneEth).replace(/[\s()\-]/g, '')}`;
               }}
-              className="pointer-events-auto flex items-center gap-1 p-0.5 rounded text-emerald-700 active:scale-95 active:opacity-75 transition-all"
+              className="pointer-events-auto flex items-center gap-1 p-0.5 rounded text-emerald-700 active:scale-95 active:opacity-75 transition-all shrink-0"
             >
-              <span className="text-sm leading-none" role="img" aria-label="Ethiopia">🇪🇹</span>
-              <span className="text-[10px] font-black leading-none tracking-tight">{supportPhoneEth}</span>
+              <span className="text-[15px] leading-none" role="img" aria-label="Ethiopia">🇪🇹</span>
+              <span className="text-[11px] font-black leading-none tracking-tight">{formatEthPhone(supportPhoneEth)}</span>
             </button>
           </div>
         </div>

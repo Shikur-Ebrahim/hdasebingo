@@ -24,7 +24,7 @@ const SETTING_FIELDS: SettingField[] = [
   { key: 'invitation_reward_pct', label: 'Invite Reward', icon: <Users size={16} />, type: 'number', unit: '%', color: 'text-violet-600', bg: 'bg-violet-50', defaultValue: 10 },
   { key: 'support_username', label: 'Support Team User', icon: <Headphones size={16} />, type: 'text', color: 'text-orange-600', bg: 'bg-orange-50', defaultValue: 'hdasebingo_admin' },
   { key: 'support_phone_usa', label: 'USA Support Phone', icon: <Phone size={16} />, type: 'text', color: 'text-blue-700', bg: 'bg-blue-50', defaultValue: '+1 (984) 378-9510' },
-  { key: 'support_phone_eth', label: 'Ethiopia Support Phone', icon: <Phone size={16} />, type: 'text', color: 'text-green-700', bg: 'bg-green-50', defaultValue: '0999992524' },
+  { key: 'support_phone_eth', label: 'Ethiopia Support Phone', icon: <Phone size={16} />, type: 'text', color: 'text-green-700', bg: 'bg-green-50', defaultValue: '+251999992524' },
   { key: 'channel_link', label: 'Official Channel Link', icon: <Megaphone size={16} />, type: 'text', color: 'text-indigo-600', bg: 'bg-indigo-50', defaultValue: 'https://t.me/hdasebingo' },
   { key: 'announcement_message', label: 'Announcement Message', icon: <Megaphone size={16} />, type: 'textarea', color: 'text-fuchsia-600', bg: 'bg-fuchsia-50', defaultValue: '' },
   { key: 'announcement_max_views', label: 'Popup Max Views', icon: <Users size={16} />, type: 'number', color: 'text-pink-600', bg: 'bg-pink-50', defaultValue: 2 },
@@ -58,6 +58,10 @@ export default function AdminSettings() {
         SETTING_FIELDS.forEach(f => {
           if (!(f.key in map)) map[f.key] = String(f.defaultValue);
         });
+        // Normalize 09 to +251 on load if needed
+        if (map['support_phone_eth'] && (map['support_phone_eth'].startsWith('09') || map['support_phone_eth'].startsWith('07')) && map['support_phone_eth'].length === 10) {
+          map['support_phone_eth'] = '+251' + map['support_phone_eth'].slice(1);
+        }
         setValues(map);
       }
     } catch (err) {
@@ -108,7 +112,10 @@ export default function AdminSettings() {
 
   // Read phone values from DB (falls back to hardcoded defaults)
   const usaPhone = values['support_phone_usa'] || '+1 (984) 378-9510';
-  const ethPhone = values['support_phone_eth'] || '0999992524';
+  let ethPhone = values['support_phone_eth'] || '+251999992524';
+  if ((ethPhone.startsWith('09') || ethPhone.startsWith('07')) && ethPhone.length === 10) {
+    ethPhone = '+251' + ethPhone.slice(1);
+  }
 
   return (
     <div className="flex flex-col h-screen bg-slate-50 overflow-hidden">
@@ -144,7 +151,7 @@ export default function AdminSettings() {
           </div>
         ) : (
           <>
-            {/* ── SUPPORT CONTACT NUMBERS ─────────────────────────────────── */}
+            {/* ── SUPPORT CONTACT NUMBERS (DIRECTLY EDITABLE) ─────────────── */}
             <div className="space-y-2">
               {/* Section label */}
               <div className="flex items-center space-x-2 px-0.5">
@@ -156,81 +163,127 @@ export default function AdminSettings() {
                 </span>
               </div>
 
-              {/* Two phone cards side-by-side */}
+              {/* Two phone cards side-by-side with direct edit & save */}
               <div className="grid grid-cols-2 gap-2.5">
 
                 {/* ── USA Card ────────────────────────────────────────────── */}
-                <button
-                  type="button"
-                  onClick={() => handleCall(usaPhone)}
-                  className="group relative bg-white rounded-2xl border border-blue-100 shadow-sm overflow-hidden active:scale-[0.96] transition-all duration-150 text-left"
-                >
+                <div className="relative bg-white rounded-2xl border border-blue-100 shadow-sm overflow-hidden flex flex-col justify-between">
                   {/* USA flag-colored top stripe */}
                   <div className="h-[3px] w-full" style={{ background: 'linear-gradient(90deg, #002868 0%, #BF0A30 50%, #FFFFFF 100%)' }} />
 
-                  <div className="p-3 space-y-2.5">
+                  <div className="p-2.5 space-y-2">
                     {/* Flag + label */}
-                    <div className="flex items-center space-x-2">
-                      <span className="text-2xl leading-none" role="img" aria-label="USA">🇺🇸</span>
+                    <div className="flex items-center space-x-1.5">
+                      <span className="text-xl leading-none" role="img" aria-label="USA">🇺🇸</span>
                       <div>
-                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-wide leading-none">United States</p>
-                        <p className="text-[8px] text-slate-400 leading-none mt-0.5">US Support Line</p>
+                        <p className="text-[9.5px] font-black text-slate-700 uppercase tracking-wide leading-none">United States</p>
+                        <p className="text-[8px] text-slate-400 leading-none mt-0.5">USA Support Line</p>
                       </div>
                     </div>
 
-                    {/* Number in green */}
-                    <div className="bg-emerald-50 border border-emerald-200/70 rounded-xl px-2 py-1.5">
-                      <p className="text-[10.5px] font-black text-emerald-700 tracking-tight leading-none break-all">
-                        {usaPhone}
-                      </p>
-                    </div>
+                    {/* Editable Number Input */}
+                    <input
+                      type="text"
+                      value={values['support_phone_usa'] ?? '+1 (984) 378-9510'}
+                      onChange={(e) => setValues(prev => ({ ...prev, support_phone_usa: e.target.value }))}
+                      className="w-full text-center font-black text-[11px] text-emerald-700 bg-emerald-50/90 border border-emerald-200 focus:border-blue-500 focus:bg-white outline-none rounded-xl px-1.5 py-1.5 transition-all"
+                      placeholder="+1 (xxx) xxx-xxxx"
+                    />
 
-                    {/* Call button */}
-                    <div className="flex items-center justify-center space-x-1.5 bg-blue-600 group-active:bg-blue-700 rounded-xl py-2 transition-colors shadow-sm">
-                      <Phone size={12} className="text-white" />
-                      <span className="text-[10px] font-black text-white uppercase tracking-wide">Call Now</span>
+                    {/* Action buttons: Save & Call */}
+                    <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => handleSave('support_phone_usa')}
+                        disabled={saving === 'support_phone_usa'}
+                        className="h-7 bg-slate-800 hover:bg-slate-900 active:scale-95 disabled:opacity-50 text-white rounded-lg flex items-center justify-center space-x-1 transition-all shadow-xs"
+                      >
+                        {saving === 'support_phone_usa' ? (
+                          <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <Save size={11} />
+                            <span className="text-[10px] font-black">Save</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleCall(usaPhone)}
+                        className="h-7 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-lg flex items-center justify-center space-x-1 transition-all shadow-xs"
+                      >
+                        <Phone size={11} />
+                        <span className="text-[10px] font-black">Call</span>
+                      </button>
                     </div>
                   </div>
-                </button>
+                </div>
 
                 {/* ── Ethiopia Card ────────────────────────────────────────── */}
-                <button
-                  type="button"
-                  onClick={() => handleCall(ethPhone)}
-                  className="group relative bg-white rounded-2xl border border-green-100 shadow-sm overflow-hidden active:scale-[0.96] transition-all duration-150 text-left"
-                >
+                <div className="relative bg-white rounded-2xl border border-green-100 shadow-sm overflow-hidden flex flex-col justify-between">
                   {/* Ethiopian flag stripe: green / yellow / red */}
                   <div className="h-[3px] w-full" style={{ background: 'linear-gradient(90deg, #078930 0%, #FCDD09 50%, #DA121A 100%)' }} />
 
-                  <div className="p-3 space-y-2.5">
+                  <div className="p-2.5 space-y-2">
                     {/* Flag + label */}
-                    <div className="flex items-center space-x-2">
-                      <span className="text-2xl leading-none" role="img" aria-label="Ethiopia">🇪🇹</span>
+                    <div className="flex items-center space-x-1.5">
+                      <span className="text-xl leading-none" role="img" aria-label="Ethiopia">🇪🇹</span>
                       <div>
-                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-wide leading-none">Ethiopia</p>
+                        <p className="text-[9.5px] font-black text-slate-700 uppercase tracking-wide leading-none">Ethiopia</p>
                         <p className="text-[8px] text-slate-400 leading-none mt-0.5">ETH Support Line</p>
                       </div>
                     </div>
 
-                    {/* Number in green */}
-                    <div className="bg-emerald-50 border border-emerald-200/70 rounded-xl px-2 py-1.5">
-                      <p className="text-[10.5px] font-black text-emerald-700 tracking-tight leading-none break-all">
-                        {ethPhone}
-                      </p>
-                    </div>
+                    {/* Editable Number Input (auto formats 09/07 to +251) */}
+                    <input
+                      type="text"
+                      value={values['support_phone_eth'] ?? '+251999992524'}
+                      onChange={(e) => {
+                        let val = e.target.value.trim();
+                        if ((val.startsWith('09') || val.startsWith('07')) && val.length === 10) {
+                          val = '+251' + val.slice(1);
+                        }
+                        setValues(prev => ({ ...prev, support_phone_eth: val }));
+                      }}
+                      className="w-full text-center font-black text-[11px] text-emerald-700 bg-emerald-50/90 border border-emerald-200 focus:border-green-500 focus:bg-white outline-none rounded-xl px-1.5 py-1.5 transition-all"
+                      placeholder="+2519xxxxxxxx"
+                    />
 
-                    {/* Call button */}
-                    <div className="flex items-center justify-center space-x-1.5 bg-green-600 group-active:bg-green-700 rounded-xl py-2 transition-colors shadow-sm">
-                      <Phone size={12} className="text-white" />
-                      <span className="text-[10px] font-black text-white uppercase tracking-wide">Call Now</span>
+                    {/* Action buttons: Save & Call */}
+                    <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => handleSave('support_phone_eth')}
+                        disabled={saving === 'support_phone_eth'}
+                        className="h-7 bg-slate-800 hover:bg-slate-900 active:scale-95 disabled:opacity-50 text-white rounded-lg flex items-center justify-center space-x-1 transition-all shadow-xs"
+                      >
+                        {saving === 'support_phone_eth' ? (
+                          <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <Save size={11} />
+                            <span className="text-[10px] font-black">Save</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleCall(ethPhone)}
+                        className="h-7 bg-green-600 hover:bg-green-700 active:scale-95 text-white rounded-lg flex items-center justify-center space-x-1 transition-all shadow-xs"
+                      >
+                        <Phone size={11} />
+                        <span className="text-[10px] font-black">Call</span>
+                      </button>
                     </div>
                   </div>
-                </button>
+                </div>
               </div>
 
               {/* Helper note */}
               <p className="text-[9px] text-slate-400 text-center font-medium">
-                Tap a card to call • Update numbers from settings below
+                Edit numbers directly above and tap Save • Changes sync to all pages instantly
               </p>
             </div>
 
