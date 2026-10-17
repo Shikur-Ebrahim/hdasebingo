@@ -877,11 +877,11 @@ router.get('/promoter-dashboard', validateTelegramAuth, async (req: AuthRequest,
       };
     });
 
-    // 6. Fetch all finished games for full metrics & 7-day chart
+    // 6. Fetch all finished games across ALL promoted rooms for full metrics & 7-day chart
     const { data: allFinished } = await supabase
       .from('bingo_games')
-      .select('id, stake, prize_pool, total_players, finished_at, created_at')
-      .eq('room_id', selectedRoom.id)
+      .select('id, room_id, stake, prize_pool, total_players, finished_at, created_at')
+      .in('room_id', allRoomIds.length > 0 ? allRoomIds : [selectedRoom.id])
       .eq('status', 'finished')
       .order('finished_at', { ascending: false });
 
@@ -916,7 +916,10 @@ router.get('/promoter-dashboard', validateTelegramAuth, async (req: AuthRequest,
       const totalAmount = (players >= 3 && rawPool > 0)
         ? Math.round(rawPool / 0.8)
         : (rawPool || (stake * players) || 0);
-      const comm = (players >= 3) ? Number(((totalAmount * promoterRate) / 100).toFixed(2)) : 0;
+      // Use the per-room promoter commission rate
+      const gameRoom = roomsMap.get(g.room_id) || selectedRoom;
+      const gameRate = Number(gameRoom?.promoter_commission_rate ?? promoterRate);
+      const comm = (players >= 3) ? Number(((totalAmount * gameRate) / 100).toFixed(2)) : 0;
 
       totalPotVolume += totalAmount;
       totalCommissionAllTime += comm;
