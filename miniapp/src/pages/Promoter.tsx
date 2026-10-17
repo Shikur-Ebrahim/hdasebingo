@@ -30,6 +30,8 @@ import {
   Layers,
   DoorOpen,
   Wifi,
+  Calendar,
+  ChevronDown,
 } from 'lucide-react';
 
 interface PromotedRoom {
@@ -126,8 +128,8 @@ export default function Promoter() {
   const [error, setError] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Tab navigation: 'analytics' | 'rooms' | 'report' | 'qr'
-  const [activeTab, setActiveTab] = useState<'analytics' | 'rooms' | 'report' | 'qr'>('rooms');
+  // Tab navigation: 'analytics' | 'rooms' | 'report' | 'qr' — default is 'analytics'
+  const [activeTab, setActiveTab] = useState<'analytics' | 'rooms' | 'report' | 'qr'>('analytics');
 
   // When on 'rooms' tab: null = show all room cards; non-null = viewing that room's live stake tables!
   const [roomDetailMode, setRoomDetailMode] = useState<boolean>(false);
@@ -136,8 +138,12 @@ export default function Promoter() {
   const [chartMetric, setChartMetric] = useState<'games' | 'commission' | 'volume'>('games');
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
 
-  // Report filter: Room category filter ('all' or specific room_id)
+  // Report filters: Room category filter ('all' or specific room_id) + Advanced Date/Period filter
   const [reportRoomFilter, setReportRoomFilter] = useState<string>('all');
+  const [showRoomDropdown, setShowRoomDropdown] = useState(false);
+  const [reportPeriod, setReportPeriod] = useState<'all' | 'today' | 'yesterday' | 'weekly' | 'monthly' | '3months' | 'yearly' | 'custom'>('all');
+  const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
+  const [customRangeText, setCustomRangeText] = useState('');
   const [reportSearchQuery, setReportSearchQuery] = useState('');
 
   // Live stake details modal
@@ -425,12 +431,86 @@ export default function Promoter() {
     return Math.max(...vals, 1);
   }, [chartData, chartMetric]);
 
-  // Filter Finished Games Report by ROOM CATEGORY and search query
+  // Filter Finished Games Report by ROOM CATEGORY, ADVANCED DATE/PERIOD, and search query
   const filteredRecentGames = useMemo(() => {
     return recentGames.filter((g) => {
-      // Room category filter
+      // 1. Room category filter
       if (reportRoomFilter !== 'all' && g.room_id !== reportRoomFilter) return false;
-      // Search query filter
+
+      // 2. Period / Date filter
+      if (reportPeriod !== 'all') {
+        const gDate = new Date(g.finished_at || g.created_at);
+        const now = new Date();
+
+        if (reportPeriod === 'today') {
+          const isToday =
+            gDate.getDate() === now.getDate() &&
+            gDate.getMonth() === now.getMonth() &&
+            gDate.getFullYear() === now.getFullYear();
+          if (!isToday) return false;
+        } else if (reportPeriod === 'yesterday') {
+          const yesterday = new Date();
+          yesterday.setDate(now.getDate() - 1);
+          const isYesterday =
+            gDate.getDate() === yesterday.getDate() &&
+            gDate.getMonth() === yesterday.getMonth() &&
+            gDate.getFullYear() === yesterday.getFullYear();
+          if (!isYesterday) return false;
+        } else if (reportPeriod === 'weekly') {
+          const weekAgo = new Date();
+          weekAgo.setDate(now.getDate() - 7);
+          if (gDate < weekAgo) return false;
+        } else if (reportPeriod === 'monthly') {
+          const monthAgo = new Date();
+          monthAgo.setDate(now.getDate() - 30);
+          if (gDate < monthAgo) return false;
+        } else if (reportPeriod === '3months') {
+          const threeMonthsAgo = new Date();
+          threeMonthsAgo.setMonth(now.getMonth() - 3);
+          if (gDate < threeMonthsAgo) return false;
+        } else if (reportPeriod === 'yearly') {
+          const oneYearAgo = new Date();
+          oneYearAgo.setFullYear(now.getFullYear() - 1);
+          if (gDate < oneYearAgo) return false;
+        } else if (reportPeriod === 'custom') {
+          const raw = customRangeText.trim();
+          if (raw) {
+            const parts = raw.split(/\s*-\s*|\s+to\s+/i);
+            const partFrom = parts[0]?.trim() || '';
+            const partTo = (parts[1] || parts[0])?.trim() || '';
+
+            const parseDatePart = (input: string, isEnd: boolean): Date | null => {
+              if (!input) return null;
+              if (input.includes('/') || (input.includes('-') && input.length > 4)) {
+                const sub = input.split(/[-/]/);
+                const day = parseInt(sub[0]);
+                const month = sub[1] ? parseInt(sub[1]) - 1 : now.getMonth();
+                const year = sub[2] ? parseInt(sub[2]) : now.getFullYear();
+                if (isNaN(day)) return null;
+                const d = new Date(year, isNaN(month) ? now.getMonth() : month, day);
+                if (isEnd) d.setHours(23, 59, 59, 999);
+                else d.setHours(0, 0, 0, 0);
+                return d;
+              } else {
+                const day = parseInt(input);
+                if (isNaN(day) || day < 1 || day > 31) return null;
+                const d = new Date(now.getFullYear(), now.getMonth(), day);
+                if (isEnd) d.setHours(23, 59, 59, 999);
+                else d.setHours(0, 0, 0, 0);
+                return d;
+              }
+            };
+
+            const from = parseDatePart(partFrom, false);
+            const to = parseDatePart(partTo, true);
+
+            if (from && gDate < from) return false;
+            if (to && gDate > to) return false;
+          }
+        }
+      }
+
+      // 3. Search query filter
       if (reportSearchQuery.trim()) {
         const q = reportSearchQuery.toLowerCase();
         const matchesId = g.id.toLowerCase().includes(q);
@@ -441,7 +521,7 @@ export default function Promoter() {
       }
       return true;
     });
-  }, [recentGames, reportRoomFilter, reportSearchQuery]);
+  }, [recentGames, reportRoomFilter, reportPeriod, customRangeText, reportSearchQuery]);
 
   const reportTotalCommission = useMemo(() => {
     return filteredRecentGames.reduce((acc, g) => acc + (g.agent_commission || 0), 0);
@@ -451,7 +531,13 @@ export default function Promoter() {
   const promoterRate = selectedRoom?.promoter_commission_rate ?? stats?.promoter_commission_rate ?? 3;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 select-none pb-20 font-sans">
+    <div
+      onClick={() => {
+        setShowRoomDropdown(false);
+        setShowPeriodDropdown(false);
+      }}
+      className="min-h-screen bg-slate-50 text-slate-800 select-none pb-20 font-sans"
+    >
       {/* ─── STICKY TOP APP BAR (Profile: "Promoter" + First Name + 3% Commission) ─── */}
       <div className="bg-white border-b border-gray-100 px-4 py-2.5 sticky top-0 z-30 shadow-2xs">
         <div className="flex items-center justify-between max-w-md mx-auto">
@@ -1152,38 +1238,193 @@ export default function Promoter() {
               </div>
             </div>
 
-            {/* ─── ROOM CATEGORY FILTER PILLS ─── */}
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide flex items-center space-x-1 px-1">
-                <Layers size={11} className="text-amber-500" />
-                <span>Filter by Room:</span>
-              </span>
-              <div className="flex space-x-1.5 overflow-x-auto pb-1 no-scrollbar">
+            {/* ─── PARALLEL FILTERS: Room Selector + Advanced Day/Period Selector on ONE Row ─── */}
+            <div className="flex items-center space-x-2">
+              {/* 1. ROOM SELECTOR DROPDOWN */}
+              <div className="relative flex-1">
                 <button
                   type="button"
-                  onClick={() => setReportRoomFilter('all')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all ${
-                    reportRoomFilter === 'all'
-                      ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xs'
-                      : 'bg-white border border-slate-200 text-slate-600 hover:border-amber-300'
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    triggerHaptic('light');
+                    setShowRoomDropdown((v) => !v);
+                    setShowPeriodDropdown(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-black border transition-all ${
+                    reportRoomFilter !== 'all'
+                      ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
+                      : showRoomDropdown
+                      ? 'bg-slate-100 text-slate-900 border-slate-300'
+                      : 'bg-white text-slate-700 border-slate-200 shadow-2xs'
                   }`}
                 >
-                  All Rooms ({promotedRooms.length})
+                  <div className="flex items-center space-x-1.5 truncate mr-1">
+                    <Building2 size={13} className={reportRoomFilter !== 'all' ? 'text-white' : 'text-amber-500'} />
+                    <span className="truncate">
+                      {reportRoomFilter === 'all'
+                        ? 'All Rooms'
+                        : (promotedRooms.find((r) => r.id === reportRoomFilter)?.room_name || 'Selected Room')}
+                    </span>
+                  </div>
+                  <ChevronDown size={13} className={`shrink-0 transition-transform ${showRoomDropdown ? 'rotate-180' : ''}`} />
                 </button>
-                {promotedRooms.map((rm) => (
-                  <button
-                    key={rm.id}
-                    type="button"
-                    onClick={() => setReportRoomFilter(rm.id)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all flex items-center space-x-1 ${
-                      reportRoomFilter === rm.id
-                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xs'
-                        : 'bg-white border border-slate-200 text-slate-600 hover:border-amber-300'
-                    }`}
+
+                {/* Room Dropdown Menu */}
+                {showRoomDropdown && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute left-0 top-full mt-1.5 z-40 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-2 space-y-1 w-full min-w-[190px] max-w-[260px] animate-in fade-in duration-150"
                   >
-                    <span>{rm.room_name}</span>
-                  </button>
-                ))}
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">Filter by Room</p>
+                    <div className="space-y-0.5 max-h-56 overflow-y-auto">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          triggerHaptic('light');
+                          setReportRoomFilter('all');
+                          setShowRoomDropdown(false);
+                        }}
+                        className={`w-full py-1.5 px-2.5 rounded-xl text-[11px] font-black border transition-all text-left flex items-center justify-between ${
+                          reportRoomFilter === 'all'
+                            ? 'bg-amber-500 text-white border-amber-500 shadow-2xs'
+                            : 'bg-slate-50 text-slate-700 border-transparent hover:bg-slate-100'
+                        }`}
+                      >
+                        <span className="truncate">All Rooms ({promotedRooms.length})</span>
+                        {reportRoomFilter === 'all' && <Check size={12} className="text-white shrink-0 ml-1" />}
+                      </button>
+
+                      {promotedRooms.map((rm) => (
+                        <button
+                          key={rm.id}
+                          type="button"
+                          onClick={() => {
+                            triggerHaptic('light');
+                            setReportRoomFilter(rm.id);
+                            setShowRoomDropdown(false);
+                          }}
+                          className={`w-full py-1.5 px-2.5 rounded-xl text-[11px] font-black border transition-all text-left flex items-center justify-between ${
+                            reportRoomFilter === rm.id
+                              ? 'bg-amber-500 text-white border-amber-500 shadow-2xs'
+                              : 'bg-slate-50 text-slate-700 border-transparent hover:bg-slate-100'
+                          }`}
+                        >
+                          <span className="truncate">{rm.room_name}</span>
+                          {reportRoomFilter === rm.id && <Check size={12} className="text-white shrink-0 ml-1" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. DATE / PERIOD SELECTOR DROPDOWN (PARALLEL) */}
+              <div className="relative flex-1">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    triggerHaptic('light');
+                    setShowPeriodDropdown((v) => !v);
+                    setShowRoomDropdown(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-black border transition-all ${
+                    reportPeriod !== 'all'
+                      ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
+                      : showPeriodDropdown
+                      ? 'bg-slate-100 text-slate-900 border-slate-300'
+                      : 'bg-white text-slate-700 border-slate-200 shadow-2xs'
+                  }`}
+                >
+                  <div className="flex items-center space-x-1.5 truncate mr-1">
+                    <Calendar size={13} className={reportPeriod !== 'all' ? 'text-white' : 'text-slate-500'} />
+                    <span className="truncate">
+                      {reportPeriod === 'all' ? 'All Time' :
+                       reportPeriod === 'today' ? 'Today' :
+                       reportPeriod === 'yesterday' ? 'Yesterday' :
+                       reportPeriod === 'weekly' ? 'This Week' :
+                       reportPeriod === 'monthly' ? 'This Month' :
+                       reportPeriod === '3months' ? '3 Months' :
+                       reportPeriod === 'yearly' ? '1 Year' :
+                       customRangeText ? `Days ${customRangeText}` : 'Custom'}
+                    </span>
+                  </div>
+                  <ChevronDown size={13} className={`shrink-0 transition-transform ${showPeriodDropdown ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Period Dropdown Menu */}
+                {showPeriodDropdown && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute right-0 top-full mt-1.5 z-40 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-2 space-y-1 w-full min-w-[190px] max-w-[260px] animate-in fade-in duration-150"
+                  >
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">Filter by Date</p>
+                    <div className="space-y-0.5 max-h-56 overflow-y-auto">
+                      {[
+                        { key: 'all', label: 'All Time' },
+                        { key: 'today', label: 'Today' },
+                        { key: 'yesterday', label: 'Yesterday' },
+                        { key: 'weekly', label: 'This Week' },
+                        { key: 'monthly', label: 'This Month' },
+                        { key: '3months', label: 'Last 3 Months' },
+                        { key: 'yearly', label: 'Last 1 Year' },
+                        { key: 'custom', label: 'Custom (e.g. 13-29)' },
+                      ].map((p) => (
+                        <button
+                          key={p.key}
+                          type="button"
+                          onClick={() => {
+                            triggerHaptic('light');
+                            setReportPeriod(p.key as any);
+                            if (p.key !== 'custom') {
+                              setCustomRangeText('');
+                              setShowPeriodDropdown(false);
+                            }
+                          }}
+                          className={`w-full py-1.5 px-2.5 rounded-xl text-[11px] font-black border transition-all text-left flex items-center justify-between ${
+                            reportPeriod === p.key
+                              ? 'bg-slate-800 text-white border-slate-800 shadow-2xs'
+                              : 'bg-slate-50 text-slate-700 border-transparent hover:bg-slate-100'
+                          }`}
+                        >
+                          <span>{p.label}</span>
+                          {reportPeriod === p.key && <Check size={12} className="text-amber-400 shrink-0 ml-1" />}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Custom input */}
+                    {reportPeriod === 'custom' && (
+                      <div className="pt-2 border-t border-slate-100 space-y-1.5 px-0.5">
+                        <p className="text-[9px] font-bold text-slate-500">
+                          Day range (e.g. <span className="font-mono text-amber-600 font-bold">13-29</span>)
+                        </p>
+                        <div className="flex items-center space-x-1.5">
+                          <input
+                            type="text"
+                            placeholder="e.g. 13-29 or 13"
+                            value={customRangeText}
+                            onChange={(e) => {
+                              setCustomRangeText(e.target.value);
+                              setReportPeriod('custom');
+                            }}
+                            className="flex-1 min-w-0 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-amber-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              triggerHaptic('light');
+                              setShowPeriodDropdown(false);
+                            }}
+                            className="px-2.5 py-1 bg-amber-500 text-white rounded-lg text-[10px] font-bold shadow-2xs shrink-0"
+                          >
+                            Apply
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
