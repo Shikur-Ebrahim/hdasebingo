@@ -4,7 +4,6 @@ import { useGameStore } from '../store/gameStore';
 import WebApp from '@twa-dev/sdk';
 import { QRCodeCanvas } from 'qrcode.react';
 import {
-  Users,
   Gamepad2,
   Clock,
   Trophy,
@@ -22,11 +21,13 @@ import {
   QrCode,
   Flame,
   ChevronRight,
+  ChevronLeft,
   Download,
   CheckCircle2,
   Send,
   X,
   Layers,
+  DoorOpen,
 } from 'lucide-react';
 
 interface PromotedRoom {
@@ -123,9 +124,12 @@ export default function Promoter() {
   const [error, setError] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Tab navigation: 'analytics' | 'live' | 'report' | 'qr'
-  const [activeTab, setActiveTab] = useState<'analytics' | 'live' | 'report' | 'qr'>('analytics');
-  
+  // Tab navigation: 'analytics' | 'rooms' | 'report' | 'qr'
+  const [activeTab, setActiveTab] = useState<'analytics' | 'rooms' | 'report' | 'qr'>('rooms');
+
+  // When on 'rooms' tab: null = show all room cards; non-null = viewing that room's live stake tables!
+  const [roomDetailMode, setRoomDetailMode] = useState<boolean>(false);
+
   // Analytics chart metric: 'games' (orange) | 'commission' (emerald green) | 'volume' (slate/black)
   const [chartMetric, setChartMetric] = useState<'games' | 'commission' | 'volume'>('games');
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
@@ -136,7 +140,6 @@ export default function Promoter() {
 
   // Live stake details modal
   const [selectedLiveStake, setSelectedLiveStake] = useState<number | null>(null);
-  const [showRoomPicker, setShowRoomPicker] = useState(false);
 
   // Flyer actions
   const [downloadedQR, setDownloadedQR] = useState(false);
@@ -181,7 +184,8 @@ export default function Promoter() {
       const data = await res.json();
 
       setPromotedRooms(data.rooms || []);
-      setSelectedRoom(data.selected_room || (data.rooms && data.rooms[0]) || null);
+      const active = data.selected_room || (data.rooms && data.rooms[0]) || null;
+      setSelectedRoom(active);
       setActiveGames(data.active_games || []);
       setRecentGames(data.recent_games || []);
       setStats(data.stats || null);
@@ -217,10 +221,10 @@ export default function Promoter() {
     await Promise.all([fetchDashboardData(selectedRoom?.id), fetchUser()]);
   };
 
-  const handleSelectRoom = (room: PromotedRoom) => {
+  const handleOpenRoomDetail = (room: PromotedRoom) => {
     triggerHaptic('light');
     setSelectedRoom(room);
-    setShowRoomPicker(false);
+    setRoomDetailMode(true);
     fetchDashboardData(room.id);
   };
 
@@ -419,24 +423,27 @@ export default function Promoter() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 select-none pb-20 font-sans">
-      {/* ─── STICKY TOP APP BAR (Clean: Avatar + Room Name + 3% Commission) ─── */}
+      {/* ─── STICKY TOP APP BAR (Profile: "Promoter" + First Name + 3% Commission) ─── */}
       <div className="bg-white border-b border-gray-100 px-4 py-2.5 sticky top-0 z-30 shadow-2xs">
         <div className="flex items-center justify-between max-w-md mx-auto">
-          {/* Avatar & Room Name with Commission Badge */}
+          {/* Avatar & Promoter Identification (NO Room Name here!) */}
           <div className="flex items-center space-x-2.5 min-w-0 flex-1 mr-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 via-orange-500 to-yellow-400 flex items-center justify-center text-white font-black text-sm shadow-sm ring-2 ring-amber-200 shrink-0">
-              {(selectedRoom?.room_name || user?.first_name || 'P').charAt(0).toUpperCase()}
+              {(user?.first_name || 'P').charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center space-x-1.5 flex-wrap">
-                <span className="text-sm font-black text-slate-900 leading-tight truncate">
-                  {selectedRoom?.room_name || 'No Room Linked'}
+                <span className="text-sm font-black text-slate-900 leading-tight">
+                  Promoter
                 </span>
                 <span className="inline-flex items-center space-x-0.5 text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                   <Zap size={10} className="text-emerald-500 fill-emerald-500" />
                   <span>{promoterRate}% Commission</span>
                 </span>
               </div>
+              <p className="text-[11px] text-slate-500 font-bold truncate">
+                {user?.first_name || user?.username || 'Promoter'}
+              </p>
             </div>
           </div>
 
@@ -485,67 +492,25 @@ export default function Promoter() {
               <h2 className="text-2xl font-black text-slate-900 tracking-wider">
                 HDASE <span className="text-amber-500">BINGO</span>
               </h2>
-              <p className="text-xs font-black text-slate-700 mt-0.5">
-                {selectedRoom?.room_name ? `Room: ${selectedRoom.room_name}` : 'Promote rooms & earn 3% commission on every game'}
+              <p className="text-xs font-bold text-slate-500 mt-0.5">
+                Earn 3% commission on every game played in your invited rooms
               </p>
             </div>
 
             <button
               onClick={() => {
                 triggerHaptic('medium');
-                setActiveTab('live');
+                setActiveTab('rooms');
+                setRoomDetailMode(false);
               }}
               className="px-6 py-2.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white rounded-full text-xs font-black tracking-wider uppercase shadow-md shadow-orange-500/25 active:scale-95 transition-all flex items-center space-x-1.5"
             >
-              <span>SEE GAMES →</span>
+              <span>VIEW ROOMS →</span>
             </button>
           </div>
         </div>
 
-        {/* ─── PROMINENT INVITED ROOMS SELECTION BAR / CARDS ─── */}
-        {promotedRooms.length > 0 && (
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between px-1">
-              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center space-x-1">
-                <Building2 size={12} className="text-amber-500" />
-                <span>Your Invited Rooms ({promotedRooms.length})</span>
-              </span>
-              <span className="text-[10px] font-bold text-amber-600">Tap room to monitor</span>
-            </div>
-            <div className="flex space-x-2 overflow-x-auto pb-1 no-scrollbar">
-              {promotedRooms.map((rm) => {
-                const isSelected = selectedRoom?.id === rm.id;
-                return (
-                  <button
-                    key={rm.id}
-                    type="button"
-                    onClick={() => handleSelectRoom(rm)}
-                    className={`flex-shrink-0 px-3.5 py-2 rounded-2xl border text-left transition-all active:scale-95 flex items-center space-x-2.5 ${
-                      isSelected
-                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border-transparent shadow-md shadow-orange-500/20'
-                        : 'bg-white text-slate-700 border-slate-200 hover:border-amber-300'
-                    }`}
-                  >
-                    <div className={`w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs ${
-                      isSelected ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
-                    }`}>
-                      {rm.room_name.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="text-xs font-black truncate max-w-[130px]">{rm.room_name}</p>
-                      <p className={`text-[9px] font-bold ${isSelected ? 'text-amber-100' : 'text-slate-400'}`}>
-                        ⚡ {rm.promoter_commission_rate ?? 3}% Cut • {rm.total_games || 0} games
-                      </p>
-                    </div>
-                    {isSelected && <Check size={14} className="text-white shrink-0 ml-1" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ─── 4 SEGMENT TABS (Analytics, Live (4), Report, QR) ─── */}
+        {/* ─── 4 SEGMENT TABS (Analytics, Rooms, Report, QR) ─── */}
         <div className="grid grid-cols-4 gap-1.5 bg-slate-200/60 p-1 rounded-2xl">
           <button
             onClick={() => { triggerHaptic('light'); setActiveTab('analytics'); }}
@@ -558,13 +523,16 @@ export default function Promoter() {
           </button>
 
           <button
-            onClick={() => { triggerHaptic('light'); setActiveTab('live'); }}
+            onClick={() => {
+              triggerHaptic('light');
+              setActiveTab('rooms');
+            }}
             className={`py-2 rounded-xl text-xs font-black transition-all flex items-center justify-center space-x-1 relative ${
-              activeTab === 'live' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              activeTab === 'rooms' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            <Gamepad2 size={13} />
-            <span>Live (4)</span>
+            <Building2 size={13} />
+            <span>Rooms ({promotedRooms.length})</span>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse ml-0.5" />
           </button>
 
@@ -588,7 +556,7 @@ export default function Promoter() {
           </button>
         </div>
 
-        {/* ════════════ TAB 1: ANALYTICS (Correct Green & Black Chart Colors!) ════════════ */}
+        {/* ════════════ TAB 1: ANALYTICS (Green & Black Chart Colors) ════════════ */}
         {activeTab === 'analytics' && (
           <div className="space-y-3.5">
             {/* 7-Day Performance Chart Card */}
@@ -790,80 +758,191 @@ export default function Promoter() {
           </div>
         )}
 
-        {/* ════════════ TAB 2: LIVE (4) ════════════ */}
-        {activeTab === 'live' && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between px-1">
-              <div>
-                <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide">
-                  Room Live Monitor
-                </h3>
-                <p className="text-[10px] text-slate-400">
-                  Monitoring: <span className="font-bold text-slate-700">{selectedRoom?.room_name || 'No Room'}</span>
-                </p>
-              </div>
-              <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-black">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span>4 Live</span>
-              </span>
-            </div>
-
-            {/* 4 Stake Cards (10, 20, 50, 100) */}
-            <div className="grid grid-cols-2 gap-2.5">
-              {liveStakes.map((stake) => {
-                const game = activeGames.find((g) => Number(g.stake) === stake);
-                const isCalling = game?.status === 'calling';
-                const playerCount = game?.total_players || 0;
-                const estPot = (playerCount >= 3 && game?.prize_pool)
-                  ? game.prize_pool
-                  : stake * playerCount;
-                const estComm = (estPot * promoterRate) / 100;
-
-                return (
-                  <div
-                    key={stake}
-                    onClick={() => setSelectedLiveStake(stake)}
-                    className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 text-white p-4 shadow-md shadow-orange-500/15 cursor-pointer active:scale-98 transition-all flex flex-col justify-between h-40"
-                  >
-                    {/* Top Row: Stake & Status Badge */}
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="text-3xl font-black tracking-tight leading-none">{stake}</span>
-                        <p className="text-[9px] font-black uppercase tracking-wider text-amber-100">ETB STAKE</p>
-                      </div>
-                      <span className={`inline-flex items-center space-x-1 text-[9px] font-black px-2 py-0.5 rounded-full backdrop-blur-xs ${
-                        isCalling ? 'bg-emerald-400/90 text-slate-900' : 'bg-black/20 text-white border border-white/20'
-                      }`}>
-                        {isCalling ? <Flame size={9} /> : <Clock size={9} />}
-                        <span>{isCalling ? 'LIVE' : 'WAIT'}</span>
-                      </span>
-                    </div>
-
-                    {/* Middle: Player count & Est. Comm */}
-                    <div className="space-y-0.5">
-                      <div className="flex justify-between text-[11px] text-amber-100">
-                        <span>Players</span>
-                        <span className="font-black text-white">{playerCount}</span>
-                      </div>
-                      <div className="flex justify-between text-[11px] text-amber-100">
-                        <span>Est. Comm</span>
-                        <span className="font-black text-white">+{formatAmount(estComm)} ETB</span>
-                      </div>
-                    </div>
-
-                    {/* Bottom: View Details link */}
-                    <div className="pt-2 border-t border-white/20 flex items-center justify-between text-[10px] font-bold text-amber-100">
-                      <span>View Details</span>
-                      <ChevronRight size={13} />
-                    </div>
+        {/* ════════════ TAB 2: ROOMS (GRID OF USER-SECTION STYLE ROOM CARDS + LIVE STAKE VIEW) ════════════ */}
+        {activeTab === 'rooms' && (
+          <div className="space-y-3.5">
+            {!roomDetailMode ? (
+              /* ─── VIEW A: ALL INVITED ROOM CARDS (Exact match with Image 2) ─── */
+              <div className="space-y-3">
+                <div className="flex items-center justify-between px-1">
+                  <div>
+                    <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center space-x-1.5">
+                      <Building2 size={14} className="text-amber-500" />
+                      <span>Your Invited Rooms</span>
+                    </h3>
+                    <p className="text-[10px] text-slate-400">
+                      {promotedRooms.length} active rooms linked to you • Tap a room to monitor live
+                    </p>
                   </div>
-                );
-              })}
-            </div>
+                  <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-black">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>{promotedRooms.length} Active</span>
+                  </span>
+                </div>
+
+                {promotedRooms.length === 0 ? (
+                  <div className="bg-white rounded-3xl p-8 border border-dashed border-slate-200 text-center space-y-2">
+                    <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center mx-auto">
+                      <DoorOpen size={28} />
+                    </div>
+                    <p className="text-xs font-black text-slate-800">No Invited Rooms Linked Yet</p>
+                    <p className="text-[10px] text-slate-400 max-w-xs mx-auto">
+                      Share your promoter referral link to invite users. When an invited user creates a room, it will appear here!
+                    </p>
+                    <button
+                      onClick={() => setActiveTab('qr')}
+                      className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl text-xs font-black active:scale-95 transition-all shadow-sm"
+                    >
+                      Get Your Invitation Link
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    {promotedRooms.map((rm) => (
+                      <div
+                        key={rm.id}
+                        onClick={() => handleOpenRoomDetail(rm)}
+                        className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all hover:shadow-md"
+                      >
+                        {/* Dark Header matching Image 2 */}
+                        <div className="h-16 bg-black flex flex-col items-center justify-center relative px-2 text-center">
+                          {rm.is_pinned && (
+                            <div className="absolute top-2 left-2 flex items-center justify-center bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 text-[10px] w-5 h-5 rounded-full shadow-sm">
+                              <span>📌</span>
+                            </div>
+                          )}
+                          <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm" />
+                          <span className="text-white font-black text-sm leading-tight line-clamp-2 px-1">
+                            {rm.room_name}
+                          </span>
+                        </div>
+
+                        {/* Stats Section matching Image 2 */}
+                        <div className="p-3 bg-white flex-1 flex flex-col justify-between space-y-2.5">
+                          <div className="grid grid-cols-2 gap-1.5 text-center">
+                            <div className="bg-slate-50 p-1.5 rounded-lg">
+                              <span className="text-[9px] font-bold text-slate-400 block tracking-wider uppercase">Players</span>
+                              <span className="text-sm font-black text-emerald-600">
+                                {rm.total_players || 0}
+                              </span>
+                            </div>
+                            <div className="bg-slate-50 p-1.5 rounded-lg">
+                              <span className="text-[9px] font-bold text-slate-400 block tracking-wider uppercase">Total Games</span>
+                              <span className="text-sm font-black text-purple-600">
+                                {rm.total_games || 0}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-center text-[10px] font-bold text-amber-600 bg-amber-50 py-1 rounded-lg border border-amber-200/60">
+                            <span>⚡ {rm.promoter_commission_rate ?? 3}% Commission Cut</span>
+                          </div>
+
+                          <button
+                            type="button"
+                            className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black rounded-lg transition-colors flex items-center justify-center space-x-1"
+                          >
+                            <span>Monitor Room</span>
+                            <ChevronRight size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* ─── VIEW B: INSIDE SELECTED ROOM (4 Live Stake Cards) ─── */
+              <div className="space-y-3.5">
+                {/* Back button & Room header */}
+                <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-gray-100 shadow-sm">
+                  <button
+                    onClick={() => setRoomDetailMode(false)}
+                    className="flex items-center space-x-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black active:scale-95 transition-all"
+                  >
+                    <ChevronLeft size={14} />
+                    <span>All Rooms</span>
+                  </button>
+
+                  <div className="text-right">
+                    <p className="text-xs font-black text-slate-900 truncate">{selectedRoom?.room_name}</p>
+                    <span className="text-[10px] font-bold text-emerald-600">
+                      ⚡ {promoterRate}% Promoter Cut
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between px-1">
+                  <div>
+                    <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide">
+                      Live Stake Tables
+                    </h3>
+                    <p className="text-[10px] text-slate-400">Tap a table to monitor its active game</p>
+                  </div>
+                  <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-black">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>4 Live</span>
+                  </span>
+                </div>
+
+                {/* 4 Stake Cards (10, 20, 50, 100 ETB) */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  {liveStakes.map((stake) => {
+                    const game = activeGames.find((g) => Number(g.stake) === stake);
+                    const isCalling = game?.status === 'calling';
+                    const playerCount = game?.total_players || 0;
+                    const estPot = (playerCount >= 3 && game?.prize_pool)
+                      ? game.prize_pool
+                      : stake * playerCount;
+                    const estComm = (estPot * promoterRate) / 100;
+
+                    return (
+                      <div
+                        key={stake}
+                        onClick={() => setSelectedLiveStake(stake)}
+                        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 text-white p-4 shadow-md shadow-orange-500/15 cursor-pointer active:scale-98 transition-all flex flex-col justify-between h-40"
+                      >
+                        {/* Top Row: Stake & Status Badge */}
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <span className="text-3xl font-black tracking-tight leading-none">{stake}</span>
+                            <p className="text-[9px] font-black uppercase tracking-wider text-amber-100">ETB STAKE</p>
+                          </div>
+                          <span className={`inline-flex items-center space-x-1 text-[9px] font-black px-2 py-0.5 rounded-full backdrop-blur-xs ${
+                            isCalling ? 'bg-emerald-400/90 text-slate-900' : 'bg-black/20 text-white border border-white/20'
+                          }`}>
+                            {isCalling ? <Flame size={9} /> : <Clock size={9} />}
+                            <span>{isCalling ? 'LIVE' : 'WAIT'}</span>
+                          </span>
+                        </div>
+
+                        {/* Middle: Player count & Est. Comm */}
+                        <div className="space-y-0.5">
+                          <div className="flex justify-between text-[11px] text-amber-100">
+                            <span>Players</span>
+                            <span className="font-black text-white">{playerCount}</span>
+                          </div>
+                          <div className="flex justify-between text-[11px] text-amber-100">
+                            <span>Est. Comm</span>
+                            <span className="font-black text-white">+{formatAmount(estComm)} ETB</span>
+                          </div>
+                        </div>
+
+                        {/* Bottom: View Details link */}
+                        <div className="pt-2 border-t border-white/20 flex items-center justify-between text-[10px] font-bold text-amber-100">
+                          <span>View Details</span>
+                          <ChevronRight size={13} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* ════════════ TAB 3: REPORT (ROOM CATEGORY FILTER!) ════════════ */}
+        {/* ════════════ TAB 3: REPORT (ROOM CATEGORY FILTER) ════════════ */}
         {activeTab === 'report' && (
           <div className="space-y-3">
             <div>
@@ -1003,7 +1082,7 @@ export default function Promoter() {
           </div>
         )}
 
-        {/* ════════════ TAB 4: QR FLYER (PROMOTER'S PERMANENT INVITATION LINK!) ════════════ */}
+        {/* ════════════ TAB 4: QR FLYER (PROMOTER'S PERMANENT INVITATION LINK) ════════════ */}
         {activeTab === 'qr' && (
           <div className="space-y-3">
             {/* Table Flyer Card — Promotes the Promoter's Unique Invitation Link */}
