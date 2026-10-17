@@ -1041,7 +1041,7 @@ router.get('/agents/search/:telegramId', async (req, res) => {
 // POST /admin/agents/assign-room — assign or create a room for an agent
 router.post('/agents/assign-room', async (req, res) => {
   try {
-    const { telegramId, roomName, status, commission_rate, is_pinned } = req.body;
+    const { telegramId, roomName, status, commission_rate, is_pinned, is_private } = req.body;
     if (!telegramId) {
       res.status(400).json({ error: 'telegramId is required' });
       return;
@@ -1069,6 +1069,7 @@ router.post('/agents/assign-room', async (req, res) => {
     const roomStatus = status || 'active';
     const commRate = commission_rate !== undefined ? Number(commission_rate) : 8;
     const isPinned = is_pinned !== undefined ? Boolean(is_pinned) : false;
+    const isPrivate = is_private !== undefined ? Boolean(is_private) : false;
 
     // Check if room already exists by user.id (UUID) or telegramId
     let existingRoom = null;
@@ -1091,6 +1092,7 @@ router.post('/agents/assign-room', async (req, res) => {
           status: roomStatus,
           commission_rate: commRate,
           is_pinned: isPinned,
+          is_private: isPrivate,
           updated_at: new Date().toISOString(),
         })
         .eq('id', existingRoom.id)
@@ -1110,6 +1112,7 @@ router.post('/agents/assign-room', async (req, res) => {
           status: roomStatus,
           commission_rate: commRate,
           is_pinned: isPinned,
+          is_private: isPrivate,
           updated_at: new Date().toISOString(),
         })
         .select()
@@ -1165,6 +1168,7 @@ router.get('/rooms', async (_req, res) => {
           ...r,
           commission_rate: r.commission_rate ?? 8,
           is_pinned: Boolean(r.is_pinned),
+          is_private: Boolean(r.is_private),
           total_players: players,
           agent_balance,
           agent_telegram_id,
@@ -1196,6 +1200,7 @@ router.put('/rooms/:id', async (req, res) => {
     if (req.body.total_games !== undefined) updates.total_games = Number(req.body.total_games);
     if (req.body.commission_rate !== undefined) updates.commission_rate = Number(req.body.commission_rate);
     if (req.body.is_pinned !== undefined) updates.is_pinned = Boolean(req.body.is_pinned);
+    if (req.body.is_private !== undefined) updates.is_private = Boolean(req.body.is_private);
 
     const { data: room, error } = await supabase
       .from('rooms')

@@ -271,23 +271,27 @@ export default function Home() {
 
           {/* Scrolling marquee strip — live room names */}
           <div className="absolute top-1 left-0 right-0 overflow-hidden py-1.5 bg-amber-50/80 border-b border-amber-200/60" style={{ top: '4px' }}>
-            {rooms.length > 0 ? (
-              <div className="flex whitespace-nowrap animate-marquee">
-                {[...rooms, ...rooms].map((room, i) => (
-                  <span key={i} className="text-amber-700 font-black text-[10px] uppercase tracking-[0.2em] px-4 shrink-0 flex items-center gap-1">
-                    🚪 {room.room_name} &nbsp;·&nbsp;
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <div className="flex whitespace-nowrap animate-marquee">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <span key={i} className="text-amber-700 font-black text-[10px] uppercase tracking-[0.25em] px-5 shrink-0">
-                    🚪 HDASE BINGO &nbsp;·&nbsp; 🏆 Live Rooms &nbsp;·&nbsp; 🔥 Play Now &nbsp;·&nbsp;
-                  </span>
-                ))}
-              </div>
-            )}
+            {(() => {
+              const userInvitedRoomId = (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null) || (user as any)?.room_id || null;
+              const publicOrUserRooms = rooms.filter(r => !r.is_private || (userInvitedRoomId && r.id === userInvitedRoomId));
+              return publicOrUserRooms.length > 0 ? (
+                <div className="flex whitespace-nowrap animate-marquee">
+                  {[...publicOrUserRooms, ...publicOrUserRooms].map((room, i) => (
+                    <span key={i} className="text-amber-700 font-black text-[10px] uppercase tracking-[0.2em] px-4 shrink-0 flex items-center gap-1">
+                      🚪 {room.room_name} &nbsp;·&nbsp;
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex whitespace-nowrap animate-marquee">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <span key={i} className="text-amber-700 font-black text-[10px] uppercase tracking-[0.25em] px-5 shrink-0">
+                      🚪 HDASE BINGO &nbsp;·&nbsp; 🏆 Live Rooms &nbsp;·&nbsp; 🔥 Play Now &nbsp;·&nbsp;
+                    </span>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Main content */}
@@ -320,7 +324,11 @@ export default function Home() {
             <div>
               <h2 className="font-black text-slate-800 dark:text-slate-100 text-sm leading-tight">BINGO ROOMS</h2>
               <p className="text-[9px] text-slate-400 dark:text-slate-500 font-semibold leading-none">
-                {rooms.length > 0 ? `${rooms.length} active room${rooms.length !== 1 ? 's' : ''} available` : 'No rooms yet'}
+                {(() => {
+                  const userInvitedRoomId = (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null) || (user as any)?.room_id || null;
+                  const count = rooms.filter(r => !r.is_private || (userInvitedRoomId && r.id === userInvitedRoomId)).length;
+                  return count > 0 ? `${count} active room${count !== 1 ? 's' : ''} available` : 'No rooms yet';
+                })()}
               </p>
             </div>
           </div>
@@ -451,6 +459,7 @@ export default function Home() {
           const userInvitedRoomId = (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null) || (user as any)?.room_id || null;
 
           const filteredHomeRooms = [...rooms]
+            .filter(r => !r.is_private || (userInvitedRoomId && r.id === userInvitedRoomId))
             .filter(r => !homeRoomSearch.trim() || r.room_name.toLowerCase().includes(homeRoomSearch.trim().toLowerCase()))
             .sort((a, b) => {
               // 1. User's invited room gets TOP priority #1 position!

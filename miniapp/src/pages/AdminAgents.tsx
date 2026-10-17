@@ -17,7 +17,10 @@ import {
   X,
   Sparkles,
   Percent,
-  Check
+  Check,
+  Lock,
+  Unlock,
+  Globe
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
@@ -36,6 +39,7 @@ interface AgentRoom {
   status: 'active' | 'inactive' | 'paused';
   commission_rate?: number;
   is_pinned?: boolean;
+  is_private?: boolean;
   agent_balance?: number;
   created_at: string;
 }
@@ -67,13 +71,14 @@ export default function AdminAgents() {
   const [newRoomName, setNewRoomName] = useState('');
   const [newCommissionRate, setNewCommissionRate] = useState<number>(8); // default 8%
   const [newIsPinned, setNewIsPinned] = useState(false); // default not pinned
+  const [newIsPrivate, setNewIsPrivate] = useState(false); // default not private (public)
   const [assigning, setAssigning] = useState(false);
 
   // All rooms & filter state
   const [allRooms, setAllRooms] = useState<AgentRoom[]>([]);
   const [allAgents, setAllAgents] = useState<AgentUser[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
-  const [roomFilter, setRoomFilter] = useState<'all' | 'active' | 'pinned' | 'inactive'>('all');
+  const [roomFilter, setRoomFilter] = useState<'all' | 'active' | 'pinned' | 'private' | 'inactive'>('all');
   const [roomSearchQuery, setRoomSearchQuery] = useState('');
   const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
@@ -83,6 +88,7 @@ export default function AdminAgents() {
   const [editRoomStatus, setEditRoomStatus] = useState<'active' | 'inactive' | 'paused'>('active');
   const [editCommissionRate, setEditCommissionRate] = useState<number>(8);
   const [editIsPinned, setEditIsPinned] = useState(false);
+  const [editIsPrivate, setEditIsPrivate] = useState(false);
   const [editRoomGames, setEditRoomGames] = useState('0');
   const [savingEdit, setSavingEdit] = useState(false);
 
@@ -140,6 +146,7 @@ export default function AdminAgents() {
         setNewRoomName(`${data.user.first_name || data.user.username || 'Agent'}'s Room`);
         setNewCommissionRate(data.room?.commission_rate ?? 8);
         setNewIsPinned(Boolean(data.room?.is_pinned));
+        setNewIsPrivate(Boolean(data.room?.is_private));
       } else {
         const err = await res.json();
         showToast('error', err.error || 'User not found');
@@ -183,7 +190,8 @@ export default function AdminAgents() {
           roomName: newRoomName.trim(),
           status: 'active',
           commission_rate: Number(newCommissionRate) || 8,
-          is_pinned: Boolean(newIsPinned)
+          is_pinned: Boolean(newIsPinned),
+          is_private: Boolean(newIsPrivate)
         })
       });
 
@@ -218,6 +226,29 @@ export default function AdminAgents() {
         fetchRoomsAndAgents();
       } else {
         showToast('error', 'Failed to update pin state');
+      }
+    } catch {
+      showToast('error', 'Network error');
+    }
+  };
+
+  // Instant 1-tap Private / Public toggle
+  const handleTogglePrivate = async (room: AgentRoom) => {
+    const nextPrivate = !room.is_private;
+    try {
+      const res = await fetch(`${API_URL}/admin/rooms/${room.id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({ is_private: nextPrivate })
+      });
+      if (res.ok) {
+        showToast('success', nextPrivate ? `🔒 Room "${room.room_name}" is now Private (home room only)!` : `🌐 Room "${room.room_name}" is now Public!`);
+        if (searchedRoom && searchedRoom.id === room.id) {
+          setSearchedRoom({ ...searchedRoom, is_private: nextPrivate });
+        }
+        fetchRoomsAndAgents();
+      } else {
+        showToast('error', 'Failed to update private state');
       }
     } catch {
       showToast('error', 'Network error');
@@ -269,6 +300,7 @@ export default function AdminAgents() {
     setEditRoomStatus(room.status);
     setEditCommissionRate(room.commission_rate ?? 8);
     setEditIsPinned(Boolean(room.is_pinned));
+    setEditIsPrivate(Boolean(room.is_private));
     setEditRoomGames(String(room.total_games || 0));
   };
 
@@ -284,6 +316,7 @@ export default function AdminAgents() {
           status: editRoomStatus,
           commission_rate: Number(editCommissionRate) || 8,
           is_pinned: Boolean(editIsPinned),
+          is_private: Boolean(editIsPrivate),
           total_games: Number(editRoomGames) || 0,
         })
       });
@@ -306,6 +339,7 @@ export default function AdminAgents() {
     .filter(r => {
       if (roomFilter === 'active') return r.status === 'active';
       if (roomFilter === 'pinned') return r.is_pinned;
+      if (roomFilter === 'private') return r.is_private;
       if (roomFilter === 'inactive') return r.status !== 'active';
       return true;
     })
@@ -321,6 +355,7 @@ export default function AdminAgents() {
     });
 
   const pinnedCount = allRooms.filter(r => r.is_pinned).length;
+  const privateCount = allRooms.filter(r => r.is_private).length;
   const activeCount = allRooms.filter(r => r.status === 'active').length;
 
   if (!user || user.role !== 'admin') {
@@ -447,10 +482,21 @@ export default function AdminAgents() {
               {searchedRoom ? (
                 <div className="p-3.5 bg-white rounded-2xl border border-emerald-200 shadow-xs space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-1.5 text-emerald-700">
+                    <div className="flex items-center space-x-1.5 text-emerald-700 flex-wrap gap-y-1">
                       <DoorOpen size={16} />
                       <span className="text-xs font-black">{searchedRoom.room_name}</span>
                       {searchedRoom.is_pinned && <span className="text-xs">📌</span>}
+                      {searchedRoom.is_private ? (
+                        <span className="inline-flex items-center space-x-0.5 bg-purple-100 text-purple-700 text-[8px] font-black px-1.5 py-0.5 rounded-full border border-purple-200">
+                          <Lock size={9} />
+                          <span>PRIVATE</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center space-x-0.5 bg-sky-50 text-sky-600 text-[8px] font-bold px-1.5 py-0.5 rounded-full border border-sky-200">
+                          <Globe size={9} />
+                          <span>PUBLIC</span>
+                        </span>
+                      )}
                     </div>
                     <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${searchedRoom.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
                       {searchedRoom.status}
@@ -480,9 +526,20 @@ export default function AdminAgents() {
                       className={`px-2.5 py-1.5 rounded-xl text-[10px] font-black border flex items-center space-x-1 transition-all ${
                         searchedRoom.is_pinned ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
                       }`}
+                      title={searchedRoom.is_pinned ? 'Unpin Room' : 'Pin Room to Top'}
                     >
                       <Pin size={11} className={searchedRoom.is_pinned ? 'text-amber-600' : ''} />
                       <span>{searchedRoom.is_pinned ? 'Pinned' : 'Pin'}</span>
+                    </button>
+                    <button
+                      onClick={() => handleTogglePrivate(searchedRoom)}
+                      className={`px-2.5 py-1.5 rounded-xl text-[10px] font-black border flex items-center space-x-1 transition-all ${
+                        searchedRoom.is_private ? 'bg-purple-100 text-purple-800 border-purple-300' : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                      }`}
+                      title={searchedRoom.is_private ? 'Make Public' : 'Make Private'}
+                    >
+                      {searchedRoom.is_private ? <Lock size={11} className="text-purple-600" /> : <Unlock size={11} />}
+                      <span>{searchedRoom.is_private ? 'Private' : 'Public'}</span>
                     </button>
                     <button
                       onClick={() => handleToggleRoomStatus(searchedRoom)}
@@ -597,6 +654,28 @@ export default function AdminAgents() {
                     </button>
                   </div>
 
+                  {/* Private Room Switch */}
+                  <div className="flex items-center justify-between bg-purple-50/50 border border-purple-200/70 p-2.5 rounded-xl">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-7 h-7 rounded-lg bg-purple-400/20 text-purple-700 flex items-center justify-center">
+                        {newIsPrivate ? <Lock size={14} /> : <Unlock size={14} />}
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-800">Private Room Mode</p>
+                        <p className="text-[9px] text-slate-400 font-medium">Only visible to users who joined via this agent's invite / room link (Default: OFF / Public)</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setNewIsPrivate(!newIsPrivate)}
+                      className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
+                        newIsPrivate ? 'bg-purple-600 justify-end' : 'bg-slate-300 justify-start'
+                      }`}
+                    >
+                      <div className="bg-white w-4 h-4 rounded-full shadow-md transform transition-transform" />
+                    </button>
+                  </div>
+
                   <button
                     onClick={handleAssignRoom}
                     disabled={assigning || !newRoomName.trim()}
@@ -640,6 +719,7 @@ export default function AdminAgents() {
               {[
                 { key: 'all', label: `All (${allRooms.length})` },
                 { key: 'pinned', label: `📌 Pinned (${pinnedCount})` },
+                { key: 'private', label: `🔒 Private (${privateCount})` },
                 { key: 'active', label: `✅ Active (${activeCount})` },
                 { key: 'inactive', label: `Paused/Inactive` },
               ].map(f => (
@@ -680,7 +760,7 @@ export default function AdminAgents() {
                     room.is_pinned ? 'border-amber-300 ring-1 ring-amber-300/50 shadow-amber-500/10' : 'border-gray-100'
                   }`}
                 >
-                  {/* Top Row: Room name, Pinned & Status Badges, Quick Actions */}
+                  {/* Top Row: Room name, Pinned, Private & Status Badges, Quick Actions */}
                   <div className="flex items-start justify-between">
                     <div className="space-y-0.5 flex-1 min-w-0 mr-2">
                       <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
@@ -689,6 +769,17 @@ export default function AdminAgents() {
                           <span className="inline-flex items-center space-x-0.5 bg-amber-500/90 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-2xs">
                             <span>📌</span>
                             <span>PINNED</span>
+                          </span>
+                        )}
+                        {room.is_private ? (
+                          <span className="inline-flex items-center space-x-0.5 bg-purple-100 text-purple-700 text-[8px] font-black px-1.5 py-0.5 rounded-full border border-purple-200">
+                            <Lock size={9} />
+                            <span>PRIVATE</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center space-x-0.5 bg-slate-100 text-slate-500 text-[8px] font-bold px-1.5 py-0.5 rounded-full border border-slate-200">
+                            <Globe size={9} />
+                            <span>PUBLIC</span>
                           </span>
                         )}
                         <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
@@ -709,7 +800,7 @@ export default function AdminAgents() {
                       </p>
                     </div>
 
-                    {/* Action Buttons: Pin, Edit, Delete */}
+                    {/* Action Buttons: Pin, Private Toggle, Edit, Delete */}
                     <div className="flex items-center space-x-1 shrink-0">
                       <button
                         onClick={() => handleTogglePin(room)}
@@ -721,6 +812,17 @@ export default function AdminAgents() {
                         title={room.is_pinned ? 'Unpin Room' : 'Pin Room to Top'}
                       >
                         {room.is_pinned ? <PinOff size={13} /> : <Pin size={13} />}
+                      </button>
+                      <button
+                        onClick={() => handleTogglePrivate(room)}
+                        className={`p-1.5 rounded-lg border transition-all active:scale-95 ${
+                          room.is_private
+                            ? 'bg-purple-100 text-purple-700 border-purple-300 hover:bg-purple-200'
+                            : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-600'
+                        }`}
+                        title={room.is_private ? 'Make Public' : 'Make Private'}
+                      >
+                        {room.is_private ? <Lock size={13} /> : <Unlock size={13} />}
                       </button>
                       <button
                         onClick={() => openEditRoomModal(room)}
@@ -848,6 +950,26 @@ export default function AdminAgents() {
                 onClick={() => setEditIsPinned(!editIsPinned)}
                 className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
                   editIsPinned ? 'bg-amber-500 justify-end' : 'bg-slate-300 justify-start'
+                }`}
+              >
+                <div className="bg-white w-4 h-4 rounded-full shadow-md transform transition-transform" />
+              </button>
+            </div>
+
+            {/* Private Room Switch */}
+            <div className="flex items-center justify-between bg-purple-50/60 border border-purple-200 p-2.5 rounded-xl">
+              <div className="flex items-center space-x-2">
+                {editIsPrivate ? <Lock size={14} className="text-purple-600" /> : <Unlock size={14} className="text-purple-600" />}
+                <div>
+                  <p className="text-xs font-black text-slate-800">Private Room Mode</p>
+                  <p className="text-[9px] text-slate-400 font-medium">Only visible to users who have this room assigned / invited</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditIsPrivate(!editIsPrivate)}
+                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
+                  editIsPrivate ? 'bg-purple-600 justify-end' : 'bg-slate-300 justify-start'
                 }`}
               >
                 <div className="bg-white w-4 h-4 rounded-full shadow-md transform transition-transform" />

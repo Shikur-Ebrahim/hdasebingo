@@ -32,6 +32,7 @@ export interface Room {
   status: string;
   commission_rate?: number;
   is_pinned?: boolean;
+  is_private?: boolean;
   created_at?: string;
 }
 
@@ -85,7 +86,15 @@ export const useGameStore = create<GameStore>()(
             if (typeof WebApp !== 'undefined' && WebApp.initData) {
               initData = WebApp.initData;
             }
-            const res = await fetch(`${API_URL}/player/rooms`, {
+            let userInvitedRoomId = '';
+            if (typeof window !== 'undefined' && window.localStorage) {
+              userInvitedRoomId = localStorage.getItem('hdase_invited_room_id') || '';
+            }
+            if (!userInvitedRoomId && (get().user as any)?.room_id) {
+              userInvitedRoomId = (get().user as any).room_id;
+            }
+            const queryParam = userInvitedRoomId ? `?invited_room_id=${encodeURIComponent(userInvitedRoomId)}` : '';
+            const res = await fetch(`${API_URL}/player/rooms${queryParam}`, {
               headers: {
                 'Content-Type': 'application/json',
                 'x-telegram-init-data': initData,

@@ -977,21 +977,7 @@ export default function Agent() {
       <div className="bg-white border-b border-gray-100 px-4 py-2.5 sticky top-0 z-30 shadow-2xs">
         <div className="flex items-center justify-between max-w-md mx-auto">
           {/* Agent Avatar & Profile / Room info */}
-          {/* Close / Minimize Button + Agent Avatar & Profile / Room info */}
-          <div className="flex items-center space-x-2 min-w-0 flex-1 mr-2">
-            <button
-              onClick={() => {
-                triggerHaptic('light');
-                if (typeof WebApp !== 'undefined' && WebApp.close) {
-                  WebApp.close();
-                }
-              }}
-              className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center active:scale-95 transition-all shadow-2xs shrink-0"
-              title="Close / Reduce Mini App"
-            >
-              <X size={16} strokeWidth={2.5} />
-            </button>
-
+          <div className="flex items-center space-x-2.5 min-w-0 flex-1 mr-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-orange-500 via-amber-500 to-yellow-400 flex items-center justify-center text-white font-black text-sm shadow-sm ring-2 ring-orange-200 shrink-0">
               {(user?.first_name || 'A').charAt(0).toUpperCase()}
             </div>

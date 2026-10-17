@@ -222,6 +222,7 @@ export default function BingoGame() {
 
   // Filter/sort rooms in BingoGame rooms page (Invited room first, then pinned, then sort filter)
   const filteredRooms = [...rooms]
+    .filter(r => !r.is_private || (userInvitedRoomId && r.id === userInvitedRoomId))
     .filter(r => !roomSearch.trim() || r.room_name.toLowerCase().includes(roomSearch.trim().toLowerCase()))
     .sort((a, b) => {
       // 1. User's invited/assigned room ALWAYS first

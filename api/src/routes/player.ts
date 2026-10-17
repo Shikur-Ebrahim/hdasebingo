@@ -326,15 +326,55 @@ router.get('/audit', validateTelegramAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// GET /player/rooms — public: list all active rooms with live stats
-router.get('/rooms', async (_req, res) => {
+// Helper to safely extract user from initData without failing if unauthenticated
+function extractTelegramUser(req: any) {
+  const initData = req.headers['x-telegram-init-data'] as string;
+  if (!initData) return null;
   try {
+    const params = new URLSearchParams(initData);
+    const userData = params.get('user');
+    if (userData) return JSON.parse(decodeURIComponent(userData));
+  } catch {}
+  return null;
+}
+
+// GET /player/rooms — list active rooms (private rooms only visible to their assigned home room users or admins)
+router.get('/rooms', async (req, res) => {
+  try {
+    let requestingUserRoomId: string | null = (req.query.invited_room_id as string) || (req.query.room_id as string) || null;
+    let isElevatedUser = false;
+
+    const tgUser = extractTelegramUser(req);
+    if (tgUser?.id) {
+      const { data: dbUser } = await supabase
+        .from('users')
+        .select('id, telegram_id, role, room_id')
+        .eq('telegram_id', tgUser.id.toString())
+        .maybeSingle();
+
+      if (dbUser) {
+        if (dbUser.room_id) requestingUserRoomId = dbUser.room_id;
+        if (['admin', 'worker'].includes(dbUser.role)) {
+          isElevatedUser = true;
+        }
+      }
+    }
+
     const { data: rooms, error } = await supabase
       .from('rooms')
       .select('*')
       .eq('status', 'active');
 
     if (error) throw error;
+
+    // Filter private rooms:
+    // If a room is private, it is ONLY displayed for users who have that room as their home room or invited room!
+    const visibleRooms = (rooms || []).filter((room: any) => {
+      if (!room.is_private) return true; // public room visible to everyone
+      if (isElevatedUser) return true;   // admins can see all rooms
+      if (requestingUserRoomId && String(room.id) === String(requestingUserRoomId)) return true;
+      return false;
+    });
 
     // Sum active players across all games in each room
     const { data: activeGames } = await supabase
@@ -349,9 +389,10 @@ router.get('/rooms', async (_req, res) => {
       }
     });
 
-    const enrichedRooms = (rooms || []).map((room) => ({
+    const enrichedRooms = visibleRooms.map((room: any) => ({
       ...room,
       is_pinned: Boolean(room.is_pinned),
+      is_private: Boolean(room.is_private),
       commission_rate: room.commission_rate ?? 8,
       total_players: roomPlayersMap[room.id] || 0,
       total_games: Number(room.total_games || 0)
