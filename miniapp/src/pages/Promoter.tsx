@@ -856,22 +856,6 @@ export default function Promoter() {
                 </p>
                 <span className="text-[9px] text-slate-400">{stats?.total_games_finished ?? 0} total games</span>
               </div>
-
-              <div className="bg-white rounded-2xl p-3.5 border border-gray-100 shadow-sm flex flex-col space-y-1">
-                <span className="text-[10px] text-slate-400 font-bold uppercase">Promoted Rooms</span>
-                <p className="text-xl font-black text-violet-600">
-                  {promotedRooms.length}
-                </p>
-                <span className="text-[9px] text-slate-400">{selectedRoom?.room_name || 'No room selected'}</span>
-              </div>
-
-              <div className="bg-white rounded-2xl p-3.5 border border-gray-100 shadow-sm flex flex-col space-y-1">
-                <span className="text-[10px] text-slate-400 font-bold uppercase">Referred Players</span>
-                <p className="text-xl font-black text-slate-800">
-                  {stats?.total_referred_players ?? 0}
-                </p>
-                <span className="text-[9px] text-slate-400">Invited by your link</span>
-              </div>
             </div>
           </div>
         )}
