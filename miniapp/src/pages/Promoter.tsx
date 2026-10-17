@@ -71,7 +71,7 @@ interface FinishedGame {
   winner_first_name: string;
   winner_cartela?: number | null;
   agent_commission: number; // promoter commission earned
-  commission_rate: number; // promoter commission rate (3%)
+  commission_rate: number; // promoter commission rate %
   created_at: string;
   finished_at: string;
   status: string;
@@ -878,12 +878,20 @@ export default function Promoter() {
     setExpandedRoomIds(next);
   };
 
+  const liveStakes = [10, 20, 50, 100];
+  const promoterRate =
+    selectedRoom?.promoter_commission_rate ??
+    stats?.promoter_commission_rate ??
+    (user as any)?.commission_rate ??
+    (user as any)?.promoter_commission_rate ??
+    3;
+
   // Promoter moving horizontal ticker items
   const promoterMarqueeItems = useMemo(() => {
     const promoterName = (user?.first_name || user?.username || 'PROMOTER').toUpperCase();
     const items = [
       `🏆 PROMOTER • ${promoterName}`,
-      '⚡ 3% COMMISSION PER MATCH',
+      `⚡ ${promoterRate}% COMMISSION PER MATCH`,
       '💰 PASSIVE DAILY EARNINGS',
       '🎱 HDASE BINGO NETWORK',
     ];
@@ -893,10 +901,7 @@ export default function Promoter() {
       });
     }
     return items;
-  }, [user, promotedRooms]);
-
-  const liveStakes = [10, 20, 50, 100];
-  const promoterRate = selectedRoom?.promoter_commission_rate ?? stats?.promoter_commission_rate ?? 3;
+  }, [user, promotedRooms, promoterRate]);
 
   // Agent-style branded loading screen — matches Agent.tsx exactly
   if (loading) {
@@ -1062,7 +1067,7 @@ export default function Promoter() {
                 <span className="text-orange-500 font-black text-3xl tracking-wide leading-none drop-shadow-sm">BINGO</span>
               </div>
               <p className="text-xs font-bold text-slate-500 mt-1 max-w-xs">
-                Earn 3% commission on every game played in your invited rooms
+                Earn {promoterRate}% commission on every game played in your invited rooms
               </p>
             </div>
 
@@ -1695,7 +1700,7 @@ export default function Promoter() {
                   <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide">
                     Finished Games Report
                   </h3>
-                  <p className="text-[10px] text-slate-400">Games and 3% commission earned across your rooms</p>
+                  <p className="text-[10px] text-slate-400">Games and {promoterRate}% commission earned across your rooms</p>
                 </div>
                 <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                   {filteredRecentGames.length} Finished
@@ -2268,10 +2273,10 @@ export default function Promoter() {
             <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-black text-slate-800">Your Permanent Promoter Invite Link</span>
-                <span className="text-[10px] font-bold text-violet-600">⚡ 3% Commission</span>
+                <span className="text-[10px] font-bold text-violet-600">⚡ {promoterRate}% Commission</span>
               </div>
               <p className="text-[10px] text-slate-400">
-                Anyone who joins with this link is linked to you. When they become an agent and are assigned a room, you automatically earn 3% commission on every game!
+                Anyone who joins with this link is linked to you. When they become an agent and are assigned a room, you automatically earn {promoterRate}% commission on every game!
               </p>
               <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl p-2.5">
                 <span className="font-mono text-xs text-slate-600 truncate mr-2 select-all">
