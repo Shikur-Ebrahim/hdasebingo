@@ -316,8 +316,8 @@ export default function Home() {
             </div>
           </div>
 
-          {/* ── Phone numbers — bottom corners (outside Link click zone) ── */}
-          <div className="absolute bottom-2.5 left-3 right-3 flex justify-between items-end pointer-events-none z-20">
+          {/* ── Phone numbers — bottom corners (no new border, clean layout) ── */}
+          <div className="absolute bottom-2 left-3.5 right-3.5 flex justify-between items-end pointer-events-none z-20">
             {/* USA — bottom left */}
             <button
               type="button"
@@ -327,10 +327,10 @@ export default function Home() {
                 if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
                 window.location.href = `tel:${supportPhoneUsa.replace(/[\s()\-]/g, '')}`;
               }}
-              className="pointer-events-auto flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-emerald-300/80 rounded-xl px-2.5 py-1.5 shadow-sm active:scale-95 hover:bg-white transition-all"
+              className="pointer-events-auto flex items-center gap-1 py-1 px-1.5 rounded-lg active:scale-95 active:opacity-75 transition-all"
             >
               <span className="text-sm leading-none" role="img" aria-label="USA">🇺🇸</span>
-              <span className="text-[10px] font-black text-emerald-600 leading-none tracking-tight">{supportPhoneUsa}</span>
+              <span className="text-[10.5px] font-black text-emerald-700 leading-none tracking-tight">{supportPhoneUsa}</span>
             </button>
 
             {/* Ethiopia — bottom right */}
@@ -342,10 +342,10 @@ export default function Home() {
                 if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
                 window.location.href = `tel:${supportPhoneEth.replace(/[\s()\-]/g, '')}`;
               }}
-              className="pointer-events-auto flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-emerald-300/80 rounded-xl px-2.5 py-1.5 shadow-sm active:scale-95 hover:bg-white transition-all"
+              className="pointer-events-auto flex items-center gap-1 py-1 px-1.5 rounded-lg active:scale-95 active:opacity-75 transition-all"
             >
               <span className="text-sm leading-none" role="img" aria-label="Ethiopia">🇪🇹</span>
-              <span className="text-[10px] font-black text-emerald-600 leading-none tracking-tight">{supportPhoneEth}</span>
+              <span className="text-[10.5px] font-black text-emerald-700 leading-none tracking-tight">{supportPhoneEth}</span>
             </button>
           </div>
         </Link>
