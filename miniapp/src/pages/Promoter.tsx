@@ -530,8 +530,64 @@ export default function Promoter() {
   const liveStakes = [10, 20, 50, 100];
   const promoterRate = selectedRoom?.promoter_commission_rate ?? stats?.promoter_commission_rate ?? 3;
 
-  // Hold render until first data fetch completes — global splash stays visible
-  if (loading) return null;
+  // Agent-style branded loading screen — matches Agent.tsx exactly
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-between py-12 px-6 bg-gradient-to-b from-white via-slate-50 to-amber-50/30 text-slate-800 select-none overflow-hidden">
+        {/* Ambient soft background glows */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 translate-y-1/2 w-80 h-80 bg-orange-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="w-full" />
+
+        {/* Center brand & animated bingo badge */}
+        <div className="flex flex-col items-center text-center relative z-10 space-y-4">
+          <div className="relative">
+            <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-amber-400 via-yellow-400 to-amber-500 shadow-[0_12px_36px_rgba(245,158,11,0.25)] flex items-center justify-center p-1.5 animate-pulse">
+              <div className="w-full h-full rounded-[20px] bg-gradient-to-b from-white to-amber-50/90 flex flex-col items-center justify-center border border-amber-300/40 shadow-inner">
+                <span className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-br from-amber-600 via-yellow-600 to-amber-700">
+                  75
+                </span>
+                <span className="text-[9px] font-black tracking-widest text-amber-600 uppercase -mt-0.5">
+                  BINGO
+                </span>
+              </div>
+            </div>
+            {/* Spinning decorative orbit ring */}
+            <div className="absolute -inset-2.5 rounded-[32px] border border-amber-400/25 border-t-amber-500 animate-spin pointer-events-none" style={{ animationDuration: '3s' }} />
+          </div>
+
+          {/* Title */}
+          <div>
+            <h1 className="text-3xl font-black tracking-wider text-slate-900 drop-shadow-sm">
+              HDASE <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-500 to-yellow-600">BINGO</span>
+            </h1>
+            <p className="text-xs font-bold text-amber-700/80 tracking-widest uppercase mt-1">
+              ሕዳሴ ቢንጎ • ይጫወቱ ያሸንፉ
+            </p>
+          </div>
+
+          {/* Modern Glowing Loading Bar */}
+          <div className="w-48 space-y-2.5 pt-2">
+            <div className="h-2 w-full bg-slate-200/80 rounded-full overflow-hidden p-0.5 shadow-inner">
+              <div
+                className="h-full bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 rounded-full shadow-sm"
+                style={{ width: '100%', animation: 'pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite' }}
+              />
+            </div>
+            <p className="text-[11px] text-slate-500 font-medium tracking-wide">
+              በመጫን ላይ... Loading game rooms
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="text-center relative z-10 text-[10px] text-slate-400 font-semibold tracking-wider">
+          🇪🇹 Official Ethiopian Bingo Platform
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -541,27 +597,22 @@ export default function Promoter() {
       }}
       className="min-h-screen bg-slate-50 text-slate-800 select-none pb-20 font-sans"
     >
-      {/* ─── STICKY TOP APP BAR (Profile: "Promoter" + First Name + 3% Commission) ─── */}
+      {/* ─── STICKY TOP APP BAR ─── */}
       <div className="bg-white border-b border-gray-100 px-4 py-2.5 sticky top-0 z-30 shadow-2xs">
         <div className="flex items-center justify-between max-w-md mx-auto">
-          {/* Avatar & Promoter Identification (NO Room Name here!) */}
+          {/* Avatar & Name */}
           <div className="flex items-center space-x-2.5 min-w-0 flex-1 mr-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 via-orange-500 to-yellow-400 flex items-center justify-center text-white font-black text-sm shadow-sm ring-2 ring-amber-200 shrink-0">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 via-orange-500 to-yellow-400 flex items-center justify-center text-white font-black text-sm shadow-sm ring-2 ring-amber-400 ring-offset-1 ring-offset-white shrink-0">
               {(user?.first_name || 'P').charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center space-x-1.5 flex-wrap">
-                <span className="text-sm font-black text-slate-900 leading-tight">
-                  Promoter
-                </span>
-                <span className="inline-flex items-center space-x-0.5 text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-                  <Zap size={10} className="text-emerald-500 fill-emerald-500" />
-                  <span>{promoterRate}% Commission</span>
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 font-bold truncate">
+              <p className="text-sm font-black text-slate-900 leading-tight truncate">
                 {user?.first_name || user?.username || 'Promoter'}
               </p>
+              <span className="inline-flex items-center space-x-0.5 text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <Zap size={10} className="text-emerald-500 fill-emerald-500" />
+                <span>{promoterRate}% Commission</span>
+              </span>
             </div>
           </div>
 
