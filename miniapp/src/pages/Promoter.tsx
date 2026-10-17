@@ -1111,7 +1111,7 @@ export default function Promoter() {
                 triggerHaptic('medium');
                 window.location.href = `tel:${supportPhoneUsa.replace(/[\s()\-]/g, '')}`;
               }}
-              className="pointer-events-auto flex items-center gap-1 p-0.5 rounded text-emerald-700 active:scale-95 active:opacity-75 transition-all shrink-0"
+              className="pointer-events-auto flex items-center gap-1 p-0.5 rounded text-black active:scale-95 active:opacity-75 transition-all shrink-0"
             >
               <span className="text-[15px] leading-none" role="img" aria-label="USA">🇺🇸</span>
               <span className="text-[11px] font-black leading-none tracking-tight">{supportPhoneUsa}</span>
@@ -1144,7 +1144,7 @@ export default function Promoter() {
                 triggerHaptic('medium');
                 window.location.href = `tel:${formatEthPhone(supportPhoneEth).replace(/[\s()\-]/g, '')}`;
               }}
-              className="pointer-events-auto flex items-center gap-1 p-0.5 rounded text-emerald-700 active:scale-95 active:opacity-75 transition-all shrink-0"
+              className="pointer-events-auto flex items-center gap-1 p-0.5 rounded text-black active:scale-95 active:opacity-75 transition-all shrink-0"
             >
               <span className="text-[15px] leading-none" role="img" aria-label="Ethiopia">🇪🇹</span>
               <span className="text-[11px] font-black leading-none tracking-tight">{formatEthPhone(supportPhoneEth)}</span>
