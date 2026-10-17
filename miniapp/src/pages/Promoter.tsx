@@ -640,7 +640,7 @@ export default function Promoter() {
                 <span className="text-[9px] font-bold uppercase tracking-wider">Wallet</span>
               </div>
               <p className="text-sm font-black text-emerald-600 leading-tight">
-                {((user as any)?.main_balance ?? 0).toLocaleString()} <span className="text-[10px] font-extrabold">ETB</span>
+                {formatAmount((user as any)?.main_balance ?? 0)} <span className="text-[10px] font-extrabold">ETB</span>
               </p>
             </div>
             <button
@@ -1550,10 +1550,11 @@ export default function Promoter() {
                 {filteredRecentGames.map((game) => (
                   <div
                     key={game.id}
-                    className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-sm space-y-2"
+                    className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-1.5 flex-wrap">
+                    {/* Top bar: Game ID + Room + Time */}
+                    <div className="flex items-center justify-between px-3.5 pt-3 pb-2">
+                      <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
                         <span className="px-2 py-0.5 rounded-md bg-slate-100 font-mono text-[10px] font-black text-slate-700">
                           #{formatGameId(game.id)}
                         </span>
@@ -1562,42 +1563,58 @@ export default function Promoter() {
                             🏢 {game.room_name}
                           </span>
                         )}
-                        <span className="text-[10px] text-slate-400">
-                          {new Date(game.finished_at || game.created_at).toLocaleString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
                       </div>
-                      <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black">
-                        +{formatAmount(game.agent_commission)} ETB ({game.commission_rate}%)
+                      <span className="text-[9px] text-slate-400 shrink-0 ml-2">
+                        {new Date(game.finished_at || game.created_at).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs">
-                      <div>
-                        <p className="text-[9px] text-slate-400 uppercase font-bold">Winner</p>
-                        <p className="font-black text-slate-900 flex items-center space-x-1">
-                          <span>🏆 {game.winner_first_name}</span>
-                          {game.winner_cartela && <span className="text-slate-400 font-normal">(#{game.winner_cartela})</span>}
-                        </p>
+                    {/* Middle: Winner row */}
+                    <div className="px-3.5 pb-2 flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center text-sm shrink-0">🏆</div>
+                        <div>
+                          <p className="text-[9px] text-slate-400 font-bold uppercase leading-none">Winner</p>
+                          <p className="text-xs font-black text-slate-900 leading-tight">
+                            {game.winner_first_name}
+                            {game.winner_cartela && <span className="text-slate-400 font-normal ml-1">(#{game.winner_cartela})</span>}
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-[9px] text-slate-400 uppercase font-bold">Pot / Stake</p>
-                        <p className="font-black text-slate-900">
-                          {formatAmount(game.prize_pool)} ETB <span className="text-[10px] text-slate-400">(@{game.stake})</span>
-                        </p>
-                      </div>
+                      <span className="text-[10px] text-slate-400">👥 {game.total_players} players</span>
                     </div>
 
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-50 text-[10px]">
-                      <span className="text-slate-400">👥 {game.total_players} players participating</span>
-                      <span className="text-emerald-600 font-bold flex items-center space-x-1">
-                        <span>Credited to Wallet</span>
-                        <span>✅</span>
-                      </span>
+                    {/* Bottom: 3-chip horizontal stats row */}
+                    <div className="grid grid-cols-3 divide-x divide-slate-100 border-t border-slate-100">
+                      {/* Commission */}
+                      <div className="flex flex-col items-center py-2.5 px-1 bg-emerald-50">
+                        <p className="text-[8px] font-black text-emerald-600 uppercase tracking-wide">Commission</p>
+                        <p className="text-sm font-black text-emerald-700 leading-tight">
+                          +{formatAmount(game.agent_commission)}
+                        </p>
+                        <p className="text-[8px] text-emerald-500 font-bold">{game.commission_rate}% ETB</p>
+                      </div>
+                      {/* Pot */}
+                      <div className="flex flex-col items-center py-2.5 px-1">
+                        <p className="text-[8px] font-black text-slate-500 uppercase tracking-wide">Pot</p>
+                        <p className="text-sm font-black text-slate-800 leading-tight">
+                          {formatAmount(game.prize_pool)}
+                        </p>
+                        <p className="text-[8px] text-slate-400 font-bold">ETB</p>
+                      </div>
+                      {/* Stake */}
+                      <div className="flex flex-col items-center py-2.5 px-1 bg-slate-50">
+                        <p className="text-[8px] font-black text-slate-500 uppercase tracking-wide">Stake</p>
+                        <p className="text-sm font-black text-amber-600 leading-tight">
+                          {formatAmount(game.stake)}
+                        </p>
+                        <p className="text-[8px] text-slate-400 font-bold">ETB ✅</p>
+                      </div>
                     </div>
                   </div>
                 ))}
