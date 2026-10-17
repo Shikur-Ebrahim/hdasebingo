@@ -532,7 +532,7 @@ export default function Promoter() {
             }`}
           >
             <Building2 size={13} />
-            <span>Rooms ({promotedRooms.length})</span>
+            <span>Rooms</span>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse ml-0.5" />
           </button>
 
@@ -832,10 +832,6 @@ export default function Promoter() {
                                 {rm.total_games || 0}
                               </span>
                             </div>
-                          </div>
-
-                          <div className="flex items-center justify-center text-[10px] font-bold text-amber-600 bg-amber-50 py-1 rounded-lg border border-amber-200/60">
-                            <span>⚡ {rm.promoter_commission_rate ?? 3}% Commission Cut</span>
                           </div>
 
                           <button
