@@ -103,31 +103,43 @@ router.get('/inviters', async (req: AuthRequest, res) => {
     return;
   }
 
-  // Fetch names for top inviters
+  // Fetch names for top inviters (supporting both UUID and telegram_id)
   const topIds = Object.entries(countMap)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 50)
     .map(([id]) => id);
 
-  const { data: users } = await supabase
-    .from('users')
-    .select('telegram_id, first_name, username')
-    .in('telegram_id', topIds);
+  const topUuids = topIds.filter(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+  const topTgIds = topIds.filter(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
 
-  const nameMap: Record<string, { first_name: string; username: string }> = {};
+  let users: any[] = [];
+  if (topUuids.length > 0) {
+    const { data: u1 } = await supabase.from('users').select('id, telegram_id, first_name, username').in('id', topUuids);
+    if (u1) users = users.concat(u1);
+  }
+  if (topTgIds.length > 0) {
+    const { data: u2 } = await supabase.from('users').select('id, telegram_id, first_name, username').in('telegram_id', topTgIds);
+    if (u2) users = users.concat(u2);
+  }
+
+  const nameMap: Record<string, { first_name: string; username: string; telegram_id: string }> = {};
   for (const u of users || []) {
-    nameMap[u.telegram_id] = { first_name: u.first_name || 'User', username: u.username || '' };
+    const info = { first_name: u.first_name || 'User', username: u.username || '', telegram_id: u.telegram_id };
+    if (u.id) nameMap[u.id] = info;
+    if (u.telegram_id) nameMap[u.telegram_id] = info;
   }
 
   const inviters = topIds.map((id, i) => ({
     rank: i + 1,
-    telegram_id: id,
+    id,
+    telegram_id: nameMap[id]?.telegram_id || id,
     first_name: nameMap[id]?.first_name || 'User',
     username: nameMap[id]?.username || '',
     invites: countMap[id] || 0,
   }));
 
-  const myRank = inviters.findIndex(p => p.telegram_id === telegramId) + 1;
+  const { data: curU } = await supabase.from('users').select('id').eq('telegram_id', telegramId).maybeSingle();
+  const myRank = inviters.findIndex(p => p.telegram_id === telegramId || (curU?.id && p.id === curU.id)) + 1;
 
   res.json({ inviters, my_rank: myRank || null });
 });

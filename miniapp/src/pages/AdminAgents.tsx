@@ -42,6 +42,9 @@ interface AgentRoom {
   is_private?: boolean;
   agent_balance?: number;
   created_at: string;
+  promoter_id?: string | null;
+  promoter_name?: string | null;
+  promoter_telegram_id?: string | null;
 }
 
 interface AgentUser {
@@ -72,6 +75,7 @@ export default function AdminAgents() {
   const [newCommissionRate, setNewCommissionRate] = useState<number>(8); // default 8%
   const [newIsPinned, setNewIsPinned] = useState(false); // default not pinned
   const [newIsPrivate, setNewIsPrivate] = useState(false); // default not private (public)
+  const [newPromoterId, setNewPromoterId] = useState(''); // promoter UUID (optional)
   const [assigning, setAssigning] = useState(false);
 
   // All rooms & filter state
@@ -89,6 +93,7 @@ export default function AdminAgents() {
   const [editCommissionRate, setEditCommissionRate] = useState<number>(8);
   const [editIsPinned, setEditIsPinned] = useState(false);
   const [editIsPrivate, setEditIsPrivate] = useState(false);
+  const [editPromoterId, setEditPromoterId] = useState('');
   const [editRoomGames, setEditRoomGames] = useState('0');
   const [savingEdit, setSavingEdit] = useState(false);
 
@@ -147,6 +152,7 @@ export default function AdminAgents() {
         setNewCommissionRate(data.room?.commission_rate ?? 8);
         setNewIsPinned(Boolean(data.room?.is_pinned));
         setNewIsPrivate(Boolean(data.room?.is_private));
+        setNewPromoterId(data.room?.promoter_id || '');
       } else {
         const err = await res.json();
         showToast('error', err.error || 'User not found');
@@ -191,7 +197,8 @@ export default function AdminAgents() {
           status: 'active',
           commission_rate: Number(newCommissionRate) || 8,
           is_pinned: Boolean(newIsPinned),
-          is_private: Boolean(newIsPrivate)
+          is_private: Boolean(newIsPrivate),
+          promoter_id: newPromoterId.trim() || null,
         })
       });
 
@@ -301,6 +308,7 @@ export default function AdminAgents() {
     setEditCommissionRate(room.commission_rate ?? 8);
     setEditIsPinned(Boolean(room.is_pinned));
     setEditIsPrivate(Boolean(room.is_private));
+    setEditPromoterId(room.promoter_id || '');
     setEditRoomGames(String(room.total_games || 0));
   };
 
@@ -317,6 +325,7 @@ export default function AdminAgents() {
           commission_rate: Number(editCommissionRate) || 8,
           is_pinned: Boolean(editIsPinned),
           is_private: Boolean(editIsPrivate),
+          promoter_id: editPromoterId.trim() || null,
           total_games: Number(editRoomGames) || 0,
         })
       });
@@ -676,6 +685,22 @@ export default function AdminAgents() {
                     </button>
                   </div>
 
+                  {/* Promoter ID (UUID) */}
+                  <div className="bg-violet-50/50 border border-violet-200/70 p-2.5 rounded-xl space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-700 uppercase flex items-center space-x-1">
+                      <Users size={11} className="text-violet-600" />
+                      <span>Linked Promoter UUID (Optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newPromoterId}
+                      onChange={e => setNewPromoterId(e.target.value)}
+                      placeholder="e.g. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                      className="w-full bg-white border border-violet-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-violet-500 font-mono"
+                    />
+                    <p className="text-[9px] text-slate-400 font-medium">The UUID of the promoter who recruited this agent. Leave blank if none.</p>
+                  </div>
+
                   <button
                     onClick={handleAssignRoom}
                     disabled={assigning || !newRoomName.trim()}
@@ -859,6 +884,17 @@ export default function AdminAgents() {
                     </div>
                   </div>
 
+                  {/* Promoter row */}
+                  {room.promoter_name && (
+                    <div className="flex items-center space-x-1.5 bg-violet-50 border border-violet-200/60 rounded-xl px-2.5 py-1.5">
+                      <Users size={11} className="text-violet-500 shrink-0" />
+                      <span className="text-[10px] font-bold text-violet-700 truncate">
+                        Promoter: {room.promoter_name}
+                        {room.promoter_telegram_id && <span className="font-normal text-violet-400 ml-1">(TG: {room.promoter_telegram_id})</span>}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Status Toggle Button */}
                   <button
                     onClick={() => handleToggleRoomStatus(room)}
@@ -974,6 +1010,22 @@ export default function AdminAgents() {
               >
                 <div className="bg-white w-4 h-4 rounded-full shadow-md transform transition-transform" />
               </button>
+            </div>
+
+            {/* Promoter ID (UUID) */}
+            <div className="bg-violet-50/50 border border-violet-200/70 p-2.5 rounded-xl space-y-1.5">
+              <label className="text-[10px] font-bold text-slate-700 uppercase flex items-center space-x-1">
+                <Users size={11} className="text-violet-600" />
+                <span>Linked Promoter UUID (Optional)</span>
+              </label>
+              <input
+                type="text"
+                value={editPromoterId}
+                onChange={e => setEditPromoterId(e.target.value)}
+                placeholder="e.g. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                className="w-full bg-white border border-violet-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-violet-500 font-mono"
+              />
+              <p className="text-[9px] text-slate-400 font-medium">UUID of the promoter who recruited this agent. Leave blank to remove.</p>
             </div>
 
             {/* Status Selector */}

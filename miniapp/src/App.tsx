@@ -181,13 +181,16 @@ function App() {
     // Capture agent room invite start_param if present
     try {
       let detectedRoomId: string | null = null;
+      let detectedPromoterRef: string | null = null;
       if (typeof WebApp !== 'undefined' && WebApp.initDataUnsafe?.start_param) {
         const sp = String(WebApp.initDataUnsafe.start_param).trim();
         if (sp.startsWith('room_')) {
           detectedRoomId = sp.replace('room_', '');
+        } else if (sp.startsWith('ref_')) {
+          detectedPromoterRef = sp; // keep full ref_ string for backend
         }
       }
-      if (!detectedRoomId && typeof window !== 'undefined') {
+      if (!detectedRoomId && !detectedPromoterRef && typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
         let qStart = params.get('room') || params.get('startapp') || params.get('start') || params.get('tgWebAppStartParam');
         if (!qStart && window.location.hash) {
@@ -196,11 +199,20 @@ function App() {
           qStart = hashParams.get('tgWebAppStartParam') || hashParams.get('room') || hashParams.get('startapp') || hashParams.get('start');
         }
         if (qStart) {
-          detectedRoomId = qStart.startsWith('room_') ? qStart.replace('room_', '') : qStart;
+          if (qStart.startsWith('room_')) {
+            detectedRoomId = qStart.replace('room_', '');
+          } else if (qStart.startsWith('ref_')) {
+            detectedPromoterRef = qStart;
+          } else {
+            detectedRoomId = qStart;
+          }
         }
       }
       if (detectedRoomId) {
         localStorage.setItem('hdase_invited_room_id', detectedRoomId);
+      }
+      if (detectedPromoterRef) {
+        localStorage.setItem('hdase_promoter_ref', detectedPromoterRef);
       }
     } catch {}
 

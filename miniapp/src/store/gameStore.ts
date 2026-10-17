@@ -218,6 +218,7 @@ export const useGameStore = create<GameStore>()(
           }
 
           const invitedRoomId = typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null;
+          const promoterRef = typeof window !== 'undefined' ? localStorage.getItem('hdase_promoter_ref') : null;
           
           // Silently fetch real data in background
           const response = await fetch(`${API_URL}/auth/verify`, {
@@ -226,7 +227,7 @@ export const useGameStore = create<GameStore>()(
               'Content-Type': 'application/json',
               'x-telegram-init-data': initData,
             },
-            body: JSON.stringify({ room_id: invitedRoomId }),
+            body: JSON.stringify({ room_id: invitedRoomId, promoter_ref: promoterRef }),
           });
 
           if (response.ok) {

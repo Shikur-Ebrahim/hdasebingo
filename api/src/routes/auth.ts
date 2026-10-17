@@ -11,6 +11,21 @@ router.post('/verify', validateTelegramAuth, async (req: AuthRequest, res) => {
   if (typeof rawRoomId === 'string' && rawRoomId.trim()) {
     invitedRoomId = rawRoomId.startsWith('room_') ? rawRoomId.replace('room_', '').trim() : rawRoomId.trim();
   }
+
+  // Resolve promoter_ref → inviter_id UUID
+  let resolvedInviterUuid: string | null = null;
+  const rawPromoterRef = req.body?.promoter_ref || null;
+  if (typeof rawPromoterRef === 'string' && rawPromoterRef.trim()) {
+    const cleanRef = rawPromoterRef.replace('ref_', '').trim();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanRef);
+    const { data: promoterUser } = await (isUuid
+      ? supabase.from('users').select('id').eq('id', cleanRef).maybeSingle()
+      : supabase.from('users').select('id').eq('telegram_id', cleanRef).maybeSingle()
+    );
+    if (promoterUser?.id) {
+      resolvedInviterUuid = promoterUser.id;
+    }
+  }
   
   // Check if user already exists
   const { data: existing } = await supabase.from('users').select('*').eq('telegram_id', user.id.toString()).maybeSingle();
@@ -24,6 +39,10 @@ router.post('/verify', validateTelegramAuth, async (req: AuthRequest, res) => {
     if (invitedRoomId) {
       // Always update to latest scanned room so new QR scans take effect immediately
       updatePayload.room_id = invitedRoomId;
+    }
+    // Only set inviter_id if not already set (first-time promoter attribution)
+    if (!existing.inviter_id && resolvedInviterUuid) {
+      updatePayload.inviter_id = resolvedInviterUuid;
     }
     const { data, error } = await supabase
       .from('users')
@@ -56,12 +75,16 @@ router.post('/verify', validateTelegramAuth, async (req: AuthRequest, res) => {
     if (invitedRoomId) {
       insertPayload.room_id = invitedRoomId;
     }
+    if (resolvedInviterUuid) {
+      insertPayload.inviter_id = resolvedInviterUuid; // Store promoter UUID!
+    }
     const { data, error } = await supabase
       .from('users')
       .insert(insertPayload)
       .select().single();
     if (error) {
       delete insertPayload.room_id;
+      delete insertPayload.inviter_id;
       const fallback = await supabase.from('users').insert(insertPayload).select().single();
       if (fallback.error) { res.status(500).json({ error: fallback.error.message }); return; }
       res.json({ user: fallback.data });

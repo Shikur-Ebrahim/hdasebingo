@@ -229,10 +229,14 @@ router.post('/deposits/:id/approve', async (req, res) => {
     }
 
     if (inviterId && inviterBonus > 0) {
-      const { data: invRecord } = await supabase.from('users').select('bonus_balance').eq('telegram_id', inviterId).single();
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inviterId);
+      const { data: invRecord } = await (isUuid
+        ? supabase.from('users').select('id, bonus_balance').eq('id', inviterId).maybeSingle()
+        : supabase.from('users').select('id, bonus_balance').eq('telegram_id', inviterId).maybeSingle()
+      );
       if (invRecord) {
         const currentInvBonus = Number(invRecord.bonus_balance || 0);
-        await supabase.from('users').update({ bonus_balance: currentInvBonus + inviterBonus }).eq('telegram_id', inviterId);
+        await supabase.from('users').update({ bonus_balance: currentInvBonus + inviterBonus }).eq('id', invRecord.id);
       }
     }
   }
@@ -1004,7 +1008,7 @@ router.get('/agents/search/:telegramId', async (req, res) => {
   try {
     const { data: user, error: uErr } = await supabase
       .from('users')
-      .select('id, telegram_id, username, first_name, role, status, main_balance, bonus_balance, total_wins, created_at')
+      .select('id, telegram_id, username, first_name, role, status, main_balance, bonus_balance, total_wins, created_at, inviter_id')
       .eq('telegram_id', req.params.telegramId)
       .maybeSingle();
 
@@ -1032,7 +1036,28 @@ router.get('/agents/search/:telegramId', async (req, res) => {
       room = r2;
     }
 
-    res.json({ user, room: room || null });
+    // If room or user has promoter, enrich with promoter details
+    const effectivePromoterId = room?.promoter_id || user.inviter_id || null;
+    let promoter_name: string | null = null;
+    let promoter_telegram_id: string | null = null;
+    if (effectivePromoterId) {
+      const isUuidP = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(effectivePromoterId);
+      const { data: prUser } = await (isUuidP
+        ? supabase.from('users').select('telegram_id, first_name, username').eq('id', effectivePromoterId)
+        : supabase.from('users').select('telegram_id, first_name, username').eq('telegram_id', effectivePromoterId)
+      ).maybeSingle();
+      if (prUser) {
+        promoter_name = prUser.first_name || prUser.username || null;
+        promoter_telegram_id = prUser.telegram_id || null;
+      }
+    }
+
+    res.json({
+      user,
+      room: room ? { ...room, promoter_name, promoter_telegram_id } : null,
+      suggested_promoter_id: effectivePromoterId,
+      suggested_promoter_name: promoter_name,
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -1041,7 +1066,7 @@ router.get('/agents/search/:telegramId', async (req, res) => {
 // POST /admin/agents/assign-room — assign or create a room for an agent
 router.post('/agents/assign-room', async (req, res) => {
   try {
-    const { telegramId, roomName, status, commission_rate, is_pinned, is_private } = req.body;
+    const { telegramId, roomName, status, commission_rate, is_pinned, is_private, promoter_id } = req.body;
     if (!telegramId) {
       res.status(400).json({ error: 'telegramId is required' });
       return;
@@ -1050,7 +1075,7 @@ router.post('/agents/assign-room', async (req, res) => {
     // Check user
     const { data: user, error: uErr } = await supabase
       .from('users')
-      .select('id, telegram_id, username, first_name, role')
+      .select('id, telegram_id, username, first_name, role, inviter_id')
       .eq('telegram_id', telegramId)
       .maybeSingle();
 
@@ -1070,6 +1095,13 @@ router.post('/agents/assign-room', async (req, res) => {
     const commRate = commission_rate !== undefined ? Number(commission_rate) : 8;
     const isPinned = is_pinned !== undefined ? Boolean(is_pinned) : false;
     const isPrivate = is_private !== undefined ? Boolean(is_private) : false;
+    // promoter_id: use provided promoter_id, or fallback to the agent's inviter_id (promoter UUID)
+    let promoterId: string | null = null;
+    if (promoter_id !== undefined && promoter_id !== null) {
+      promoterId = typeof promoter_id === 'string' && promoter_id.trim() ? promoter_id.trim() : null;
+    } else {
+      promoterId = user.inviter_id || null;
+    }
 
     // Check if room already exists by user.id (UUID) or telegramId
     let existingRoom = null;
@@ -1083,18 +1115,20 @@ router.post('/agents/assign-room', async (req, res) => {
     let roomResult = null;
     if (existingRoom) {
       // Update existing room with user.id (UUID) as agent_id
+      const updateRoomPayload: any = {
+        agent_id: user.id, // Store users.id UUID!
+        room_name: assignedRoomName,
+        agent_name: user.first_name || user.username || 'Agent',
+        status: roomStatus,
+        commission_rate: commRate,
+        is_pinned: isPinned,
+        is_private: isPrivate,
+        updated_at: new Date().toISOString(),
+      };
+      if (promoterId !== null) updateRoomPayload.promoter_id = promoterId;
       const { data: updated, error: uErr } = await supabase
         .from('rooms')
-        .update({
-          agent_id: user.id, // Store users.id UUID!
-          room_name: assignedRoomName,
-          agent_name: user.first_name || user.username || 'Agent',
-          status: roomStatus,
-          commission_rate: commRate,
-          is_pinned: isPinned,
-          is_private: isPrivate,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateRoomPayload)
         .eq('id', existingRoom.id)
         .select()
         .single();
@@ -1102,19 +1136,21 @@ router.post('/agents/assign-room', async (req, res) => {
       roomResult = updated;
     } else {
       // Insert new room with user.id (UUID) as agent_id
+      const insertRoomPayload: any = {
+        agent_id: user.id, // Store users.id UUID!
+        room_name: assignedRoomName,
+        agent_name: user.first_name || user.username || 'Agent',
+        total_games: 0,
+        status: roomStatus,
+        commission_rate: commRate,
+        is_pinned: isPinned,
+        is_private: isPrivate,
+        updated_at: new Date().toISOString(),
+      };
+      if (promoterId !== null) insertRoomPayload.promoter_id = promoterId;
       const { data: inserted, error: iErr } = await supabase
         .from('rooms')
-        .insert({
-          agent_id: user.id, // Store users.id UUID!
-          room_name: assignedRoomName,
-          agent_name: user.first_name || user.username || 'Agent',
-          total_games: 0,
-          status: roomStatus,
-          commission_rate: commRate,
-          is_pinned: isPinned,
-          is_private: isPrivate,
-          updated_at: new Date().toISOString(),
-        })
+        .insert(insertRoomPayload)
         .select()
         .single();
       if (iErr) throw iErr;
@@ -1143,6 +1179,8 @@ router.get('/rooms', async (_req, res) => {
         let agent_balance = 0;
         let agent_telegram_id = '';
         let agent_first_name = r.agent_name || 'Agent';
+        let promoter_name: string | null = null;
+        let promoter_telegram_id: string | null = null;
 
         if (r.agent_id) {
           // Check if agent_id is UUID or telegram_id
@@ -1160,10 +1198,24 @@ router.get('/rooms', async (_req, res) => {
             const { count } = await supabase
               .from('users')
               .select('id', { count: 'exact', head: true })
-              .eq('inviter_id', agUser.telegram_id);
+              .or(`inviter_id.eq.${agUser.id},inviter_id.eq.${agUser.telegram_id}`);
             players = count || 0;
           }
         }
+
+        // Enrich promoter info
+        if (r.promoter_id) {
+          const isUuidP = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(r.promoter_id);
+          const { data: prUser } = await (isUuidP
+            ? supabase.from('users').select('telegram_id, first_name, username').eq('id', r.promoter_id)
+            : supabase.from('users').select('telegram_id, first_name, username').eq('telegram_id', r.promoter_id)
+          ).maybeSingle();
+          if (prUser) {
+            promoter_name = prUser.first_name || prUser.username || null;
+            promoter_telegram_id = prUser.telegram_id || null;
+          }
+        }
+
         return {
           ...r,
           commission_rate: r.commission_rate ?? 8,
@@ -1173,6 +1225,8 @@ router.get('/rooms', async (_req, res) => {
           agent_balance,
           agent_telegram_id,
           agent_name: agent_first_name,
+          promoter_name,
+          promoter_telegram_id,
         };
       })
     );
@@ -1201,6 +1255,7 @@ router.put('/rooms/:id', async (req, res) => {
     if (req.body.commission_rate !== undefined) updates.commission_rate = Number(req.body.commission_rate);
     if (req.body.is_pinned !== undefined) updates.is_pinned = Boolean(req.body.is_pinned);
     if (req.body.is_private !== undefined) updates.is_private = Boolean(req.body.is_private);
+    if (req.body.promoter_id !== undefined) updates.promoter_id = req.body.promoter_id || null;
 
     const { data: room, error } = await supabase
       .from('rooms')

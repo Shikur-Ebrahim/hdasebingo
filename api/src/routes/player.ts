@@ -15,12 +15,15 @@ router.get('/profile', validateTelegramAuth, async (req: AuthRequest, res) => {
 router.get('/invited', validateTelegramAuth, async (req: AuthRequest, res) => {
   const telegramId = req.telegramUser!.id.toString();
 
-  // Fetch all users who have this user as their inviter
-  const { data: invitedUsers, error } = await supabase
-    .from('users')
-    .select('telegram_id, first_name, username, created_at')
-    .eq('inviter_id', telegramId)
-    .order('created_at', { ascending: false });
+  // Fetch all users who have this user as their inviter (UUID or telegram_id)
+  const { data: curUser } = await supabase.from('users').select('id').eq('telegram_id', telegramId).maybeSingle();
+  let invitedQuery = supabase.from('users').select('telegram_id, first_name, username, created_at');
+  if (curUser?.id) {
+    invitedQuery = invitedQuery.or(`inviter_id.eq.${curUser.id},inviter_id.eq.${telegramId}`);
+  } else {
+    invitedQuery = invitedQuery.eq('inviter_id', telegramId);
+  }
+  const { data: invitedUsers, error } = await invitedQuery.order('created_at', { ascending: false });
 
   if (error) { res.status(500).json({ error: error.message }); return; }
   if (!invitedUsers || invitedUsers.length === 0) {
@@ -301,7 +304,14 @@ router.get('/audit', validateTelegramAuth, async (req: AuthRequest, res) => {
     });
 
     // 6. Fetch Invitation Rewards
-    const { data: invited } = await supabase.from('users').select('telegram_id, username').eq('inviter_id', telegramId);
+    const { data: curUserStatement } = await supabase.from('users').select('id').eq('telegram_id', telegramId).maybeSingle();
+    let invQ = supabase.from('users').select('telegram_id, username');
+    if (curUserStatement?.id) {
+      invQ = invQ.or(`inviter_id.eq.${curUserStatement.id},inviter_id.eq.${telegramId}`);
+    } else {
+      invQ = invQ.eq('inviter_id', telegramId);
+    }
+    const { data: invited } = await invQ;
     if (invited && invited.length > 0) {
       const invitedIds = invited.map((u: any) => u.telegram_id);
       const { data: theirDeps } = await supabase.from('deposits').select('telegram_id, amount, status, created_at').in('telegram_id', invitedIds).eq('status', 'approved').order('created_at', { ascending: true });
@@ -544,10 +554,14 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
       .order('finished_at', { ascending: false });
 
     // 4. Count referred players for this agent
-    const { count: referredCount } = await supabase
-      .from('users')
-      .select('id', { count: 'exact', head: true })
-      .eq('inviter_id', telegramId);
+    const { data: curAgent } = await supabase.from('users').select('id').eq('telegram_id', telegramId).maybeSingle();
+    let refQ = supabase.from('users').select('id', { count: 'exact', head: true });
+    if (curAgent?.id) {
+      refQ = refQ.or(`inviter_id.eq.${curAgent.id},inviter_id.eq.${telegramId}`);
+    } else {
+      refQ = refQ.eq('inviter_id', telegramId);
+    }
+    const { count: referredCount } = await refQ;
 
     // Build 7-day trend map
     const daysMap: Record<string, { date: string; label: string; games_count: number; commission: number; volume: number }> = {};
