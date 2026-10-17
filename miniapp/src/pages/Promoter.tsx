@@ -29,6 +29,7 @@ import {
   X,
   Layers,
   DoorOpen,
+  Wifi,
 } from 'lucide-react';
 
 interface PromotedRoom {
@@ -251,6 +252,7 @@ export default function Promoter() {
   const handleOpenRoomDetail = (room: PromotedRoom) => {
     triggerHaptic('light');
     setSelectedRoom(room);
+    setSelectedLiveStake(null);
     setRoomDetailMode(true);
     fetchDashboardData(room.id);
   };
@@ -882,13 +884,173 @@ export default function Promoter() {
                   </div>
                 )}
               </div>
+            ) : selectedLiveStake !== null ? (
+              /* ─── VIEW C: TABLE MONITOR / LIVE ROOM CONTROL PANEL (Matches Image 2 / Agent Section) ─── */
+              (() => {
+                const detailGame = activeGames.find((g) => Number(g.stake) === selectedLiveStake);
+                const rawPool = Number(detailGame?.prize_pool || 0);
+                const players = Number(detailGame?.total_players || 0);
+                const estPot = detailGame
+                  ? (players >= 3 && rawPool > 0
+                      ? Math.round(rawPool / 0.8)
+                      : (rawPool || detailGame.stake * players))
+                  : 0;
+                const estComm = (estPot * promoterRate) / 100;
+                const lastWin = recentGames.find(
+                  (g) => Number(g.stake) === selectedLiveStake && g.room_id === selectedRoom?.id
+                ) || recentGames.find((g) => Number(g.stake) === selectedLiveStake);
+
+                return (
+                  <div className="space-y-3 animate-in fade-in duration-200">
+                    {/* Back button header */}
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => { triggerHaptic('light'); setSelectedLiveStake(null); }}
+                        className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-600 active:scale-95 transition-all shadow-2xs shrink-0"
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      <div>
+                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                          {selectedLiveStake} ETB Table Monitor
+                        </h3>
+                        <p className="text-[10px] text-slate-400">Live room control panel</p>
+                      </div>
+                    </div>
+
+                    {detailGame ? (
+                      <>
+                        {/* Live Status Header Card */}
+                        <div className={`rounded-2xl p-4 space-y-3 border shadow-sm ${
+                          detailGame.status === 'calling'
+                            ? 'bg-gradient-to-br from-emerald-500 to-teal-600 border-emerald-400 text-white'
+                            : 'bg-gradient-to-br from-amber-400 to-orange-500 border-amber-300 text-white'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="flex items-center space-x-1.5">
+                                {detailGame.status === 'calling'
+                                  ? <Wifi size={13} className="animate-pulse" />
+                                  : <Clock size={13} />
+                                }
+                                <span className="text-xs font-black uppercase tracking-wider">
+                                  {detailGame.status === 'calling' ? 'CALLING LIVE' : 'WAITING FOR PLAYERS'}
+                                </span>
+                              </div>
+                              <p className="text-[10px] font-medium opacity-80 mt-0.5">
+                                Game #{formatGameId(detailGame.id)}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-2xl font-black leading-none">{formatAmount(selectedLiveStake)}</p>
+                              <p className="text-[10px] font-black opacity-80">ETB STAKE</p>
+                            </div>
+                          </div>
+
+                          {/* 3 Quick Stats */}
+                          <div className="grid grid-cols-3 gap-2">
+                            <div className="bg-white/20 rounded-xl p-2 text-center">
+                              <p className="text-base font-black leading-none">{detailGame.total_players}</p>
+                              <p className="text-[9px] font-bold opacity-80 mt-0.5">Players</p>
+                            </div>
+                            <div className="bg-white/20 rounded-xl p-2 text-center">
+                              <p className="text-base font-black leading-none">{formatAmount(estPot)}</p>
+                              <p className="text-[9px] font-bold opacity-80 mt-0.5">Pot (ETB)</p>
+                            </div>
+                            <div className="bg-white/20 rounded-xl p-2 text-center">
+                              <p className="text-base font-black leading-none">{formatAmount(estComm)}</p>
+                              <p className="text-[9px] font-bold opacity-80 mt-0.5">Your Cut</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Commission Earned Card */}
+                        <div className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                                <TrendingUp size={16} />
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">Est. Promoter Commission</p>
+                                <p className="text-sm font-black text-emerald-600">+{formatAmount(estComm)} ETB</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[9px] text-slate-400 font-medium">Rate</p>
+                              <p className="text-xs font-black text-slate-800">{promoterRate}%</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Active Players Card */}
+                        <div className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs space-y-2">
+                          <p className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Active Players</p>
+                          <div className="flex items-center space-x-2">
+                            <div className="flex -space-x-2">
+                              {[...Array(Math.min(detailGame.total_players, 5))].map((_, i) => (
+                                <div key={i} className={`w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-black text-white ${
+                                  ['bg-orange-400', 'bg-emerald-400', 'bg-blue-400', 'bg-purple-400', 'bg-amber-400'][i % 5]
+                                }`}>
+                                  {i + 1}
+                                </div>
+                              ))}
+                              {detailGame.total_players > 5 && (
+                                <div className="w-7 h-7 rounded-full border-2 border-white bg-slate-300 flex items-center justify-center text-[9px] font-black text-slate-700">
+                                  +{detailGame.total_players - 5}
+                                </div>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-500 font-semibold">
+                              {detailGame.total_players} player{detailGame.total_players !== 1 ? 's' : ''} registered for this game
+                            </p>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      /* No Active Game — Show Last Winner for this stake */
+                      <div className="bg-white rounded-2xl p-4 border border-dashed border-slate-200 text-center space-y-2 shadow-2xs">
+                        <div className="w-12 h-12 bg-slate-100 rounded-2xl mx-auto flex items-center justify-center">
+                          <Gamepad2 size={24} className="text-slate-300" />
+                        </div>
+                        <p className="text-xs font-black text-slate-600">No Active Game at {selectedLiveStake} ETB</p>
+                        <p className="text-[10px] text-slate-400">
+                          Players join via room link to start a new table.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Last Winner for this stake */}
+                    {lastWin && (
+                      <div className="bg-white rounded-2xl p-3.5 border border-amber-100 shadow-2xs space-y-1.5">
+                        <p className="text-[10px] font-black text-slate-700 uppercase tracking-wider flex items-center space-x-1">
+                          <Trophy size={11} className="text-amber-500" />
+                          <span>Last Winner at {selectedLiveStake} ETB</span>
+                        </p>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-black text-slate-800">🏆 {lastWin.winner_first_name}</p>
+                            {lastWin.winner_cartela && (
+                              <p className="text-[10px] text-slate-400">Cartela #{lastWin.winner_cartela}</p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-black text-amber-600">{formatAmount(lastWin.winner_prize)} ETB</p>
+                            <p className="text-[9px] text-emerald-600 font-bold">Your cut: +{formatAmount(lastWin.agent_commission)} ETB</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()
             ) : (
               /* ─── VIEW B: INSIDE SELECTED ROOM (4 Live Stake Cards) ─── */
               <div className="space-y-3.5">
                 {/* Back button & Room header */}
                 <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-gray-100 shadow-sm">
                   <button
-                    onClick={() => setRoomDetailMode(false)}
+                    onClick={() => { triggerHaptic('light'); setSelectedLiveStake(null); setRoomDetailMode(false); }}
                     className="flex items-center space-x-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black active:scale-95 transition-all"
                   >
                     <ChevronLeft size={14} />
@@ -930,7 +1092,7 @@ export default function Promoter() {
                     return (
                       <div
                         key={stake}
-                        onClick={() => setSelectedLiveStake(stake)}
+                        onClick={() => { triggerHaptic('light'); setSelectedLiveStake(stake); }}
                         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 text-white p-4 shadow-md shadow-orange-500/15 cursor-pointer active:scale-98 transition-all flex flex-col justify-between h-40"
                       >
                         {/* Top Row: Stake & Status Badge */}
@@ -1205,64 +1367,6 @@ export default function Promoter() {
           </div>
         )}
       </div>
-
-      {/* ─── LIVE STAKE DETAILS MODAL ─── */}
-      {selectedLiveStake !== null && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-3.5 shadow-2xl animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-              <div className="flex items-center space-x-2">
-                <Flame size={16} className="text-amber-500" />
-                <h3 className="text-sm font-black text-slate-900">{selectedLiveStake} ETB Stake Table</h3>
-              </div>
-              <button
-                onClick={() => setSelectedLiveStake(null)}
-                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500"
-              >
-                <X size={14} />
-              </button>
-            </div>
-
-            {(() => {
-              const liveGame = activeGames.find(g => Number(g.stake) === selectedLiveStake);
-              const pCount = liveGame?.total_players || 0;
-              const estPot = (pCount >= 3 && liveGame?.prize_pool)
-                ? liveGame.prize_pool
-                : selectedLiveStake * pCount;
-              const estComm = (estPot * promoterRate) / 100;
-
-              return (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2 text-center">
-                    <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] text-slate-400 uppercase font-bold">Status</p>
-                      <p className="font-black text-xs text-amber-600 uppercase">
-                        {liveGame?.status === 'calling' ? 'Calling Numbers' : 'Waiting Players'}
-                      </p>
-                    </div>
-                    <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] text-slate-400 uppercase font-bold">Active Players</p>
-                      <p className="font-black text-xs text-slate-800">{pCount}</p>
-                    </div>
-                    <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
-                      <p className="text-[10px] text-slate-400 uppercase font-bold">Est. Pot</p>
-                      <p className="font-black text-xs text-slate-800">{formatAmount(estPot)} ETB</p>
-                    </div>
-                    <div className="bg-emerald-50 p-2.5 rounded-2xl border border-emerald-100">
-                      <p className="text-[10px] text-emerald-600 uppercase font-bold">Est. Promoter Comm</p>
-                      <p className="font-black text-xs text-emerald-700">+{formatAmount(estComm)} ETB ({promoterRate}%)</p>
-                    </div>
-                  </div>
-
-                  <p className="text-[10px] text-slate-400 text-center">
-                    Promoter automatically earns {promoterRate}% from every completed game pot in this room.
-                  </p>
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
