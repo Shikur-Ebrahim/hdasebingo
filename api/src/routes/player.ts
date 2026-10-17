@@ -758,14 +758,15 @@ router.get('/promoter-dashboard', validateTelegramAuth, async (req: AuthRequest,
       };
     });
 
-    // 5. Fetch finished games for this room
+    // 5. Fetch finished games across promoter's rooms for reports & room filtering
+    const allRoomIds = promotedRooms.map(r => r.id);
     const { data: finishedGames } = await supabase
       .from('bingo_games')
-      .select('id, stake, prize_pool, winner_prize, winner_first_name, winner_telegram_id, winner_cartela, total_players, status, created_at, finished_at')
-      .eq('room_id', selectedRoom.id)
+      .select('id, room_id, stake, prize_pool, winner_prize, winner_first_name, winner_telegram_id, winner_cartela, total_players, status, created_at, finished_at')
+      .in('room_id', allRoomIds.length > 0 ? allRoomIds : [selectedRoom.id])
       .eq('status', 'finished')
       .order('finished_at', { ascending: false })
-      .limit(100);
+      .limit(150);
 
     const mappedRecentGames = (finishedGames || []).map((g: any) => {
       const stake = Number(g.stake || 0);
@@ -775,10 +776,13 @@ router.get('/promoter-dashboard', validateTelegramAuth, async (req: AuthRequest,
       const totalAmount = (players >= 3 && rawPool > 0)
         ? Math.round(rawPool / 0.8) 
         : (rawPool || (stake * players) || 0);
-      // Promoter gets promoterRate (default 3%) of total pot
-      const comm = players >= 3 ? Number(((totalAmount * promoterRate) / 100).toFixed(2)) : 0;
+      const gameRoom = promotedRooms.find(r => r.id === g.room_id) || selectedRoom;
+      const gameRate = Number(gameRoom?.promoter_commission_rate ?? 3);
+      const comm = players >= 3 ? Number(((totalAmount * gameRate) / 100).toFixed(2)) : 0;
       return {
         id: g.id,
+        room_id: g.room_id,
+        room_name: gameRoom?.room_name || 'Room',
         stake,
         total_players: players,
         prize_pool: totalAmount,
@@ -786,7 +790,7 @@ router.get('/promoter-dashboard', validateTelegramAuth, async (req: AuthRequest,
         winner_first_name: g.winner_first_name || 'Anonymous',
         winner_cartela: g.winner_cartela,
         agent_commission: comm, // promoter cut shown in badge
-        commission_rate: promoterRate,
+        commission_rate: gameRate,
         created_at: g.created_at,
         finished_at: g.finished_at,
         status: g.status,

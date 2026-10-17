@@ -14,30 +14,19 @@ import {
   Share2,
   Copy,
   Check,
-  Sparkles,
-  Play,
   Wallet,
-  Gift,
   TrendingUp,
   BarChart3,
-  Calendar,
   Zap,
-  ArrowUpRight,
-  ShieldCheck,
   Search,
   QrCode,
   Flame,
   ChevronRight,
-  ChevronDown,
-  Info,
   Download,
   CheckCircle2,
-  Crown,
-  Printer,
   Send,
-  ExternalLink,
   X,
-  Megaphone,
+  Layers,
 } from 'lucide-react';
 
 interface PromotedRoom {
@@ -66,6 +55,8 @@ interface ActiveGame {
 
 interface FinishedGame {
   id: string;
+  room_id?: string;
+  room_name?: string;
   stake: number;
   total_players: number;
   prize_pool: number;
@@ -131,19 +122,25 @@ export default function Promoter() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
-  const [copiedCode, setCopiedCode] = useState(false);
+
+  // Tab navigation: 'analytics' | 'live' | 'report' | 'qr'
   const [activeTab, setActiveTab] = useState<'analytics' | 'live' | 'report' | 'qr'>('analytics');
+  
+  // Analytics chart metric: 'games' (orange) | 'commission' (emerald green) | 'volume' (slate/black)
   const [chartMetric, setChartMetric] = useState<'games' | 'commission' | 'volume'>('games');
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
+
+  // Report filter: Room category filter ('all' or specific room_id)
+  const [reportRoomFilter, setReportRoomFilter] = useState<string>('all');
   const [reportSearchQuery, setReportSearchQuery] = useState('');
-  const [reportPeriod, setReportPeriod] = useState<'all' | 'today' | 'yesterday' | 'weekly' | 'monthly' | 'custom'>('all');
-  const [reportStake, setReportStake] = useState<number | 'all'>('all');
+
+  // Live stake details modal
   const [selectedLiveStake, setSelectedLiveStake] = useState<number | null>(null);
   const [showRoomPicker, setShowRoomPicker] = useState(false);
+
+  // Flyer actions
   const [downloadedQR, setDownloadedQR] = useState(false);
   const [isSavingFlyer, setIsSavingFlyer] = useState(false);
-  const [flyerModalOpen, setFlyerModalOpen] = useState(false);
-  const [flyerPreviewUrl, setFlyerPreviewUrl] = useState('');
   const [flyerSentToTg, setFlyerSentToTg] = useState(false);
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -152,12 +149,9 @@ export default function Promoter() {
   }
 
   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'hdasebingo_bot';
+  // Promoter's permanent invitation referral link (ALWAYS used for QR code!)
   const promoterRefCode = `ref_${user?.telegram_id || 'promoter'}`;
   const promoterInviteLink = `https://t.me/${botUsername}?start=${promoterRefCode}`;
-  
-  const roomInviteLink = selectedRoom
-    ? `https://t.me/${botUsername}?start=room_${selectedRoom.id}`
-    : promoterInviteLink;
 
   const triggerHaptic = (style: 'light' | 'medium' | 'heavy' = 'light') => {
     if (typeof WebApp !== 'undefined' && WebApp.HapticFeedback) {
@@ -230,29 +224,27 @@ export default function Promoter() {
     fetchDashboardData(room.id);
   };
 
-  const handleCopyLink = (linkToCopy: string) => {
-    navigator.clipboard.writeText(linkToCopy).then(() => {
+  const handleCopyInviteLink = () => {
+    navigator.clipboard.writeText(promoterInviteLink).then(() => {
       setCopiedLink(true);
       triggerSuccessHaptic();
       setTimeout(() => setCopiedLink(false), 2000);
     });
   };
 
-  const handleShare = () => {
+  const handleShareInvite = () => {
     triggerHaptic('medium');
-    const text = selectedRoom
-      ? `🎮 Come play Bingo in "${selectedRoom.room_name}"! Join now:\n\n${roomInviteLink}`
-      : `🎮 Play HDASE BINGO with me! Join using my promoter link:\n\n${promoterInviteLink}`;
+    const text = `🎮 Join HDASE BINGO with my official promoter invite!\n\n${promoterInviteLink}`;
     if (typeof WebApp !== 'undefined' && WebApp.openTelegramLink) {
-      WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(roomInviteLink)}&text=${encodeURIComponent(text)}`);
+      WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(promoterInviteLink)}&text=${encodeURIComponent(text)}`);
     } else if (navigator.share) {
-      navigator.share({ title: selectedRoom?.room_name || 'HDASE BINGO', text, url: roomInviteLink }).catch(() => {});
+      navigator.share({ title: 'HDASE BINGO Promoter Invite', text, url: promoterInviteLink }).catch(() => {});
     } else {
-      handleCopyLink(roomInviteLink);
+      handleCopyInviteLink();
     }
   };
 
-  // High-Res Flyer Generation
+  // High-Res Flyer Generation using Promoter's Permanent Invitation Link
   const generateFlyerImage = (): string | null => {
     const qrCanvas = qrCanvasRef.current;
     if (!qrCanvas) return null;
@@ -301,10 +293,10 @@ export default function Promoter() {
     ctx.textAlign = 'center';
     ctx.fillText('HDASE BINGO', width / 2, 142);
 
-    // Subtitle
+    // Subtitle: Official Promoter Invitation
     ctx.fillStyle = '#8a6a1d';
-    ctx.font = 'bold 12.5px sans-serif';
-    const subText = `OFFICIAL PROMOTER ROOM • ${(selectedRoom?.room_name || 'PROMOTER ROOM').toUpperCase()}`;
+    ctx.font = 'bold 13px sans-serif';
+    const subText = `OFFICIAL PROMOTER • ${(user?.first_name || 'PROMOTER').toUpperCase()}`;
     ctx.fillText(subText, width / 2, 172);
 
     // Scan to Play
@@ -354,7 +346,7 @@ export default function Promoter() {
     if (!dataUrl) return;
     const a = document.createElement('a');
     a.href = dataUrl;
-    a.download = `hdasebingo-promoter-${selectedRoom?.room_name || 'room'}.png`;
+    a.download = `hdasebingo-promoter-${user?.first_name || 'invite'}.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -376,7 +368,7 @@ export default function Promoter() {
         },
         body: JSON.stringify({
           image_base64: dataUrl,
-          room_name: selectedRoom?.room_name || 'HDASE BINGO',
+          room_name: `Promoter ${user?.first_name || 'Official'}`,
         }),
       });
       if (res.ok) {
@@ -389,20 +381,34 @@ export default function Promoter() {
     }
   };
 
-  // Filter Finished Games Report
+  // Calculate max for proportional 7-day chart bars
+  const maxChartValue = useMemo(() => {
+    if (!chartData || chartData.length === 0) return 1;
+    const vals = chartData.map((d) => {
+      if (chartMetric === 'games') return d.games_count;
+      if (chartMetric === 'commission') return d.commission;
+      return d.volume;
+    });
+    return Math.max(...vals, 1);
+  }, [chartData, chartMetric]);
+
+  // Filter Finished Games Report by ROOM CATEGORY and search query
   const filteredRecentGames = useMemo(() => {
     return recentGames.filter((g) => {
-      if (reportStake !== 'all' && Number(g.stake) !== Number(reportStake)) return false;
+      // Room category filter
+      if (reportRoomFilter !== 'all' && g.room_id !== reportRoomFilter) return false;
+      // Search query filter
       if (reportSearchQuery.trim()) {
         const q = reportSearchQuery.toLowerCase();
         const matchesId = g.id.toLowerCase().includes(q);
         const matchesWinner = g.winner_first_name.toLowerCase().includes(q);
+        const matchesRoom = (g.room_name || '').toLowerCase().includes(q);
         const matchesStake = String(g.stake).includes(q);
-        if (!matchesId && !matchesWinner && !matchesStake) return false;
+        if (!matchesId && !matchesWinner && !matchesRoom && !matchesStake) return false;
       }
       return true;
     });
-  }, [recentGames, reportStake, reportSearchQuery]);
+  }, [recentGames, reportRoomFilter, reportSearchQuery]);
 
   const reportTotalCommission = useMemo(() => {
     return filteredRecentGames.reduce((acc, g) => acc + (g.agent_commission || 0), 0);
@@ -413,32 +419,24 @@ export default function Promoter() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 select-none pb-20 font-sans">
-      {/* ─── STICKY TOP APP BAR ─── */}
+      {/* ─── STICKY TOP APP BAR (Clean: Avatar + Room Name + 3% Commission) ─── */}
       <div className="bg-white border-b border-gray-100 px-4 py-2.5 sticky top-0 z-30 shadow-2xs">
         <div className="flex items-center justify-between max-w-md mx-auto">
-          {/* Promoter Avatar & Room Selector */}
+          {/* Avatar & Room Name with Commission Badge */}
           <div className="flex items-center space-x-2.5 min-w-0 flex-1 mr-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 via-orange-500 to-yellow-400 flex items-center justify-center text-white font-black text-sm shadow-sm ring-2 ring-amber-200 shrink-0">
-              {(user?.first_name || 'P').charAt(0).toUpperCase()}
+              {(selectedRoom?.room_name || user?.first_name || 'P').charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center space-x-1.5 flex-wrap">
-                {/* Room selector button */}
-                <button
-                  onClick={() => setShowRoomPicker(true)}
-                  className="flex items-center space-x-1 text-sm font-black text-slate-900 leading-tight truncate hover:text-amber-600 active:scale-98 transition-all"
-                >
-                  <span className="truncate">{selectedRoom?.room_name || 'No Room Linked'}</span>
-                  {promotedRooms.length > 1 && <ChevronDown size={14} className="text-slate-400 shrink-0" />}
-                </button>
+                <span className="text-sm font-black text-slate-900 leading-tight truncate">
+                  {selectedRoom?.room_name || 'No Room Linked'}
+                </span>
                 <span className="inline-flex items-center space-x-0.5 text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                   <Zap size={10} className="text-emerald-500 fill-emerald-500" />
                   <span>{promoterRate}% Commission</span>
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 font-medium truncate">
-                Promoter: {user?.first_name || 'Promoter'} {promotedRooms.length > 1 && `• ${promotedRooms.length} Rooms`}
-              </p>
             </div>
           </div>
 
@@ -476,7 +474,6 @@ export default function Promoter() {
 
         {/* ─── GOLDEN HERO CARD ─── */}
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-amber-100/90 via-amber-50/70 to-white border border-amber-200/80 p-5 shadow-sm">
-          {/* Subtle background decoration */}
           <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-amber-400/20 to-orange-400/10 rounded-full blur-2xl pointer-events-none" />
           <div className="relative z-10 flex flex-col items-center text-center space-y-3">
             <div className="inline-flex items-center space-x-1.5 text-[10px] font-black tracking-wider uppercase text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-full">
@@ -488,7 +485,7 @@ export default function Promoter() {
               <h2 className="text-2xl font-black text-slate-900 tracking-wider">
                 HDASE <span className="text-amber-500">BINGO</span>
               </h2>
-              <p className="text-[11px] font-bold text-slate-500 mt-0.5">
+              <p className="text-xs font-black text-slate-700 mt-0.5">
                 {selectedRoom?.room_name ? `Room: ${selectedRoom.room_name}` : 'Promote rooms & earn 3% commission on every game'}
               </p>
             </div>
@@ -504,6 +501,49 @@ export default function Promoter() {
             </button>
           </div>
         </div>
+
+        {/* ─── PROMINENT INVITED ROOMS SELECTION BAR / CARDS ─── */}
+        {promotedRooms.length > 0 && (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center space-x-1">
+                <Building2 size={12} className="text-amber-500" />
+                <span>Your Invited Rooms ({promotedRooms.length})</span>
+              </span>
+              <span className="text-[10px] font-bold text-amber-600">Tap room to monitor</span>
+            </div>
+            <div className="flex space-x-2 overflow-x-auto pb-1 no-scrollbar">
+              {promotedRooms.map((rm) => {
+                const isSelected = selectedRoom?.id === rm.id;
+                return (
+                  <button
+                    key={rm.id}
+                    type="button"
+                    onClick={() => handleSelectRoom(rm)}
+                    className={`flex-shrink-0 px-3.5 py-2 rounded-2xl border text-left transition-all active:scale-95 flex items-center space-x-2.5 ${
+                      isSelected
+                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border-transparent shadow-md shadow-orange-500/20'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-amber-300'
+                    }`}
+                  >
+                    <div className={`w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs ${
+                      isSelected ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {rm.room_name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-xs font-black truncate max-w-[130px]">{rm.room_name}</p>
+                      <p className={`text-[9px] font-bold ${isSelected ? 'text-amber-100' : 'text-slate-400'}`}>
+                        ⚡ {rm.promoter_commission_rate ?? 3}% Cut • {rm.total_games || 0} games
+                      </p>
+                    </div>
+                    {isSelected && <Check size={14} className="text-white shrink-0 ml-1" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ─── 4 SEGMENT TABS (Analytics, Live (4), Report, QR) ─── */}
         <div className="grid grid-cols-4 gap-1.5 bg-slate-200/60 p-1 rounded-2xl">
@@ -548,7 +588,7 @@ export default function Promoter() {
           </button>
         </div>
 
-        {/* ════════════ TAB 1: ANALYTICS ════════════ */}
+        {/* ════════════ TAB 1: ANALYTICS (Correct Green & Black Chart Colors!) ════════════ */}
         {activeTab === 'analytics' && (
           <div className="space-y-3.5">
             {/* 7-Day Performance Chart Card */}
@@ -563,30 +603,45 @@ export default function Promoter() {
                 </div>
               </div>
 
-              {/* Metric Toggle Buttons: Games | Comm | Pot */}
-              <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-xl">
+              {/* Metric Toggle 3 Buttons: Games (Orange) | Comm (Emerald Green) | Pot (Slate/Black) */}
+              <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-2xl text-[10px] font-black">
                 <button
-                  onClick={() => setChartMetric('games')}
-                  className={`py-1.5 rounded-lg text-[11px] font-black transition-all flex items-center justify-center space-x-1 ${
-                    chartMetric === 'games' ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xs' : 'text-slate-600'
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setChartMetric('games');
+                  }}
+                  className={`py-2 rounded-xl transition-all flex items-center justify-center space-x-1 ${
+                    chartMetric === 'games'
+                      ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   <Gamepad2 size={12} />
                   <span>Games</span>
                 </button>
                 <button
-                  onClick={() => setChartMetric('commission')}
-                  className={`py-1.5 rounded-lg text-[11px] font-black transition-all flex items-center justify-center space-x-1 ${
-                    chartMetric === 'commission' ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xs' : 'text-slate-600'
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setChartMetric('commission');
+                  }}
+                  className={`py-2 rounded-xl transition-all flex items-center justify-center space-x-1 ${
+                    chartMetric === 'commission'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   <TrendingUp size={12} />
                   <span>Comm (ETB)</span>
                 </button>
                 <button
-                  onClick={() => setChartMetric('volume')}
-                  className={`py-1.5 rounded-lg text-[11px] font-black transition-all flex items-center justify-center space-x-1 ${
-                    chartMetric === 'volume' ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xs' : 'text-slate-600'
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setChartMetric('volume');
+                  }}
+                  className={`py-2 rounded-xl transition-all flex items-center justify-center space-x-1 ${
+                    chartMetric === 'volume'
+                      ? 'bg-slate-800 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   <Trophy size={12} />
@@ -594,41 +649,75 @@ export default function Promoter() {
                 </button>
               </div>
 
-              {/* 7-Day Bar Chart */}
+              {/* Interactive SVG Bar & Trend Chart with Proper Pillar Colors */}
               <div className="pt-2">
-                <div className="grid grid-cols-7 gap-1.5 items-end h-32 px-1">
+                <div className="h-36 flex items-end justify-between space-x-2 px-1">
                   {chartData.map((d, idx) => {
-                    const rawVal = chartMetric === 'games' ? d.games_count : chartMetric === 'commission' ? d.commission : d.volume;
-                    const maxVal = Math.max(...chartData.map(c => chartMetric === 'games' ? c.games_count : chartMetric === 'commission' ? c.commission : c.volume), 1);
-                    const heightPct = Math.max(15, Math.min(100, (rawVal / maxVal) * 100));
+                    const val =
+                      chartMetric === 'games'
+                        ? d.games_count
+                        : chartMetric === 'commission'
+                        ? d.commission
+                        : d.volume;
+
+                    const heightPercent = maxChartValue > 0 ? Math.max(10, Math.round((val / maxChartValue) * 100)) : 10;
                     const isSelected = selectedDayIndex === idx;
 
                     return (
-                      <button
+                      <div
                         key={d.date}
-                        type="button"
-                        onClick={() => setSelectedDayIndex(idx)}
-                        className="flex flex-col items-center h-full justify-end group active:scale-95 transition-all"
+                        onClick={() => {
+                          triggerHaptic('light');
+                          setSelectedDayIndex(idx);
+                        }}
+                        className="flex-1 flex flex-col items-center h-full justify-end cursor-pointer group"
                       >
-                        <span className="text-[9px] font-black text-slate-400 mb-1 leading-none">
-                          {formatAmount(rawVal)}
+                        {/* Bar Value on top */}
+                        <span
+                          className={`text-[8px] font-black mb-1 transition-all ${
+                            isSelected
+                              ? chartMetric === 'commission'
+                                ? 'text-emerald-700 font-extrabold scale-110'
+                                : 'text-slate-900 font-extrabold scale-110'
+                              : 'text-slate-400 opacity-70 group-hover:opacity-100'
+                          }`}
+                        >
+                          {chartMetric === 'games' ? val : formatAmount(val)}
                         </span>
-                        <div className="w-full bg-slate-100 rounded-full h-full flex flex-col justify-end p-0.5">
+
+                        {/* Bar Pillar */}
+                        <div className="w-full max-w-[28px] bg-slate-100 rounded-xl overflow-hidden flex flex-col justify-end h-[100px] p-0.5">
                           <div
-                            style={{ height: `${heightPct}%` }}
-                            className={`w-full rounded-full transition-all duration-300 ${
-                              isSelected
-                                ? 'bg-gradient-to-t from-orange-500 via-amber-400 to-yellow-300 shadow-sm'
-                                : 'bg-gradient-to-t from-amber-200 to-amber-100 group-hover:from-amber-300 group-hover:to-amber-200'
+                            style={{ height: `${heightPercent}%` }}
+                            className={`w-full rounded-lg transition-all duration-300 ${
+                              chartMetric === 'games'
+                                ? isSelected
+                                  ? 'bg-gradient-to-t from-orange-600 to-amber-400 shadow-xs'
+                                  : 'bg-gradient-to-t from-orange-300 to-amber-200 group-hover:from-orange-400'
+                                : chartMetric === 'commission'
+                                ? isSelected
+                                  ? 'bg-gradient-to-t from-emerald-600 to-teal-400 shadow-xs'
+                                  : 'bg-gradient-to-t from-emerald-300 to-teal-200 group-hover:from-emerald-400'
+                                : isSelected
+                                ? 'bg-gradient-to-t from-slate-900 to-slate-700 shadow-xs'
+                                : 'bg-gradient-to-t from-slate-300 to-slate-200 group-hover:from-slate-400'
                             }`}
                           />
                         </div>
-                        <span className={`text-[9px] uppercase font-black mt-2 leading-none ${
-                          isSelected ? 'text-amber-600 font-extrabold' : 'text-slate-400'
-                        }`}>
+
+                        {/* Day Label on X Axis */}
+                        <span
+                          className={`text-[9px] mt-1.5 font-black uppercase transition-colors ${
+                            isSelected
+                              ? chartMetric === 'commission'
+                                ? 'text-emerald-600'
+                                : 'text-orange-600'
+                              : 'text-slate-400'
+                          }`}
+                        >
                           {d.label}
                         </span>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -636,9 +725,15 @@ export default function Promoter() {
 
               {/* Selected Day Summary Card */}
               {selectedDayIndex !== null && chartData[selectedDayIndex] && (
-                <div className="bg-amber-50/60 border border-amber-200/70 rounded-2xl p-3 flex items-center justify-between">
+                <div className={`rounded-2xl p-3 flex items-center justify-between border ${
+                  chartMetric === 'commission'
+                    ? 'bg-emerald-50/60 border-emerald-200/70'
+                    : 'bg-amber-50/60 border-amber-200/70'
+                }`}>
                   <div className="flex items-center space-x-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-black text-xs">
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs ${
+                      chartMetric === 'commission' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                    }`}>
                       {chartData[selectedDayIndex].label}
                     </div>
                     <div>
@@ -703,7 +798,9 @@ export default function Promoter() {
                 <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide">
                   Room Live Monitor
                 </h3>
-                <p className="text-[10px] text-slate-400">Tap a stake table to monitor its game</p>
+                <p className="text-[10px] text-slate-400">
+                  Monitoring: <span className="font-bold text-slate-700">{selectedRoom?.room_name || 'No Room'}</span>
+                </p>
               </div>
               <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-black">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -766,7 +863,7 @@ export default function Promoter() {
           </div>
         )}
 
-        {/* ════════════ TAB 3: REPORT ════════════ */}
+        {/* ════════════ TAB 3: REPORT (ROOM CATEGORY FILTER!) ════════════ */}
         {activeTab === 'report' && (
           <div className="space-y-3">
             <div>
@@ -775,7 +872,7 @@ export default function Promoter() {
                   <h3 className="text-xs font-black text-slate-900 uppercase tracking-wide">
                     Finished Games Report
                   </h3>
-                  <p className="text-[10px] text-slate-400">Every game pot and commission earned in your room</p>
+                  <p className="text-[10px] text-slate-400">Games and 3% commission earned across your rooms</p>
                 </div>
                 <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                   {filteredRecentGames.length} Finished
@@ -783,31 +880,39 @@ export default function Promoter() {
               </div>
             </div>
 
-            {/* Stake Pills (All, 10, 20, 50, 100) */}
-            <div className="flex space-x-1.5 overflow-x-auto pb-1 no-scrollbar">
-              <button
-                onClick={() => setReportStake('all')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
-                  reportStake === 'all'
-                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xs'
-                    : 'bg-white border border-slate-200 text-slate-600'
-                }`}
-              >
-                All
-              </button>
-              {liveStakes.map((stk) => (
+            {/* ─── ROOM CATEGORY FILTER PILLS ─── */}
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide flex items-center space-x-1 px-1">
+                <Layers size={11} className="text-amber-500" />
+                <span>Filter by Room:</span>
+              </span>
+              <div className="flex space-x-1.5 overflow-x-auto pb-1 no-scrollbar">
                 <button
-                  key={stk}
-                  onClick={() => setReportStake(stk)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
-                    reportStake === stk
+                  type="button"
+                  onClick={() => setReportRoomFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all ${
+                    reportRoomFilter === 'all'
                       ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xs'
-                      : 'bg-white border border-slate-200 text-slate-600'
+                      : 'bg-white border border-slate-200 text-slate-600 hover:border-amber-300'
                   }`}
                 >
-                  {stk}
+                  All Rooms ({promotedRooms.length})
                 </button>
-              ))}
+                {promotedRooms.map((rm) => (
+                  <button
+                    key={rm.id}
+                    type="button"
+                    onClick={() => setReportRoomFilter(rm.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all flex items-center space-x-1 ${
+                      reportRoomFilter === rm.id
+                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xs'
+                        : 'bg-white border border-slate-200 text-slate-600 hover:border-amber-300'
+                    }`}
+                  >
+                    <span>{rm.room_name}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Search input */}
@@ -815,7 +920,7 @@ export default function Promoter() {
               <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search by game ID, winner name, stake..."
+                placeholder="Search by game ID, winner name, room..."
                 value={reportSearchQuery}
                 onChange={(e) => setReportSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 placeholder-slate-400 outline-none focus:border-amber-500"
@@ -835,20 +940,25 @@ export default function Promoter() {
               <div className="bg-white rounded-3xl p-8 border border-slate-100 text-center text-slate-400">
                 <Trophy size={28} className="mx-auto text-slate-300 mb-2" />
                 <p className="text-xs font-black text-slate-700">No Finished Games Found</p>
-                <p className="text-[10px] text-slate-400 mt-1">Games played in this room will appear here with your commission.</p>
+                <p className="text-[10px] text-slate-400 mt-1">Games played in your rooms will appear here with your commission.</p>
               </div>
             ) : (
               <div className="space-y-2">
                 {filteredRecentGames.map((game) => (
                   <div
                     key={game.id}
-                    className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-sm space-y-2.5"
+                    className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-sm space-y-2"
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-1.5 flex-wrap">
                         <span className="px-2 py-0.5 rounded-md bg-slate-100 font-mono text-[10px] font-black text-slate-700">
                           #{formatGameId(game.id)}
                         </span>
+                        {game.room_name && (
+                          <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-200">
+                            🏢 {game.room_name}
+                          </span>
+                        )}
                         <span className="text-[10px] text-slate-400">
                           {new Date(game.finished_at || game.created_at).toLocaleString('en-US', {
                             month: 'short',
@@ -893,10 +1003,10 @@ export default function Promoter() {
           </div>
         )}
 
-        {/* ════════════ TAB 4: QR FLYER ════════════ */}
+        {/* ════════════ TAB 4: QR FLYER (PROMOTER'S PERMANENT INVITATION LINK!) ════════════ */}
         {activeTab === 'qr' && (
           <div className="space-y-3">
-            {/* Table Flyer Card */}
+            {/* Table Flyer Card — Promotes the Promoter's Unique Invitation Link */}
             <div className="bg-white rounded-3xl p-5 border-2 border-amber-300 shadow-md space-y-4 text-center relative overflow-hidden">
               <div className="space-y-1">
                 <div className="w-10 h-10 rounded-full bg-slate-900 text-amber-400 mx-auto flex items-center justify-center font-black text-xs border-2 border-amber-400">
@@ -904,7 +1014,7 @@ export default function Promoter() {
                 </div>
                 <h3 className="text-xl font-black text-slate-900 tracking-wider">HDASE BINGO</h3>
                 <p className="text-[10px] font-black tracking-widest uppercase text-amber-700">
-                  OFFICIAL PROMOTER ROOM • {selectedRoom?.room_name || 'ROOM'}
+                  OFFICIAL PROMOTER • {user?.first_name || 'PROMOTER'}
                 </p>
               </div>
 
@@ -915,11 +1025,11 @@ export default function Promoter() {
                 </div>
               </div>
 
-              {/* QR Canvas */}
+              {/* QR Canvas — ALWAYS Promoter Referral Link (ref_${telegram_id}) */}
               <div className="p-3 bg-white border border-amber-200 rounded-2xl inline-block shadow-sm relative">
                 <QRCodeCanvas
                   ref={qrCanvasRef}
-                  value={roomInviteLink}
+                  value={promoterInviteLink}
                   size={200}
                   level="H"
                   includeMargin={false}
@@ -956,15 +1066,18 @@ export default function Promoter() {
             {/* Direct Promoter Share Card */}
             <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm space-y-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-slate-800">Your Promoter Referral Link</span>
-                <span className="text-[10px] font-bold text-violet-600">3% Commission</span>
+                <span className="text-xs font-black text-slate-800">Your Permanent Promoter Invite Link</span>
+                <span className="text-[10px] font-bold text-violet-600">⚡ 3% Commission</span>
               </div>
+              <p className="text-[10px] text-slate-400">
+                Anyone who joins with this link is linked to you. When they become an agent and are assigned a room, you automatically earn 3% commission on every game!
+              </p>
               <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl p-2.5">
                 <span className="font-mono text-xs text-slate-600 truncate mr-2 select-all">
-                  {roomInviteLink}
+                  {promoterInviteLink}
                 </span>
                 <button
-                  onClick={() => handleCopyLink(roomInviteLink)}
+                  onClick={handleCopyInviteLink}
                   className="shrink-0 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black flex items-center space-x-1 active:scale-95 transition-all"
                 >
                   {copiedLink ? <Check size={12} /> : <Copy size={12} />}
@@ -972,65 +1085,16 @@ export default function Promoter() {
                 </button>
               </div>
               <button
-                onClick={handleShare}
+                onClick={handleShareInvite}
                 className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl text-xs font-black flex items-center justify-center space-x-1.5 shadow-sm active:scale-95 transition-all"
               >
                 <Share2 size={14} />
-                <span>Share Link on Telegram</span>
+                <span>Share Invite on Telegram</span>
               </button>
             </div>
           </div>
         )}
       </div>
-
-      {/* ─── ROOM SELECTOR MODAL ─── */}
-      {showRoomPicker && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-3.5 shadow-2xl animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-              <div className="flex items-center space-x-2">
-                <Building2 size={16} className="text-amber-500" />
-                <h3 className="text-sm font-black text-slate-900">Select Promoted Room</h3>
-              </div>
-              <button
-                onClick={() => setShowRoomPicker(false)}
-                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500"
-              >
-                <X size={14} />
-              </button>
-            </div>
-
-            {promotedRooms.length === 0 ? (
-              <div className="py-6 text-center text-slate-400 space-y-2">
-                <p className="text-xs font-black text-slate-700">No Promoted Rooms Yet</p>
-                <p className="text-[10px] text-slate-400">Share your promoter link to recruit agents & rooms!</p>
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {promotedRooms.map((rm) => (
-                  <button
-                    key={rm.id}
-                    onClick={() => handleSelectRoom(rm)}
-                    className={`w-full p-3 rounded-2xl border text-left flex items-center justify-between transition-all ${
-                      selectedRoom?.id === rm.id
-                        ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-400/20 shadow-xs'
-                        : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    <div>
-                      <p className="text-xs font-black text-slate-900">{rm.room_name}</p>
-                      <p className="text-[10px] text-slate-400">Agent: {rm.agent_name || 'Agent'} • {rm.total_games || 0} games</p>
-                    </div>
-                    <span className="text-[10px] font-black text-emerald-600 bg-white px-2 py-0.5 rounded-full border border-emerald-200">
-                      ⚡ {rm.promoter_commission_rate ?? 3}%
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* ─── LIVE STAKE DETAILS MODAL ─── */}
       {selectedLiveStake !== null && (
