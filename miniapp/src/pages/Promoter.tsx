@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
+import { supabase } from '../lib/supabase';
 import WebApp from '@twa-dev/sdk';
 import { QRCodeCanvas } from 'qrcode.react';
 import {
@@ -112,7 +113,7 @@ const formatAmount = (num: number | string | undefined | null): string => {
 };
 
 export default function Promoter() {
-  const { user, fetchUser } = useGameStore();
+  const { user, fetchUser, rooms, fetchRooms, subscribeToRooms } = useGameStore();
   const [promotedRooms, setPromotedRooms] = useState<PromotedRoom[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<PromotedRoom | null>(null);
   const [activeGames, setActiveGames] = useState<ActiveGame[]>([]);
@@ -206,19 +207,45 @@ export default function Promoter() {
     if (typeof WebApp !== 'undefined' && WebApp.BackButton) {
       WebApp.BackButton.hide();
     }
-    fetchDashboardData();
+    fetchDashboardData(selectedRoom?.id);
     fetchUser();
+    fetchRooms();
+    const unsubRooms = subscribeToRooms();
+
+    // Realtime channel on bingo_games & bingo_players so room player numbers and game numbers update instantly
+    const channel = supabase
+      .channel(`promoter-live-sync-${Date.now()}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bingo_games' }, () => {
+        fetchDashboardData(selectedRoom?.id);
+        fetchRooms();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bingo_players' }, () => {
+        fetchDashboardData(selectedRoom?.id);
+        fetchRooms();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, () => {
+        fetchDashboardData(selectedRoom?.id);
+        fetchRooms();
+      })
+      .subscribe();
+
     const interval = setInterval(() => {
-      fetchDashboardData();
+      fetchDashboardData(selectedRoom?.id);
       fetchUser();
-    }, 20000);
-    return () => clearInterval(interval);
-  }, []);
+      fetchRooms();
+    }, 15000);
+
+    return () => {
+      unsubRooms();
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [selectedRoom?.id]);
 
   const handleManualRefresh = async () => {
     triggerHaptic('medium');
     setRefreshing(true);
-    await Promise.all([fetchDashboardData(selectedRoom?.id), fetchUser()]);
+    await Promise.all([fetchDashboardData(selectedRoom?.id), fetchUser(), fetchRooms()]);
   };
 
   const handleOpenRoomDetail = (room: PromotedRoom) => {
@@ -798,52 +825,60 @@ export default function Promoter() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-3">
-                    {promotedRooms.map((rm) => (
-                      <div
-                        key={rm.id}
-                        onClick={() => handleOpenRoomDetail(rm)}
-                        className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all hover:shadow-md"
-                      >
-                        {/* Dark Header matching Image 2 */}
-                        <div className="h-16 bg-black flex flex-col items-center justify-center relative px-2 text-center">
-                          {rm.is_pinned && (
-                            <div className="absolute top-2 left-2 flex items-center justify-center bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 text-[10px] w-5 h-5 rounded-full shadow-sm">
-                              <span>📌</span>
-                            </div>
-                          )}
-                          <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm" />
-                          <span className="text-white font-black text-sm leading-tight line-clamp-2 px-1">
-                            {rm.room_name}
-                          </span>
-                        </div>
+                    {promotedRooms.map((rm) => {
+                      const storeRoom = rooms.find((r) => r.id === rm.id);
+                      const displayPlayers = (rm.total_players !== undefined && rm.total_players > 0)
+                        ? rm.total_players
+                        : (storeRoom?.total_players ?? rm.total_players ?? 0);
+                      const displayGames = Math.max(rm.total_games || 0, storeRoom?.total_games || 0);
 
-                        {/* Stats Section matching Image 2 */}
-                        <div className="p-3 bg-white flex-1 flex flex-col justify-between space-y-2.5">
-                          <div className="grid grid-cols-2 gap-1.5 text-center">
-                            <div className="bg-slate-50 p-1.5 rounded-lg">
-                              <span className="text-[9px] font-bold text-slate-400 block tracking-wider uppercase">Players</span>
-                              <span className="text-sm font-black text-emerald-600">
-                                {rm.total_players || 0}
-                              </span>
-                            </div>
-                            <div className="bg-slate-50 p-1.5 rounded-lg">
-                              <span className="text-[9px] font-bold text-slate-400 block tracking-wider uppercase">Total Games</span>
-                              <span className="text-sm font-black text-purple-600">
-                                {rm.total_games || 0}
-                              </span>
-                            </div>
+                      return (
+                        <div
+                          key={rm.id}
+                          onClick={() => handleOpenRoomDetail(rm)}
+                          className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all hover:shadow-md"
+                        >
+                          {/* Dark Header matching Image 2 */}
+                          <div className="h-16 bg-black flex flex-col items-center justify-center relative px-2 text-center">
+                            {rm.is_pinned && (
+                              <div className="absolute top-2 left-2 flex items-center justify-center bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 text-[10px] w-5 h-5 rounded-full shadow-sm">
+                                <span>📌</span>
+                              </div>
+                            )}
+                            <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm" />
+                            <span className="text-white font-black text-sm leading-tight line-clamp-2 px-1">
+                              {rm.room_name}
+                            </span>
                           </div>
 
-                          <button
-                            type="button"
-                            className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black rounded-lg transition-colors flex items-center justify-center space-x-1"
-                          >
-                            <span>Monitor Room</span>
-                            <ChevronRight size={13} />
-                          </button>
+                          {/* Stats Section matching Image 2 */}
+                          <div className="p-3 bg-white flex-1 flex flex-col justify-between space-y-2.5">
+                            <div className="grid grid-cols-2 gap-1.5 text-center">
+                              <div className="bg-slate-50 p-1.5 rounded-lg">
+                                <span className="text-[9px] font-bold text-slate-400 block tracking-wider uppercase">Players</span>
+                                <span className="text-sm font-black text-emerald-600">
+                                  {displayPlayers}
+                                </span>
+                              </div>
+                              <div className="bg-slate-50 p-1.5 rounded-lg">
+                                <span className="text-[9px] font-bold text-slate-400 block tracking-wider uppercase">Games</span>
+                                <span className="text-sm font-black text-purple-600">
+                                  {displayGames}
+                                </span>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black rounded-lg transition-colors flex items-center justify-center space-x-1"
+                            >
+                              <span>Monitor Room</span>
+                              <ChevronRight size={13} />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

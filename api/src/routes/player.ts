@@ -704,6 +704,66 @@ router.get('/promoter-dashboard', validateTelegramAuth, async (req: AuthRequest,
         });
       }
     }
+
+    const allPromotedRoomIds = Array.from(roomsMap.keys());
+    if (allPromotedRoomIds.length > 0) {
+      // 1. Fetch active games for all promoted rooms
+      const { data: activeGamesForAll } = await supabase
+        .from('bingo_games')
+        .select('id, room_id, total_players')
+        .in('room_id', allPromotedRoomIds)
+        .in('status', ['waiting', 'calling']);
+
+      const roomPlayersMap: Record<string, number> = {};
+      const activeGameIds = (activeGamesForAll || []).map((g: any) => g.id).filter(Boolean);
+      let gameUniquePlayersMap: Record<string, number> = {};
+      if (activeGameIds.length > 0) {
+        const { data: playerRows } = await supabase
+          .from('bingo_players')
+          .select('game_id, telegram_id')
+          .in('game_id', activeGameIds);
+
+        if (playerRows && playerRows.length > 0) {
+          const setsMap: Record<string, Set<string>> = {};
+          playerRows.forEach((row: any) => {
+            if (!setsMap[row.game_id]) setsMap[row.game_id] = new Set();
+            setsMap[row.game_id].add(row.telegram_id);
+          });
+          for (const [gid, set] of Object.entries(setsMap)) {
+            gameUniquePlayersMap[gid] = set.size;
+          }
+        }
+      }
+
+      (activeGamesForAll || []).forEach((g: any) => {
+        if (g.room_id) {
+          const count = gameUniquePlayersMap[g.id] ?? Number(g.total_players || 0);
+          roomPlayersMap[g.room_id] = (roomPlayersMap[g.room_id] || 0) + count;
+        }
+      });
+
+      // 2. Count finished games for each room
+      const { data: finishedGamesForAll } = await supabase
+        .from('bingo_games')
+        .select('room_id')
+        .in('room_id', allPromotedRoomIds)
+        .eq('status', 'finished');
+
+      const roomFinishedGamesMap: Record<string, number> = {};
+      (finishedGamesForAll || []).forEach((g: any) => {
+        if (g.room_id) {
+          roomFinishedGamesMap[g.room_id] = (roomFinishedGamesMap[g.room_id] || 0) + 1;
+        }
+      });
+
+      for (const [id, r] of roomsMap.entries()) {
+        roomsMap.set(id, {
+          ...r,
+          total_players: roomPlayersMap[id] || 0,
+          total_games: Math.max(roomFinishedGamesMap[id] || 0, Number(r.total_games || 0)),
+        });
+      }
+    }
     const promotedRooms = Array.from(roomsMap.values());
 
     // 2. Select active room
@@ -744,15 +804,35 @@ router.get('/promoter-dashboard', validateTelegramAuth, async (req: AuthRequest,
       .in('status', ['waiting', 'calling'])
       .order('created_at', { ascending: false });
 
+    const selectedActiveIds = (games || []).map((g: any) => g.id).filter(Boolean);
+    let selectedGamePlayersMap: Record<string, number> = {};
+    if (selectedActiveIds.length > 0) {
+      const { data: sRows } = await supabase
+        .from('bingo_players')
+        .select('game_id, telegram_id')
+        .in('game_id', selectedActiveIds);
+      if (sRows) {
+        const sSets: Record<string, Set<string>> = {};
+        sRows.forEach((r: any) => {
+          if (!sSets[r.game_id]) sSets[r.game_id] = new Set();
+          sSets[r.game_id].add(r.telegram_id);
+        });
+        for (const [gid, set] of Object.entries(sSets)) {
+          selectedGamePlayersMap[gid] = set.size;
+        }
+      }
+    }
+
     const activeGames = (games || []).map((g: any) => {
       const stake = Number(g.stake || 0);
-      const players = Number(g.total_players || 0);
+      const players = selectedGamePlayersMap[g.id] ?? Number(g.total_players || 0);
       const rawPool = Number(g.prize_pool || 0);
       const totalPot = (players >= 3 && rawPool > 0)
         ? Math.round(rawPool / 0.8)
         : (rawPool || stake * players);
       return {
         ...g,
+        total_players: players,
         prize_pool: totalPot,
         winner_prize: rawPool,
       };
