@@ -44,6 +44,8 @@ export default function Home() {
   const [showHomeFilterDropdown, setShowHomeFilterDropdown] = useState(false);
   const [homeRoomSearch, setHomeRoomSearch] = useState('');
   const [showHomeSearchBar, setShowHomeSearchBar] = useState(false);
+  const [supportPhoneUsa, setSupportPhoneUsa] = useState('+1 (984) 378-9510');
+  const [supportPhoneEth, setSupportPhoneEth] = useState('0999992524');
 
   // Sync rooms silently on mount + realtime subscription (NO loading effect on revisit)
   useEffect(() => {
@@ -122,9 +124,8 @@ export default function Home() {
 
   const handleInvite = () => navigate('/invite');
 
-  // ---- ANNOUNCEMENT POPUP LOGIC ----
+  // ---- ANNOUNCEMENT POPUP LOGIC + PHONE NUMBERS ----
   useEffect(() => {
-    if (announcementShownRef.current) return;
     const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
     const API_URL_LOCAL = import.meta.env.VITE_API_URL || '/api';
     fetch(`${API_URL_LOCAL}/player/support-contact`, {
@@ -132,8 +133,13 @@ export default function Home() {
     })
       .then(r => r.json())
       .then(data => {
-        const msg = data.announcement_message || '';
-        const maxViews = typeof data.announcement_max_views === 'number' ? data.announcement_max_views : 2;
+        // Phone numbers from DB
+        if (data?.support_phone_usa) setSupportPhoneUsa(data.support_phone_usa);
+        if (data?.support_phone_eth) setSupportPhoneEth(data.support_phone_eth);
+
+        if (announcementShownRef.current) return;
+        const msg = data?.announcement_message || '';
+        const maxViews = typeof data?.announcement_max_views === 'number' ? data.announcement_max_views : 2;
         if (!msg.trim()) return;
         const storageKey = `ann_views_${msg.slice(0, 20)}`;
         const viewCount = parseInt(localStorage.getItem(storageKey) || '0', 10);
@@ -308,6 +314,39 @@ export default function Home() {
             <div className="bg-orange-500 hover:bg-orange-600 text-white px-10 py-2.5 rounded-full font-black text-sm shadow-[0_4px_16px_rgba(249,115,22,0.4)] active:scale-95 transition-all">
               PLAY NOW →
             </div>
+          </div>
+
+          {/* ── Phone numbers — bottom corners (outside Link click zone) ── */}
+          <div className="absolute bottom-2.5 left-3 right-3 flex justify-between items-end pointer-events-none z-20">
+            {/* USA — bottom left */}
+            <button
+              type="button"
+              onClick={e => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
+                window.location.href = `tel:${supportPhoneUsa.replace(/[\s()\-]/g, '')}`;
+              }}
+              className="pointer-events-auto flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-emerald-300/80 rounded-xl px-2.5 py-1.5 shadow-sm active:scale-95 hover:bg-white transition-all"
+            >
+              <span className="text-sm leading-none" role="img" aria-label="USA">🇺🇸</span>
+              <span className="text-[10px] font-black text-emerald-600 leading-none tracking-tight">{supportPhoneUsa}</span>
+            </button>
+
+            {/* Ethiopia — bottom right */}
+            <button
+              type="button"
+              onClick={e => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
+                window.location.href = `tel:${supportPhoneEth.replace(/[\s()\-]/g, '')}`;
+              }}
+              className="pointer-events-auto flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-emerald-300/80 rounded-xl px-2.5 py-1.5 shadow-sm active:scale-95 hover:bg-white transition-all"
+            >
+              <span className="text-sm leading-none" role="img" aria-label="Ethiopia">🇪🇹</span>
+              <span className="text-[10px] font-black text-emerald-600 leading-none tracking-tight">{supportPhoneEth}</span>
+            </button>
           </div>
         </Link>
       </div>

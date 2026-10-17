@@ -95,7 +95,9 @@ router.get('/support-contact', async (_req, res) => {
       username,
       channel: getSetting('channel_link', 'https://t.me/hdasebingo'),
       announcement_message: getSetting('announcement_message', ''),
-      announcement_max_views: parseInt(getSetting('announcement_max_views', '2'), 10)
+      announcement_max_views: parseInt(getSetting('announcement_max_views', '2'), 10),
+      support_phone_usa: getSetting('support_phone_usa', '+1 (984) 378-9510'),
+      support_phone_eth: getSetting('support_phone_eth', '0999992524'),
     });
   } catch {
     res.json({
