@@ -177,6 +177,8 @@ export default function Promoter() {
   const [isSavingFlyer, setIsSavingFlyer] = useState(false);
   const [flyerSentToTg, setFlyerSentToTg] = useState(false);
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [supportPhoneUsa, setSupportPhoneUsa] = useState('+1 (984) 378-9510');
+  const [supportPhoneEth, setSupportPhoneEth] = useState('0999992524');
 
   if (user?.role !== 'promoter') {
     return <Navigate to="/" replace />;
@@ -269,6 +271,18 @@ export default function Promoter() {
         fetchRooms();
       })
       .subscribe();
+
+    // Fetch dynamic support phone numbers
+    const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+    fetch(`${API}/player/support-contact`, {
+      headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData },
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data?.support_phone_usa) setSupportPhoneUsa(data.support_phone_usa);
+        if (data?.support_phone_eth) setSupportPhoneEth(data.support_phone_eth);
+      })
+      .catch(() => {});
 
     const interval = setInterval(() => {
       fetchDashboardData(selectedRoomRef.current?.id);
@@ -1028,7 +1042,7 @@ export default function Promoter() {
             setActiveTab('rooms');
             setRoomDetailMode(false);
           }}
-          className="block relative rounded-3xl overflow-hidden shadow-md border border-amber-200/90 cursor-pointer active:scale-98 transition-all p-5 pt-7"
+          className="block relative rounded-3xl overflow-hidden shadow-md border border-amber-200/90 cursor-pointer active:scale-98 transition-all p-5 pt-7 pb-9"
           style={{
             background: 'linear-gradient(135deg, #fffbf0 0%, #fef3c7 40%, #fff8e8 70%, #fffbf0 100%)',
           }}
@@ -1071,9 +1085,42 @@ export default function Promoter() {
               </p>
             </div>
 
-            <div className="px-6 py-2.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white rounded-full text-xs font-black tracking-wider uppercase shadow-md shadow-orange-500/25 active:scale-95 transition-all flex items-center space-x-1.5">
+            <div className="px-6 py-2.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white rounded-full text-xs font-black tracking-wider uppercase shadow-md shadow-orange-500/25 active:scale-95 transition-all flex items-center space-x-1.5 mb-1">
               <span>VIEW ROOMS →</span>
             </div>
+          </div>
+
+          {/* ── Phone numbers — bottom corners (outside click zone) ── */}
+          <div className="absolute bottom-2.5 left-3 right-3 flex justify-between items-end pointer-events-none z-20">
+            {/* USA — bottom left */}
+            <button
+              type="button"
+              onClick={e => {
+                e.preventDefault();
+                e.stopPropagation();
+                triggerHaptic('medium');
+                window.location.href = `tel:${supportPhoneUsa.replace(/[\s()\-]/g, '')}`;
+              }}
+              className="pointer-events-auto flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-emerald-300/80 rounded-xl px-2.5 py-1.5 shadow-sm active:scale-95 hover:bg-white transition-all"
+            >
+              <span className="text-sm leading-none" role="img" aria-label="USA">🇺🇸</span>
+              <span className="text-[10px] font-black text-emerald-600 leading-none tracking-tight">{supportPhoneUsa}</span>
+            </button>
+
+            {/* Ethiopia — bottom right */}
+            <button
+              type="button"
+              onClick={e => {
+                e.preventDefault();
+                e.stopPropagation();
+                triggerHaptic('medium');
+                window.location.href = `tel:${supportPhoneEth.replace(/[\s()\-]/g, '')}`;
+              }}
+              className="pointer-events-auto flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-emerald-300/80 rounded-xl px-2.5 py-1.5 shadow-sm active:scale-95 hover:bg-white transition-all"
+            >
+              <span className="text-sm leading-none" role="img" aria-label="Ethiopia">🇪🇹</span>
+              <span className="text-[10px] font-black text-emerald-600 leading-none tracking-tight">{supportPhoneEth}</span>
+            </button>
           </div>
         </div>
 

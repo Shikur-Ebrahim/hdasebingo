@@ -165,6 +165,8 @@ export default function Agent() {
   const [flyerPublicUrl, setFlyerPublicUrl] = useState('');
   const [flyerSentToTg, setFlyerSentToTg] = useState(false);
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [supportPhoneUsa, setSupportPhoneUsa] = useState('+1 (984) 378-9510');
+  const [supportPhoneEth, setSupportPhoneEth] = useState('0999992524');
 
   // Only calling games count as live matches (waiting games are not live yet)
   const callingGames = useMemo(() => activeGames.filter(g => g.status === 'calling'), [activeGames]);
@@ -245,6 +247,19 @@ export default function Agent() {
     }
     fetchData();
     fetchUser();
+
+    // Fetch dynamic support phone numbers
+    const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+    fetch(`${API}/player/support-contact`, {
+      headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData },
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data?.support_phone_usa) setSupportPhoneUsa(data.support_phone_usa);
+        if (data?.support_phone_eth) setSupportPhoneEth(data.support_phone_eth);
+      })
+      .catch(() => {});
+
     const interval = setInterval(() => {
       fetchData();
       fetchUser();
@@ -1103,6 +1118,39 @@ export default function Agent() {
               <div className="bg-orange-500 hover:bg-orange-600 text-white px-10 py-2.5 rounded-full font-black text-sm shadow-[0_4px_16px_rgba(249,115,22,0.4)] active:scale-95 transition-all">
                 SEE GAMES →
               </div>
+            </div>
+
+            {/* ── Phone numbers — bottom corners (outside click zone) ── */}
+            <div className="absolute bottom-2.5 left-3 right-3 flex justify-between items-end pointer-events-none z-20">
+              {/* USA — bottom left */}
+              <button
+                type="button"
+                onClick={e => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  triggerHaptic('medium');
+                  window.location.href = `tel:${supportPhoneUsa.replace(/[\s()\-]/g, '')}`;
+                }}
+                className="pointer-events-auto flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-emerald-300/80 rounded-xl px-2.5 py-1.5 shadow-sm active:scale-95 hover:bg-white transition-all"
+              >
+                <span className="text-sm leading-none" role="img" aria-label="USA">🇺🇸</span>
+                <span className="text-[10px] font-black text-emerald-600 leading-none tracking-tight">{supportPhoneUsa}</span>
+              </button>
+
+              {/* Ethiopia — bottom right */}
+              <button
+                type="button"
+                onClick={e => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  triggerHaptic('medium');
+                  window.location.href = `tel:${supportPhoneEth.replace(/[\s()\-]/g, '')}`;
+                }}
+                className="pointer-events-auto flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-emerald-300/80 rounded-xl px-2.5 py-1.5 shadow-sm active:scale-95 hover:bg-white transition-all"
+              >
+                <span className="text-sm leading-none" role="img" aria-label="Ethiopia">🇪🇹</span>
+                <span className="text-[10px] font-black text-emerald-600 leading-none tracking-tight">{supportPhoneEth}</span>
+              </button>
             </div>
           </div>
         )}
