@@ -32,6 +32,7 @@ import {
   Wifi,
   Calendar,
   ChevronDown,
+  Ticket,
 } from 'lucide-react';
 
 interface PromotedRoom {
@@ -1175,10 +1176,15 @@ export default function Promoter() {
                         </p>
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-sm font-black text-slate-800">🏆 {lastWin.winner_first_name}</p>
-                            {lastWin.winner_cartela && (
-                              <p className="text-[10px] text-slate-400">Cartela #{lastWin.winner_cartela}</p>
-                            )}
+                            <div className="flex items-center space-x-1.5 flex-wrap">
+                              <span className="text-sm font-black text-slate-800">🏆 {lastWin.winner_first_name}</span>
+                              {lastWin.winner_cartela && (
+                                <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black tracking-tight shadow-2xs">
+                                  <Ticket size={11} className="text-amber-600" />
+                                  <span>{lastWin.winner_cartela}</span>
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <div className="text-right">
                             <p className="text-xs font-black text-amber-600">{formatAmount(lastWin.winner_prize)} ETB</p>
@@ -1576,10 +1582,17 @@ export default function Promoter() {
                         <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center text-sm shrink-0">🏆</div>
                         <div>
                           <p className="text-[9px] text-slate-400 font-bold uppercase leading-none">Winner</p>
-                          <p className="text-xs font-black text-slate-900 leading-tight">
-                            {game.winner_first_name}
-                            {game.winner_cartela && <span className="text-slate-400 font-normal ml-1">(#{game.winner_cartela})</span>}
-                          </p>
+                          <div className="flex items-center space-x-1.5 mt-0.5 flex-wrap">
+                            <span className="text-xs font-black text-slate-900 leading-tight">
+                              {game.winner_first_name}
+                            </span>
+                            {game.winner_cartela && (
+                              <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black tracking-tight shadow-2xs">
+                                <Ticket size={10} className="text-amber-600" />
+                                <span>{game.winner_cartela}</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <span className="text-[10px] text-slate-400">👥 {game.total_players} players</span>

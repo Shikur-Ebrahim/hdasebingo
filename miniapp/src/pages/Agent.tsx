@@ -39,7 +39,8 @@ import {
   Send,
   ExternalLink,
   X,
-  Image
+  Image,
+  Ticket,
 } from 'lucide-react';
 
 interface AgentRoom {
@@ -1497,10 +1498,15 @@ export default function Agent() {
                     </p>
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-black text-slate-800">🏆 {lastWin.winner_first_name}</p>
-                        {lastWin.winner_cartela && (
-                          <p className="text-[10px] text-slate-400">Cartela #{lastWin.winner_cartela}</p>
-                        )}
+                        <div className="flex items-center space-x-1.5 flex-wrap">
+                          <span className="text-sm font-black text-slate-800">🏆 {lastWin.winner_first_name}</span>
+                          {lastWin.winner_cartela && (
+                            <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black tracking-tight shadow-2xs">
+                              <Ticket size={11} className="text-amber-600" />
+                              <span>{lastWin.winner_cartela}</span>
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="text-right">
                         <p className="text-xs font-black text-amber-600">{formatAmount(lastWin.winner_prize)} ETB</p>
@@ -1873,12 +1879,17 @@ export default function Agent() {
                       <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2 rounded-xl text-[10px]">
                         <div>
                           <p className="text-[8px] font-bold text-slate-400 uppercase">Winner</p>
-                          <p className="font-black text-slate-800 truncate">
-                            🏆 {game.winner_first_name}
+                          <div className="flex items-center space-x-1.5 mt-0.5 flex-wrap truncate">
+                            <span className="font-black text-slate-800 truncate">
+                              🏆 {game.winner_first_name}
+                            </span>
                             {game.winner_cartela && (
-                              <span className="text-[9px] font-normal text-slate-500"> (#{game.winner_cartela})</span>
+                              <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-[9px] font-black tracking-tight shrink-0 shadow-2xs">
+                                <Ticket size={10} className="text-amber-600" />
+                                <span>{game.winner_cartela}</span>
+                              </span>
                             )}
-                          </p>
+                          </div>
                         </div>
 
                         <div className="text-right">
