@@ -254,11 +254,35 @@ router.post('/deposits/:id/approve', async (req, res) => {
       let wkDays: number[] = [0, 6]; // default: Sunday & Saturday
       try { wkDays = JSON.parse(getWk('weekend_bonus_days', '[0,6]')); } catch (_) {}
 
-      const depositDate = new Date(deposit.created_at);
-      const dayOfWeek = depositDate.getUTCDay(); // 0=Sun, 1=Mon, ... 6=Sat
+      // Determine day-of-week and calendar day in Ethiopian Time (UTC+3)
+      const EAT_OFFSET_MS = 3 * 60 * 60 * 1000;
+      const depositTime = new Date(deposit.created_at).getTime();
+      const eatDate = new Date(depositTime + EAT_OFFSET_MS);
+
+      const dayOfWeek = eatDate.getUTCDay(); // 0=Sun, 1=Mon, ... 6=Sat
 
       if (wkDays.includes(dayOfWeek) && wkPct > 0) {
-        weekendBonus = Number((depAmount * wkPct).toFixed(2));
+        // Calculate the start and end of this calendar day (in UTC)
+        const year = eatDate.getUTCFullYear();
+        const month = eatDate.getUTCMonth();
+        const day = eatDate.getUTCDate();
+        const startOfDayUTC = new Date(Date.UTC(year, month, day, 0, 0, 0, 0) - EAT_OFFSET_MS);
+        const endOfDayUTC = new Date(startOfDayUTC.getTime() + 24 * 60 * 60 * 1000 - 1);
+
+        // Check if user already had an approved deposit on this specific day
+        const { count: priorDepositsOnDay } = await supabase
+          .from('deposits')
+          .select('*', { count: 'exact', head: true })
+          .eq('telegram_id', deposit.telegram_id)
+          .eq('status', 'approved')
+          .neq('id', deposit.id)
+          .gte('created_at', startOfDayUTC.toISOString())
+          .lte('created_at', endOfDayUTC.toISOString());
+
+        // Weekend bonus only awarded once per day (on user's first approved deposit for that day)
+        if ((priorDepositsOnDay || 0) === 0) {
+          weekendBonus = Number((depAmount * wkPct).toFixed(2));
+        }
       }
     }
   } catch (err) {

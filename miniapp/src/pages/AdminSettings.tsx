@@ -418,7 +418,7 @@ export default function AdminSettings() {
                 {/* Info note */}
                 <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
                   <p className="text-[9.5px] text-blue-600 font-bold leading-snug">
-                    ℹ️ Weekend bonus is applied to <strong>every deposit</strong> on active days, on top of any 1st or 2nd deposit bonus. Credited to <strong>bonus balance</strong> only.
+                    ℹ️ Weekend bonus is awarded <strong>once per day</strong> (on the user&apos;s first deposit of that day), on top of any 1st or 2nd deposit bonus. Credited to <strong>bonus balance</strong> only.
                   </p>
                 </div>
 
