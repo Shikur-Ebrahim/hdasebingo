@@ -191,7 +191,7 @@ router.post('/deposits/:id/approve', async (req, res) => {
   const isFirstDeposit = approvedCount === 0;
   const isSecondDeposit = approvedCount === 1;
 
-  // Fetch depositor user record
+  // Fetch depositor user record from public.users table
   const { data: depRecord, error: userFetchErr } = await supabase
     .from('users')
     .select('id, telegram_id, main_balance, bonus_balance, inviter_id')
@@ -199,33 +199,21 @@ router.post('/deposits/:id/approve', async (req, res) => {
     .maybeSingle();
 
   if (userFetchErr || !depRecord) {
-    res.status(404).json({ error: `User with Telegram ID ${deposit.telegram_id} not found.` });
+    res.status(404).json({ error: `User with Telegram ID ${deposit.telegram_id} not found in users table.` });
     return;
   }
 
-  // Credit deposit amount to user's main_balance
-  const currentMain = Number(depRecord.main_balance || 0);
+  // Calculate new balances based on public.users schema
   const depAmount = Number(deposit.amount || 0);
-  const newMainBalance = Number((currentMain + depAmount).toFixed(2));
-
-  const { error: balErr } = await supabase
-    .from('users')
-    .update({ 
-      main_balance: newMainBalance,
-      updated_at: new Date().toISOString()
-    })
-    .eq('telegram_id', String(deposit.telegram_id));
-
-  if (balErr) {
-    res.status(500).json({ error: 'Failed to update balance: ' + balErr.message });
-    return;
-  }
+  const currentMain = Number(depRecord.main_balance || 0);
+  const currentBonus = Number(depRecord.bonus_balance || 0);
 
   let depositorBonus = 0;
   let inviterBonus = 0;
-  let inviterId = null;
+  let inviterId: string | null = null;
   let bonusReason = '';
-  
+
+  // 1. First & Second Deposit Bonus
   if (isFirstDeposit || isSecondDeposit) {
     const { data: allSettings } = await supabase.from('settings').select('key, value');
     const getSetting = (key: string, def: number | string) => {
@@ -241,7 +229,7 @@ router.post('/deposits/:id/approve', async (req, res) => {
       depositorBonus = Number((depAmount * firstDepositPct).toFixed(2));
       bonusReason = 'First Deposit';
       
-      if (depRecord && depRecord.inviter_id) {
+      if (depRecord.inviter_id) {
         inviterId = depRecord.inviter_id;
         inviterBonus = Number((depAmount * invitationPct).toFixed(2));
       }
@@ -249,29 +237,9 @@ router.post('/deposits/:id/approve', async (req, res) => {
       depositorBonus = Number((depAmount * secondDepositPct).toFixed(2));
       bonusReason = 'Second Deposit';
     }
-
-    if (depositorBonus > 0) {
-      const currentDepBonus = Number(depRecord.bonus_balance || 0);
-      await supabase.from('users').update({ 
-        bonus_balance: Number((currentDepBonus + depositorBonus).toFixed(2)),
-        updated_at: new Date().toISOString()
-      }).eq('telegram_id', String(deposit.telegram_id));
-    }
-
-    if (inviterId && inviterBonus > 0) {
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inviterId);
-      const { data: invRecord } = await (isUuid
-        ? supabase.from('users').select('id, bonus_balance').eq('id', inviterId).maybeSingle()
-        : supabase.from('users').select('id, bonus_balance').eq('telegram_id', inviterId).maybeSingle()
-      );
-      if (invRecord) {
-        const currentInvBonus = Number(invRecord.bonus_balance || 0);
-        await supabase.from('users').update({ bonus_balance: currentInvBonus + inviterBonus }).eq('id', invRecord.id);
-      }
-    }
   }
 
-  // ── WEEKEND BONUS (independent of 1st/2nd deposit bonuses) ────────────────────────────────────────
+  // 2. Weekend Bonus (independent of 1st/2nd deposit bonuses)
   let weekendBonus = 0;
   try {
     const { data: wkSettings } = await supabase.from('settings').select('key, value')
@@ -286,23 +254,52 @@ router.post('/deposits/:id/approve', async (req, res) => {
       let wkDays: number[] = [0, 6]; // default: Sunday & Saturday
       try { wkDays = JSON.parse(getWk('weekend_bonus_days', '[0,6]')); } catch (_) {}
 
-      // Use the deposit's created_at timestamp to determine day-of-week (UTC)
       const depositDate = new Date(deposit.created_at);
       const dayOfWeek = depositDate.getUTCDay(); // 0=Sun, 1=Mon, ... 6=Sat
 
       if (wkDays.includes(dayOfWeek) && wkPct > 0) {
-        weekendBonus = deposit.amount * wkPct;
-        // Fetch fresh bonus_balance (may have already been updated above)
-        const { data: wkUser } = await supabase.from('users').select('bonus_balance').eq('telegram_id', String(deposit.telegram_id)).maybeSingle();
-        const currentBonus = Number(wkUser?.bonus_balance || 0);
-        await supabase.from('users').update({ 
-          bonus_balance: Number((currentBonus + weekendBonus).toFixed(2)),
-          updated_at: new Date().toISOString()
-        }).eq('telegram_id', String(deposit.telegram_id));
+        weekendBonus = Number((depAmount * wkPct).toFixed(2));
       }
     }
   } catch (err) {
-    console.error('Weekend bonus error:', err);
+    console.error('Weekend bonus calculation error:', err);
+  }
+
+  // 3. Update public.users table in ONE atomic call
+  const newMainBalance = Number((currentMain + depAmount).toFixed(2));
+  const totalBonusAdded = Number((depositorBonus + weekendBonus).toFixed(2));
+  const newBonusBalance = Number((currentBonus + totalBonusAdded).toFixed(2));
+
+  const { error: balErr } = await supabase
+    .from('users')
+    .update({ 
+      main_balance: newMainBalance,
+      bonus_balance: newBonusBalance
+    })
+    .eq('telegram_id', String(deposit.telegram_id));
+
+  if (balErr) {
+    res.status(500).json({ error: 'Failed to update user balances: ' + balErr.message });
+    return;
+  }
+
+  // 4. Update inviter's bonus balance if applicable
+  if (inviterId && inviterBonus > 0) {
+    try {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inviterId);
+      const { data: invRecord } = await (isUuid
+        ? supabase.from('users').select('id, bonus_balance').eq('id', inviterId).maybeSingle()
+        : supabase.from('users').select('id, bonus_balance').eq('telegram_id', String(inviterId)).maybeSingle()
+      );
+      if (invRecord) {
+        const currentInvBonus = Number(invRecord.bonus_balance || 0);
+        await supabase.from('users').update({ 
+          bonus_balance: Number((currentInvBonus + inviterBonus).toFixed(2))
+        }).eq('id', invRecord.id);
+      }
+    } catch (err) {
+      console.error('Failed to credit inviter bonus:', err);
+    }
   }
 
   // Mark deposit as approved
