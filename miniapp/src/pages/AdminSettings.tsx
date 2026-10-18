@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Settings, Save, Gift, Users, Headphones, Megaphone, CheckCircle2, AlertCircle, Phone, PhoneCall } from 'lucide-react';
+import { ArrowLeft, Settings, Save, Gift, Users, Headphones, Megaphone, CheckCircle2, AlertCircle, Phone, PhoneCall, CalendarDays, ToggleLeft, ToggleRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { useGameStore } from '../store/gameStore';
@@ -37,6 +37,12 @@ export default function AdminSettings() {
   const [saving, setSaving] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
+  // ── Weekend Bonus state ────────────────────────────────────────────────────
+  const [wkEnabled, setWkEnabled] = useState(false);
+  const [wkDays, setWkDays]       = useState<number[]>([0, 6]); // 0=Sun,6=Sat
+  const [wkPct, setWkPct]         = useState('10');
+  const [savingWk, setSavingWk]   = useState(false);
+
   const getHeaders = () => ({
     'Content-Type': 'application/json',
     'x-telegram-init-data': typeof WebApp !== 'undefined' ? WebApp.initData : '',
@@ -63,6 +69,11 @@ export default function AdminSettings() {
           map['support_phone_eth'] = '+251' + map['support_phone_eth'].slice(1);
         }
         setValues(map);
+
+        // Load weekend bonus settings
+        setWkEnabled(map['weekend_bonus_enabled'] === 'true');
+        try { setWkDays(JSON.parse(map['weekend_bonus_days'] || '[0,6]')); } catch { setWkDays([0, 6]); }
+        setWkPct(map['weekend_bonus_pct'] || '10');
       }
     } catch (err) {
       console.error(err);
@@ -103,6 +114,35 @@ export default function AdminSettings() {
     }
   };
 
+  // ── Save all three weekend bonus settings at once ──────────────────────────
+  const handleSaveWeekend = async () => {
+    setSavingWk(true);
+    try {
+      const updates = [
+        { key: 'weekend_bonus_enabled', value: wkEnabled ? 'true' : 'false' },
+        { key: 'weekend_bonus_days',    value: JSON.stringify(wkDays) },
+        { key: 'weekend_bonus_pct',     value: wkPct },
+      ];
+      for (const upd of updates) {
+        await fetch(`${API_URL}/admin/settings`, {
+          method: 'PUT',
+          headers: getHeaders(),
+          body: JSON.stringify(upd),
+        });
+      }
+      showToast('success', 'Weekend Bonus Saved!');
+      if (typeof WebApp !== 'undefined') WebApp.HapticFeedback.notificationOccurred('success');
+    } catch (err: any) {
+      showToast('error', err.message || 'Network Error');
+    } finally {
+      setSavingWk(false);
+    }
+  };
+
+  const toggleWkDay = (day: number) => {
+    setWkDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
+  };
+
   const handleCall = (phone: string) => {
     if (typeof WebApp !== 'undefined') WebApp.HapticFeedback.impactOccurred('medium');
     // Strip formatting to get raw digits/+ for tel: link
@@ -116,6 +156,8 @@ export default function AdminSettings() {
   if ((ethPhone.startsWith('09') || ethPhone.startsWith('07')) && ethPhone.length === 10) {
     ethPhone = '+251' + ethPhone.slice(1);
   }
+
+  const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
     <div className="flex flex-col h-screen bg-slate-50 overflow-hidden">
@@ -291,6 +333,118 @@ export default function AdminSettings() {
             <div className="flex items-center space-x-2">
               <div className="flex-1 h-px bg-slate-200" />
               <span className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider shrink-0">System Settings</span>
+              <div className="flex-1 h-px bg-slate-200" />
+            </div>
+
+            {/* ── WEEKEND BONUS SECTION ────────────────────────────────────── */}
+            <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between px-3 py-2.5 bg-gradient-to-r from-orange-50 to-amber-50 border-b border-orange-100">
+                <div className="flex items-center space-x-2">
+                  <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center shrink-0">
+                    <CalendarDays size={15} className="text-orange-600" />
+                  </div>
+                  <div>
+                    <p className="text-[12px] font-black text-slate-800 leading-none">Weekend Bonus</p>
+                    <p className="text-[9px] text-slate-500 leading-none mt-0.5">Added to bonus balance • Independent of other rewards</p>
+                  </div>
+                </div>
+                {/* Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setWkEnabled(prev => !prev)}
+                  className={`flex items-center space-x-1 px-2 py-1 rounded-xl text-[10px] font-black transition-all active:scale-95 ${wkEnabled ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}
+                >
+                  {wkEnabled ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                  <span>{wkEnabled ? 'ON' : 'OFF'}</span>
+                </button>
+              </div>
+
+              <div className="p-3 space-y-3">
+                {/* Day selector */}
+                <div>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">Active Days</p>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {DAY_LABELS.map((label, idx) => {
+                      const isSelected = wkDays.includes(idx);
+                      const isTypical = idx === 0 || idx === 6; // Sun or Sat
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => toggleWkDay(idx)}
+                          className={`flex-1 min-w-[36px] h-9 rounded-xl text-[11px] font-black transition-all active:scale-90 border ${
+                            isSelected
+                              ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
+                              : isTypical
+                              ? 'bg-orange-50 text-orange-400 border-orange-200'
+                              : 'bg-slate-50 text-slate-400 border-slate-200'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[9px] text-slate-400 mt-1 text-center">Tap days to toggle • Orange = active bonus day</p>
+                </div>
+
+                {/* Percentage input */}
+                <div className="flex items-center space-x-2">
+                  <div className="flex-1">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">Bonus Percentage</p>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={wkPct}
+                        onChange={(e) => setWkPct(e.target.value)}
+                        className="w-full border border-orange-200 focus:border-orange-400 outline-none rounded-xl px-3 py-2 font-black text-slate-800 bg-orange-50/60 text-sm text-center"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-orange-400 font-black text-xs">%</span>
+                    </div>
+                  </div>
+                  {/* Preview */}
+                  <div className="flex-1 bg-amber-50 border border-amber-100 rounded-xl px-2 py-2 text-center">
+                    <p className="text-[9px] text-amber-600 font-bold leading-none mb-0.5">Example Bonus</p>
+                    <p className="text-[13px] font-black text-amber-700">
+                      +{((parseFloat(wkPct) || 0)).toFixed(0)}%
+                    </p>
+                    <p className="text-[8.5px] text-amber-500 leading-none">on weekend deposit</p>
+                  </div>
+                </div>
+
+                {/* Info note */}
+                <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+                  <p className="text-[9.5px] text-blue-600 font-bold leading-snug">
+                    ℹ️ Weekend bonus is applied to <strong>every deposit</strong> on active days, on top of any 1st or 2nd deposit bonus. Credited to <strong>bonus balance</strong> only.
+                  </p>
+                </div>
+
+                {/* Save button */}
+                <button
+                  type="button"
+                  onClick={handleSaveWeekend}
+                  disabled={savingWk}
+                  className="w-full h-10 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 active:scale-95 disabled:opacity-50 text-white font-black text-[12px] rounded-xl flex items-center justify-center space-x-2 shadow-sm transition-all"
+                >
+                  {savingWk ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Save size={14} />
+                      <span>Save Weekend Bonus Settings</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Section divider */}
+            <div className="flex items-center space-x-2">
+              <div className="flex-1 h-px bg-slate-200" />
+              <span className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider shrink-0">Bonus & System</span>
               <div className="flex-1 h-px bg-slate-200" />
             </div>
 

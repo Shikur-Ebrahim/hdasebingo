@@ -241,6 +241,37 @@ router.post('/deposits/:id/approve', async (req, res) => {
     }
   }
 
+  // ── WEEKEND BONUS (independent of 1st/2nd deposit bonuses) ────────────────────────────────────────
+  let weekendBonus = 0;
+  try {
+    const { data: wkSettings } = await supabase.from('settings').select('key, value')
+      .in('key', ['weekend_bonus_enabled', 'weekend_bonus_days', 'weekend_bonus_pct']);
+    const getWk = (key: string, def: string) => {
+      const row = wkSettings?.find(s => s.key === key);
+      return row ? row.value : def;
+    };
+    const wkEnabled = getWk('weekend_bonus_enabled', 'false') === 'true';
+    if (wkEnabled) {
+      const wkPct = parseFloat(getWk('weekend_bonus_pct', '10')) / 100;
+      let wkDays: number[] = [0, 6]; // default: Sunday & Saturday
+      try { wkDays = JSON.parse(getWk('weekend_bonus_days', '[0,6]')); } catch (_) {}
+
+      // Use the deposit's created_at timestamp to determine day-of-week (UTC)
+      const depositDate = new Date(deposit.created_at);
+      const dayOfWeek = depositDate.getUTCDay(); // 0=Sun, 1=Mon, ... 6=Sat
+
+      if (wkDays.includes(dayOfWeek) && wkPct > 0) {
+        weekendBonus = deposit.amount * wkPct;
+        // Fetch fresh bonus_balance (may have already been updated above)
+        const { data: wkUser } = await supabase.from('users').select('bonus_balance').eq('telegram_id', deposit.telegram_id).single();
+        const currentBonus = Number(wkUser?.bonus_balance || 0);
+        await supabase.from('users').update({ bonus_balance: currentBonus + weekendBonus }).eq('telegram_id', deposit.telegram_id);
+      }
+    }
+  } catch (err) {
+    console.error('Weekend bonus error:', err);
+  }
+
   // Mark deposit as approved
   await supabase.from('deposits').update({ status: 'approved', updated_at: new Date() }).eq('id', req.params.id);
 
@@ -249,6 +280,9 @@ router.post('/deposits/:id/approve', async (req, res) => {
     let msgText = `✅ *Deposit Approved!*\n\n💰 Amount: *${Number(deposit.amount).toLocaleString('en-US')} ETB* has been added to your balance.`;
     if (depositorBonus > 0) {
       msgText += `\n\n🎁 *${bonusReason} Bonus!* You received an extra *${Number(depositorBonus).toLocaleString('en-US')} ETB* in your bonus balance!`;
+    }
+    if (weekendBonus > 0) {
+      msgText += `\n\n🎉 *Weekend Bonus!* You also received *${Number(weekendBonus).toLocaleString('en-US')} ETB* weekend bonus in your bonus balance!`;
     }
     msgText += `\n\n🎮 Open the Mini App to start playing!`;
 
@@ -283,7 +317,7 @@ router.post('/deposits/:id/approve', async (req, res) => {
     }
   }
 
-  res.json({ success: true, isFirstDeposit, isSecondDeposit, depositorBonus, inviterBonus });
+  res.json({ success: true, isFirstDeposit, isSecondDeposit, depositorBonus, inviterBonus, weekendBonus });
 });
 
 // Reject deposit → permanently delete from DB
