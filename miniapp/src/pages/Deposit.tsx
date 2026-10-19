@@ -251,6 +251,15 @@ export default function Deposit() {
   if (step === 'form' && selected) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-16">
+        <style>{`
+          @keyframes copyNudge {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-3px) scale(1.06); }
+          }
+          .animate-copy-nudge {
+            animation: copyNudge 1.3s ease-in-out infinite;
+          }
+        `}</style>
         {/* Header */}
         <div className="bg-white dark:bg-slate-900 px-4 py-3 rounded-b-2xl shadow-sm border-b border-gray-100 dark:border-slate-800 flex items-center space-x-3 sticky top-0 z-10">
           <button onClick={() => setStep('list')} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors">
@@ -287,14 +296,9 @@ export default function Deposit() {
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center space-x-1.5">
-                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md ${typeBadge[selected.type] || 'bg-slate-100 text-slate-700'}`}>
-                    {selected.type.toUpperCase()}
-                  </span>
-                  <span className="font-black text-slate-700 dark:text-slate-200 text-xs truncate">
-                    {selected.name}
-                  </span>
-                </div>
+                <span className="font-black text-slate-800 dark:text-slate-100 text-sm truncate block">
+                  {selected.name}
+                </span>
                 <div className="mt-1 flex items-center justify-between">
                   <span className="font-black text-lg text-slate-900 dark:text-slate-100 tracking-wider select-all">
                     {selected.account_number}
@@ -302,10 +306,10 @@ export default function Deposit() {
                   <button
                     type="button"
                     onClick={() => copyToClipboard(selected.account_number)}
-                    className={`flex items-center space-x-1 px-3 py-1 rounded-xl text-xs font-black transition-all active:scale-95 ${
+                    className={`relative flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all active:scale-95 shadow-sm ${
                       copied
-                        ? 'bg-emerald-500 text-white shadow-xs'
-                        : 'bg-amber-400 hover:bg-amber-500 text-slate-900 shadow-xs'
+                        ? 'bg-emerald-500 text-white shadow-emerald-500/30'
+                        : 'bg-amber-400 hover:bg-amber-500 text-slate-950 shadow-amber-400/40 animate-copy-nudge'
                     }`}
                   >
                     {copied ? (
@@ -427,6 +431,51 @@ export default function Deposit() {
               <span>{t[language].deposit.submitBtn}</span>
             )}
           </button>
+
+          {/* Simple How to Deposit Guide Card */}
+          <div className="bg-gradient-to-br from-amber-50/80 via-white to-orange-50/40 dark:from-slate-800/80 dark:via-slate-850 dark:to-slate-800/50 rounded-2xl border border-amber-200/60 dark:border-amber-500/20 p-3.5 shadow-xs">
+            <div className="flex items-center space-x-1.5 mb-2.5">
+              <span className="text-sm">💡</span>
+              <p className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                {language === 'am' ? 'እንዴት ማስገባት ይቻላል?' : 'How to Deposit?'}
+              </p>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <div className="flex items-start space-x-2.5">
+                <span className="w-5 h-5 rounded-full bg-amber-400 text-slate-950 font-black text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs">
+                  1
+                </span>
+                <p className="text-[11.5px] font-bold text-slate-600 dark:text-slate-300 leading-snug">
+                  {language === 'am'
+                    ? 'ከላይ ያለውን የሂሳብ ቁጥር ኮፒ በማድረግ ማስገባት የፈለጉትን ገንዘብ በባንክዎ ይላኩ።'
+                    : 'Copy the account number above & transfer the amount you want to deposit.'}
+                </p>
+              </div>
+
+              <div className="flex items-start space-x-2.5">
+                <span className="w-5 h-5 rounded-full bg-amber-400 text-slate-950 font-black text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs">
+                  2
+                </span>
+                <p className="text-[11.5px] font-bold text-slate-600 dark:text-slate-300 leading-snug">
+                  {language === 'am'
+                    ? 'ክፍያውን ከፈጸሙ በኋላ የደረሰኙን ስክሪንሾት (Screenshot) ያንሱ።'
+                    : 'After paying, take a clear screenshot of the transaction receipt.'}
+                </p>
+              </div>
+
+              <div className="flex items-start space-x-2.5">
+                <span className="w-5 h-5 rounded-full bg-amber-400 text-slate-950 font-black text-[10px] flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs">
+                  3
+                </span>
+                <p className="text-[11.5px] font-bold text-slate-600 dark:text-slate-300 leading-snug">
+                  {language === 'am'
+                    ? 'የላኩትን መጠን ከላይ ያስገቡ፣ ስክሪንሾቱን ጭነው "Submit Deposit" ይጫኑ።'
+                    : 'Enter the amount you sent, attach the screenshot image, and tap Submit Deposit.'}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
