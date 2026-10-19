@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
 import WebApp from '@twa-dev/sdk';
+import VideoGuideButton from '../components/VideoGuideButton';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -263,9 +264,7 @@ export default function Transfer() {
           <h1 className="text-xl font-black text-slate-800 dark:text-slate-100 tracking-tight">{t[language].transfer.transferTitle}</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{t[language].transfer.transferSubtitle}</p>
         </div>
-        <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-950/40 rounded-full flex items-center justify-center">
-          <ArrowRightLeft size={18} className="text-emerald-500" />
-        </div>
+        <VideoGuideButton category="transfer" />
       </div>
 
       <div className="px-4 py-5 flex flex-col space-y-4">

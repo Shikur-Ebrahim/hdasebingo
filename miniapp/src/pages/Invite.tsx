@@ -8,6 +8,7 @@ import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
 import WebApp from '@twa-dev/sdk';
 import { QRCodeCanvas } from 'qrcode.react';
+import VideoGuideButton from '../components/VideoGuideButton';
 
 export default function Invite() {
   const { user, setProfileOpen, language } = useGameStore();
@@ -443,21 +444,24 @@ export default function Invite() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col pb-24 select-none">
       {/* HEADER */}
-      <div className="bg-white dark:bg-slate-900 px-4 pt-4 pb-3 shadow-xs border-b border-gray-100 dark:border-slate-800 flex items-center sticky top-0 z-20">
-        <button
-          onClick={handleBack}
-          className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-200 active:scale-95 transition-transform"
-        >
-          <ArrowLeft size={18} />
-        </button>
-        <div className="ml-3 flex-1">
-          <h1 className="text-lg font-black text-slate-800 dark:text-slate-100 tracking-tight leading-tight">
-            {t[language].invite.title}
-          </h1>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-            {t[language].invite.subtitle}
-          </p>
+      <div className="bg-white dark:bg-slate-900 px-4 pt-4 pb-3 shadow-xs border-b border-gray-100 dark:border-slate-800 flex items-center justify-between sticky top-0 z-20">
+        <div className="flex items-center">
+          <button
+            onClick={handleBack}
+            className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-200 active:scale-95 transition-transform"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <div className="ml-3">
+            <h1 className="text-lg font-black text-slate-800 dark:text-slate-100 tracking-tight leading-tight">
+              {t[language].invite.title}
+            </h1>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              {t[language].invite.subtitle}
+            </p>
+          </div>
         </div>
+        <VideoGuideButton category="invite" />
       </div>
 
       <div className="px-4 py-3 flex flex-col space-y-3 flex-1 overflow-y-auto">

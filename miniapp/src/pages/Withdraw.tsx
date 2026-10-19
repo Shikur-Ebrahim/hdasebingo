@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
+import VideoGuideButton from '../components/VideoGuideButton';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -253,13 +254,16 @@ export default function Withdraw() {
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
         {/* Header */}
         <div className={`bg-gradient-to-r ${gradient} px-4 pt-6 pb-8`}>
-          <div className="flex items-center space-x-3 mb-4">
-            <button onClick={() => setStep('list')} className="text-white/80 hover:text-white p-1">
-              <ArrowLeft size={22} />
-            </button>
-            <h1 className="text-lg font-black text-white">
-              {typeEmoji[selected.type]} {typeLabels[selected.type] || selected.type.toUpperCase()}
-            </h1>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <button onClick={() => setStep('list')} className="text-white/80 hover:text-white p-1">
+                <ArrowLeft size={22} />
+              </button>
+              <h1 className="text-lg font-black text-white">
+                {typeEmoji[selected.type]} {typeLabels[selected.type] || selected.type.toUpperCase()}
+              </h1>
+            </div>
+            <VideoGuideButton category="withdraw" compact />
           </div>
           <div className="bg-white rounded-2xl p-4 shadow-md border border-white/10">
             <p className="text-slate-500 text-sm font-medium">{t[language].withdraw.balance}</p>
@@ -373,11 +377,14 @@ export default function Withdraw() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       {/* Header */}
       <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-4 pt-6 pb-8">
-        <div className="flex items-center space-x-3 mb-4">
-          <Link to="/" className="text-white/80 hover:text-white p-1">
-            <ArrowLeft size={22} />
-          </Link>
-          <h1 className="text-xl font-black text-white">{t[language].withdraw.title}</h1>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-3">
+            <Link to="/" className="text-white/80 hover:text-white p-1">
+              <ArrowLeft size={22} />
+            </Link>
+            <h1 className="text-xl font-black text-white">{t[language].withdraw.title}</h1>
+          </div>
+          <VideoGuideButton category="withdraw" />
         </div>
         <div className="bg-white rounded-2xl p-4 shadow-md border border-white/10">
           <p className="text-slate-500 text-sm font-medium">{t[language].withdraw.balance}</p>

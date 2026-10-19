@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
 import ReactMarkdown from 'react-markdown';
+import VideoGuideButton from '../components/VideoGuideButton';
 
 const API = import.meta.env.VITE_API_URL || '/api';
 
@@ -104,6 +105,7 @@ export default function SupportPage() {
           <p className="text-slate-900 font-bold text-[17px] leading-tight">{t[language].support.title}</p>
           <p className="text-emerald-600 text-[13px] font-medium leading-tight">{t[language].support.online}</p>
         </div>
+        <VideoGuideButton category="how_to_use" compact />
       </div>
 
       {/* Messages */}
