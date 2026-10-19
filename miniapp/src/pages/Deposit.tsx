@@ -386,9 +386,9 @@ export default function Deposit() {
 
       <div className="p-4 space-y-3">
         {loading ? (
-          <div className="space-y-3 mt-2">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="bg-white dark:bg-slate-900 rounded-2xl h-24 animate-pulse border border-gray-100 dark:border-slate-800" />
+          <div className="grid grid-cols-2 gap-3 mt-1">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="bg-white dark:bg-slate-900 rounded-3xl h-28 animate-pulse border border-slate-100 dark:border-slate-800" />
             ))}
           </div>
         ) : methods.length === 0 ? (
@@ -398,32 +398,47 @@ export default function Deposit() {
           </div>
         ) : (
           <>
-            <p className="text-[11px] font-black text-slate-400 tracking-widest px-1 pt-1">{t[language].deposit.availableMethods}</p>
-            {methods.map((method) => (
-              <button
-                key={method.id}
-                onClick={() => selectMethod(method)}
-                className="w-full bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-4 flex items-center justify-between transition-all hover:shadow-md active:scale-[0.98]"
-              >
-                <div className="flex items-center space-x-4">
-                  {method.logo_url ? (
-                    <img src={method.logo_url} alt="logo" className="w-14 h-14 rounded-2xl object-contain bg-slate-50 dark:bg-slate-900 border border-slate-100 p-1.5" />
-                  ) : (
-                    <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 text-[10px] font-bold">NO IMG</div>
-                  )}
-                  <div className="text-left">
-                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${typeBadge[method.type]}`}>
-                      {method.type.toUpperCase()}
-                    </span>
-                    <h3 className="font-black text-slate-800 dark:text-slate-100 mt-1 leading-tight">{typeLabels[method.type]}</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
-                      Min: <span className="text-emerald-600 font-black">{method.min_deposit.toLocaleString('en-US')} ETB</span>
-                    </p>
+            <div className="flex items-center justify-between px-1 pt-1">
+              <p className="text-[11px] font-black text-slate-400 tracking-widest uppercase">
+                {t[language].deposit.availableMethods}
+              </p>
+              <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-0.5 rounded-full border border-amber-200/50">
+                {methods.length} {language === 'am' ? 'መንገዶች' : 'Methods'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 sm:gap-3.5 pt-1">
+              {methods.map((method) => (
+                <button
+                  key={method.id}
+                  onClick={() => selectMethod(method)}
+                  className="group relative flex flex-col items-center justify-between p-3.5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/70 dark:border-slate-800/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-md hover:border-amber-400 dark:hover:border-amber-500 active:scale-95 transition-all duration-200 overflow-hidden min-h-[118px]"
+                >
+                  {/* Logo Centerpiece */}
+                  <div className="w-full flex-1 flex items-center justify-center p-1">
+                    {method.logo_url ? (
+                      <img
+                        src={method.logo_url}
+                        alt={typeLabels[method.type] || method.name}
+                        className="max-h-16 max-w-[88%] object-contain drop-shadow-xs group-hover:scale-105 transition-transform duration-200"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 text-xs font-black uppercase">
+                        {method.type}
+                      </div>
+                    )}
                   </div>
-                </div>
-                <ChevronRight size={20} className="text-slate-300 flex-shrink-0" />
-              </button>
-            ))}
+
+                  {/* Clean Min Deposit Tag */}
+                  <div className="mt-1 flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700/60">
+                    <span className="text-[9px] font-bold text-slate-400">Min</span>
+                    <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400">
+                      {method.min_deposit.toLocaleString('en-US')} ETB
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
           </>
         )}
       </div>
