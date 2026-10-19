@@ -250,100 +250,155 @@ export default function Deposit() {
   // ── STEP: FORM ───────────────────────────────────────────────────────────────
   if (step === 'form' && selected) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-16">
         {/* Header */}
-        <div className="bg-white dark:bg-slate-900 px-4 py-4 rounded-b-2xl shadow-sm border-b border-gray-100 dark:border-slate-800 flex items-center space-x-3 sticky top-0 z-10">
+        <div className="bg-white dark:bg-slate-900 px-4 py-3 rounded-b-2xl shadow-sm border-b border-gray-100 dark:border-slate-800 flex items-center space-x-3 sticky top-0 z-10">
           <button onClick={() => setStep('list')} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors">
             <ArrowLeft size={18} />
           </button>
-          <h1 className="font-black text-slate-800 dark:text-slate-100 text-lg">{t[language].deposit.depositVia} {typeLabels[selected.type]}</h1>
+          <div className="min-w-0 flex-1">
+            <h1 className="font-black text-slate-800 dark:text-slate-100 text-base leading-tight truncate">
+              {t[language].deposit.depositVia} {typeLabels[selected.type] || selected.name}
+            </h1>
+            <p className="text-[11px] text-slate-400 font-semibold truncate">
+              {selected.name}
+            </p>
+          </div>
         </div>
 
-        <div className="p-4 space-y-4">
-          {/* Method Card */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-5">
-            <p className="text-[10px] font-black text-slate-400 tracking-widest mb-3">{t[language].deposit.sendMoneyTo}</p>
-            <div className="flex items-center space-x-4">
+        <div className="p-3.5 space-y-3">
+          {/* Card 1: Bank & Account Details with 1-Tap Copy & Min Deposit */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xs border border-slate-200/80 dark:border-slate-800 p-3.5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                {t[language].deposit.sendMoneyTo}
+              </span>
+              <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-100 dark:border-emerald-900/40">
+                Min: {selected.min_deposit.toLocaleString('en-US')} ETB
+              </span>
+            </div>
+
+            <div className="flex items-center space-x-3">
               {selected.logo_url ? (
-                <img src={selected.logo_url} alt="logo" className="w-16 h-16 rounded-2xl object-contain bg-slate-50 dark:bg-slate-900 border border-slate-100 p-1.5" />
+                <img src={selected.logo_url} alt="logo" className="w-12 h-12 rounded-xl object-contain bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 p-1 flex-shrink-0" />
               ) : (
-                <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 font-bold text-xs">NO IMG</div>
+                <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 font-bold text-xs flex-shrink-0">
+                  {selected.type}
+                </div>
               )}
-              <div className="flex-1">
-                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${typeBadge[selected.type]}`}>
-                  {selected.type.toUpperCase()}
-                </span>
-                <h3 className="font-black text-slate-800 dark:text-slate-100 text-base mt-1 leading-tight">{selected.name}</h3>
-                <div className="mt-2 flex items-center space-x-3">
-                  <span className="font-black text-xl text-slate-700 dark:text-slate-200 tracking-wider">{selected.account_number}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center space-x-1.5">
+                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md ${typeBadge[selected.type] || 'bg-slate-100 text-slate-700'}`}>
+                    {selected.type.toUpperCase()}
+                  </span>
+                  <span className="font-black text-slate-700 dark:text-slate-200 text-xs truncate">
+                    {selected.name}
+                  </span>
+                </div>
+                <div className="mt-1 flex items-center justify-between">
+                  <span className="font-black text-lg text-slate-900 dark:text-slate-100 tracking-wider select-all">
+                    {selected.account_number}
+                  </span>
                   <button
+                    type="button"
                     onClick={() => copyToClipboard(selected.account_number)}
-                    className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    className={`flex items-center space-x-1 px-3 py-1 rounded-xl text-xs font-black transition-all active:scale-95 ${
                       copied
-                        ? 'bg-emerald-100 text-emerald-600 border border-emerald-200'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                        ? 'bg-emerald-500 text-white shadow-xs'
+                        : 'bg-amber-400 hover:bg-amber-500 text-slate-900 shadow-xs'
                     }`}
                   >
-                    {copied ? <><Check size={13} strokeWidth={3} /><span>{t[language].deposit.copySuccess}</span></> : <><Copy size={13} /><span>{t[language].deposit.copy}</span></>}
+                    {copied ? (
+                      <>
+                        <Check size={12} strokeWidth={3} />
+                        <span>{t[language].deposit.copySuccess}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={12} />
+                        <span>{t[language].deposit.copy}</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
             </div>
-            <div className="mt-4 pt-4 border-t border-gray-50 flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{t[language].deposit.minDepositText}</span>
-              <span className="font-black text-emerald-600">{selected.min_deposit.toLocaleString('en-US')} ETB</span>
+          </div>
+
+          {/* Card 2: Amount Input */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xs border border-slate-200/80 dark:border-slate-800 p-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                {t[language].deposit.amountSent}
+              </label>
+              <span className="text-[10px] text-slate-400 font-semibold">
+                ETB
+              </span>
             </div>
-          </div>
-
-          {/* Instructions */}
-          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
-            <p className="text-xs font-black text-blue-700 mb-2">{t[language].deposit.howToDeposit}</p>
-            <ol className="space-y-1.5">
-              {[t[language].deposit.step1, t[language].deposit.step2, t[language].deposit.step3, t[language].deposit.step4].map((step, i) => (
-                <li key={i} className="flex items-start space-x-2 text-xs text-blue-600 font-semibold">
-                  <span className="w-4 h-4 bg-blue-500 text-white rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0 mt-0.5">{i + 1}</span>
-                  <span>{step}</span>
-                </li>
-              ))}
-            </ol>
-          </div>
-
-          {/* Amount Input */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-5">
-            <label className="block text-[10px] font-black text-slate-400 tracking-widest mb-3">{t[language].deposit.amountSent}</label>
             <div className="relative">
               <input
                 type="number"
                 min={selected.min_deposit}
-                placeholder={`Min ${selected.min_deposit.toLocaleString()} ETB`}
-                className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-gray-200 rounded-xl px-4 py-4 text-xl font-black outline-none focus:border-yellow-400 focus:bg-white dark:bg-slate-900 transition-all"
+                placeholder={`Minimum ${selected.min_deposit.toLocaleString()} ETB`}
+                className="w-full h-11 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-3 text-base font-black outline-none focus:border-amber-400 focus:bg-white dark:focus:bg-slate-900 transition-all text-slate-800 dark:text-slate-100"
                 value={amount}
                 onChange={(e) => { setAmount(e.target.value); setError(''); }}
               />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-black text-sm">ETB</span>
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">
+                ETB
+              </span>
             </div>
           </div>
 
-          {/* Screenshot Upload */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 p-5">
-            <label className="block text-[10px] font-black text-slate-400 tracking-widest mb-3">{t[language].deposit.paymentScreenshot}</label>
+          {/* Card 3: Screenshot Upload */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xs border border-slate-200/80 dark:border-slate-800 p-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                {t[language].deposit.paymentScreenshot}
+              </label>
+              <span className="text-[10px] text-slate-400 font-semibold">
+                JPG / PNG
+              </span>
+            </div>
+
             {file ? (
-              <div className="relative">
-                <img src={URL.createObjectURL(file)} alt="Receipt" className="w-full max-h-52 object-cover rounded-xl border border-gray-100 dark:border-slate-800" />
+              <div className="h-14 bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 rounded-xl px-3 flex items-center justify-between">
+                <div className="flex items-center space-x-2.5 overflow-hidden">
+                  <img src={URL.createObjectURL(file)} alt="Receipt" className="w-10 h-10 object-cover rounded-lg border border-emerald-300 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-black text-emerald-800 dark:text-emerald-200 truncate">{file.name}</p>
+                    <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center space-x-1">
+                      <Check size={11} strokeWidth={3} />
+                      <span>Receipt Attached</span>
+                    </p>
+                  </div>
+                </div>
                 <button
+                  type="button"
                   onClick={() => setFile(null)}
-                  className="absolute top-2 right-2 bg-rose-500 text-white p-1.5 rounded-full shadow-md"
+                  className="w-7 h-7 rounded-full bg-rose-100 hover:bg-rose-200 text-rose-600 flex items-center justify-center flex-shrink-0 ml-2"
                 >
-                  <X size={14} strokeWidth={3} />
+                  <X size={13} strokeWidth={2.5} />
                 </button>
               </div>
             ) : (
-              <label className="w-full border-2 border-dashed border-gray-200 rounded-xl p-8 flex flex-col items-center cursor-pointer hover:border-blue-300 hover:bg-blue-50/30 transition-all">
-                <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mb-3">
-                  <UploadCloud size={24} className="text-blue-500" />
+              <label className="w-full h-14 border border-dashed border-amber-300 dark:border-amber-500/50 bg-amber-50/30 dark:bg-amber-950/20 hover:bg-amber-50/60 rounded-xl px-3.5 flex items-center justify-between cursor-pointer active:scale-[0.99] transition-all">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-400/20 text-amber-600 flex items-center justify-center flex-shrink-0">
+                    <UploadCloud size={16} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-slate-700 dark:text-slate-200 leading-tight">
+                      {t[language].deposit.tapToUpload}
+                    </p>
+                    <p className="text-[9.5px] text-slate-400 font-semibold leading-tight">
+                      Attach payment screenshot
+                    </p>
+                  </div>
                 </div>
-                <p className="font-bold text-slate-600 dark:text-slate-300">{t[language].deposit.tapToUpload}</p>
-                <p className="text-xs text-slate-400 mt-1">{t[language].deposit.jpgPng}</p>
+                <span className="text-[11px] font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50 px-2.5 py-1 rounded-lg">
+                  Browse
+                </span>
                 <input type="file" accept="image/*" className="hidden" onChange={(e) => { setFile(e.target.files?.[0] || null); setError(''); }} />
               </label>
             )}
@@ -351,19 +406,26 @@ export default function Deposit() {
 
           {/* Error */}
           {error && (
-            <div className="bg-rose-50 border border-rose-100 rounded-xl p-4 flex items-center space-x-3">
-              <AlertCircle size={18} className="text-rose-500 flex-shrink-0" />
-              <p className="text-sm font-bold text-rose-600">{error}</p>
+            <div className="bg-rose-50 border border-rose-100 rounded-xl p-2.5 flex items-center space-x-2">
+              <AlertCircle size={15} className="text-rose-500 flex-shrink-0" />
+              <p className="text-xs font-bold text-rose-600">{error}</p>
             </div>
           )}
 
-          {/* Submit */}
+          {/* Submit Button */}
           <button
             onClick={handleSubmit}
             disabled={submitting}
-            className="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-950 font-black py-4 rounded-2xl shadow-sm text-lg transition-all active:scale-95 disabled:opacity-50"
+            className="w-full h-12 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-950 font-black rounded-2xl shadow-sm text-base transition-all disabled:opacity-50 flex items-center justify-center space-x-2"
           >
-            {submitting ? t[language].deposit.submitting : t[language].deposit.submitBtn}
+            {submitting ? (
+              <div className="flex items-center space-x-2">
+                <div className="w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin" />
+                <span>{t[language].deposit.submitting}</span>
+              </div>
+            ) : (
+              <span>{t[language].deposit.submitBtn}</span>
+            )}
           </button>
         </div>
       </div>
@@ -412,30 +474,19 @@ export default function Deposit() {
                 <button
                   key={method.id}
                   onClick={() => selectMethod(method)}
-                  className="group relative flex flex-col items-center justify-between p-3.5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/70 dark:border-slate-800/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-md hover:border-amber-400 dark:hover:border-amber-500 active:scale-95 transition-all duration-200 overflow-hidden min-h-[118px]"
+                  className="group relative flex items-center justify-center p-3 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/70 dark:border-slate-800/80 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-md hover:border-amber-400 dark:hover:border-amber-500 active:scale-95 transition-all duration-200 overflow-hidden h-24"
                 >
-                  {/* Logo Centerpiece */}
-                  <div className="w-full flex-1 flex items-center justify-center p-1">
-                    {method.logo_url ? (
-                      <img
-                        src={method.logo_url}
-                        alt={typeLabels[method.type] || method.name}
-                        className="max-h-16 max-w-[88%] object-contain drop-shadow-xs group-hover:scale-105 transition-transform duration-200"
-                      />
-                    ) : (
-                      <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 text-xs font-black uppercase">
-                        {method.type}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Clean Min Deposit Tag */}
-                  <div className="mt-1 flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700/60">
-                    <span className="text-[9px] font-bold text-slate-400">Min</span>
-                    <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400">
-                      {method.min_deposit.toLocaleString('en-US')} ETB
-                    </span>
-                  </div>
+                  {method.logo_url ? (
+                    <img
+                      src={method.logo_url}
+                      alt={typeLabels[method.type] || method.name}
+                      className="max-h-16 max-w-[85%] object-contain drop-shadow-xs group-hover:scale-105 transition-transform duration-200"
+                    />
+                  ) : (
+                    <div className="text-slate-400 text-xs font-black uppercase">
+                      {method.type}
+                    </div>
+                  )}
                 </button>
               ))}
             </div>
