@@ -31,6 +31,15 @@ router.get('/invited', validateTelegramAuth, async (req: AuthRequest, res) => {
     return;
   }
 
+  // Fetch real invite reward % from settings
+  const { data: invSetting } = await supabase
+    .from('settings')
+    .select('value')
+    .eq('key', 'invitation_reward_pct')
+    .maybeSingle();
+  const invPct = invSetting ? parseFloat(invSetting.value) : 10;
+  const rewardRate = (!isNaN(invPct) && invPct >= 0) ? invPct / 100 : 0.10;
+
   // For each invited user, check if they made a first approved deposit and calculate reward
   const invitedWithRewards = await Promise.all(
     invitedUsers.map(async (u: any) => {
@@ -43,7 +52,7 @@ router.get('/invited', validateTelegramAuth, async (req: AuthRequest, res) => {
         .limit(1)
         .single();
 
-      const rewardEarned = firstDeposit ? firstDeposit.amount * 0.10 : 0;
+      const rewardEarned = firstDeposit ? firstDeposit.amount * rewardRate : 0;
       return {
         telegram_id: u.telegram_id,
         first_name: u.first_name,
@@ -111,6 +120,30 @@ router.get('/support-contact', async (_req, res) => {
       announcement_message: '',
       announcement_max_views: 2
     });
+  }
+});
+
+// GET /api/player/public-settings — unauthenticated, returns public-facing reward percentages
+router.get('/public-settings', async (_req, res) => {
+  try {
+    const { data } = await supabase.from('settings').select('key, value').in('key', [
+      'invitation_reward_pct',
+      'welcome_bonus_amount',
+      'first_deposit_bonus_pct',
+      'weekend_bonus_pct',
+      'weekend_bonus_enabled',
+    ]);
+    const map: Record<string, string> = {};
+    (data || []).forEach((row: any) => { map[row.key] = row.value; });
+    res.json({
+      invitation_reward_pct: parseFloat(map['invitation_reward_pct'] ?? '10'),
+      welcome_bonus_amount: parseFloat(map['welcome_bonus_amount'] ?? '10'),
+      first_deposit_bonus_pct: parseFloat(map['first_deposit_bonus_pct'] ?? '20'),
+      weekend_bonus_pct: parseFloat(map['weekend_bonus_pct'] ?? '10'),
+      weekend_bonus_enabled: map['weekend_bonus_enabled'] === 'true',
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 

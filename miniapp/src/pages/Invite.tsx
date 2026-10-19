@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { 
   ArrowLeft, Share2, Copy, Check, Gift, QrCode, Link2, 
   Download, Maximize2, X, Sparkles, CheckCircle2, Crown, RefreshCw 
@@ -10,6 +10,8 @@ import WebApp from '@twa-dev/sdk';
 import { QRCodeCanvas } from 'qrcode.react';
 import VideoGuideButton from '../components/VideoGuideButton';
 
+const API_URL = import.meta.env.VITE_API_URL || '/api';
+
 export default function Invite() {
   const { user, setProfileOpen, language } = useGameStore();
   const [copiedLink, setCopiedLink] = useState(false);
@@ -17,6 +19,7 @@ export default function Invite() {
   const [downloaded, setDownloaded] = useState(false);
   const [activeTab, setActiveTab] = useState<'qr' | 'link'>('qr');
   const [showFullscreenQR, setShowFullscreenQR] = useState(false);
+  const [inviteRewardPct, setInviteRewardPct] = useState<number>(10);
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const fullscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const navigate = useNavigate();
@@ -24,6 +27,27 @@ export default function Invite() {
   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'hdasebingo_bot';
   const refCode = `ref_${user?.telegram_id || 'player'}`;
   const inviteLink = `https://t.me/${botUsername}?start=${refCode}`;
+
+  // Fetch real invite reward % from admin settings
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+        const res = await fetch(`${API_URL}/player/public-settings`, {
+          headers: { 'x-telegram-init-data': initData },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (typeof data.invitation_reward_pct === 'number') {
+            setInviteRewardPct(data.invitation_reward_pct);
+          }
+        }
+      } catch {
+        // fallback stays at default 10%
+      }
+    };
+    fetchSettings();
+  }, []);
 
   const handleBack = () => {
     navigate(-1);
@@ -329,7 +353,7 @@ export default function Invite() {
 
       const featY = 880;
       const feats = [
-        { icon: '\uD83C\uDF81', text: '10% BONUS' },
+        { icon: '\uD83C\uDF81', text: `${inviteRewardPct}% BONUS` },
         { icon: '\u26A1', text: 'INSTANT PAY' },
         { icon: '\uD83C\uDFB1', text: '75 BINGO' },
         { icon: '\uD83D\uDEE1\uFE0F', text: 'VERIFIED' },
@@ -467,22 +491,28 @@ export default function Invite() {
       <div className="px-4 py-3 flex flex-col space-y-3 flex-1 overflow-y-auto">
 
         {/* HERO BANNER */}
-        <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-violet-700 rounded-2xl p-3.5 text-white shadow-sm relative overflow-hidden flex items-center space-x-3 shrink-0">
-          <div className="absolute top-0 right-0 w-28 h-28 bg-white/10 rounded-full -mr-8 -mt-8 blur-xl pointer-events-none" />
-          <div className="w-11 h-11 bg-white/20 border border-white/30 rounded-2xl flex items-center justify-center shrink-0 backdrop-blur-xs shadow-inner">
-            <Gift size={22} className="text-white drop-shadow-sm" />
+        <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-black rounded-2xl p-3.5 text-white shadow-lg relative overflow-hidden flex items-center space-x-3 shrink-0 border border-white/10">
+          {/* Subtle gold shimmer overlay */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-400/10 rounded-full -mr-10 -mt-10 blur-xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-amber-500/5 rounded-full -ml-8 -mb-8 blur-xl pointer-events-none" />
+          <div className="w-11 h-11 bg-gradient-to-br from-amber-400 to-amber-600 border border-amber-300/40 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/30">
+            <Gift size={22} className="text-slate-950 drop-shadow-sm" />
           </div>
           <div className="flex-1 min-w-0 z-10">
             <div className="flex items-center gap-1.5 mb-0.5">
               <h2 className="text-base font-black leading-tight truncate">
-                {t[language].invite.heroTitle}
+                {language === 'am'
+                  ? `${inviteRewardPct}% ቦነስ ያግኙ!`
+                  : `Earn ${inviteRewardPct}% Bonus!`}
               </h2>
-              <span className="bg-amber-400 text-amber-950 text-[8px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wider">
-                10% BONUS
+              <span className="bg-amber-400 text-amber-950 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0">
+                {inviteRewardPct}% BONUS
               </span>
             </div>
-            <p className="text-white/90 text-[10.5px] font-medium leading-snug">
-              {t[language].invite.heroDesc}
+            <p className="text-white/80 text-[10.5px] font-medium leading-snug">
+              {language === 'am'
+                ? `ጓደኞቻቸው ለመጀመሪያ ጊዜ ሲያስገቡ ${inviteRewardPct}% ቦነስ ወደ ቦነስ ሂሳብዎ ይጨመርለዎታል!`
+                : `Get ${inviteRewardPct}% of your friends' first deposit straight into your Bonus Balance!`}
             </p>
           </div>
         </div>
@@ -610,7 +640,7 @@ export default function Invite() {
                 <div className="grid grid-cols-4 divide-x divide-[#d4af37]/50 pt-1 text-center">
                   <div className="px-1">
                     <p className="text-sm">🎁</p>
-                    <p className="text-[8.5px] font-black text-[#6b4f14] uppercase">10% Bonus</p>
+                    <p className="text-[8.5px] font-black text-[#6b4f14] uppercase">{inviteRewardPct}% Bonus</p>
                   </div>
                   <div className="px-1">
                     <p className="text-sm">⚡</p>
