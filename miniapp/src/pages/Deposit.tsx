@@ -1,11 +1,20 @@
-import { useState, useEffect } from 'react';
-import { ArrowLeft, ChevronRight, CheckCircle2, UploadCloud, X, Clock, AlertCircle, Copy, Check, MessageCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { ArrowLeft, ChevronRight, CheckCircle2, UploadCloud, X, Clock, AlertCircle, Copy, Check, MessageCircle, Play, ChevronLeft, Video as VideoIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+
+interface SupportVideo {
+  id: string;
+  category: string;
+  title: string;
+  description: string | null;
+  video_url: string;
+  thumbnail_url?: string | null;
+}
 
 interface DepositMethod {
   id: string;
@@ -67,6 +76,12 @@ export default function Deposit() {
   const [pendingAmount, setPendingAmount] = useState<number | null>(null);
   const [supportUsername, setSupportUsername] = useState<string | null>(null);
 
+  // How to Deposit Video state
+  const [depositVideos, setDepositVideos] = useState<SupportVideo[]>([]);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [activeVideoIndex, setActiveVideoIndex] = useState(0);
+  const videoPlayerRef = useRef<HTMLVideoElement>(null);
+
   // Form state
   const [amount, setAmount] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -81,15 +96,38 @@ export default function Deposit() {
     });
   };
 
+  const openVideoModal = (index = 0) => {
+    setActiveVideoIndex(index);
+    setIsVideoModalOpen(true);
+  };
+
+  const closeVideoModal = () => {
+    if (videoPlayerRef.current) {
+      videoPlayerRef.current.pause();
+    }
+    setIsVideoModalOpen(false);
+  };
+
+  const nextVideo = () => {
+    if (depositVideos.length <= 1) return;
+    setActiveVideoIndex((prev) => (prev + 1) % depositVideos.length);
+  };
+
+  const prevVideo = () => {
+    if (depositVideos.length <= 1) return;
+    setActiveVideoIndex((prev) => (prev - 1 + depositVideos.length) % depositVideos.length);
+  };
+
   useEffect(() => { fetchMethods(); }, []);
 
   const fetchMethods = async () => {
     try {
       const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
-      const [methodsRes, historyRes, supportRes] = await Promise.all([
+      const [methodsRes, historyRes, supportRes, videosRes] = await Promise.all([
         fetch(`${API_URL}/deposit/methods`, { headers: { 'x-telegram-init-data': initData } }),
         fetch(`${API_URL}/deposit/history`, { headers: { 'x-telegram-init-data': initData } }),
-        fetch(`${API_URL}/player/support-contact`, { headers: { 'x-telegram-init-data': initData } })
+        fetch(`${API_URL}/player/support-contact`, { headers: { 'x-telegram-init-data': initData } }),
+        fetch(`${API_URL}/player/support-videos?category=deposit`, { headers: { 'x-telegram-init-data': initData } })
       ]);
 
       if (methodsRes.ok) setMethods(await methodsRes.json());
@@ -106,6 +144,11 @@ export default function Deposit() {
       if (supportRes.ok) {
         const support = await supportRes.json();
         if (support.username) setSupportUsername(support.username);
+      }
+
+      if (videosRes.ok) {
+        const vData = await videosRes.json();
+        setDepositVideos(vData.videos || []);
       }
     } catch (err) {
       console.error(err);
@@ -173,6 +216,130 @@ export default function Deposit() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const renderVideoModal = () => {
+    if (!isVideoModalOpen) return null;
+    const currentVid = depositVideos[activeVideoIndex];
+
+    return (
+      <div 
+        className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col justify-between select-none animate-in fade-in duration-200"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) closeVideoModal();
+        }}
+      >
+        {/* Top Bar */}
+        <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/95 via-black/80 to-transparent z-20">
+          <div className="flex items-center space-x-2.5 min-w-0 pr-2">
+            <div className="w-8 h-8 rounded-full bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-400 shrink-0">
+              <Play size={13} className="fill-current ml-0.5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-black text-white truncate">
+                {currentVid?.title || (language === 'am' ? 'የገንዘብ ማስገቢያ ቪዲዮ መመሪያ' : 'How to Deposit')}
+              </p>
+              <p className="text-[10px] text-slate-400 font-semibold truncate">
+                {depositVideos.length > 1
+                  ? `${language === 'am' ? 'ቪዲዮ' : 'Video'} ${activeVideoIndex + 1} / ${depositVideos.length}`
+                  : (language === 'am' ? 'ኦፊሴላዊ የቪዲዮ መመሪያ' : 'Official Step-by-Step Guide')}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={closeVideoModal}
+            className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center active:scale-90 transition-all shrink-0"
+            title="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Video Player or Fallback */}
+        <div className="flex-1 relative flex items-center justify-center p-3 overflow-hidden">
+          {currentVid ? (
+            <div className="w-full max-w-lg relative flex flex-col items-center">
+              <video
+                ref={videoPlayerRef}
+                key={currentVid.id}
+                src={currentVid.video_url}
+                poster={currentVid.thumbnail_url || undefined}
+                controls
+                autoPlay
+                playsInline
+                className="w-full max-h-[68vh] rounded-2xl shadow-2xl bg-black border border-white/10 object-contain"
+              >
+                Your browser does not support video playback.
+              </video>
+
+              {/* Prev / Next controls if multiple videos exist */}
+              {depositVideos.length > 1 && (
+                <div className="flex items-center justify-center space-x-3 mt-3">
+                  <button
+                    type="button"
+                    onClick={prevVideo}
+                    className="px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 text-white text-xs font-bold transition-all flex items-center space-x-1"
+                  >
+                    <ChevronLeft size={14} />
+                    <span>{language === 'am' ? 'ቀዳሚ' : 'Previous'}</span>
+                  </button>
+                  <span className="text-xs text-white/80 font-bold px-2">
+                    {activeVideoIndex + 1} / {depositVideos.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={nextVideo}
+                    className="px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 text-white text-xs font-bold transition-all flex items-center space-x-1"
+                  >
+                    <span>{language === 'am' ? 'ቀጣይ' : 'Next'}</span>
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center max-w-sm mx-auto shadow-2xl">
+              <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-3 text-amber-400">
+                <Play size={24} className="fill-amber-400/30" />
+              </div>
+              <h3 className="text-base font-black text-white mb-1">
+                {language === 'am' ? 'የቪዲዮ መመሪያ በቅርቡ ይጫናል' : 'Video Guide Coming Soon'}
+              </h3>
+              <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                {language === 'am'
+                  ? 'አድሚኑ አዲስ የገንዘብ ማስገቢያ ቪዲዮ እያዘጋጀ ነው። እባክዎ ከታች ያሉትን ደረጃዎች በመከተል ገንዘብ ያስገቡ።'
+                  : 'The deposit video tutorial is being updated. Please follow the instructions on screen or contact support.'}
+              </p>
+              <button
+                type="button"
+                onClick={closeVideoModal}
+                className="w-full py-2.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs transition-transform active:scale-95"
+              >
+                {language === 'am' ? 'እሺ ተረድቻለሁ' : 'Got It'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Bottom Description or Action */}
+        <div className="p-4 bg-gradient-to-t from-black via-black/85 to-transparent z-20 space-y-2">
+          {currentVid?.description && (
+            <p className="text-xs text-slate-300 font-medium text-center line-clamp-2">
+              {currentVid.description}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={closeVideoModal}
+            className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition-all text-center"
+          >
+            {language === 'am' ? 'ተረድቻለሁ • ክፍያ ልፈጽም' : "I'm Ready to Deposit"}
+          </button>
+        </div>
+      </div>
+    );
   };
 
   // ── STEP: SUCCESS ────────────────────────────────────────────────────────────
@@ -261,18 +428,35 @@ export default function Deposit() {
           }
         `}</style>
         {/* Header */}
-        <div className="bg-white dark:bg-slate-900 px-4 py-3 rounded-b-2xl shadow-sm border-b border-gray-100 dark:border-slate-800 flex items-center space-x-3 sticky top-0 z-10">
-          <button onClick={() => setStep('list')} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors">
-            <ArrowLeft size={18} />
-          </button>
-          <div className="min-w-0 flex-1">
-            <h1 className="font-black text-slate-800 dark:text-slate-100 text-base leading-tight truncate">
-              {t[language].deposit.depositVia} {typeLabels[selected.type] || selected.name}
-            </h1>
-            <p className="text-[11px] text-slate-400 font-semibold truncate">
-              {selected.name}
-            </p>
+        <div className="bg-white dark:bg-slate-900 px-4 py-3 rounded-b-2xl shadow-sm border-b border-gray-100 dark:border-slate-800 flex items-center justify-between sticky top-0 z-10">
+          <div className="flex items-center space-x-3 min-w-0 flex-1 mr-2">
+            <button onClick={() => setStep('list')} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors shrink-0">
+              <ArrowLeft size={18} />
+            </button>
+            <div className="min-w-0 flex-1">
+              <h1 className="font-black text-slate-800 dark:text-slate-100 text-base leading-tight truncate">
+                {t[language].deposit.depositVia} {typeLabels[selected.type] || selected.name}
+              </h1>
+              <p className="text-[11px] text-slate-400 font-semibold truncate">
+                {selected.name}
+              </p>
+            </div>
           </div>
+
+          {/* Video Button */}
+          <button
+            type="button"
+            onClick={() => openVideoModal(0)}
+            className="relative flex items-center space-x-1.5 px-2.5 py-1.5 rounded-full bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white shadow-md shadow-red-500/20 active:scale-95 transition-all text-xs font-black border border-white/20 shrink-0"
+          >
+            <span className="relative flex h-4 w-4 items-center justify-center rounded-full bg-white/25 text-white">
+              <Play size={9} className="fill-white ml-0.5" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-40 duration-1000" />
+            </span>
+            <span className="text-[11px] font-black tracking-wide whitespace-nowrap">
+              {language === 'am' ? 'ቪዲዮ' : 'Video'}
+            </span>
+          </button>
         </div>
 
         <div className="p-3.5 space-y-3">
@@ -434,11 +618,21 @@ export default function Deposit() {
 
           {/* Simple How to Deposit Guide Card */}
           <div className="bg-gradient-to-br from-amber-50/80 via-white to-orange-50/40 dark:from-slate-800/80 dark:via-slate-850 dark:to-slate-800/50 rounded-2xl border border-amber-200/60 dark:border-amber-500/20 p-3.5 shadow-xs">
-            <div className="flex items-center space-x-1.5 mb-2.5">
-              <span className="text-sm">💡</span>
-              <p className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
-                {language === 'am' ? 'እንዴት ማስገባት ይቻላል?' : 'How to Deposit?'}
-              </p>
+            <div className="flex items-center justify-between mb-2.5">
+              <div className="flex items-center space-x-1.5">
+                <span className="text-sm">💡</span>
+                <p className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                  {language === 'am' ? 'እንዴት ማስገባት ይቻላል?' : 'How to Deposit?'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => openVideoModal(0)}
+                className="flex items-center space-x-1 text-[11px] font-black text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 px-2.5 py-0.5 rounded-full border border-rose-200/50 transition-colors"
+              >
+                <Play size={10} className="fill-current ml-0.5" />
+                <span>{language === 'am' ? 'ቪዲዮ ይመልከቱ' : 'Watch Video'}</span>
+              </button>
             </div>
 
             <div className="space-y-2 text-xs">
@@ -477,6 +671,7 @@ export default function Deposit() {
             </div>
           </div>
         </div>
+        {renderVideoModal()}
       </div>
     );
   }
@@ -485,14 +680,31 @@ export default function Deposit() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20">
       {/* Header */}
-      <div className="bg-white dark:bg-slate-900 px-4 py-4 rounded-b-2xl shadow-sm border-b border-gray-100 dark:border-slate-800 flex items-center space-x-3 sticky top-0 z-10">
-        <Link to="/" className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors">
-          <ArrowLeft size={18} />
-        </Link>
-        <div>
-          <h1 className="font-black text-slate-800 dark:text-slate-100 text-lg leading-tight">{t[language].deposit.title}</h1>
-          <p className="text-xs text-slate-400 font-semibold">{t[language].deposit.selectMethod}</p>
+      <div className="bg-white dark:bg-slate-900 px-4 py-3.5 rounded-b-2xl shadow-sm border-b border-gray-100 dark:border-slate-800 flex items-center justify-between sticky top-0 z-10">
+        <div className="flex items-center space-x-3 min-w-0">
+          <Link to="/" className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors shrink-0">
+            <ArrowLeft size={18} />
+          </Link>
+          <div className="min-w-0">
+            <h1 className="font-black text-slate-800 dark:text-slate-100 text-lg leading-tight truncate">{t[language].deposit.title}</h1>
+            <p className="text-xs text-slate-400 font-semibold truncate">{t[language].deposit.selectMethod}</p>
+          </div>
         </div>
+
+        {/* Video Guide Button */}
+        <button
+          type="button"
+          onClick={() => openVideoModal(0)}
+          className="relative flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white shadow-md shadow-red-500/25 active:scale-95 transition-all text-xs font-black border border-white/20 shrink-0 ml-2"
+        >
+          <span className="relative flex h-4 w-4 items-center justify-center rounded-full bg-white/25 text-white">
+            <Play size={9} className="fill-white ml-0.5" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-40 duration-1000" />
+          </span>
+          <span className="text-[11px] font-black tracking-wide whitespace-nowrap">
+            {language === 'am' ? 'የቪዲዮ መመሪያ' : 'Video Guide'}
+          </span>
+        </button>
       </div>
 
       <div className="p-4 space-y-3">
@@ -542,6 +754,7 @@ export default function Deposit() {
           </>
         )}
       </div>
+      {renderVideoModal()}
     </div>
   );
 }

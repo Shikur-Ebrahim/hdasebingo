@@ -155,6 +155,8 @@ export const t = {
       minAmount: 'Min: {min} ETB',
       copySuccess: 'Copied!',
       copy: 'Copy',
+      videoGuide: 'How to Deposit',
+      watchVideo: 'Watch Video',
     },
     withdraw: {
       minWithdrawal: 'Min:',
@@ -554,6 +556,8 @@ export const t = {
       minAmount: 'አነስተኛ: {min} ETB',
       copySuccess: 'ኮፒ ተደርጓል!',
       copy: 'ኮፒ',
+      videoGuide: 'የቪዲዮ መመሪያ',
+      watchVideo: 'ቪዲዮ ይመልከቱ',
     },
     withdraw: {
       minWithdrawal: 'አነስተኛ:',
