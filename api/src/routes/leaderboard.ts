@@ -5,75 +5,110 @@ import { supabase } from '../services/supabase';
 const router = Router();
 router.use(validateTelegramAuth);
 
-// GET /api/leaderboard/players?period=all|daily|weekly|monthly
+// Helper to calculate fromDate based on period in Ethiopian Time (EAT = UTC+3)
+function getPeriodFromDate(period: string): string | null {
+  const now = new Date();
+  const eatNow = new Date(now.getTime() + 3 * 3600 * 1000);
+
+  if (period === 'daily') {
+    // Start of today in East Africa Time (00:00:00 EAT -> UTC)
+    const eatMidnight = new Date(Date.UTC(eatNow.getUTCFullYear(), eatNow.getUTCMonth(), eatNow.getUTCDate(), 0, 0, 0));
+    return new Date(eatMidnight.getTime() - 3 * 3600 * 1000).toISOString();
+  } else if (period === 'weekly') {
+    // Rolling 7 days
+    const d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return d.toISOString();
+  } else if (period === 'monthly') {
+    // Start of current month in EAT (1st day 00:00:00 EAT -> UTC)
+    const eatMonthStart = new Date(Date.UTC(eatNow.getUTCFullYear(), eatNow.getUTCMonth(), 1, 0, 0, 0));
+    return new Date(eatMonthStart.getTime() - 3 * 3600 * 1000).toISOString();
+  } else if (period === 'yearly') {
+    // Start of current year in EAT (Jan 1 00:00:00 EAT -> UTC)
+    const eatYearStart = new Date(Date.UTC(eatNow.getUTCFullYear(), 0, 1, 0, 0, 0));
+    return new Date(eatYearStart.getTime() - 3 * 3600 * 1000).toISOString();
+  }
+  return null; // 'all'
+}
+
+// GET /api/leaderboard/players?period=all|daily|weekly|monthly|yearly
 router.get('/players', async (req: AuthRequest, res) => {
   const period = (req.query.period as string) || 'all';
   const telegramId = req.telegramUser!.id.toString();
 
-  // Build date filter
-  let fromDate: string | null = null;
-  const now = new Date();
-  if (period === 'daily') {
-    const d = new Date(now); d.setHours(0, 0, 0, 0);
-    fromDate = d.toISOString();
-  } else if (period === 'weekly') {
-    const d = new Date(now); d.setDate(d.getDate() - 7);
-    fromDate = d.toISOString();
-  } else if (period === 'monthly') {
-    const d = new Date(now); d.setDate(1); d.setHours(0, 0, 0, 0);
-    fromDate = d.toISOString();
-  }
-
+  const fromDate = getPeriodFromDate(period);
   let topPlayers: any[] = [];
 
+  // Query finished games within period
+  let q = supabase
+    .from('bingo_games')
+    .select('winner_telegram_id, winner_first_name, winner_prize, finished_at')
+    .eq('status', 'finished')
+    .not('winner_telegram_id', 'is', null);
+
+  if (fromDate) {
+    q = q.gte('finished_at', fromDate);
+  }
+
+  const { data: games, error } = await q.limit(5000);
+  if (error) {
+    console.error('Error fetching games for leaderboard:', error);
+  }
+
+  // Aggregate wins & total prizes per player
+  const map: Record<string, { first_name: string; wins: number; total_prize: number }> = {};
+  for (const g of games || []) {
+    if (!g.winner_telegram_id) continue;
+    if (!map[g.winner_telegram_id]) {
+      map[g.winner_telegram_id] = { first_name: g.winner_first_name || 'User', wins: 0, total_prize: 0 };
+    }
+    map[g.winner_telegram_id].wins++;
+    map[g.winner_telegram_id].total_prize += Number(g.winner_prize) || 0;
+  }
+
+  // If period is 'all', also check users table so no historical total_wins are missed
   if (period === 'all') {
-    // Use aggregated columns on users table
-    const { data } = await supabase
+    const { data: usersData } = await supabase
       .from('users')
       .select('telegram_id, first_name, username, total_wins')
-      .gt('total_wins', 0)
-      .order('total_wins', { ascending: false })
-      .limit(50);
-    topPlayers = (data || []).map((u, i) => ({
-      rank: i + 1,
-      telegram_id: u.telegram_id,
-      first_name: u.first_name || 'User',
-      username: u.username || '',
-      wins: u.total_wins || 0,
-      games: 0,
-    }));
-  } else {
-    // Query bingo_games for wins in the period
-    let q = supabase
-      .from('bingo_games')
-      .select('winner_telegram_id, winner_first_name, winner_prize')
-      .eq('status', 'finished')
-      .not('winner_telegram_id', 'is', null);
-    if (fromDate) q = q.gte('finished_at', fromDate);
-    const { data: games } = await q;
+      .gt('total_wins', 0);
 
-    // Aggregate wins per player
-    const map: Record<string, { first_name: string; wins: number; total_prize: number }> = {};
-    for (const g of games || []) {
-      if (!g.winner_telegram_id) continue;
-      if (!map[g.winner_telegram_id]) {
-        map[g.winner_telegram_id] = { first_name: g.winner_first_name || 'User', wins: 0, total_prize: 0 };
+    for (const u of usersData || []) {
+      if (!map[u.telegram_id]) {
+        map[u.telegram_id] = { first_name: u.first_name || 'User', wins: Number(u.total_wins) || 0, total_prize: 0 };
+      } else {
+        map[u.telegram_id].wins = Math.max(map[u.telegram_id].wins, Number(u.total_wins) || 0);
       }
-      map[g.winner_telegram_id].wins++;
-      map[g.winner_telegram_id].total_prize += g.winner_prize || 0;
     }
-    topPlayers = Object.entries(map)
-      .sort((a, b) => b[1].wins - a[1].wins)
-      .slice(0, 50)
-      .map(([tid, v], i) => ({
-        rank: i + 1,
-        telegram_id: tid,
-        first_name: v.first_name,
-        username: '',
-        wins: v.wins,
-        total_prize: v.total_prize,
-      }));
   }
+
+  // Fetch clean profile names and usernames for all candidates
+  const allTgIds = Object.keys(map);
+  const userProfiles: Record<string, { first_name: string; username: string }> = {};
+  if (allTgIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('users')
+      .select('telegram_id, first_name, username')
+      .in('telegram_id', allTgIds);
+
+    for (const p of profiles || []) {
+      userProfiles[p.telegram_id] = {
+        first_name: p.first_name || 'User',
+        username: p.username || '',
+      };
+    }
+  }
+
+  topPlayers = Object.entries(map)
+    .sort((a, b) => b[1].wins - a[1].wins)
+    .slice(0, 50)
+    .map(([tid, v], i) => ({
+      rank: i + 1,
+      telegram_id: tid,
+      first_name: userProfiles[tid]?.first_name || v.first_name.replace(/^[🚀\s]*EARLY\s+BINGO:\s*/i, ''),
+      username: userProfiles[tid]?.username || '',
+      wins: v.wins,
+      total_prize: v.total_prize,
+    }));
 
   // Find current user's rank
   const myRank = topPlayers.findIndex(p => p.telegram_id === telegramId) + 1;
@@ -81,15 +116,23 @@ router.get('/players', async (req: AuthRequest, res) => {
   res.json({ players: topPlayers, my_rank: myRank || null });
 });
 
-// GET /api/leaderboard/inviters — top users by number of invited users who deposited
+// GET /api/leaderboard/inviters?period=all|daily|weekly|monthly|yearly
 router.get('/inviters', async (req: AuthRequest, res) => {
+  const period = (req.query.period as string) || 'all';
   const telegramId = req.telegramUser!.id.toString();
+  const fromDate = getPeriodFromDate(period);
 
   // Get all users with inviter_id set
-  const { data: invited } = await supabase
+  let invQuery = supabase
     .from('users')
-    .select('inviter_id')
+    .select('inviter_id, created_at')
     .not('inviter_id', 'is', null);
+
+  if (fromDate) {
+    invQuery = invQuery.gte('created_at', fromDate);
+  }
+
+  const { data: invited } = await invQuery;
 
   // Count invites per inviter
   const countMap: Record<string, number> = {};

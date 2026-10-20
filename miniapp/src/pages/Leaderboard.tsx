@@ -6,7 +6,7 @@ import { t } from '../lib/translations';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
-type Period = 'all' | 'daily' | 'weekly' | 'monthly';
+type Period = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'all';
 type Tab = 'players' | 'inviters';
 
 interface Player {
@@ -58,6 +58,7 @@ export default function Leaderboard() {
     { key: 'daily', label: t[language].leaderboard.periodDaily },
     { key: 'weekly', label: t[language].leaderboard.periodWeekly },
     { key: 'monthly', label: t[language].leaderboard.periodMonthly },
+    { key: 'yearly', label: t[language].leaderboard.periodYearly },
     { key: 'all', label: t[language].leaderboard.periodAll },
   ];
   const [tab, setTab] = useState<Tab>('players');
@@ -82,8 +83,8 @@ export default function Leaderboard() {
     }
   }, [headers]);
 
-  const fetchInviters = useCallback(async () => {
-    const res = await fetch(`${API_URL}/leaderboard/inviters`, { headers: headers() });
+  const fetchInviters = useCallback(async (p: Period) => {
+    const res = await fetch(`${API_URL}/leaderboard/inviters?period=${p}`, { headers: headers() });
     if (res.ok) {
       const data = await res.json();
       setInviters(data.inviters || []);
@@ -96,7 +97,7 @@ export default function Leaderboard() {
     else setLoading(true);
     try {
       if (t === 'players') await fetchPlayers(p);
-      else await fetchInviters();
+      else await fetchInviters(p);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -164,24 +165,22 @@ export default function Leaderboard() {
         </div>
       </div>
 
-      {/* ── PERIOD FILTER (players only) ── */}
-      {tab === 'players' && (
-        <div className="px-4 pt-3 pb-1 flex gap-2">
-          {PERIODS.map(p => (
-            <button
-              key={p.key}
-              onClick={() => handlePeriod(p.key)}
-              className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
-                period === p.key
-                  ? 'bg-yellow-400 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-400'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* ── PERIOD FILTER ── */}
+      <div className="px-3 pt-3 pb-1 grid grid-cols-5 gap-1.5">
+        {PERIODS.map(p => (
+          <button
+            key={p.key}
+            onClick={() => handlePeriod(p.key)}
+            className={`py-1.5 rounded-lg text-[10.5px] sm:text-[11px] font-bold transition-all text-center truncate ${
+              period === p.key
+                ? 'bg-yellow-400 text-white shadow-sm'
+                : 'bg-slate-100 text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20">

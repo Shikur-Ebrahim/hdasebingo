@@ -17,6 +17,7 @@ export const t = {
       periodDaily: 'Daily',
       periodWeekly: 'Weekly',
       periodMonthly: 'Monthly',
+      periodYearly: 'Yearly',
       periodAll: 'All'
     },
     nav: {
@@ -419,6 +420,7 @@ export const t = {
       periodDaily: 'ዕለታዊ',
       periodWeekly: 'ሳምንታዊ',
       periodMonthly: 'ወርሃዊ',
+      periodYearly: 'ዓመታዊ',
       periodAll: 'ሁሉም'
     },
     nav: {
