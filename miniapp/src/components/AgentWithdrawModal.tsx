@@ -476,7 +476,7 @@ export default function AgentWithdrawModal({ onClose, onOpenAttackBank }: Props)
                 onClick={handleAmountContinue}
                 className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-sm shadow-[0_4px_16px_rgba(249,115,22,0.35)] active:scale-95 transition-all flex items-center justify-center gap-2 mt-2"
               >
-                <span>Continue to PIN</span>
+                <span>Withdraw</span>
                 <Lock size={15} />
               </button>
             </div>
