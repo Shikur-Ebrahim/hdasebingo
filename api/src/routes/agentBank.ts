@@ -1,9 +1,10 @@
 /**
  * Agent Bank Account — Save / retrieve bank details ONLY
- * No withdrawal, no balance deduction, nothing else.
+ * No withdrawal, no balance deduction.
  *
  * GET  /api/agent-bank/saved       — get agent's saved bank info
- * POST /api/agent-bank/save        — create (first time) bank info
+ * POST /api/agent-bank/verify-pin  — verify if previous/current PIN is correct
+ * POST /api/agent-bank/save        — create bank info
  * POST /api/agent-bank/update      — update bank info (requires current PIN)
  * POST /api/agent-bank/change-pin  — change PIN (requires current PIN + new PIN)
  */
@@ -55,7 +56,40 @@ router.get('/saved', requireAgent, async (req: AuthRequest, res: Response) => {
 });
 
 // ─────────────────────────────────────────────
-// POST /api/agent-bank/save  (first-time only)
+// POST /api/agent-bank/verify-pin
+// Validates if input PIN matches existing saved PIN
+// ─────────────────────────────────────────────
+router.post('/verify-pin', requireAgent, async (req: AuthRequest, res: Response) => {
+  const telegramId = req.telegramUser!.id.toString();
+  const { pin } = req.body;
+
+  if (!pin || !/^\d{6}$/.test(pin)) {
+    res.status(400).json({ valid: false, error: 'PIN must be exactly 6 digits.' });
+    return;
+  }
+
+  const { data: existing } = await supabase
+    .from('agent_bank_accounts')
+    .select('id, pin_hash, pin_salt')
+    .eq('telegram_id', telegramId)
+    .maybeSingle();
+
+  if (!existing) {
+    res.status(404).json({ valid: false, error: 'No saved bank account found.' });
+    return;
+  }
+
+  const isValid = verifyPin(pin, existing.pin_hash, existing.pin_salt);
+  if (!isValid) {
+    res.status(401).json({ valid: false, error: 'Incorrect PIN. Please enter your valid saved PIN.' });
+    return;
+  }
+
+  res.json({ valid: true });
+});
+
+// ─────────────────────────────────────────────
+// POST /api/agent-bank/save  (first-time save or upsert)
 // ─────────────────────────────────────────────
 router.post('/save', requireAgent, async (req: AuthRequest, res: Response) => {
   const telegramId = req.telegramUser!.id.toString();
@@ -70,34 +104,47 @@ router.post('/save', requireAgent, async (req: AuthRequest, res: Response) => {
     return;
   }
 
-  // Reject if account already exists — use /update instead
   const { data: existing } = await supabase
     .from('agent_bank_accounts')
     .select('id')
     .eq('telegram_id', telegramId)
     .maybeSingle();
 
-  if (existing) {
-    res.status(400).json({ error: 'Account already saved. Use update endpoint.' });
-    return;
-  }
-
   const salt = crypto.randomBytes(16).toString('hex');
   const pin_hash = hashPin(pin, salt);
 
-  const { error } = await supabase
-    .from('agent_bank_accounts')
-    .insert([{
-      telegram_id: telegramId,
-      bank_name: bank_name.trim(),
-      account_holder_name: account_holder_name.trim(),
-      account_number: account_number.trim(),
-      pin_hash,
-      pin_salt: salt,
-    }]);
+  if (existing) {
+    // If account already exists, update details & new PIN
+    const { error } = await supabase
+      .from('agent_bank_accounts')
+      .update({
+        bank_name: bank_name.trim(),
+        account_holder_name: account_holder_name.trim(),
+        account_number: account_number.trim(),
+        pin_hash,
+        pin_salt: salt,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('telegram_id', telegramId);
 
-  if (error) { res.status(500).json({ error: error.message }); return; }
-  res.json({ success: true, action: 'created' });
+    if (error) { res.status(500).json({ error: error.message }); return; }
+    res.json({ success: true, action: 'updated' });
+  } else {
+    // Insert new
+    const { error } = await supabase
+      .from('agent_bank_accounts')
+      .insert([{
+        telegram_id: telegramId,
+        bank_name: bank_name.trim(),
+        account_holder_name: account_holder_name.trim(),
+        account_number: account_number.trim(),
+        pin_hash,
+        pin_salt: salt,
+      }]);
+
+    if (error) { res.status(500).json({ error: error.message }); return; }
+    res.json({ success: true, action: 'created' });
+  }
 });
 
 // ─────────────────────────────────────────────
@@ -127,9 +174,9 @@ router.post('/update', requireAgent, async (req: AuthRequest, res: Response) => 
     return;
   }
 
-  // Verify current PIN
+  // Strict check on previous PIN
   if (!verifyPin(current_pin, existing.pin_hash, existing.pin_salt)) {
-    res.status(401).json({ error: 'Incorrect PIN. Please enter your saved PIN to update.' });
+    res.status(401).json({ error: 'Incorrect previous PIN! You must enter your correct saved PIN to update.' });
     return;
   }
 
@@ -178,8 +225,9 @@ router.post('/change-pin', requireAgent, async (req: AuthRequest, res: Response)
     return;
   }
 
+  // Strict check on current PIN
   if (!verifyPin(current_pin, existing.pin_hash, existing.pin_salt)) {
-    res.status(401).json({ error: 'Incorrect current PIN.' });
+    res.status(401).json({ error: 'Incorrect current PIN! Not accepted.' });
     return;
   }
 

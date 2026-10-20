@@ -1,10 +1,10 @@
 /**
  * AgentAttackBank — Save bank details only (Attack Bank)
- * Features:
- *  1. Authentic bank logos displayed properly
- *  2. Update bank details requires the previous/current saved PIN
- *  3. Dedicated "Change PIN" button (current PIN -> new PIN -> confirm new PIN)
- *  4. 100% mobile-first, clean UI
+ * 1. Only active methods (10 verified banks/wallets) with authentic logos
+ * 2. Empty default account holder name (no prefill from agent Telegram name)
+ * 3. Prevents any accidental backdrop closes / page refreshes
+ * 4. Updating bank details strictly verifies previous PIN
+ * 5. Change PIN strictly verifies current PIN before accepting new PIN
  */
 import { useState, useEffect } from 'react';
 import WebApp from '@twa-dev/sdk';
@@ -14,8 +14,6 @@ import {
   CheckCircle2,
   ArrowLeft,
   AlertCircle,
-  Eye,
-  EyeOff,
   Loader2,
   User,
   Hash,
@@ -25,7 +23,6 @@ import {
   KeyRound,
   Sparkles,
 } from 'lucide-react';
-import { useGameStore } from '../store/gameStore';
 
 const API = import.meta.env.VITE_API_URL || '/api';
 
@@ -37,8 +34,8 @@ export interface BankItem {
   color: string;
 }
 
-// Initial verified Ethiopian Banks and Wallets with real official R2 logos
-const INITIAL_BANKS: BankItem[] = [
+// Exactly the 10 active, verified Ethiopian banking & mobile money methods
+const VERIFIED_BANKS: BankItem[] = [
   {
     id: 'cbe',
     name: 'Commercial Bank of Ethiopia',
@@ -109,55 +106,6 @@ const INITIAL_BANKS: BankItem[] = [
     logo_url: 'https://pub-44e6a703661947efa8e5748167d79a4d.r2.dev/users/8437261432/57ea63c35b17ccd6.jpg',
     color: 'from-amber-600 to-orange-700',
   },
-  {
-    id: 'coop',
-    name: 'Cooperative Bank of Oromia',
-    code: 'COOP',
-    logo_url: '',
-    color: 'from-indigo-600 to-blue-700',
-  },
-  {
-    id: 'hibret',
-    name: 'Hibret Bank',
-    code: 'HIBRET',
-    logo_url: '',
-    color: 'from-yellow-500 to-amber-600',
-  },
-  {
-    id: 'nib',
-    name: 'Nib International Bank',
-    code: 'NIB',
-    logo_url: '',
-    color: 'from-purple-600 to-indigo-700',
-  },
-  {
-    id: 'zemen',
-    name: 'Zemen Bank',
-    code: 'ZEMEN',
-    logo_url: '',
-    color: 'from-amber-500 to-orange-600',
-  },
-  {
-    id: 'oromia',
-    name: 'Oromia Bank',
-    code: 'OROMIA',
-    logo_url: '',
-    color: 'from-emerald-600 to-teal-700',
-  },
-  {
-    id: 'amole',
-    name: 'Amole',
-    code: 'AMOLE',
-    logo_url: '',
-    color: 'from-rose-600 to-red-700',
-  },
-  {
-    id: 'hello_cash',
-    name: 'HelloCash',
-    code: 'HELLOCASH',
-    logo_url: '',
-    color: 'from-green-500 to-emerald-600',
-  },
 ];
 
 interface SavedAccount {
@@ -173,11 +121,11 @@ type Step =
   | 'saved_view'
   | 'bank'
   | 'details'
-  | 'pin_create'        // First time PIN creation
-  | 'pin_verify_update' // Previous PIN verification for updating bank details
-  | 'change_pin_current'// Change PIN - step 1: enter current PIN
-  | 'change_pin_new'    // Change PIN - step 2: enter new PIN
-  | 'change_pin_confirm'// Change PIN - step 3: confirm new PIN
+  | 'pin_create'        // First-time PIN setup
+  | 'pin_verify_update' // Previous PIN verification to update details
+  | 'change_pin_current'// Change PIN - Step 1: verify current PIN
+  | 'change_pin_new'    // Change PIN - Step 2: enter new PIN
+  | 'change_pin_confirm'// Change PIN - Step 3: confirm new PIN
   | 'done';
 
 interface Props {
@@ -191,29 +139,29 @@ const haptic = (style: 'light' | 'medium' | 'heavy' = 'light') => {
 };
 
 export default function AgentAttackBank({ onClose }: Props) {
-  const { user } = useGameStore();
-
   const [step, setStep] = useState<Step>('loading');
-  const [banks, setBanks] = useState<BankItem[]>(INITIAL_BANKS);
+  const [banks, setBanks] = useState<BankItem[]>(VERIFIED_BANKS);
   const [savedAccount, setSavedAccount] = useState<SavedAccount | null>(null);
   const [selectedBank, setSelectedBank] = useState<BankItem | null>(null);
+
+  // Form inputs — empty by default, NO agent Telegram name prefill!
   const [holderName, setHolderName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
 
-  // PIN states
+  // PIN inputs
   const [pin, setPin] = useState('');
   const [currentPin, setCurrentPin] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
-  const [showPin, setShowPin] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [doneTitle, setDoneTitle] = useState('Bank Saved!');
   const [doneDesc, setDoneDesc] = useState('Your bank details are secured with PIN');
 
-  // Load saved account & live bank method logos from server
+  // Load saved account & live logos from backend on mount
   useEffect(() => {
+    let isMounted = true;
     (async () => {
       try {
         const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
@@ -223,7 +171,7 @@ export default function AgentAttackBank({ onClose }: Props) {
         const savedRes = await fetch(`${API}/agent-bank/saved`, { headers });
         const savedData = await savedRes.json();
 
-        // 2. Fetch live deposit & withdraw method logos to merge dynamically
+        // 2. Fetch live method logos to keep them 100% synchronized
         try {
           const [depRes, withRes] = await Promise.all([
             fetch(`${API}/deposit/methods`, { headers }).then(r => r.ok ? r.json() : []),
@@ -238,27 +186,34 @@ export default function AgentAttackBank({ onClose }: Props) {
             withRes.forEach((m: any) => { if (m.type && m.logo_url) logoMap[m.type.toLowerCase()] = m.logo_url; });
           }
 
-          setBanks(prev => prev.map(b => ({
-            ...b,
-            logo_url: logoMap[b.id.toLowerCase()] || b.logo_url,
-          })));
+          if (isMounted) {
+            setBanks(prev => prev.map(b => ({
+              ...b,
+              logo_url: logoMap[b.id.toLowerCase()] || b.logo_url,
+            })));
+          }
         } catch {}
 
-        if (savedData && savedData.id) {
-          setSavedAccount(savedData);
-          setStep('saved_view');
-        } else {
-          if (user?.first_name) setHolderName(user.first_name);
-          setStep('bank');
+        if (isMounted) {
+          if (savedData && savedData.id) {
+            setSavedAccount(savedData);
+            setStep('saved_view');
+          } else {
+            // First time — holderName stays completely empty!
+            setStep('bank');
+          }
         }
       } catch {
-        if (user?.first_name) setHolderName(user.first_name);
-        setStep('bank');
+        if (isMounted) {
+          setStep('bank');
+        }
       }
     })();
-  }, [user]);
 
-  // Helper to find bank info
+    return () => { isMounted = false; };
+  }, []);
+
+  // Helper to find bank
   const findBank = (bankName: string): BankItem => {
     return (
       banks.find(b => b.name.toLowerCase() === bankName.toLowerCase()) ||
@@ -266,7 +221,9 @@ export default function AgentAttackBank({ onClose }: Props) {
     );
   };
 
-  // ── Actions ──
+  // ── Flows ──
+
+  // 1. Start editing existing bank account
   const startEditBank = () => {
     haptic('medium');
     setError('');
@@ -278,6 +235,7 @@ export default function AgentAttackBank({ onClose }: Props) {
     setStep('bank');
   };
 
+  // 2. Start Change PIN flow
   const startChangePin = () => {
     haptic('medium');
     setError('');
@@ -287,6 +245,7 @@ export default function AgentAttackBank({ onClose }: Props) {
     setStep('change_pin_current');
   };
 
+  // Select Bank from list
   const handleSelectBank = (b: BankItem) => {
     haptic('medium');
     setSelectedBank(b);
@@ -294,24 +253,25 @@ export default function AgentAttackBank({ onClose }: Props) {
     setStep('details');
   };
 
+  // Account details continue
   const handleDetailsNext = () => {
     setError('');
-    if (!holderName.trim()) { setError('Please enter account holder name.'); return; }
+    if (!holderName.trim()) { setError('Please enter account holder full name.'); return; }
     if (!accountNumber.trim()) { setError('Please enter account number.'); return; }
     haptic('medium');
 
     if (savedAccount) {
-      // If updating existing bank account, ask for PREVIOUS PIN!
+      // Modifying existing bank -> strictly require previous PIN!
       setCurrentPin('');
       setStep('pin_verify_update');
     } else {
-      // First time saving
+      // First time saving -> set 6-digit PIN
       setPin('');
       setStep('pin_create');
     }
   };
 
-  // 1. First-time save handler
+  // ── First-Time Save ──
   const handleSaveFirstTime = async () => {
     setError('');
     if (!/^\d{6}$/.test(pin)) { setError('PIN must be exactly 6 digits.'); return; }
@@ -334,13 +294,14 @@ export default function AgentAttackBank({ onClose }: Props) {
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Failed to save bank details.'); return; }
 
-      setSavedAccount({
-        id: 'new',
+      const updated = {
+        id: 'saved',
         bank_name: selectedBank!.name,
         account_holder_name: holderName.trim(),
         account_number: accountNumber.trim(),
         updated_at: new Date().toISOString(),
-      });
+      };
+      setSavedAccount(updated);
       setDoneTitle('Bank Saved! 🎉');
       setDoneDesc('Your bank account is now saved and secured with your PIN');
       setStep('done');
@@ -348,13 +309,13 @@ export default function AgentAttackBank({ onClose }: Props) {
         WebApp.HapticFeedback.notificationOccurred('success');
       }
     } catch {
-      setError('Network error. Please try again.');
+      setError('Network error. Please check your connection.');
     } finally {
       setLoading(false);
     }
   };
 
-  // 2. Update bank details with previous PIN
+  // ── Update Bank Details (With Previous PIN verification) ──
   const handleUpdateWithPrevPin = async () => {
     setError('');
     if (!/^\d{6}$/.test(currentPin)) { setError('Please enter your 6-digit previous PIN.'); return; }
@@ -376,19 +337,20 @@ export default function AgentAttackBank({ onClose }: Props) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || 'Incorrect previous PIN. Please try again.');
+        setError(data.error || 'Incorrect previous PIN! You must enter your correct saved PIN.');
         return;
       }
 
-      setSavedAccount({
+      const updated = {
         id: savedAccount?.id || 'updated',
         bank_name: selectedBank!.name,
         account_holder_name: holderName.trim(),
         account_number: accountNumber.trim(),
         updated_at: new Date().toISOString(),
-      });
+      };
+      setSavedAccount(updated);
       setDoneTitle('Bank Details Updated! ✅');
-      setDoneDesc('Your account details have been securely updated');
+      setDoneDesc('Your account details have been updated successfully');
       setStep('done');
       if (typeof WebApp !== 'undefined' && WebApp.HapticFeedback) {
         WebApp.HapticFeedback.notificationOccurred('success');
@@ -400,17 +362,43 @@ export default function AgentAttackBank({ onClose }: Props) {
     }
   };
 
-  // 3. Change PIN handlers
-  const handleCurrentPinSubmit = () => {
+  // ── Change PIN Step 1: Verify Current PIN against Backend Immediately! ──
+  const handleVerifyCurrentPin = async () => {
+    setError('');
     if (!/^\d{6}$/.test(currentPin)) {
       setError('Please enter your 6-digit current PIN.');
       return;
     }
-    setError('');
+    setLoading(true);
     haptic('medium');
-    setStep('change_pin_new');
+    try {
+      const res = await fetch(`${API}/agent-bank/verify-pin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-init-data': WebApp.initData,
+        },
+        body: JSON.stringify({ pin: currentPin }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.valid) {
+        setError(data.error || 'Incorrect current PIN! Not accepted.');
+        return;
+      }
+
+      // Valid current PIN confirmed -> proceed to Enter New PIN!
+      haptic('heavy');
+      setNewPin('');
+      setConfirmPin('');
+      setStep('change_pin_new');
+    } catch {
+      setError('Network error. Could not verify PIN.');
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Change PIN Step 2: Validate New PIN format
   const handleNewPinSubmit = () => {
     if (!/^\d{6}$/.test(newPin)) {
       setError('New PIN must be exactly 6 digits.');
@@ -422,9 +410,11 @@ export default function AgentAttackBank({ onClose }: Props) {
     }
     setError('');
     haptic('medium');
+    setConfirmPin('');
     setStep('change_pin_confirm');
   };
 
+  // Change PIN Step 3: Confirm & Submit
   const handleConfirmPinSubmit = async () => {
     if (confirmPin !== newPin) {
       setError('PINs do not match. Please re-enter.');
@@ -452,7 +442,7 @@ export default function AgentAttackBank({ onClose }: Props) {
       }
 
       setDoneTitle('PIN Changed Successfully! 🔐');
-      setDoneDesc('Your new PIN is now active. Keep it safe.');
+      setDoneDesc('Your new PIN is now active and securing your account.');
       setStep('done');
       if (typeof WebApp !== 'undefined' && WebApp.HapticFeedback) {
         WebApp.HapticFeedback.notificationOccurred('success');
@@ -474,7 +464,7 @@ export default function AgentAttackBank({ onClose }: Props) {
     }
   };
 
-  // Back button logic
+  // Back button navigation
   const goBack = () => {
     setError('');
     if (step === 'details') {
@@ -496,10 +486,10 @@ export default function AgentAttackBank({ onClose }: Props) {
     }
   };
 
-  // Helper component to render authentic Bank Logo
-  const renderBankLogo = (bank: BankItem, sizeClass = 'w-12 h-12', roundedClass = 'rounded-2xl') => {
+  // Render authentic Bank Logo
+  const renderBankLogo = (bank: BankItem, sizeClass = 'w-11 h-11') => {
     return (
-      <div className={`${sizeClass} ${roundedClass} bg-white border border-slate-200/90 shadow-2xs flex items-center justify-center p-1 shrink-0 overflow-hidden relative`}>
+      <div className={`${sizeClass} rounded-2xl bg-white border border-slate-200/90 shadow-2xs flex items-center justify-center p-1 shrink-0 overflow-hidden relative`}>
         {bank.logo_url ? (
           <img
             src={bank.logo_url}
@@ -507,13 +497,13 @@ export default function AgentAttackBank({ onClose }: Props) {
             className="w-full h-full object-contain rounded-xl"
             onError={(e) => {
               e.currentTarget.style.display = 'none';
-              const fallback = e.currentTarget.parentElement?.querySelector('.logo-fallback') as HTMLElement;
-              if (fallback) fallback.style.display = 'flex';
+              const fb = e.currentTarget.parentElement?.querySelector('.logo-fb') as HTMLElement;
+              if (fb) fb.style.display = 'flex';
             }}
           />
         ) : null}
         <span
-          className="logo-fallback hidden w-full h-full rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white font-black text-[11px] items-center justify-center tracking-wider uppercase text-center shadow-inner"
+          className="logo-fb hidden w-full h-full rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white font-black text-[10px] items-center justify-center tracking-wider uppercase text-center"
           style={{ display: bank.logo_url ? 'none' : 'flex' }}
         >
           {bank.code.slice(0, 4)}
@@ -530,7 +520,11 @@ export default function AgentAttackBank({ onClose }: Props) {
           <button
             key={idx}
             type="button"
-            onClick={() => k !== '' && handleKeyPad(k, currentVal, setter)}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (k !== '') handleKeyPad(k, currentVal, setter);
+            }}
             disabled={k === ''}
             className={`h-13 rounded-2xl font-black text-lg transition-all active:scale-90 ${
               k === '⌫'
@@ -548,15 +542,25 @@ export default function AgentAttackBank({ onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-end justify-center" onClick={onClose}>
-      {/* Dim backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+    <div
+      className="fixed inset-0 z-[200] flex items-end justify-center select-none"
+      onClick={(e) => {
+        // Only close if clicking directly on the outer backdrop, NEVER on children!
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-none"
+      />
 
       {/* Slide-up sheet */}
       <div
-        className="relative w-full max-w-md bg-white rounded-t-[32px] overflow-hidden shadow-2xl flex flex-col"
+        className="relative w-full max-w-md bg-white rounded-t-[32px] overflow-hidden shadow-2xl flex flex-col z-10"
         style={{ maxHeight: '92vh' }}
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Drag handle */}
         <div className="flex justify-center pt-3 shrink-0">
@@ -568,6 +572,7 @@ export default function AgentAttackBank({ onClose }: Props) {
           <div className="flex items-center gap-2.5">
             {step !== 'loading' && step !== 'saved_view' && step !== 'done' && (
               <button
+                type="button"
                 onClick={goBack}
                 className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 active:bg-slate-200 transition-colors"
               >
@@ -585,24 +590,25 @@ export default function AgentAttackBank({ onClose }: Props) {
                 {step === 'change_pin_current' && '🔑 Current PIN'}
                 {step === 'change_pin_new'     && '🔐 New 6-Digit PIN'}
                 {step === 'change_pin_confirm' && '✨ Confirm New PIN'}
-                {step === 'done'               && '🎉 Success'}
+                {step === 'done'               && '🎉 Saved'}
               </h2>
               <p className="text-[10px] text-slate-400 font-bold">
                 {step === 'saved_view'         && 'Agent payment details • PIN protected'}
                 {step === 'bank'               && 'Choose your bank to save or update'}
-                {step === 'details'            && 'Enter your official banking details'}
-                {step === 'pin_create'         && 'Create a PIN to secure your saved bank'}
-                {step === 'pin_verify_update'  && 'Authorization required to change bank info'}
-                {step === 'change_pin_current' && 'Step 1 of 3: Verify existing PIN'}
+                {step === 'details'            && 'Enter your full name & account number'}
+                {step === 'pin_create'         && 'Create a 6-digit PIN to secure your account'}
+                {step === 'pin_verify_update'  && 'Previous PIN required to authorize updates'}
+                {step === 'change_pin_current' && 'Step 1 of 3: Enter your current PIN'}
                 {step === 'change_pin_new'     && 'Step 2 of 3: Enter your new PIN'}
                 {step === 'change_pin_confirm' && 'Step 3 of 3: Re-enter to confirm'}
-                {step === 'done'               && 'Changes saved safely in database'}
+                {step === 'done'               && 'All information updated safely'}
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-800"
+            className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-800 active:scale-95 transition-all"
           >
             <X size={15} />
           </button>
@@ -627,24 +633,19 @@ export default function AgentAttackBank({ onClose }: Props) {
             </div>
           )}
 
-          {/* ══ 1. SAVED VIEW (Beautiful Debit Card UI + Update Details + Change PIN) ══ */}
+          {/* ══ 1. SAVED VIEW ══ */}
           {step === 'saved_view' && savedAccount && (
             <div className="px-5 py-5 space-y-4">
-              {/* ATM / Debit Card Hero */}
+              {/* Debit Card Card Hero */}
               <div className="relative rounded-3xl overflow-hidden shadow-lg">
-                {/* Metallic gradient background */}
                 <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-black" />
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(251,191,36,0.18)_0%,transparent_65%)]" />
 
-                {/* Decorative chip & curves */}
-                <div className="absolute -right-10 -bottom-10 w-44 h-44 rounded-full border border-white/5 pointer-events-none" />
-                <div className="absolute -right-4 -bottom-4 w-28 h-28 rounded-full border border-white/5 pointer-events-none" />
-
                 <div className="relative p-6 space-y-6">
-                  {/* Top: Logo + Name + Status */}
+                  {/* Bank info */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      {renderBankLogo(findBank(savedAccount.bank_name), 'w-11 h-11', 'rounded-xl')}
+                      {renderBankLogo(findBank(savedAccount.bank_name), 'w-11 h-11')}
                       <div>
                         <p className="text-white font-black text-sm leading-tight">
                           {savedAccount.bank_name}
@@ -693,6 +694,7 @@ export default function AgentAttackBank({ onClose }: Props) {
               <div className="space-y-2.5 pt-1">
                 {/* Button 1: Update Bank Details (Requires Previous PIN) */}
                 <button
+                  type="button"
                   onClick={startEditBank}
                   className="w-full py-4 px-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-sm shadow-[0_4px_16px_rgba(249,115,22,0.35)] active:scale-95 transition-all flex items-center justify-between"
                 >
@@ -710,6 +712,7 @@ export default function AgentAttackBank({ onClose }: Props) {
 
                 {/* Button 2: Dedicated Change PIN button */}
                 <button
+                  type="button"
                   onClick={startChangePin}
                   className="w-full py-4 px-4 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200/90 text-slate-800 font-black text-sm active:scale-95 transition-all flex items-center justify-between shadow-2xs"
                 >
@@ -727,6 +730,7 @@ export default function AgentAttackBank({ onClose }: Props) {
               </div>
 
               <button
+                type="button"
                 onClick={onClose}
                 className="w-full py-3 text-slate-400 hover:text-slate-600 font-bold text-xs"
               >
@@ -735,7 +739,7 @@ export default function AgentAttackBank({ onClose }: Props) {
             </div>
           )}
 
-          {/* ══ 2. BANK SELECT (With crisp authentic logos) ══ */}
+          {/* ══ 2. BANK SELECT (Only the 10 real verified banks) ══ */}
           {step === 'bank' && (
             <div className="px-5 py-4 pb-8 space-y-3">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -745,6 +749,7 @@ export default function AgentAttackBank({ onClose }: Props) {
                 {banks.map(b => (
                   <button
                     key={b.id}
+                    type="button"
                     onClick={() => handleSelectBank(b)}
                     className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl border transition-all active:scale-[0.98] ${
                       selectedBank?.id === b.id
@@ -752,7 +757,7 @@ export default function AgentAttackBank({ onClose }: Props) {
                         : 'bg-white hover:bg-slate-50 border-slate-200/80'
                     }`}
                   >
-                    {renderBankLogo(b, 'w-11 h-11', 'rounded-xl')}
+                    {renderBankLogo(b, 'w-11 h-11')}
                     <div className="flex-1 text-left min-w-0">
                       <p className="text-sm font-black text-slate-900 leading-snug truncate">
                         {b.name}
@@ -773,7 +778,7 @@ export default function AgentAttackBank({ onClose }: Props) {
             <div className="px-5 py-4 pb-8 space-y-4">
               {/* Selected Bank Banner */}
               <div className="flex items-center gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80">
-                {renderBankLogo(selectedBank, 'w-12 h-12', 'rounded-xl')}
+                {renderBankLogo(selectedBank, 'w-12 h-12')}
                 <div>
                   <p className="text-sm font-black text-slate-900 leading-tight">
                     {selectedBank.name}
@@ -784,7 +789,7 @@ export default function AgentAttackBank({ onClose }: Props) {
                 </div>
               </div>
 
-              {/* Account Holder Name */}
+              {/* Account Holder Name — NO agent default prefill */}
               <div className="space-y-1.5">
                 <label className="flex items-center gap-1.5 text-[11px] font-black text-slate-500 uppercase tracking-wider">
                   <User size={12} /> Account Holder Full Name
@@ -793,7 +798,7 @@ export default function AgentAttackBank({ onClose }: Props) {
                   type="text"
                   value={holderName}
                   onChange={e => setHolderName(e.target.value)}
-                  placeholder="e.g. Abebe Bikila"
+                  placeholder="Enter account holder full name"
                   className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-900 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all"
                 />
               </div>
@@ -808,7 +813,7 @@ export default function AgentAttackBank({ onClose }: Props) {
                   inputMode="numeric"
                   value={accountNumber}
                   onChange={e => setAccountNumber(e.target.value.replace(/\D/g, ''))}
-                  placeholder="e.g. 10000488262045"
+                  placeholder="Enter account number or phone"
                   className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-900 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all"
                 />
               </div>
@@ -817,12 +822,13 @@ export default function AgentAttackBank({ onClose }: Props) {
                 <ShieldCheck size={16} className="text-amber-600 shrink-0 mt-0.5" />
                 <p className="text-xs text-amber-900 font-semibold leading-relaxed">
                   {savedAccount
-                    ? 'To update your bank details, you will be asked to enter your previous PIN next.'
+                    ? 'To update your bank details, you must enter your previous PIN next.'
                     : 'Your bank information will be securely saved and protected with your 6-digit PIN.'}
                 </p>
               </div>
 
               <button
+                type="button"
                 onClick={handleDetailsNext}
                 className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-sm shadow-[0_4px_16px_rgba(249,115,22,0.35)] active:scale-95 transition-all flex items-center justify-center gap-2"
               >
@@ -856,10 +862,10 @@ export default function AgentAttackBank({ onClose }: Props) {
                 ))}
               </div>
 
-              {/* Numpad */}
               {renderNumpad(pin, setPin)}
 
               <button
+                type="button"
                 onClick={handleSaveFirstTime}
                 disabled={loading || pin.length !== 6}
                 className={`w-full py-4 rounded-2xl font-black text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 ${
@@ -882,7 +888,7 @@ export default function AgentAttackBank({ onClose }: Props) {
                 </div>
                 <p className="text-sm font-black text-slate-900">Enter Previous PIN</p>
                 <p className="text-[11px] text-slate-500 font-semibold max-w-xs mx-auto">
-                  To update your bank details, please enter the previous 6-digit PIN you saved
+                  To update your bank details, please enter your previous 6-digit PIN
                 </p>
               </div>
 
@@ -900,10 +906,10 @@ export default function AgentAttackBank({ onClose }: Props) {
                 ))}
               </div>
 
-              {/* Numpad */}
               {renderNumpad(currentPin, setCurrentPin)}
 
               <button
+                type="button"
                 onClick={handleUpdateWithPrevPin}
                 disabled={loading || currentPin.length !== 6}
                 className={`w-full py-4 rounded-2xl font-black text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 ${
@@ -921,7 +927,7 @@ export default function AgentAttackBank({ onClose }: Props) {
             </div>
           )}
 
-          {/* ══ 6. CHANGE PIN - STEP 1: CURRENT PIN ══ */}
+          {/* ══ 6. CHANGE PIN - STEP 1: CURRENT PIN (Verifies with backend immediately!) ══ */}
           {step === 'change_pin_current' && (
             <div className="px-5 py-4 pb-8 space-y-4">
               <div className="text-center space-y-1">
@@ -950,16 +956,20 @@ export default function AgentAttackBank({ onClose }: Props) {
               {renderNumpad(currentPin, setCurrentPin)}
 
               <button
-                onClick={handleCurrentPinSubmit}
-                disabled={currentPin.length !== 6}
+                type="button"
+                onClick={handleVerifyCurrentPin}
+                disabled={loading || currentPin.length !== 6}
                 className={`w-full py-4 rounded-2xl font-black text-sm active:scale-95 transition-all flex items-center justify-center gap-2 ${
-                  currentPin.length === 6
+                  currentPin.length === 6 && !loading
                     ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md'
                     : 'bg-slate-100 text-slate-300 cursor-not-allowed'
                 }`}
               >
-                <span>Next: Enter New PIN</span>
-                <ChevronRight size={16} />
+                {loading ? (
+                  <><Loader2 size={16} className="animate-spin" /> Verifying current PIN...</>
+                ) : (
+                  <><span>Next: Enter New PIN</span><ChevronRight size={16} /></>
+                )}
               </button>
             </div>
           )}
@@ -993,6 +1003,7 @@ export default function AgentAttackBank({ onClose }: Props) {
               {renderNumpad(newPin, setNewPin)}
 
               <button
+                type="button"
                 onClick={handleNewPinSubmit}
                 disabled={newPin.length !== 6}
                 className={`w-full py-4 rounded-2xl font-black text-sm active:scale-95 transition-all flex items-center justify-center gap-2 ${
@@ -1036,6 +1047,7 @@ export default function AgentAttackBank({ onClose }: Props) {
               {renderNumpad(confirmPin, setConfirmPin)}
 
               <button
+                type="button"
                 onClick={handleConfirmPinSubmit}
                 disabled={loading || confirmPin.length !== 6}
                 className={`w-full py-4 rounded-2xl font-black text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 ${
@@ -1073,12 +1085,12 @@ export default function AgentAttackBank({ onClose }: Props) {
               {savedAccount && (
                 <div className="w-full bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-left space-y-2.5">
                   <div className="flex items-center gap-3">
-                    {renderBankLogo(findBank(savedAccount.bank_name), 'w-10 h-10', 'rounded-xl')}
+                    {renderBankLogo(findBank(savedAccount.bank_name), 'w-10 h-10')}
                     <div>
                       <p className="text-sm font-black text-slate-900 leading-tight">
                         {savedAccount.bank_name}
                       </p>
-                      <p className="text-[10px] text-slate-400 font-bold">
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">
                         {savedAccount.account_holder_name}
                       </p>
                     </div>
@@ -1100,6 +1112,7 @@ export default function AgentAttackBank({ onClose }: Props) {
               )}
 
               <button
+                type="button"
                 onClick={() => setStep('saved_view')}
                 className="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-sm shadow-[0_4px_16px_rgba(249,115,22,0.35)] active:scale-95 transition-all"
               >
