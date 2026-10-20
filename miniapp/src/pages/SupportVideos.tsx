@@ -1,7 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Play, X, Loader2, Video as VideoIcon, Headphones, ChevronUp, ChevronDown, MessageCircle } from 'lucide-react';
+import { 
+  ChevronLeft, Play, X, Loader2, Video as VideoIcon, Headphones, 
+  ChevronUp, ChevronDown, MessageCircle, Phone, Copy, Check, Send 
+} from 'lucide-react';
 import WebApp from '@twa-dev/sdk';
+import { useGameStore } from '../store/gameStore';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -40,28 +44,92 @@ export default function SupportVideos() {
   const touchEndY = useRef<number | null>(null);
   const lastWheelTime = useRef<number>(0);
 
+  const { language } = useGameStore();
+  const contactHubRef = useRef<HTMLDivElement>(null);
+  const [contact, setContact] = useState<{
+    username: string;
+    channel: string;
+    support_phone_usa: string;
+    support_phone_eth: string;
+  }>({
+    username: 'hdasebingo_admin',
+    channel: 'https://t.me/hdasebingo',
+    support_phone_usa: '+1 (984) 378-9510',
+    support_phone_eth: '+251999992524',
+  });
+  const [copiedType, setCopiedType] = useState<string | null>(null);
+
   const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
 
-  const handleSupport = async () => {
-    try {
-      const res = await fetch(`${API_URL}/player/support-contact`, {
-        headers: { 'x-telegram-init-data': initData },
-      });
-      const data = await res.json();
-      const username = (data.username || 'Mosque_Dona').replace('@', '').trim();
-      const url = `https://t.me/${username}`;
-      if (typeof WebApp !== 'undefined' && WebApp.openTelegramLink) {
-        WebApp.openTelegramLink(url);
-      } else {
-        window.open(url, '_blank');
-      }
-    } catch {
-      const fallbackUrl = 'https://t.me/Mosque_Dona';
-      if (typeof WebApp !== 'undefined' && WebApp.openTelegramLink) {
-        WebApp.openTelegramLink(fallbackUrl);
-      } else {
-        window.open(fallbackUrl, '_blank');
-      }
+  useEffect(() => {
+    fetch(`${API_URL}/player/support-contact`, {
+      headers: { 'x-telegram-init-data': initData },
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data) {
+          setContact({
+            username: (data.username || 'hdasebingo_admin').replace(/^@/, '').trim(),
+            channel: data.channel || 'https://t.me/hdasebingo',
+            support_phone_usa: data.support_phone_usa || '+1 (984) 378-9510',
+            support_phone_eth: data.support_phone_eth || '+251999992524',
+          });
+        }
+      })
+      .catch(() => {});
+  }, [initData]);
+
+  const formatEthPhone = (phone: string): string => {
+    if (!phone) return '+251 99 999 2524';
+    const clean = phone.replace(/[^\d+]/g, '');
+    if (clean.startsWith('+251') && clean.length === 13) {
+      return `${clean.slice(0, 4)} ${clean.slice(4, 6)} ${clean.slice(6, 9)} ${clean.slice(9)}`;
+    }
+    if (clean.startsWith('09') && clean.length === 10) {
+      return `+251 ${clean.slice(1, 3)} ${clean.slice(3, 6)} ${clean.slice(6)}`;
+    }
+    return phone;
+  };
+
+  const handleCall = (phoneNumber: string) => {
+    if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
+    const cleanNum = phoneNumber.replace(/[\s()\-]/g, '');
+    window.location.href = `tel:${cleanNum}`;
+  };
+
+  const handleCopy = (text: string, type: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedType(type);
+      if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.notificationOccurred('success');
+      setTimeout(() => setCopiedType(null), 2000);
+    });
+  };
+
+  const handleOpenTelegram = () => {
+    if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
+    const url = `https://t.me/${contact.username}`;
+    if (typeof WebApp !== 'undefined' && WebApp.openTelegramLink) {
+      WebApp.openTelegramLink(url);
+    } else {
+      window.open(url, '_blank');
+    }
+  };
+
+  const handleOpenChannel = () => {
+    if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
+    const url = contact.channel.startsWith('http') ? contact.channel : `https://t.me/${contact.channel.replace(/^@/, '')}`;
+    if (typeof WebApp !== 'undefined' && WebApp.openTelegramLink && url.includes('t.me')) {
+      WebApp.openTelegramLink(url);
+    } else {
+      window.open(url, '_blank');
+    }
+  };
+
+  const handleSupport = () => {
+    if (contactHubRef.current) {
+      contactHubRef.current.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      handleOpenTelegram();
     }
   };
 
@@ -170,6 +238,158 @@ export default function SupportVideos() {
   const activeCat = CATEGORIES.find(c => c.id === selectedCategory);
   const currentVideoCat = currentVideo ? CATEGORIES.find(c => c.id === currentVideo.category) : null;
 
+  const renderSupportContactHub = () => (
+    <div 
+      ref={contactHubRef}
+      className="mt-6 mb-4 bg-gradient-to-br from-slate-900 via-slate-800 to-black text-white rounded-3xl p-4 shadow-xl border border-white/10 relative overflow-hidden space-y-3.5 select-none"
+    >
+      {/* Background ambient lighting */}
+      <div className="absolute top-0 right-0 w-44 h-44 bg-amber-400/10 rounded-full blur-2xl pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-36 h-36 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+
+      {/* Header with 24/7 status */}
+      <div className="flex items-center justify-between z-10 relative">
+        <div className="flex items-center space-x-2.5">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 border border-amber-300/40 flex items-center justify-center shadow-lg shadow-amber-500/20">
+            <Headphones size={20} className="text-slate-950" />
+          </div>
+          <div>
+            <h3 className="font-black text-sm text-white tracking-tight leading-tight">
+              {language === 'am' ? 'የቀጥታ ደንበኞች ድጋፍ መስመር' : 'Direct Support & Assistance'}
+            </h3>
+            <p className="text-[11px] text-white/70 font-medium leading-tight mt-0.5">
+              {language === 'am' ? 'በስልክ በቀጥታ ይደውሉ ወይም በቴሌግራም ያግኙን' : 'Call our lines directly or chat on Telegram'}
+            </p>
+          </div>
+        </div>
+
+        {/* 24/7 Live Pulse Badge */}
+        <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[9.5px] font-black shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+          <span>24/7 LIVE</span>
+        </div>
+      </div>
+
+      {/* 2 Call Cards (Ethiopia & USA) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 z-10 relative">
+        {/* Ethiopia Support Card */}
+        <div className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-3 flex flex-col justify-between transition-colors shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center space-x-2 min-w-0">
+              <span className="text-2xl shrink-0" role="img" aria-label="Ethiopia">🇪🇹</span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold text-white/60 uppercase tracking-wider truncate">
+                  {language === 'am' ? 'የኢትዮጵያ ቀጥታ መስመር' : 'Ethiopia Direct Line'}
+                </p>
+                <p className="font-mono font-black text-xs text-white tracking-wide truncate">
+                  {formatEthPhone(contact.support_phone_eth)}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5 mt-1">
+            <button
+              onClick={() => handleCall(contact.support_phone_eth)}
+              className="py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 active:scale-95 text-white text-xs font-black flex items-center justify-center space-x-1.5 shadow-md shadow-emerald-950/40 transition-transform"
+            >
+              <Phone size={13} className="fill-current" />
+              <span>{language === 'am' ? 'ደውል' : 'Call'}</span>
+            </button>
+            <button
+              onClick={() => handleCopy(contact.support_phone_eth, 'eth')}
+              className="py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white/90 text-xs font-bold flex items-center justify-center space-x-1.5 border border-white/10 transition-transform"
+            >
+              {copiedType === 'eth' ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+              <span>{copiedType === 'eth' ? (language === 'am' ? 'ተቀድቷል!' : 'Copied!') : (language === 'am' ? 'ቅዳ' : 'Copy')}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* USA Support Card */}
+        <div className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-3 flex flex-col justify-between transition-colors shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center space-x-2 min-w-0">
+              <span className="text-2xl shrink-0" role="img" aria-label="USA">🇺🇸</span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold text-white/60 uppercase tracking-wider truncate">
+                  {language === 'am' ? 'የአሜሪካ ቀጥታ መስመር' : 'USA & International'}
+                </p>
+                <p className="font-mono font-black text-xs text-white tracking-wide truncate">
+                  {contact.support_phone_usa}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5 mt-1">
+            <button
+              onClick={() => handleCall(contact.support_phone_usa)}
+              className="py-2 px-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 active:scale-95 text-white text-xs font-black flex items-center justify-center space-x-1.5 shadow-md shadow-blue-950/40 transition-transform"
+            >
+              <Phone size={13} className="fill-current" />
+              <span>{language === 'am' ? 'ደውል' : 'Call'}</span>
+            </button>
+            <button
+              onClick={() => handleCopy(contact.support_phone_usa, 'usa')}
+              className="py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white/90 text-xs font-bold flex items-center justify-center space-x-1.5 border border-white/10 transition-transform"
+            >
+              {copiedType === 'usa' ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+              <span>{copiedType === 'usa' ? (language === 'am' ? 'ተቀድቷል!' : 'Copied!') : (language === 'am' ? 'ቅዳ' : 'Copy')}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Telegram Actions (Admin Chat & Official Channel) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 z-10 relative pt-0.5">
+        {/* Telegram Direct Chat */}
+        <button
+          onClick={handleOpenTelegram}
+          className="w-full bg-gradient-to-r from-[#2AABEE] to-[#229ED9] hover:opacity-95 active:scale-[0.98] text-white p-3 rounded-2xl flex items-center justify-between shadow-md shadow-sky-950/40 transition-transform"
+        >
+          <div className="flex items-center space-x-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+              <Send size={15} className="text-white translate-x-[1px]" />
+            </div>
+            <div className="text-left min-w-0">
+              <p className="font-black text-xs text-white leading-tight truncate">
+                {language === 'am' ? 'ቴሌግራም ድጋፍ (ቻት)' : 'Telegram Admin Support'}
+              </p>
+              <p className="text-[10.5px] text-white/80 font-mono truncate">
+                @{contact.username}
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] font-black uppercase px-2 py-1 rounded-lg bg-white/20 border border-white/30 text-white shrink-0 ml-2">
+            {language === 'am' ? 'አውራ' : 'Chat'} →
+          </span>
+        </button>
+
+        {/* Telegram Official Channel */}
+        <button
+          onClick={handleOpenChannel}
+          className="w-full bg-white/10 hover:bg-white/15 active:scale-[0.98] border border-white/15 text-white p-3 rounded-2xl flex items-center justify-between transition-transform"
+        >
+          <div className="flex items-center space-x-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-violet-500/20 text-violet-300 flex items-center justify-center shrink-0">
+              <MessageCircle size={15} />
+            </div>
+            <div className="text-left min-w-0">
+              <p className="font-black text-xs text-white leading-tight truncate">
+                {language === 'am' ? 'ይፋዊ ቴሌግራም ቻናል' : 'Official Telegram Channel'}
+              </p>
+              <p className="text-[10.5px] text-white/60 truncate">
+                {language === 'am' ? 'ዜናዎችንና ዝማኔዎችን ይከታተሉ' : 'Announcements & Updates'}
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] font-black uppercase px-2 py-1 rounded-lg bg-white/10 border border-white/20 text-white/90 shrink-0 ml-2">
+            {language === 'am' ? 'ተቀላቀል' : 'Join'} →
+          </span>
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pb-8">
       {/* Header */}
@@ -237,22 +457,8 @@ export default function SupportVideos() {
             ))}
           </div>
 
-          {/* Direct Support Button Card */}
-          <button
-            onClick={handleSupport}
-            className="w-full mt-6 p-4 bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-200/80 rounded-2xl flex items-center justify-between text-left active:scale-[0.98] transition-all shadow-sm"
-          >
-            <div className="flex items-start space-x-3">
-              <span className="text-2xl mt-0.5">💡</span>
-              <div>
-                <p className="font-bold text-violet-900 text-sm">Need more help?</p>
-                <p className="text-violet-700/80 text-xs mt-0.5 font-medium">Contact admin support directly on Telegram.</p>
-              </div>
-            </div>
-            <span className="text-violet-600 font-bold text-xs bg-white px-2.5 py-1.5 rounded-xl border border-violet-200 shadow-xs">
-              Chat
-            </span>
-          </button>
+          {/* Direct Support & Call Hub Card */}
+          {renderSupportContactHub()}
         </div>
       ) : (
         /* Video List with horizontal category switcher */
@@ -352,6 +558,9 @@ export default function SupportVideos() {
               })}
             </div>
           )}
+
+          {/* Direct Support & Call Hub Card */}
+          {renderSupportContactHub()}
         </div>
       )}
 
