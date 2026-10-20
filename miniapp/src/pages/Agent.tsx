@@ -2519,7 +2519,6 @@ export default function Agent() {
       {showAttackBank && (
         <AgentAttackBank
           onClose={() => setShowAttackBank(false)}
-          agentBalance={Number(user?.main_balance ?? 0)}
         />
       )}
     </div>
