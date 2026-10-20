@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import WebApp from '@twa-dev/sdk';
 import { QRCodeCanvas } from 'qrcode.react';
+import AgentAttackBank from '../components/AgentAttackBank';
 import {
   Users,
   Gamepad2,
@@ -172,6 +173,7 @@ export default function Agent() {
   const [supportPhoneUsa, setSupportPhoneUsa] = useState('+1 (984) 378-9510');
   const [supportPhoneEth, setSupportPhoneEth] = useState('+251999992524');
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showAttackBank, setShowAttackBank] = useState(false);
 
   const formatEthPhone = (phone: string) => {
     if (!phone) return '+251999992524';
@@ -2450,9 +2452,9 @@ export default function Agent() {
                 {/* Attack Bank (Commission) */}
                 <button
                   onClick={() => {
-                    triggerHaptic('medium');
+                    triggerHaptic('heavy');
                     setShowProfileModal(false);
-                    setActiveTab('overview');
+                    setShowAttackBank(true);
                   }}
                   className="relative flex flex-col items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-400 shadow-[0_4px_20px_rgba(251,191,36,0.3)] active:scale-95 transition-all overflow-hidden group"
                 >
@@ -2511,6 +2513,14 @@ export default function Agent() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ─── AGENT ATTACK BANK (Independent Withdrawal) ─── */}
+      {showAttackBank && (
+        <AgentAttackBank
+          onClose={() => setShowAttackBank(false)}
+          agentBalance={Number(user?.main_balance ?? 0)}
+        />
       )}
     </div>
   );

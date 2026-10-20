@@ -17,6 +17,8 @@ import supportRouter from './routes/support';
 import { engine as bingoEngine } from './services/BingoEngine';
 import broadcastRouter from './routes/broadcast';
 import { startBroadcastScheduler } from './routes/broadcast';
+import agentBankRouter from './routes/agentBank';
+import agentBankAdminRouter from './routes/agentBankAdmin';
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -36,6 +38,8 @@ app.use('/api/games-report', gamesReportRouter);
 app.use('/api/admin/game-settings', adminSettingsRouter);
 app.use('/api/support', supportRouter);
 app.use('/api/broadcast', broadcastRouter);
+app.use('/api/agent-bank', agentBankRouter);
+app.use('/api/admin/agent-bank', agentBankAdminRouter);
 
 app.listen(PORT, () => {
   console.log(`🚀 API running on port ${PORT}`);
