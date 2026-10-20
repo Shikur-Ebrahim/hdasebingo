@@ -1019,20 +1019,20 @@ export default function Agent() {
       {/* ─── FLOATING PROFILE BUTTON (bottom-center FAB) ─── */}
       <button
         onClick={() => { triggerHaptic('medium'); setShowProfileModal(true); }}
-        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 focus:outline-none group"
+        className="fixed bottom-1 left-1/2 -translate-x-1/2 z-40 focus:outline-none group"
         title="Open Profile"
-        style={{ filter: 'drop-shadow(0 8px 24px rgba(249,115,22,0.45))' }}
+        style={{ filter: 'drop-shadow(0 8px 28px rgba(220,38,38,0.55))' }}
       >
         {/* Outer spinning gradient ring */}
-        <span className="absolute inset-0 rounded-full bg-gradient-to-tr from-orange-400 via-amber-400 to-yellow-300 animate-[spin_3s_linear_infinite] opacity-90 pointer-events-none" />
+        <span className="absolute inset-0 rounded-full bg-gradient-to-tr from-red-500 via-rose-400 to-red-400 animate-[spin_3s_linear_infinite] opacity-90 pointer-events-none" />
         {/* White separator */}
         <span className="absolute inset-[3px] rounded-full bg-white pointer-events-none" />
         {/* Inner gradient circle */}
-        <span className="relative flex w-14 h-14 rounded-full bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-400 items-center justify-center shadow-lg group-active:scale-90 transition-transform z-10">
-          <Fingerprint size={26} className="text-white drop-shadow-sm" strokeWidth={1.7} />
+        <span className="relative flex w-18 h-18 rounded-full bg-gradient-to-br from-red-600 via-rose-500 to-red-500 items-center justify-center shadow-lg group-active:scale-90 transition-transform z-10" style={{ width: '72px', height: '72px' }}>
+          <Fingerprint size={32} className="text-white drop-shadow-sm" strokeWidth={1.7} />
         </span>
         {/* Pulse dot */}
-        <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-white animate-pulse z-20" />
+        <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-emerald-400 border-2 border-white animate-pulse z-20" />
       </button>
 
       {/* ─── STICKY TOP APP BAR (Mobile-First) ─── */}
