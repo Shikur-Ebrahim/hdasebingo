@@ -1016,6 +1016,25 @@ export default function Agent() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 select-none pb-24 font-sans">
 
+      {/* ─── FLOATING PROFILE BUTTON (bottom-center FAB) ─── */}
+      <button
+        onClick={() => { triggerHaptic('medium'); setShowProfileModal(true); }}
+        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 focus:outline-none group"
+        title="Open Profile"
+        style={{ filter: 'drop-shadow(0 8px 24px rgba(249,115,22,0.45))' }}
+      >
+        {/* Outer spinning gradient ring */}
+        <span className="absolute inset-0 rounded-full bg-gradient-to-tr from-orange-400 via-amber-400 to-yellow-300 animate-[spin_3s_linear_infinite] opacity-90 pointer-events-none" />
+        {/* White separator */}
+        <span className="absolute inset-[3px] rounded-full bg-white pointer-events-none" />
+        {/* Inner gradient circle */}
+        <span className="relative flex w-14 h-14 rounded-full bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-400 items-center justify-center shadow-lg group-active:scale-90 transition-transform z-10">
+          <Fingerprint size={26} className="text-white drop-shadow-sm" strokeWidth={1.7} />
+        </span>
+        {/* Pulse dot */}
+        <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-white animate-pulse z-20" />
+      </button>
+
       {/* ─── STICKY TOP APP BAR (Mobile-First) ─── */}
       <div className="bg-white border-b border-gray-100 px-4 py-2.5 sticky top-0 z-30 shadow-2xs">
         <div className="flex items-center justify-between max-w-md mx-auto">
