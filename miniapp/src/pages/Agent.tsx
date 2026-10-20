@@ -41,6 +41,10 @@ import {
   X,
   Image,
   Ticket,
+  Fingerprint,
+  ArrowDownToLine,
+  Coins,
+  BadgeDollarSign,
 } from 'lucide-react';
 
 interface AgentRoom {
@@ -167,6 +171,7 @@ export default function Agent() {
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [supportPhoneUsa, setSupportPhoneUsa] = useState('+1 (984) 378-9510');
   const [supportPhoneEth, setSupportPhoneEth] = useState('+251999992524');
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   const formatEthPhone = (phone: string) => {
     if (!phone) return '+251999992524';
@@ -1014,11 +1019,25 @@ export default function Agent() {
       {/* ─── STICKY TOP APP BAR (Mobile-First) ─── */}
       <div className="bg-white border-b border-gray-100 px-4 py-2.5 sticky top-0 z-30 shadow-2xs">
         <div className="flex items-center justify-between max-w-md mx-auto">
-          {/* Agent Avatar & Profile / Room info */}
+          {/* Agent Avatar — Fingerprint Profile Button */}
           <div className="flex items-center space-x-2.5 min-w-0 flex-1 mr-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-orange-500 via-amber-500 to-yellow-400 flex items-center justify-center text-white font-black text-sm shadow-sm ring-2 ring-orange-200 shrink-0">
-              {(user?.first_name || 'A').charAt(0).toUpperCase()}
-            </div>
+            {/* ── Beautiful Fingerprint Circle Button ── */}
+            <button
+              onClick={() => { triggerHaptic('medium'); setShowProfileModal(true); }}
+              className="relative w-11 h-11 rounded-full shrink-0 group focus:outline-none"
+              title="View Profile"
+            >
+              {/* Outer animated ring */}
+              <span className="absolute inset-0 rounded-full bg-gradient-to-tr from-orange-400 via-amber-400 to-yellow-300 animate-[spin_4s_linear_infinite] opacity-80" />
+              {/* Middle separator ring */}
+              <span className="absolute inset-[2px] rounded-full bg-white" />
+              {/* Inner gradient circle */}
+              <span className="absolute inset-[3px] rounded-full bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-400 flex items-center justify-center shadow-inner group-active:scale-90 transition-transform">
+                <Fingerprint size={18} className="text-white drop-shadow-sm" strokeWidth={1.8} />
+              </span>
+              {/* Live pulse dot */}
+              <span className="absolute top-0 right-0 w-3 h-3 rounded-full bg-emerald-400 border-2 border-white animate-pulse shadow-sm" />
+            </button>
             <div className="min-w-0">
               <div className="flex items-center space-x-1.5 flex-wrap">
                 <span className="text-sm font-black text-slate-900 leading-tight truncate">
@@ -2285,6 +2304,190 @@ export default function Agent() {
                 >
                   Done
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── AGENT PROFILE MODAL ─── */}
+      {showProfileModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-end justify-center"
+          onClick={() => setShowProfileModal(false)}
+        >
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+
+          {/* Sheet */}
+          <div
+            className="relative w-full max-w-md bg-white rounded-t-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* ── Drag handle ── */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-slate-200" />
+            </div>
+
+            {/* ── Hero top section ── */}
+            <div className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-5 pt-4 pb-6 overflow-hidden">
+              {/* Background glow orbs */}
+              <div className="absolute top-0 right-0 w-40 h-40 bg-orange-500/20 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute bottom-0 left-0 w-32 h-32 bg-amber-400/15 rounded-full blur-2xl pointer-events-none" />
+
+              {/* Close button */}
+              <button
+                onClick={() => setShowProfileModal(false)}
+                className="absolute top-3 right-3 w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/20 transition-all"
+              >
+                <X size={14} />
+              </button>
+
+              {/* Avatar + Name */}
+              <div className="flex items-center space-x-4 mb-5">
+                {/* Large fingerprint avatar */}
+                <div className="relative w-16 h-16 shrink-0">
+                  <span className="absolute inset-0 rounded-full bg-gradient-to-tr from-orange-400 via-amber-400 to-yellow-300 animate-[spin_4s_linear_infinite] opacity-70" />
+                  <span className="absolute inset-[2px] rounded-full bg-slate-800" />
+                  <span className="absolute inset-[3px] rounded-full bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-400 flex items-center justify-center shadow-inner">
+                    <Fingerprint size={26} className="text-white drop-shadow-sm" strokeWidth={1.6} />
+                  </span>
+                  <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-slate-800 animate-pulse" />
+                </div>
+
+                <div className="min-w-0">
+                  <p className="text-white font-black text-lg leading-tight truncate">
+                    {user?.first_name || 'Agent'}
+                  </p>
+                  <p className="text-amber-400 text-xs font-bold uppercase tracking-widest mt-0.5">
+                    Official Agent
+                  </p>
+                  {room && (
+                    <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      <Zap size={9} className="fill-emerald-400 text-emerald-400" />
+                      {room.commission_rate ?? 8}% Commission
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Balance card */}
+              <div className="bg-white/8 border border-white/12 rounded-2xl px-4 py-3.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5 text-white/50 mb-1">
+                      <Wallet size={12} />
+                      <span className="text-[10px] font-bold uppercase tracking-wider">Main Balance</span>
+                    </div>
+                    <p className="text-3xl font-black text-white leading-none">
+                      {formatAmount(user?.main_balance ?? 0)}
+                      <span className="text-sm font-extrabold text-white/60 ml-1">ETB</span>
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <div className="flex items-center gap-1.5 text-white/50 mb-1 justify-end">
+                      <Coins size={12} />
+                      <span className="text-[10px] font-bold uppercase tracking-wider">Commission Bank</span>
+                    </div>
+                    <p className="text-xl font-black text-amber-400 leading-none">
+                      {formatAmount(stats?.total_commission_all_time ?? 0)}
+                      <span className="text-xs font-extrabold text-amber-400/60 ml-1">ETB</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Action Buttons ── */}
+            <div className="px-5 pt-5 pb-6 space-y-3 bg-white">
+
+              {/* Row 1: See Games + Attack Bank */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* See Games */}
+                <button
+                  onClick={() => {
+                    triggerHaptic('medium');
+                    setShowProfileModal(false);
+                    setActiveTab('live');
+                    setSelectedLiveStake(null);
+                  }}
+                  className="relative flex flex-col items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 shadow-[0_4px_20px_rgba(249,115,22,0.35)] active:scale-95 transition-all overflow-hidden group"
+                >
+                  <div className="absolute inset-0 bg-white/0 group-active:bg-white/10 transition-colors" />
+                  <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                    <Gamepad2 size={20} className="text-white" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-white font-black text-xs uppercase tracking-wide">See Games</p>
+                    {callingGamesCount > 0 && (
+                      <span className="inline-flex items-center gap-0.5 bg-white/25 rounded-full px-2 py-0.5 text-[9px] font-black text-white mt-0.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                        {callingGamesCount} LIVE
+                      </span>
+                    )}
+                  </div>
+                </button>
+
+                {/* Attack Bank (Commission) */}
+                <button
+                  onClick={() => {
+                    triggerHaptic('medium');
+                    setShowProfileModal(false);
+                    setActiveTab('overview');
+                  }}
+                  className="relative flex flex-col items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-400 shadow-[0_4px_20px_rgba(251,191,36,0.3)] active:scale-95 transition-all overflow-hidden group"
+                >
+                  <div className="absolute inset-0 bg-white/0 group-active:bg-white/10 transition-colors" />
+                  <div className="w-10 h-10 rounded-full bg-white/25 flex items-center justify-center">
+                    <BadgeDollarSign size={20} className="text-amber-900" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-amber-900 font-black text-xs uppercase tracking-wide">Attack Bank</p>
+                    <p className="text-amber-800/70 text-[9px] font-bold mt-0.5">
+                      {formatAmount(stats?.today_commission ?? 0)} ETB today
+                    </p>
+                  </div>
+                </button>
+              </div>
+
+              {/* Row 2: Withdraw */}
+              <button
+                onClick={() => {
+                  triggerHaptic('heavy');
+                  setShowProfileModal(false);
+                  navigate('/withdraw');
+                }}
+                className="relative w-full flex items-center justify-between px-5 py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 shadow-[0_4px_20px_rgba(16,185,129,0.3)] active:scale-95 transition-all overflow-hidden group"
+              >
+                <div className="absolute inset-0 bg-white/0 group-active:bg-white/10 transition-colors" />
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                    <ArrowDownToLine size={20} className="text-white" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-white font-black text-sm">Withdraw Funds</p>
+                    <p className="text-white/70 text-[10px] font-bold">
+                      Available: {formatAmount(user?.main_balance ?? 0)} ETB
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight size={18} className="text-white/70" />
+              </button>
+
+              {/* Stats row */}
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
+                  <p className="text-slate-400 text-[9px] font-bold uppercase mb-1">Total Games</p>
+                  <p className="text-slate-900 font-black text-sm">{stats?.total_games_finished ?? 0}</p>
+                </div>
+                <div className="bg-amber-50 border border-amber-100 rounded-xl p-2.5 text-center">
+                  <p className="text-amber-500 text-[9px] font-bold uppercase mb-1">All-Time Comm</p>
+                  <p className="text-amber-700 font-black text-sm">{formatAmount(stats?.total_commission_all_time ?? 0)}</p>
+                </div>
+                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-2.5 text-center">
+                  <p className="text-emerald-500 text-[9px] font-bold uppercase mb-1">Players</p>
+                  <p className="text-emerald-700 font-black text-sm">{stats?.total_referred_players ?? 0}</p>
+                </div>
               </div>
             </div>
           </div>
