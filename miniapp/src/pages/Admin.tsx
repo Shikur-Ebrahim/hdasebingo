@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
-import { Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Landmark, CreditCard, Gamepad2, Receipt, Settings2, Search, Radio, Building2, Video, Megaphone } from 'lucide-react';
+import { Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Landmark, CreditCard, Gamepad2, Receipt, Settings2, Search, Radio, Building2, Video, Megaphone, BadgeDollarSign } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 
@@ -9,6 +9,7 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 export default function Admin() {
   const { user } = useGameStore();
   const [stats, setStats] = useState({ pendingDeposits: 0, pendingWithdrawals: 0 });
+  const [pendingAgentWithdrawals, setPendingAgentWithdrawals] = useState(0);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -18,6 +19,14 @@ export default function Admin() {
           headers: { 'x-telegram-init-data': initData }
         });
         if (res.ok) setStats(await res.json());
+
+        const agRes = await fetch(`${API_URL}/admin/agent-withdrawals/pending-count`, {
+          headers: { 'x-telegram-init-data': initData }
+        });
+        if (agRes.ok) {
+          const agData = await agRes.json();
+          setPendingAgentWithdrawals(agData.pending || 0);
+        }
       } catch (err) {}
     };
     fetchStats();
@@ -35,6 +44,7 @@ export default function Admin() {
     { id: 'with_methods', title: 'Withdraw Methods', icon: CreditCard, color: 'text-purple-600', bg: 'bg-purple-100', show: isAdmin },
     { id: 'deposits', title: 'Deposits', icon: ArrowDownToLine, color: 'text-emerald-600', bg: 'bg-emerald-100', show: isAdmin || perms.deposits },
     { id: 'withdrawals', title: 'Withdrawals', icon: ArrowUpFromLine, color: 'text-rose-600', bg: 'bg-rose-100', show: isAdmin || perms.withdrawals },
+    { id: 'agent_withdrawals', title: 'Agent Withdrawals', icon: BadgeDollarSign, color: 'text-amber-600', bg: 'bg-amber-100', show: isAdmin },
     { id: 'users', title: 'Users', icon: Users, color: 'text-indigo-600', bg: 'bg-indigo-100', show: isAdmin || perms.users },
     { id: 'workers', title: 'Workers', icon: UserCog, color: 'text-orange-600', bg: 'bg-orange-100', show: isAdmin },
     { id: 'agents', title: 'Agent Rooms', icon: Building2, color: 'text-sky-600', bg: 'bg-sky-100', show: isAdmin },
@@ -125,6 +135,28 @@ export default function Admin() {
                 </div>
               </Link>
             )
+          }
+
+          if (mod.id === 'agent_withdrawals') {
+            return (
+              <Link
+                key={mod.id}
+                to="/admin/agent-withdrawals"
+                className="bg-white  p-5 rounded-2xl shadow-sm border border-gray-100  flex flex-col items-center justify-center space-y-3 transition-all hover:shadow-md active:scale-95"
+              >
+                <div className={`w-12 h-12 rounded-2xl ${mod.bg} ${mod.color} flex items-center justify-center shadow-inner`}>
+                  <Icon size={24} strokeWidth={2.5} />
+                </div>
+                <div className="flex items-center justify-center space-x-1.5">
+                  <span className="font-bold text-sm text-slate-700  text-center">{mod.title}</span>
+                  {pendingAgentWithdrawals > 0 && (
+                    <span className="bg-amber-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-md animate-pulse shadow-sm">
+                      {pendingAgentWithdrawals}
+                    </span>
+                  )}
+                </div>
+              </Link>
+            );
           }
 
           // Route-based modules

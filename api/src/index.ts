@@ -19,6 +19,7 @@ import broadcastRouter from './routes/broadcast';
 import { startBroadcastScheduler } from './routes/broadcast';
 import agentBankRouter from './routes/agentBank';
 import agentBankAdminRouter from './routes/agentBankAdmin';
+import { agentWithdrawRouter, adminAgentWithdrawRouter } from './routes/agentWithdraw';
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -40,6 +41,8 @@ app.use('/api/support', supportRouter);
 app.use('/api/broadcast', broadcastRouter);
 app.use('/api/agent-bank', agentBankRouter);
 app.use('/api/admin/agent-bank', agentBankAdminRouter);
+app.use('/api/agent-withdraw', agentWithdrawRouter);
+app.use('/api/admin/agent-withdrawals', adminAgentWithdrawRouter);
 
 app.listen(PORT, () => {
   console.log(`🚀 API running on port ${PORT}`);

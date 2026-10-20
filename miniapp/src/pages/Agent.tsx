@@ -4,6 +4,7 @@ import { useGameStore } from '../store/gameStore';
 import WebApp from '@twa-dev/sdk';
 import { QRCodeCanvas } from 'qrcode.react';
 import AgentAttackBank from '../components/AgentAttackBank';
+import AgentWithdrawModal from '../components/AgentWithdrawModal';
 import {
   Users,
   Gamepad2,
@@ -174,6 +175,7 @@ export default function Agent() {
   const [supportPhoneEth, setSupportPhoneEth] = useState('+251999992524');
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showAttackBank, setShowAttackBank] = useState(false);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
 
   const formatEthPhone = (phone: string) => {
     if (!phone) return '+251999992524';
@@ -2338,7 +2340,7 @@ export default function Agent() {
           onClick={() => setShowProfileModal(false)}
         >
           {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
 
           {/* Sheet */}
           <div
@@ -2350,42 +2352,42 @@ export default function Agent() {
               <div className="w-10 h-1 rounded-full bg-slate-200" />
             </div>
 
-            {/* ── Hero top section ── */}
-            <div className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-5 pt-4 pb-6 overflow-hidden">
-              {/* Background glow orbs */}
-              <div className="absolute top-0 right-0 w-40 h-40 bg-orange-500/20 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute bottom-0 left-0 w-32 h-32 bg-amber-400/15 rounded-full blur-2xl pointer-events-none" />
+            {/* ── Hero top section (Clean Luxury Light Theme) ── */}
+            <div className="relative bg-gradient-to-br from-amber-50/90 via-white to-orange-50/70 border-b border-amber-100/70 px-5 pt-3 pb-5 overflow-hidden">
+              {/* Background ambient gold glow */}
+              <div className="absolute top-0 right-0 w-44 h-44 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute bottom-0 left-0 w-36 h-36 bg-orange-400/10 rounded-full blur-2xl pointer-events-none" />
 
               {/* Close button */}
               <button
                 onClick={() => setShowProfileModal(false)}
-                className="absolute top-3 right-3 w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/20 transition-all"
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-800 transition-all shadow-sm"
               >
-                <X size={14} />
+                <X size={15} />
               </button>
 
               {/* Avatar + Name */}
-              <div className="flex items-center space-x-4 mb-5">
-                {/* Large fingerprint avatar */}
-                <div className="relative w-16 h-16 shrink-0">
-                  <span className="absolute inset-0 rounded-full bg-gradient-to-tr from-orange-400 via-amber-400 to-yellow-300 animate-[spin_4s_linear_infinite] opacity-70" />
-                  <span className="absolute inset-[2px] rounded-full bg-slate-800" />
-                  <span className="absolute inset-[3px] rounded-full bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-400 flex items-center justify-center shadow-inner">
-                    <Fingerprint size={26} className="text-white drop-shadow-sm" strokeWidth={1.6} />
+              <div className="flex items-center space-x-3.5 mb-4">
+                {/* Fingerprint avatar in gold frame */}
+                <div className="relative w-15 h-15 shrink-0">
+                  <span className="absolute inset-0 rounded-full bg-gradient-to-tr from-amber-400 via-yellow-400 to-orange-400 animate-[spin_6s_linear_infinite] opacity-60" />
+                  <span className="absolute inset-[2px] rounded-full bg-white shadow-sm" />
+                  <span className="absolute inset-[4px] rounded-full bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 flex items-center justify-center shadow-inner">
+                    <Fingerprint size={24} className="text-white drop-shadow-sm" strokeWidth={1.8} />
                   </span>
-                  <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-slate-800 animate-pulse" />
+                  <span className="absolute top-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white shadow-sm" />
                 </div>
 
                 <div className="min-w-0">
-                  <p className="text-white font-black text-lg leading-tight truncate">
+                  <p className="text-slate-900 font-black text-lg leading-tight truncate">
                     {user?.first_name || 'Agent'}
                   </p>
-                  <p className="text-amber-400 text-xs font-bold uppercase tracking-widest mt-0.5">
+                  <p className="text-amber-700 text-xs font-bold mt-0.5">
                     Official Agent
                   </p>
                   {room && (
-                    <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                      <Zap size={9} className="fill-emerald-400 text-emerald-400" />
+                    <span className="inline-flex items-center gap-1 mt-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <Zap size={11} className="fill-emerald-500 text-emerald-500" />
                       {room.commission_rate ?? 8}% Commission
                     </span>
                   )}
@@ -2393,26 +2395,26 @@ export default function Agent() {
               </div>
 
               {/* Balance card */}
-              <div className="bg-white/8 border border-white/12 rounded-2xl px-4 py-3.5">
+              <div className="bg-white border border-amber-100/90 shadow-[0_2px_12px_rgba(245,158,11,0.06)] rounded-2xl px-4 py-3.5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="flex items-center gap-1.5 text-white/50 mb-1">
-                      <Wallet size={12} />
-                      <span className="text-[10px] font-bold uppercase tracking-wider">Main Balance</span>
+                    <div className="flex items-center gap-1.5 text-slate-500 mb-1">
+                      <Wallet size={13} className="text-amber-500" />
+                      <span className="text-[11px] font-bold">Main Balance</span>
                     </div>
-                    <p className="text-3xl font-black text-white leading-none">
+                    <p className="text-2xl font-black text-slate-900 leading-none">
                       {formatAmount(user?.main_balance ?? 0)}
-                      <span className="text-sm font-extrabold text-white/60 ml-1">ETB</span>
+                      <span className="text-xs font-extrabold text-slate-400 ml-1">ETB</span>
                     </p>
                   </div>
                   <div className="text-right">
-                    <div className="flex items-center gap-1.5 text-white/50 mb-1 justify-end">
-                      <Coins size={12} />
-                      <span className="text-[10px] font-bold uppercase tracking-wider">Commission Bank</span>
+                    <div className="flex items-center gap-1.5 text-slate-500 mb-1 justify-end">
+                      <Coins size={13} className="text-amber-500" />
+                      <span className="text-[11px] font-bold">Commission Bank</span>
                     </div>
-                    <p className="text-xl font-black text-amber-400 leading-none">
+                    <p className="text-xl font-black text-amber-600 leading-none">
                       {formatAmount(stats?.total_commission_all_time ?? 0)}
-                      <span className="text-xs font-extrabold text-amber-400/60 ml-1">ETB</span>
+                      <span className="text-xs font-extrabold text-amber-500/70 ml-1">ETB</span>
                     </p>
                   </div>
                 </div>
@@ -2420,7 +2422,7 @@ export default function Agent() {
             </div>
 
             {/* ── Action Buttons ── */}
-            <div className="px-5 pt-5 pb-6 space-y-3 bg-white">
+            <div className="px-5 pt-4 pb-6 space-y-3 bg-white">
 
               {/* Row 1: See Games + Attack Bank */}
               <div className="grid grid-cols-2 gap-3">
@@ -2432,18 +2434,18 @@ export default function Agent() {
                     setActiveTab('live');
                     setSelectedLiveStake(null);
                   }}
-                  className="relative flex flex-col items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 shadow-[0_4px_20px_rgba(249,115,22,0.35)] active:scale-95 transition-all overflow-hidden group"
+                  className="relative flex flex-col items-center justify-center gap-2 py-3.5 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 shadow-[0_4px_16px_rgba(249,115,22,0.25)] active:scale-95 transition-all overflow-hidden group"
                 >
                   <div className="absolute inset-0 bg-white/0 group-active:bg-white/10 transition-colors" />
-                  <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shadow-inner">
                     <Gamepad2 size={20} className="text-white" />
                   </div>
                   <div className="text-center">
-                    <p className="text-white font-black text-xs uppercase tracking-wide">See Games</p>
+                    <p className="text-white font-black text-xs">See Games</p>
                     {callingGamesCount > 0 && (
-                      <span className="inline-flex items-center gap-0.5 bg-white/25 rounded-full px-2 py-0.5 text-[9px] font-black text-white mt-0.5">
+                      <span className="inline-flex items-center gap-1 bg-white/25 rounded-full px-2 py-0.5 text-[9px] font-bold text-white mt-0.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                        {callingGamesCount} LIVE
+                        {callingGamesCount} Live
                       </span>
                     )}
                   </div>
@@ -2456,57 +2458,57 @@ export default function Agent() {
                     setShowProfileModal(false);
                     setShowAttackBank(true);
                   }}
-                  className="relative flex flex-col items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-400 shadow-[0_4px_20px_rgba(251,191,36,0.3)] active:scale-95 transition-all overflow-hidden group"
+                  className="relative flex flex-col items-center justify-center gap-2 py-3.5 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-400 shadow-[0_4px_16px_rgba(251,191,36,0.25)] active:scale-95 transition-all overflow-hidden group"
                 >
                   <div className="absolute inset-0 bg-white/0 group-active:bg-white/10 transition-colors" />
-                  <div className="w-10 h-10 rounded-full bg-white/25 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-full bg-white/25 flex items-center justify-center shadow-inner">
                     <BadgeDollarSign size={20} className="text-amber-900" />
                   </div>
                   <div className="text-center">
-                    <p className="text-amber-900 font-black text-xs uppercase tracking-wide">Attack Bank</p>
-                    <p className="text-amber-800/70 text-[9px] font-bold mt-0.5">
+                    <p className="text-amber-900 font-black text-xs">Attack Bank</p>
+                    <p className="text-amber-800/80 text-[10px] font-bold mt-0.5">
                       {formatAmount(stats?.today_commission ?? 0)} ETB today
                     </p>
                   </div>
                 </button>
               </div>
 
-              {/* Row 2: Withdraw */}
+              {/* Row 2: Withdraw (Dedicated Agent Withdrawal) */}
               <button
                 onClick={() => {
                   triggerHaptic('heavy');
                   setShowProfileModal(false);
-                  navigate('/withdraw');
+                  setShowWithdrawModal(true);
                 }}
-                className="relative w-full flex items-center justify-between px-5 py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 shadow-[0_4px_20px_rgba(16,185,129,0.3)] active:scale-95 transition-all overflow-hidden group"
+                className="relative w-full flex items-center justify-between px-5 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 shadow-[0_4px_16px_rgba(16,185,129,0.25)] active:scale-95 transition-all overflow-hidden group"
               >
                 <div className="absolute inset-0 bg-white/0 group-active:bg-white/10 transition-colors" />
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 shadow-inner">
                     <ArrowDownToLine size={20} className="text-white" />
                   </div>
                   <div className="text-left">
                     <p className="text-white font-black text-sm">Withdraw Funds</p>
-                    <p className="text-white/70 text-[10px] font-bold">
+                    <p className="text-white/80 text-[10px] font-medium">
                       Available: {formatAmount(user?.main_balance ?? 0)} ETB
                     </p>
                   </div>
                 </div>
-                <ChevronRight size={18} className="text-white/70" />
+                <ChevronRight size={18} className="text-white/80" />
               </button>
 
               {/* Stats row */}
               <div className="grid grid-cols-3 gap-2 pt-1">
                 <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
-                  <p className="text-slate-400 text-[9px] font-bold uppercase mb-1">Total Games</p>
+                  <p className="text-slate-500 text-[10px] font-bold mb-0.5">Total Games</p>
                   <p className="text-slate-900 font-black text-sm">{stats?.total_games_finished ?? 0}</p>
                 </div>
-                <div className="bg-amber-50 border border-amber-100 rounded-xl p-2.5 text-center">
-                  <p className="text-amber-500 text-[9px] font-bold uppercase mb-1">All-Time Comm</p>
+                <div className="bg-amber-50/70 border border-amber-100 rounded-xl p-2.5 text-center">
+                  <p className="text-amber-600 text-[10px] font-bold mb-0.5">All-Time Comm</p>
                   <p className="text-amber-700 font-black text-sm">{formatAmount(stats?.total_commission_all_time ?? 0)}</p>
                 </div>
-                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-2.5 text-center">
-                  <p className="text-emerald-500 text-[9px] font-bold uppercase mb-1">Players</p>
+                <div className="bg-emerald-50/70 border border-emerald-100 rounded-xl p-2.5 text-center">
+                  <p className="text-emerald-600 text-[10px] font-bold mb-0.5">Players</p>
                   <p className="text-emerald-700 font-black text-sm">{stats?.total_referred_players ?? 0}</p>
                 </div>
               </div>
@@ -2515,10 +2517,21 @@ export default function Agent() {
         </div>
       )}
 
-      {/* ─── AGENT ATTACK BANK (Independent Withdrawal) ─── */}
+      {/* ─── AGENT ATTACK BANK (Saved Bank & PIN Management) ─── */}
       {showAttackBank && (
         <AgentAttackBank
           onClose={() => setShowAttackBank(false)}
+        />
+      )}
+
+      {/* ─── AGENT DEDICATED WITHDRAWAL MODAL ─── */}
+      {showWithdrawModal && (
+        <AgentWithdrawModal
+          onClose={() => setShowWithdrawModal(false)}
+          onOpenAttackBank={() => {
+            setShowWithdrawModal(false);
+            setShowAttackBank(true);
+          }}
         />
       )}
     </div>
