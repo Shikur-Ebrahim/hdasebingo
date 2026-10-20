@@ -241,31 +241,31 @@ export default function SupportVideos() {
   const renderSupportContactHub = () => (
     <div 
       ref={contactHubRef}
-      className="mt-6 mb-4 bg-gradient-to-br from-slate-900 via-slate-800 to-black text-white rounded-3xl p-4 shadow-xl border border-white/10 relative overflow-hidden space-y-3.5 select-none"
+      className="mt-6 mb-4 bg-white border border-slate-200/90 rounded-3xl p-4 shadow-md space-y-3.5 select-none relative overflow-hidden"
     >
-      {/* Background ambient lighting */}
-      <div className="absolute top-0 right-0 w-44 h-44 bg-amber-400/10 rounded-full blur-2xl pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-36 h-36 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+      {/* Subtle light ambient glow */}
+      <div className="absolute top-0 right-0 w-44 h-44 bg-violet-100/60 rounded-full blur-2xl pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-36 h-36 bg-amber-50/80 rounded-full blur-2xl pointer-events-none" />
 
       {/* Header with 24/7 status */}
       <div className="flex items-center justify-between z-10 relative">
         <div className="flex items-center space-x-2.5">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 border border-amber-300/40 flex items-center justify-center shadow-lg shadow-amber-500/20">
-            <Headphones size={20} className="text-slate-950" />
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-violet-500/20">
+            <Headphones size={20} className="text-white" />
           </div>
           <div>
-            <h3 className="font-black text-sm text-white tracking-tight leading-tight">
+            <h3 className="font-black text-sm text-slate-900 tracking-tight leading-tight">
               {language === 'am' ? 'የቀጥታ ደንበኞች ድጋፍ መስመር' : 'Direct Support & Assistance'}
             </h3>
-            <p className="text-[11px] text-white/70 font-medium leading-tight mt-0.5">
+            <p className="text-[11px] text-slate-500 font-medium leading-tight mt-0.5">
               {language === 'am' ? 'በስልክ በቀጥታ ይደውሉ ወይም በቴሌግራም ያግኙን' : 'Call our lines directly or chat on Telegram'}
             </p>
           </div>
         </div>
 
         {/* 24/7 Live Pulse Badge */}
-        <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[9.5px] font-black shrink-0">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+        <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[9.5px] font-black shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
           <span>24/7 LIVE</span>
         </div>
       </div>
@@ -273,15 +273,15 @@ export default function SupportVideos() {
       {/* 2 Call Cards (Ethiopia & USA) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 z-10 relative">
         {/* Ethiopia Support Card */}
-        <div className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-3 flex flex-col justify-between transition-colors shadow-sm">
+        <div className="bg-slate-50/80 hover:bg-slate-50 border border-slate-200/80 rounded-2xl p-3 flex flex-col justify-between transition-colors shadow-2xs">
           <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center space-x-2 min-w-0">
+            <div className="flex items-center space-x-2.5 min-w-0">
               <span className="text-2xl shrink-0" role="img" aria-label="Ethiopia">🇪🇹</span>
               <div className="min-w-0">
-                <p className="text-[10px] font-bold text-white/60 uppercase tracking-wider truncate">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">
                   {language === 'am' ? 'የኢትዮጵያ ቀጥታ መስመር' : 'Ethiopia Direct Line'}
                 </p>
-                <p className="font-mono font-black text-xs text-white tracking-wide truncate">
+                <p className="font-mono font-black text-[13px] text-slate-900 tracking-wide truncate">
                   {formatEthPhone(contact.support_phone_eth)}
                 </p>
               </div>
@@ -290,31 +290,31 @@ export default function SupportVideos() {
           <div className="grid grid-cols-2 gap-1.5 mt-1">
             <button
               onClick={() => handleCall(contact.support_phone_eth)}
-              className="py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 active:scale-95 text-white text-xs font-black flex items-center justify-center space-x-1.5 shadow-md shadow-emerald-950/40 transition-transform"
+              className="py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 active:scale-95 text-white text-xs font-black flex items-center justify-center space-x-1.5 shadow-sm shadow-emerald-600/20 transition-transform"
             >
               <Phone size={13} className="fill-current" />
               <span>{language === 'am' ? 'ደውል' : 'Call'}</span>
             </button>
             <button
               onClick={() => handleCopy(contact.support_phone_eth, 'eth')}
-              className="py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white/90 text-xs font-bold flex items-center justify-center space-x-1.5 border border-white/10 transition-transform"
+              className="py-2 px-3 rounded-xl bg-white hover:bg-slate-100 active:scale-95 text-slate-700 text-xs font-bold flex items-center justify-center space-x-1.5 border border-slate-200/80 shadow-2xs transition-transform"
             >
-              {copiedType === 'eth' ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+              {copiedType === 'eth' ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} className="text-slate-500" />}
               <span>{copiedType === 'eth' ? (language === 'am' ? 'ተቀድቷል!' : 'Copied!') : (language === 'am' ? 'ቅዳ' : 'Copy')}</span>
             </button>
           </div>
         </div>
 
         {/* USA Support Card */}
-        <div className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-3 flex flex-col justify-between transition-colors shadow-sm">
+        <div className="bg-slate-50/80 hover:bg-slate-50 border border-slate-200/80 rounded-2xl p-3 flex flex-col justify-between transition-colors shadow-2xs">
           <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center space-x-2 min-w-0">
+            <div className="flex items-center space-x-2.5 min-w-0">
               <span className="text-2xl shrink-0" role="img" aria-label="USA">🇺🇸</span>
               <div className="min-w-0">
-                <p className="text-[10px] font-bold text-white/60 uppercase tracking-wider truncate">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">
                   {language === 'am' ? 'የአሜሪካ ቀጥታ መስመር' : 'USA & International'}
                 </p>
-                <p className="font-mono font-black text-xs text-white tracking-wide truncate">
+                <p className="font-mono font-black text-[13px] text-slate-900 tracking-wide truncate">
                   {contact.support_phone_usa}
                 </p>
               </div>
@@ -323,16 +323,16 @@ export default function SupportVideos() {
           <div className="grid grid-cols-2 gap-1.5 mt-1">
             <button
               onClick={() => handleCall(contact.support_phone_usa)}
-              className="py-2 px-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 active:scale-95 text-white text-xs font-black flex items-center justify-center space-x-1.5 shadow-md shadow-blue-950/40 transition-transform"
+              className="py-2 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-white text-xs font-black flex items-center justify-center space-x-1.5 shadow-sm shadow-blue-600/20 transition-transform"
             >
               <Phone size={13} className="fill-current" />
               <span>{language === 'am' ? 'ደውል' : 'Call'}</span>
             </button>
             <button
               onClick={() => handleCopy(contact.support_phone_usa, 'usa')}
-              className="py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white/90 text-xs font-bold flex items-center justify-center space-x-1.5 border border-white/10 transition-transform"
+              className="py-2 px-3 rounded-xl bg-white hover:bg-slate-100 active:scale-95 text-slate-700 text-xs font-bold flex items-center justify-center space-x-1.5 border border-slate-200/80 shadow-2xs transition-transform"
             >
-              {copiedType === 'usa' ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+              {copiedType === 'usa' ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} className="text-slate-500" />}
               <span>{copiedType === 'usa' ? (language === 'am' ? 'ተቀድቷል!' : 'Copied!') : (language === 'am' ? 'ቅዳ' : 'Copy')}</span>
             </button>
           </div>
@@ -344,7 +344,7 @@ export default function SupportVideos() {
         {/* Telegram Direct Chat */}
         <button
           onClick={handleOpenTelegram}
-          className="w-full bg-gradient-to-r from-[#2AABEE] to-[#229ED9] hover:opacity-95 active:scale-[0.98] text-white p-3 rounded-2xl flex items-center justify-between shadow-md shadow-sky-950/40 transition-transform"
+          className="w-full bg-gradient-to-r from-[#2AABEE] to-[#229ED9] hover:opacity-95 active:scale-[0.98] text-white p-3 rounded-2xl flex items-center justify-between shadow-sm shadow-sky-500/20 transition-transform"
         >
           <div className="flex items-center space-x-2.5 min-w-0">
             <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
@@ -354,7 +354,7 @@ export default function SupportVideos() {
               <p className="font-black text-xs text-white leading-tight truncate">
                 {language === 'am' ? 'ቴሌግራም ድጋፍ (ቻት)' : 'Telegram Admin Support'}
               </p>
-              <p className="text-[10.5px] text-white/80 font-mono truncate">
+              <p className="text-[10.5px] text-white/90 font-mono truncate">
                 @{contact.username}
               </p>
             </div>
@@ -367,22 +367,22 @@ export default function SupportVideos() {
         {/* Telegram Official Channel */}
         <button
           onClick={handleOpenChannel}
-          className="w-full bg-white/10 hover:bg-white/15 active:scale-[0.98] border border-white/15 text-white p-3 rounded-2xl flex items-center justify-between transition-transform"
+          className="w-full bg-violet-50/80 hover:bg-violet-100/70 active:scale-[0.98] border border-violet-200/70 text-violet-950 p-3 rounded-2xl flex items-center justify-between transition-transform shadow-2xs"
         >
           <div className="flex items-center space-x-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-violet-500/20 text-violet-300 flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-violet-600 text-white flex items-center justify-center shrink-0 shadow-xs">
               <MessageCircle size={15} />
             </div>
             <div className="text-left min-w-0">
-              <p className="font-black text-xs text-white leading-tight truncate">
+              <p className="font-black text-xs text-violet-950 leading-tight truncate">
                 {language === 'am' ? 'ይፋዊ ቴሌግራም ቻናል' : 'Official Telegram Channel'}
               </p>
-              <p className="text-[10.5px] text-white/60 truncate">
+              <p className="text-[10.5px] text-violet-700/80 font-medium truncate">
                 {language === 'am' ? 'ዜናዎችንና ዝማኔዎችን ይከታተሉ' : 'Announcements & Updates'}
               </p>
             </div>
           </div>
-          <span className="text-[10px] font-black uppercase px-2 py-1 rounded-lg bg-white/10 border border-white/20 text-white/90 shrink-0 ml-2">
+          <span className="text-[10px] font-black uppercase px-2 py-1 rounded-lg bg-white border border-violet-200 text-violet-700 shrink-0 ml-2 shadow-2xs">
             {language === 'am' ? 'ተቀላቀል' : 'Join'} →
           </span>
         </button>
