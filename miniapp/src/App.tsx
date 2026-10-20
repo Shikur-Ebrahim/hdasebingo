@@ -149,6 +149,7 @@ import AdminWithdrawalMethods from './pages/AdminWithdrawalMethods';
 import AdminDeposits from './pages/AdminDeposits';
 import AdminWithdrawals from './pages/AdminWithdrawals';
 import AdminAgentWithdrawals from './pages/AdminAgentWithdrawals';
+import AdminAgentBanks from './pages/AdminAgentBanks';
 import AdminSettings from './pages/AdminSettings';
 import AdminTxReport from './pages/AdminTxReport';
 import AdminUsers from './pages/AdminUsers';
@@ -400,6 +401,7 @@ function App() {
           <Route path="/admin/deposits" element={<AdminDeposits />} />
           <Route path="/admin/withdrawals" element={<AdminWithdrawals />} />
           <Route path="/admin/agent-withdrawals" element={<AdminAgentWithdrawals />} />
+          <Route path="/admin/agent-banks" element={<AdminAgentBanks />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
           <Route path="/admin/tx-report" element={<AdminTxReport />} />
           <Route path="/admin/users" element={<AdminUsers />} />
