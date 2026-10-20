@@ -22,6 +22,8 @@ import {
   ShieldCheck,
   KeyRound,
   Sparkles,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '/api';
@@ -147,6 +149,7 @@ export default function AgentAttackBank({ onClose }: Props) {
   // Form inputs — empty by default, NO agent Telegram name prefill!
   const [holderName, setHolderName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
+  const [showAccountNumber, setShowAccountNumber] = useState(false);
 
   // PIN inputs
   const [pin, setPin] = useState('');
@@ -633,57 +636,86 @@ export default function AgentAttackBank({ onClose }: Props) {
             </div>
           )}
 
-          {/* ══ 1. SAVED VIEW ══ */}
+          {/* ══ 1. SAVED VIEW (Luxury Bright / Light Mobile-First Card) ══ */}
           {step === 'saved_view' && savedAccount && (
             <div className="px-5 py-5 space-y-4">
-              {/* Debit Card Card Hero */}
-              <div className="relative rounded-3xl overflow-hidden shadow-lg">
-                <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-black" />
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(251,191,36,0.18)_0%,transparent_65%)]" />
+              {/* Luxury Bright / Light Card Hero */}
+              <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-amber-50/70 via-white to-orange-50/50 border-2 border-amber-200/90 shadow-[0_8px_25px_rgba(245,158,11,0.12)]">
+                {/* Subtle soft warm accents */}
+                <div className="absolute -right-8 -bottom-8 w-44 h-44 rounded-full bg-gradient-to-br from-amber-300/10 to-orange-400/10 blur-xl pointer-events-none" />
+                <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-amber-400/5 blur-2xl pointer-events-none" />
 
-                <div className="relative p-6 space-y-6">
+                <div className="relative p-6 space-y-5">
                   {/* Bank info */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      {renderBankLogo(findBank(savedAccount.bank_name), 'w-11 h-11')}
+                      {renderBankLogo(findBank(savedAccount.bank_name), 'w-12 h-12')}
                       <div>
-                        <p className="text-white font-black text-sm leading-tight">
+                        <p className="text-slate-900 font-black text-sm leading-tight">
                           {savedAccount.bank_name}
                         </p>
-                        <p className="text-amber-400 text-[10px] font-extrabold uppercase tracking-wider mt-0.5">
+                        <p className="text-amber-600 text-[10px] font-extrabold uppercase tracking-wider mt-0.5">
                           Official Agent Account
                         </p>
                       </div>
                     </div>
-                    <span className="flex items-center gap-1 text-[9px] font-black text-emerald-400 bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                      <ShieldCheck size={11} /> Saved
+                    <span className="flex items-center gap-1 text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200/90 px-2.5 py-1 rounded-full uppercase tracking-wider shadow-2xs">
+                      <ShieldCheck size={11} className="text-emerald-600" /> Saved
                     </span>
                   </div>
 
-                  {/* Account Number */}
-                  <div>
-                    <p className="text-white/40 text-[9px] font-bold uppercase tracking-widest mb-1">
-                      Account Number
-                    </p>
-                    <p className="text-white font-black text-2xl tracking-[0.2em] font-mono">
-                      {savedAccount.account_number.length > 6
-                        ? `•••• •••• ${savedAccount.account_number.slice(-4)}`
-                        : savedAccount.account_number}
+                  {/* Account Number with Eye Button Toggle */}
+                  <div className="bg-white/90 rounded-2xl p-3.5 border border-amber-100/90 shadow-2xs">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest">
+                        Account Number
+                      </p>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          haptic('light');
+                          setShowAccountNumber((prev) => !prev);
+                        }}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 active:scale-95 transition-all text-[10px] font-black"
+                        title={showAccountNumber ? 'Hide account number' : 'Show full account number'}
+                      >
+                        {showAccountNumber ? (
+                          <>
+                            <EyeOff size={13} className="text-slate-500" />
+                            <span>Hide</span>
+                          </>
+                        ) : (
+                          <>
+                            <Eye size={13} className="text-amber-600" />
+                            <span className="text-amber-700">Show</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    <p className="text-slate-900 font-black text-2xl tracking-[0.16em] font-mono select-text py-0.5">
+                      {showAccountNumber
+                        ? savedAccount.account_number
+                        : (savedAccount.account_number.length > 4
+                            ? `•••• •••• ${savedAccount.account_number.slice(-4)}`
+                            : '•••• ••••')}
                     </p>
                   </div>
 
                   {/* Holder Name + PIN Protected */}
-                  <div className="flex items-end justify-between pt-1 border-t border-white/10">
+                  <div className="flex items-end justify-between pt-1 border-t border-slate-100">
                     <div>
-                      <p className="text-white/40 text-[9px] font-bold uppercase tracking-widest mb-0.5">
+                      <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mb-0.5">
                         Account Holder
                       </p>
-                      <p className="text-white font-black text-sm uppercase">
+                      <p className="text-slate-900 font-black text-sm uppercase tracking-wide">
                         {savedAccount.account_holder_name}
                       </p>
                     </div>
-                    <div className="flex items-center gap-1.5 text-amber-400">
-                      <Lock size={12} />
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200/80 text-amber-800">
+                      <Lock size={12} className="text-amber-600" />
                       <span className="text-[10px] font-black tracking-wide">PIN Secured</span>
                     </div>
                   </div>
