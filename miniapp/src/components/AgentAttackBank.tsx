@@ -37,7 +37,7 @@ export interface BankItem {
 }
 
 // Exactly the 10 active, verified Ethiopian banking & mobile money methods
-const VERIFIED_BANKS: BankItem[] = [
+export const VERIFIED_BANKS: BankItem[] = [
   {
     id: 'cbe',
     name: 'Commercial Bank of Ethiopia',
@@ -109,6 +109,25 @@ const VERIFIED_BANKS: BankItem[] = [
     color: 'from-amber-600 to-orange-700',
   },
 ];
+
+export const getBankDetails = (bankName: string, bankList: BankItem[] = VERIFIED_BANKS): BankItem => {
+  if (!bankName) return bankList[0];
+  const query = bankName.trim().toLowerCase();
+  const found = bankList.find(b => 
+    b.name.toLowerCase() === query || 
+    b.code.toLowerCase() === query ||
+    b.id.toLowerCase() === query ||
+    b.name.toLowerCase().includes(query) ||
+    query.includes(b.name.toLowerCase())
+  );
+  return found || {
+    id: 'unknown',
+    name: bankName,
+    code: bankName.slice(0, 4).toUpperCase(),
+    logo_url: '',
+    color: 'from-amber-500 to-orange-500'
+  };
+};
 
 interface SavedAccount {
   id: string;

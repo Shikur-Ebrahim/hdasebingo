@@ -248,7 +248,7 @@ adminAgentWithdrawRouter.get('/pending-count', requireAdmin, async (_req: AuthRe
     .eq('status', 'pending');
 
   if (error) { res.status(500).json({ error: error.message }); return; }
-  res.json({ count: count || 0 });
+  res.json({ count: count || 0, pending: count || 0 });
 });
 
 // ─────────────────────────────────────────────

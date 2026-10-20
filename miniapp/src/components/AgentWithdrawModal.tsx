@@ -22,8 +22,11 @@ import {
   Building2,
   RefreshCw,
   Landmark,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { useGameStore } from '../store/gameStore';
+import { VERIFIED_BANKS, getBankDetails, BankItem } from './AgentAttackBank';
 
 const API = import.meta.env.VITE_API_URL || '/api';
 
@@ -70,6 +73,8 @@ export default function AgentWithdrawModal({ onClose, onOpenAttackBank }: Props)
 
   const [step, setStep] = useState<Step>('loading');
   const [savedBank, setSavedBank] = useState<SavedBank | null>(null);
+  const [banks, setBanks] = useState<BankItem[]>(VERIFIED_BANKS);
+  const [showAccountNumber, setShowAccountNumber] = useState(false);
   const [amount, setAmount] = useState('');
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
@@ -80,7 +85,7 @@ export default function AgentWithdrawModal({ onClose, onOpenAttackBank }: Props)
 
   const mainBalance = Number(user?.main_balance || 0);
 
-  // Load saved bank account on mount
+  // Load saved bank account & sync live logos on mount
   useEffect(() => {
     let isMounted = true;
     (async () => {
@@ -90,6 +95,29 @@ export default function AgentWithdrawModal({ onClose, onOpenAttackBank }: Props)
 
         const res = await fetch(`${API}/agent-bank/saved`, { headers });
         const data = await res.json();
+
+        // Also fetch live method logos for perfect logo display
+        try {
+          const [depRes, withRes] = await Promise.all([
+            fetch(`${API}/deposit/methods`, { headers }).then(r => r.ok ? r.json() : []),
+            fetch(`${API}/withdraw/methods`, { headers }).then(r => r.ok ? r.json() : []),
+          ]);
+
+          const logoMap: Record<string, string> = {};
+          if (Array.isArray(depRes)) {
+            depRes.forEach((m: any) => { if (m.type && m.logo_url) logoMap[m.type.toLowerCase()] = m.logo_url; });
+          }
+          if (Array.isArray(withRes)) {
+            withRes.forEach((m: any) => { if (m.type && m.logo_url) logoMap[m.type.toLowerCase()] = m.logo_url; });
+          }
+
+          if (isMounted) {
+            setBanks(prev => prev.map(b => ({
+              ...b,
+              logo_url: logoMap[b.id.toLowerCase()] || b.logo_url,
+            })));
+          }
+        } catch {}
 
         if (isMounted) {
           if (data && data.id) {
@@ -338,17 +366,39 @@ export default function AgentWithdrawModal({ onClose, onOpenAttackBank }: Props)
           {step === 'amount' && savedBank && (
             <div className="px-5 py-5 space-y-4">
               {/* Destination Bank Card (Clean luxury light card) */}
-              <div className="bg-gradient-to-br from-amber-50/70 via-white to-orange-50/50 border border-amber-200/90 rounded-2xl p-4 shadow-2xs space-y-2">
+              <div className="bg-gradient-to-br from-amber-50/70 via-white to-orange-50/50 border border-amber-200/90 rounded-2xl p-4 shadow-2xs space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black text-xs shadow-xs">
-                      <Landmark size={18} />
-                    </div>
+                  <div className="flex items-center gap-3">
+                    {(() => {
+                      const bankItem = getBankDetails(savedBank.bank_name, banks);
+                      return (
+                        <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200/90 shadow-2xs flex items-center justify-center p-1 shrink-0 overflow-hidden relative">
+                          {bankItem?.logo_url ? (
+                            <img
+                              src={bankItem.logo_url}
+                              alt={savedBank.bank_name}
+                              className="w-full h-full object-contain rounded-xl"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                const fb = e.currentTarget.parentElement?.querySelector('.logo-fb') as HTMLElement;
+                                if (fb) fb.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <span
+                            className="logo-fb hidden w-full h-full rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white font-black text-[10px] items-center justify-center tracking-wider uppercase text-center"
+                            style={{ display: bankItem?.logo_url ? 'none' : 'flex' }}
+                          >
+                            {savedBank.bank_name.slice(0, 4)}
+                          </span>
+                        </div>
+                      );
+                    })()}
                     <div>
-                      <p className="text-xs font-black text-slate-900 leading-tight">
+                      <p className="text-sm font-black text-slate-900 leading-tight">
                         {savedBank.bank_name}
                       </p>
-                      <p className="text-[10px] font-bold text-slate-500">
+                      <p className="text-[10px] font-bold text-slate-500 mt-0.5">
                         {savedBank.account_holder_name}
                       </p>
                     </div>
@@ -357,13 +407,32 @@ export default function AgentWithdrawModal({ onClose, onOpenAttackBank }: Props)
                     <ShieldCheck size={10} className="text-emerald-600" /> Linked
                   </span>
                 </div>
-                <div className="flex justify-between items-center pt-1 border-t border-amber-100 text-[11px]">
+                <div className="flex justify-between items-center pt-2 border-t border-amber-100/80 text-[11px]">
                   <span className="text-slate-400 font-semibold">Account Number</span>
-                  <span className="font-mono font-black text-slate-800">
-                    {savedBank.account_number.length > 4
-                      ? `•••• •••• ${savedBank.account_number.slice(-4)}`
-                      : savedBank.account_number}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-black text-slate-800 tracking-wide">
+                      {showAccountNumber
+                        ? savedBank.account_number
+                        : (savedBank.account_number.length > 4
+                            ? `•••• •••• ${savedBank.account_number.slice(-4)}`
+                            : savedBank.account_number)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        haptic('light');
+                        setShowAccountNumber(!showAccountNumber);
+                      }}
+                      className="p-1 rounded-lg hover:bg-amber-100/70 text-slate-400 hover:text-slate-700 active:scale-95 transition-all"
+                      title={showAccountNumber ? "Hide Account Number" : "Show Account Number"}
+                    >
+                      {showAccountNumber ? (
+                        <EyeOff size={14} className="text-amber-700" />
+                      ) : (
+                        <Eye size={14} className="text-slate-400" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -399,23 +468,6 @@ export default function AgentWithdrawModal({ onClose, onOpenAttackBank }: Props)
                   >
                     MAX
                   </button>
-                </div>
-
-                {/* Quick Chips */}
-                <div className="flex gap-2 flex-wrap pt-1">
-                  {[100, 500, 1000, 2000, 5000].map((v) => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => {
-                        haptic('light');
-                        setAmount(Math.min(v, mainBalance).toString());
-                      }}
-                      className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-black text-slate-700 active:scale-95 transition-all"
-                    >
-                      {v.toLocaleString()} ETB
-                    </button>
-                  ))}
                 </div>
               </div>
 
