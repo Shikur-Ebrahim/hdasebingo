@@ -174,7 +174,7 @@ export default function Worker() {
 
   return (
     <>
-    <div className="min-h-screen bg-slate-50 flex flex-col pb-24">
+    <div className="min-h-screen bg-slate-50 flex flex-col pb-36">
       {/* Header */}
       <div className="bg-orange-600 text-white px-4 py-6 rounded-b-[2rem] shadow-md relative z-10 shrink-0">
         <div className="flex justify-between items-center mb-6">
@@ -184,9 +184,20 @@ export default function Worker() {
               Welcome back, {user.first_name}
             </p>
           </div>
-          <Link to="/" className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors">
-            <LogOut size={20} />
-          </Link>
+          <div className="flex items-center space-x-2">
+            {/* Top Green Fingerprint Button */}
+            <button
+              onClick={openBalanceModal}
+              className="p-2.5 bg-emerald-500 hover:bg-emerald-400 active:scale-90 text-white rounded-full shadow-md shadow-emerald-900/30 transition-all border border-emerald-300/40 relative flex items-center justify-center"
+              title="View Net Balance"
+            >
+              <Fingerprint size={20} className="text-white drop-shadow" />
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-300 rounded-full border-2 border-orange-600 animate-pulse" />
+            </button>
+            <Link to="/" className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors">
+              <LogOut size={20} />
+            </Link>
+          </div>
         </div>
 
         {/* Quick Actions */}
@@ -345,43 +356,44 @@ export default function Worker() {
         </div>
 
         {/* Note */}
-        <div className="bg-blue-50 text-blue-800 p-4 rounded-2xl flex items-start space-x-3 text-xs font-medium">
+        <div className="bg-blue-50 text-blue-800 p-4 rounded-2xl flex items-start space-x-3 text-xs font-medium mb-6">
           <Calendar size={18} className="shrink-0 text-blue-500 mt-0.5" />
           <p>Only <strong>approved</strong> deposits and withdrawals are counted. Pending transactions are excluded.</p>
         </div>
 
-        {/* Advanced Circular Red Fingerprint Button */}
-        <div className="flex flex-col items-center justify-center pt-6 pb-2">
-          <div className="relative flex items-center justify-center">
-            {/* Pulsing Aura Rings */}
-            <div className="absolute w-24 h-24 rounded-full bg-red-500/20 animate-ping pointer-events-none" />
-            <div className="absolute w-28 h-28 rounded-full bg-rose-500/10 blur-xl pointer-events-none" />
+      </div>
+    </div>
 
-            {/* Outer Ring Border */}
-            <div className="p-1.5 rounded-full bg-gradient-to-b from-red-400 via-rose-500 to-red-700 shadow-2xl shadow-red-500/40">
-              {/* Main Circular Button */}
-              <button
-                onClick={openBalanceModal}
-                className="w-20 h-20 rounded-full bg-gradient-to-br from-rose-500 via-red-600 to-red-700 hover:from-rose-400 hover:to-red-600 active:scale-90 transition-all flex items-center justify-center text-white shadow-inner border border-white/30 group relative overflow-hidden"
-                title="Tap for Net Remaining Audit"
-              >
-                {/* Subtle sheen highlight */}
-                <div className="absolute top-0 left-0 right-0 h-1/2 bg-white/20 rounded-t-full pointer-events-none" />
-                <Fingerprint size={38} className="text-white drop-shadow-lg group-hover:scale-110 transition-transform" />
-              </button>
-            </div>
-          </div>
+      {/* ── Fixed Bottom Floating Circular Red Fingerprint Button ── */}
+      <div className="fixed bottom-5 left-0 right-0 flex flex-col items-center justify-center z-40 pointer-events-none">
+        <div className="relative flex items-center justify-center pointer-events-auto">
+          {/* Pulsing Aura Rings */}
+          <div className="absolute w-20 h-20 rounded-full bg-red-500/25 animate-ping pointer-events-none" />
+          <div className="absolute w-24 h-24 rounded-full bg-rose-500/20 blur-lg pointer-events-none" />
 
-          <div className="flex items-center space-x-1.5 mt-3">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse inline-block" />
-            <span className="text-xs font-black uppercase tracking-wider text-slate-500">
-              Audit Verification
-            </span>
+          {/* Outer Ring Border */}
+          <div className="p-1 rounded-full bg-gradient-to-b from-red-400 via-rose-500 to-red-700 shadow-2xl shadow-red-600/50 backdrop-blur-md">
+            {/* Main Circular Button */}
+            <button
+              onClick={openBalanceModal}
+              className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-gradient-to-br from-rose-500 via-red-600 to-red-700 hover:from-rose-400 hover:to-red-600 active:scale-90 transition-all flex items-center justify-center text-white shadow-inner border-2 border-white/40 group relative overflow-hidden"
+              title="Tap for Net Remaining Audit"
+            >
+              {/* Subtle sheen highlight */}
+              <div className="absolute top-0 left-0 right-0 h-1/2 bg-white/25 rounded-t-full pointer-events-none" />
+              <Fingerprint size={32} className="text-white drop-shadow-md group-hover:scale-110 transition-transform" />
+            </button>
           </div>
         </div>
 
+        {/* Floating pill badge */}
+        <div className="pointer-events-auto mt-1.5 px-3 py-0.5 rounded-full bg-slate-900/85 backdrop-blur-md border border-slate-700/60 shadow-md flex items-center space-x-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse inline-block" />
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-200">
+            Audit Balance
+          </span>
+        </div>
       </div>
-    </div>
 
       {/* ── Net Balance Modal (Fingerprint) ───────────────────────────── */}
       {showBalanceModal && (
