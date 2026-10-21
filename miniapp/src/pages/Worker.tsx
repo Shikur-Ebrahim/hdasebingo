@@ -16,7 +16,7 @@ function toDateStr(d: Date) {
 export default function Worker() {
   const { user } = useGameStore();
   const [activePreset, setActivePreset] = useState('Today');
-  const [stats, setStats] = useState({ totalDeposits: 0, totalWithdrawals: 0, netProfit: 0 });
+  const [stats, setStats] = useState({ totalDeposits: 0, totalWithdrawals: 0, totalFees: 0, netProfit: 0 });
   const [loading, setLoading] = useState(true);
   const [pendingDeposits, setPendingDeposits] = useState(0);
   const [pendingWithdrawals, setPendingWithdrawals] = useState(0);
@@ -295,9 +295,15 @@ export default function Worker() {
             <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
               <ArrowUpFromLine size={24} />
             </div>
-            <div>
+            <div className="flex-1">
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Withdrawals</p>
+              <p className="text-[10px] font-semibold text-amber-600 -mt-0.5">Actual Payout (after fee)</p>
               <p className="text-xl font-black text-slate-800">{stats.totalWithdrawals.toLocaleString()} ETB</p>
+              {stats.totalFees > 0 && (
+                <p className="text-[10px] font-bold text-emerald-600 mt-0.5">
+                  💰 Fees Collected: +{stats.totalFees.toLocaleString()} ETB
+                </p>
+              )}
             </div>
           </div>
 

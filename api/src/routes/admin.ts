@@ -530,7 +530,8 @@ router.get('/profit-report', validateTelegramAuth, requireAdmin, async (req, res
   const { from, to } = req.query;
   
   let dQuery = supabase.from('deposits').select('amount').eq('status', 'approved');
-  let wQuery = supabase.from('withdrawals').select('amount').eq('status', 'approved');
+  // Select net_amount so we can show actual payout (after fee) for withdrawals
+  let wQuery = supabase.from('withdrawals').select('amount, net_amount, fee_amount').eq('status', 'approved');
 
   if (from) {
     dQuery = dQuery.gte('created_at', from);
@@ -547,10 +548,17 @@ router.get('/profit-report', validateTelegramAuth, requireAdmin, async (req, res
   if (wRes.error) return res.status(500).json({ error: wRes.error.message });
 
   const totalDeposits = (dRes.data || []).reduce((sum, d) => sum + Number(d.amount), 0);
-  const totalWithdrawals = (wRes.data || []).reduce((sum, w) => sum + Number(w.amount), 0);
+  // Use net_amount (actual payout to user after fee deduction) if available; fallback to amount
+  const totalWithdrawals = (wRes.data || []).reduce((sum, w) => {
+    const netAmt = Number((w as any).net_amount);
+    const amt = Number(w.amount);
+    // net_amount > 0 means fee was applied; use it as the actual payout the worker sends
+    return sum + (netAmt > 0 ? netAmt : amt);
+  }, 0);
+  const totalFees = (wRes.data || []).reduce((sum, w) => sum + Number((w as any).fee_amount || 0), 0);
   const netProfit = totalDeposits - totalWithdrawals;
 
-  res.json({ totalDeposits, totalWithdrawals, netProfit });
+  res.json({ totalDeposits, totalWithdrawals, totalFees, netProfit });
 });
 
 // ─── TRANSACTION REPORT ────────────────────────────────────────────────────────
