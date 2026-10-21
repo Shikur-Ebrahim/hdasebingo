@@ -25,6 +25,8 @@ const requireAdmin = async (req: AuthRequest, res: Response, next: NextFunction)
     return;
   }
   
+  (req as any).userRole = data.role;
+
   if (data.role === 'admin') {
     return next();
   }
@@ -43,6 +45,8 @@ const requireAdmin = async (req: AuthRequest, res: Response, next: NextFunction)
   else if (path.startsWith('/tx-report') && perms.reports) allowed = true;
   else if (path.startsWith('/profit-report')) allowed = true; // Allow workers to view profit report
   else if (path.startsWith('/audit/worker-balance')) allowed = true; // Workers see net remaining balance
+  else if (path.startsWith('/worker-transfers') && !path.includes('/review')) allowed = true; // Workers can submit/view transfers
+  else if (path.startsWith('/manager-accounts') && req.method === 'GET') allowed = true; // Workers view manager accounts
   else if (path.startsWith('/games') && perms.games) allowed = true;
   
   // Explicitly deny these to anyone but admin
@@ -1587,9 +1591,9 @@ router.delete('/support-videos/:id', async (req, res) => {
   }
 });
 
-// ─── FINANCIAL AUDIT ROUTES ─────────────────────────────────────────────────
+// ─── FINANCIAL AUDIT & TRANSFERS ROUTES ─────────────────────────────────────
 
-// GET /admin/audit — full financial summary (deposits, withdrawals, fees, reductions, net remaining)
+// GET /admin/audit — full financial summary (deposits, withdrawals, fees, reductions, worker transfers)
 router.get('/audit', validateTelegramAuth, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { from, to } = req.query;
@@ -1600,10 +1604,11 @@ router.get('/audit', validateTelegramAuth, requireAdmin, async (req: AuthRequest
     if (from) { dQuery = dQuery.gte('created_at', from); wQuery = wQuery.gte('created_at', from); }
     if (to)   { dQuery = dQuery.lte('created_at', to);   wQuery = wQuery.lte('created_at', to); }
 
-    const [dRes, wRes, redRes] = await Promise.all([
+    const [dRes, wRes, redRes, trRes] = await Promise.all([
       dQuery,
       wQuery,
       supabase.from('audit_reductions').select('*').order('created_at', { ascending: false }),
+      supabase.from('worker_transfers').select('*').order('created_at', { ascending: false }),
     ]);
 
     if (dRes.error) return res.status(500).json({ error: dRes.error.message });
@@ -1617,11 +1622,17 @@ router.get('/audit', validateTelegramAuth, requireAdmin, async (req: AuthRequest
     const totalFees = (wRes.data || []).reduce((s, w) => s + Number((w as any).fee_amount || 0), 0);
     const grossRequested = (wRes.data || []).reduce((s, w) => s + Number(w.amount), 0);
 
-    const reductions     = (redRes.data || []) as any[];
-    const totalReduced   = reductions.reduce((s, r) => s + Number(r.amount), 0);
+    const manualReductions = (redRes.data || []) as any[];
+    const transfers = (trRes.data || []) as any[];
 
-    const netProfit      = totalDeposits - totalWithdrawals;
-    const netRemaining   = netProfit - totalReduced;
+    // Approved transfers count as reductions towards net profit
+    const approvedTransfers = transfers.filter(t => t.status === 'approved');
+    const transfersReduced = approvedTransfers.reduce((s, t) => s + Number(t.amount), 0);
+    const manualReduced = manualReductions.reduce((s, r) => s + Number(r.amount), 0);
+    const totalReduced = transfersReduced + manualReduced;
+
+    const netProfit    = totalDeposits - totalWithdrawals;
+    const netRemaining = netProfit - totalReduced;
 
     res.json({
       totalDeposits,
@@ -1629,16 +1640,17 @@ router.get('/audit', validateTelegramAuth, requireAdmin, async (req: AuthRequest
       grossRequested,     // full amount user requested
       totalFees,          // fees collected
       netProfit,          // deposits - actual payouts
-      totalReduced,       // sum of manual reductions
+      totalReduced,       // sum of manual reductions + approved transfers
       netRemaining,       // netProfit - totalReduced
-      reductions,         // full history
+      reductions: manualReductions,
+      transfers,          // all worker transfer requests (pending, approved, rejected)
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// POST /admin/audit/reduce — add a manual reduction entry
+// POST /admin/audit/reduce — add a manual reduction entry (legacy/direct support)
 router.post('/audit/reduce', validateTelegramAuth, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { amount, note } = req.body;
@@ -1672,13 +1684,16 @@ router.delete('/audit/reduce/:id', validateTelegramAuth, requireAdmin, async (re
   }
 });
 
-// GET /admin/audit/worker-balance — worker sees net remaining + reduction history (read-only)
-router.get('/audit/worker-balance', validateTelegramAuth, requireAdmin, async (_req: AuthRequest, res: Response) => {
+// GET /admin/audit/worker-balance — worker sees live net remaining + transfer history
+router.get('/audit/worker-balance', validateTelegramAuth, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const [dRes, wRes, redRes] = await Promise.all([
+    const workerTelegramId = req.telegramUser!.id.toString();
+
+    const [dRes, wRes, redRes, trRes] = await Promise.all([
       supabase.from('deposits').select('amount').eq('status', 'approved'),
       supabase.from('withdrawals').select('amount, net_amount').eq('status', 'approved'),
       supabase.from('audit_reductions').select('*').order('created_at', { ascending: false }),
+      supabase.from('worker_transfers').select('*').order('created_at', { ascending: false }),
     ]);
 
     const totalDeposits    = (dRes.data || []).reduce((s, d) => s + Number(d.amount), 0);
@@ -1687,13 +1702,209 @@ router.get('/audit/worker-balance', validateTelegramAuth, requireAdmin, async (_
       return s + (net > 0 ? net : Number(w.amount));
     }, 0);
     const netProfit      = totalDeposits - totalWithdrawals;
-    const totalReduced   = ((redRes.data || []) as any[]).reduce((s, r) => s + Number(r.amount), 0);
-    const netRemaining   = netProfit - totalReduced;
+
+    const manualReductions = (redRes.data || []) as any[];
+    const allTransfers = (trRes.data || []) as any[];
+
+    // Only approved transfers reduce the balance
+    const approvedTransfers = allTransfers.filter(t => t.status === 'approved');
+    const transfersReduced = approvedTransfers.reduce((s, t) => s + Number(t.amount), 0);
+    const manualReduced = manualReductions.reduce((s, r) => s + Number(r.amount), 0);
+    const totalReduced = transfersReduced + manualReduced;
+
+    const netRemaining = netProfit - totalReduced;
+
+    // Filter transfers: workers see all transfers or their own
+    const workerTransfers = allTransfers.filter(t => t.worker_telegram_id === workerTelegramId || (req as any).userRole === 'admin');
 
     res.json({
       netRemaining,
-      reductions: (redRes.data || []) as any[],
+      netProfit,
+      totalReduced,
+      transfers: workerTransfers,
+      reductions: manualReductions,
     });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── MANAGER RECEIVING ACCOUNTS (CBE, BOA, Telebirr) ──────────────────────────
+
+// GET /admin/manager-accounts — list manager accounts
+router.get('/manager-accounts', validateTelegramAuth, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const isAdmin = (req as any).userRole === 'admin';
+    let query = supabase.from('manager_accounts').select('*').order('created_at', { ascending: false });
+    if (!isAdmin) {
+      query = query.eq('is_active', true);
+    }
+    const { data, error } = await query;
+    if (error && error.code !== 'PGRST205') return res.status(500).json({ error: error.message });
+    res.json(data || []);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/manager-accounts — add new manager account (Admin only)
+router.post('/manager-accounts', validateTelegramAuth, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    if ((req as any).userRole !== 'admin') return res.status(403).json({ error: 'Admin only.' });
+    const { bank_type, account_name, account_number } = req.body;
+    if (!bank_type || !account_name || !account_number) {
+      return res.status(400).json({ error: 'Bank type, account name, and account number are required.' });
+    }
+    const { data, error } = await supabase
+      .from('manager_accounts')
+      .insert({
+        bank_type: bank_type.toLowerCase().trim(),
+        account_name: account_name.trim(),
+        account_number: account_number.trim(),
+        is_active: true
+      })
+      .select()
+      .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true, account: data });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /admin/manager-accounts/:id — update manager account (Admin only)
+router.put('/manager-accounts/:id', validateTelegramAuth, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    if ((req as any).userRole !== 'admin') return res.status(403).json({ error: 'Admin only.' });
+    const { id } = req.params;
+    const { bank_type, account_name, account_number, is_active } = req.body;
+    const updatePayload: any = { updated_at: new Date().toISOString() };
+    if (bank_type !== undefined) updatePayload.bank_type = bank_type.toLowerCase().trim();
+    if (account_name !== undefined) updatePayload.account_name = account_name.trim();
+    if (account_number !== undefined) updatePayload.account_number = account_number.trim();
+    if (is_active !== undefined) updatePayload.is_active = Boolean(is_active);
+
+    const { data, error } = await supabase
+      .from('manager_accounts')
+      .update(updatePayload)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true, account: data });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /admin/manager-accounts/:id — delete manager account (Admin only)
+router.delete('/manager-accounts/:id', validateTelegramAuth, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    if ((req as any).userRole !== 'admin') return res.status(403).json({ error: 'Admin only.' });
+    const { id } = req.params;
+    const { error } = await supabase.from('manager_accounts').delete().eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── WORKER TRANSFERS (Transfer to Manager) ──────────────────────────────────
+
+// POST /admin/worker-transfers — Worker submits transfer to manager
+router.post('/worker-transfers', validateTelegramAuth, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { manager_account_id, amount, screenshot_url, note } = req.body;
+    const amt = Number(amount);
+    if (!amt || amt <= 0) return res.status(400).json({ error: 'Valid positive amount required.' });
+    if (!screenshot_url) return res.status(400).json({ error: 'Payment screenshot receipt is required.' });
+
+    // Fetch the manager account details
+    const { data: mAccount, error: mErr } = await supabase
+      .from('manager_accounts')
+      .select('*')
+      .eq('id', manager_account_id)
+      .single();
+
+    if (mErr || !mAccount) return res.status(400).json({ error: 'Selected manager account not found.' });
+
+    const workerTelegramId = req.telegramUser!.id.toString();
+    const workerName = req.telegramUser?.first_name || 'Worker';
+
+    const { data, error } = await supabase
+      .from('worker_transfers')
+      .insert({
+        worker_telegram_id: workerTelegramId,
+        worker_name: workerName,
+        manager_account_id: mAccount.id,
+        bank_type: mAccount.bank_type,
+        account_name: mAccount.account_name,
+        account_number: mAccount.account_number,
+        amount: amt,
+        screenshot_url: screenshot_url.trim(),
+        note: (note || '').trim(),
+        status: 'pending'
+      })
+      .select()
+      .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true, transfer: data });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /admin/worker-transfers — List worker transfers (Admin sees all; worker sees own)
+router.get('/worker-transfers', validateTelegramAuth, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const isAdmin = (req as any).userRole === 'admin';
+    const { status } = req.query;
+    let query = supabase.from('worker_transfers').select('*').order('created_at', { ascending: false });
+
+    if (!isAdmin) {
+      query = query.eq('worker_telegram_id', req.telegramUser!.id.toString());
+    }
+    if (status && typeof status === 'string') {
+      query = query.eq('status', status);
+    }
+
+    const { data, error } = await query;
+    if (error && error.code !== 'PGRST205') return res.status(500).json({ error: error.message });
+    res.json(data || []);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /admin/worker-transfers/:id/review — Admin approves or rejects worker transfer
+router.put('/worker-transfers/:id/review', validateTelegramAuth, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    if ((req as any).userRole !== 'admin') return res.status(403).json({ error: 'Admin only.' });
+    const { id } = req.params;
+    const { action } = req.body;
+    if (action !== 'approve' && action !== 'reject') {
+      return res.status(400).json({ error: 'Action must be approve or reject.' });
+    }
+
+    const reviewerName = req.telegramUser?.first_name || req.telegramUser?.username || 'Admin';
+
+    const { data, error } = await supabase
+      .from('worker_transfers')
+      .update({
+        status: action === 'approve' ? 'approved' : 'rejected',
+        reviewed_by: reviewerName,
+        reviewed_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true, transfer: data });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

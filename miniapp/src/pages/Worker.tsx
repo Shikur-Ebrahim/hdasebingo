@@ -1,10 +1,37 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { Navigate, Link } from 'react-router-dom';
-import { ArrowDownToLine, ArrowUpFromLine, TrendingUp, Calendar, RefreshCw, LogOut, Search, Fingerprint, X, Minus, ChevronDown, ChevronUp, ChevronRight, Sparkles, ShieldCheck } from 'lucide-react';
+import { 
+  ArrowDownToLine, ArrowUpFromLine, TrendingUp, Calendar, RefreshCw, 
+  Search, Fingerprint, X, Minus, ChevronDown, ChevronUp, ChevronRight, 
+  Send, Copy, Check, UploadCloud, ArrowLeft, Building2, Eye, Clock, CheckCircle2, XCircle
+} from 'lucide-react';
 import WebApp from '@twa-dev/sdk';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+
+interface ManagerAccount {
+  id: string;
+  bank_type: string;
+  account_name: string;
+  account_number: string;
+  is_active: boolean;
+}
+
+interface WorkerTransfer {
+  id: string;
+  worker_name: string;
+  bank_type: string;
+  account_name: string;
+  account_number: string;
+  amount: number;
+  screenshot_url: string;
+  note?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewed_by?: string;
+  reviewed_at?: string;
+  created_at: string;
+}
 
 interface Reduction {
   id: string;
@@ -13,6 +40,20 @@ interface Reduction {
   reduced_by: string;
   created_at: string;
 }
+
+interface BalanceResponse {
+  netRemaining: number;
+  netProfit?: number;
+  totalReduced?: number;
+  transfers?: WorkerTransfer[];
+  reductions?: Reduction[];
+}
+
+const BANK_NAMES: Record<string, string> = {
+  cbe: 'Commercial Bank of Ethiopia (CBE)',
+  boa: 'Bank of Abyssinia (BOA)',
+  telebirr: 'Telebirr',
+};
 
 function toDateStr(d: Date) {
   const year = d.getFullYear();
@@ -31,9 +72,24 @@ export default function Worker() {
 
   // Net remaining balance (fingerprint modal)
   const [showBalanceModal, setShowBalanceModal] = useState(false);
-  const [balanceData, setBalanceData] = useState<{ netRemaining: number; reductions: Reduction[] } | null>(null);
+  const [balanceData, setBalanceData] = useState<BalanceResponse | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [showBalanceHistory, setShowBalanceHistory] = useState(true);
+
+  // Transfer to Manager state
+  const [showTransferForm, setShowTransferForm] = useState(false);
+  const [managerAccounts, setManagerAccounts] = useState<ManagerAccount[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [selectedAccountId, setSelectedAccountId] = useState('');
+  const [transferAmount, setTransferAmount] = useState('');
+  const [transferNote, setTransferNote] = useState('');
+  const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
+  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const [uploadingTransfer, setUploadingTransfer] = useState(false);
+  const [transferError, setTransferError] = useState('');
+  const [transferSuccess, setTransferSuccess] = useState('');
+  const [copiedAccount, setCopiedAccount] = useState(false);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
 
   // Custom date range state
   const [customFrom, setCustomFrom] = useState('');
@@ -117,7 +173,6 @@ export default function Worker() {
       fromIso = startOf(d);
       toIso = endOf(now);
     }
-    // All Time: fromIso & toIso stay ''
 
     fetchReport(fromIso, toIso);
   };
@@ -147,30 +202,137 @@ export default function Worker() {
     }
   }, []);
 
+  const openBalanceModal = async () => {
+    setShowBalanceModal(true);
+    setShowTransferForm(false);
+    setBalanceLoading(true);
+    try {
+      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+      const [balRes, accRes] = await Promise.all([
+        fetch(`${API_URL}/admin/audit/worker-balance`, { headers: { 'x-telegram-init-data': initData } }),
+        fetch(`${API_URL}/admin/manager-accounts`, { headers: { 'x-telegram-init-data': initData } }),
+      ]);
+      if (balRes.ok) setBalanceData(await balRes.json());
+      if (accRes.ok) {
+        const accounts: ManagerAccount[] = await accRes.json();
+        setManagerAccounts(accounts);
+        if (accounts.length > 0 && !selectedAccountId) {
+          setSelectedAccountId(accounts[0].id);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBalanceLoading(false);
+    }
+  };
+
+  const handleCopyAccount = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedAccount(true);
+    setTimeout(() => setCopiedAccount(false), 2000);
+  };
+
+  const uploadScreenshot = async (file: File): Promise<string> => {
+    const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+    const res = await fetch(`${API_URL}/upload/presign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData },
+      body: JSON.stringify({ filename: file.name, contentType: file.type || 'image/jpeg' }),
+    });
+    if (!res.ok) throw new Error('Could not get upload URL');
+    const { uploadUrl, publicUrl } = await res.json();
+    const uploadRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': file.type || 'image/jpeg' },
+      body: file,
+    });
+    if (!uploadRes.ok) throw new Error('Screenshot upload failed');
+    return publicUrl;
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setScreenshotFile(file);
+      setScreenshotPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleTransferSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTransferError('');
+    setTransferSuccess('');
+
+    const amt = parseFloat(transferAmount);
+    if (!amt || amt <= 0) {
+      setTransferError('Please enter a valid amount.');
+      return;
+    }
+    if (!selectedAccountId) {
+      setTransferError('Please select a manager receiving account.');
+      return;
+    }
+    if (!screenshotFile) {
+      setTransferError('Please attach your payment screenshot receipt.');
+      return;
+    }
+
+    setUploadingTransfer(true);
+    try {
+      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+      const screenshotUrl = await uploadScreenshot(screenshotFile);
+
+      const res = await fetch(`${API_URL}/admin/worker-transfers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData },
+        body: JSON.stringify({
+          manager_account_id: selectedAccountId,
+          amount: amt,
+          screenshot_url: screenshotUrl,
+          note: transferNote,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setTransferError(data.error || 'Failed to submit transfer.');
+        return;
+      }
+
+      setTransferSuccess('Transfer submitted! Admin will verify and approve your transfer.');
+      setTransferAmount('');
+      setTransferNote('');
+      setScreenshotFile(null);
+      setScreenshotPreview(null);
+
+      setTimeout(() => {
+        setShowTransferForm(false);
+        setTransferSuccess('');
+        openBalanceModal();
+      }, 1500);
+    } catch (err: any) {
+      setTransferError(err.message || 'Error uploading transfer.');
+    } finally {
+      setUploadingTransfer(false);
+    }
+  };
+
   useEffect(() => {
     applyPreset('Today');
     fetchPendingCounts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const openBalanceModal = async () => {
-    setShowBalanceModal(true);
-    setBalanceLoading(true);
-    try {
-      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
-      const res = await fetch(`${API_URL}/admin/audit/worker-balance`, {
-        headers: { 'x-telegram-init-data': initData },
-      });
-      if (res.ok) setBalanceData(await res.json());
-    } catch (e) { console.error(e); }
-    finally { setBalanceLoading(false); }
-  };
-
   if (!user || user.role !== 'worker') {
     return <Navigate to="/" replace />;
   }
 
   const perms = user.permissions || {};
+  const selectedAccount = managerAccounts.find(a => a.id === selectedAccountId);
+  const workerTransfers = balanceData?.transfers || [];
+  const manualReductions = balanceData?.reductions || [];
+  const totalHistoryCount = workerTransfers.length + manualReductions.length;
 
   return (
     <>
@@ -184,7 +346,6 @@ export default function Worker() {
               Welcome back, {user.first_name}
             </p>
           </div>
-          
         </div>
 
         {/* Quick Actions */}
@@ -348,18 +509,13 @@ export default function Worker() {
       {/* ── Fixed Bottom Floating Circular Black Fingerprint Button ── */}
       <div className="fixed bottom-1 left-0 right-0 flex items-center justify-center z-40 pointer-events-none">
         <div className="relative flex items-center justify-center pointer-events-auto">
-          {/* Subtle Outer Ping Wave */}
           <div className="absolute w-22 h-22 rounded-full bg-slate-800/20 animate-ping pointer-events-none" />
-
-          {/* Outer Ring Border */}
           <div className="p-1 rounded-full bg-gradient-to-b from-slate-600 via-slate-800 to-black shadow-xl shadow-black/60 border border-slate-600/40">
-            {/* Main Circular Black Button */}
             <button
               onClick={openBalanceModal}
               className="w-20 h-20 sm:w-22 sm:h-22 rounded-full bg-gradient-to-br from-slate-900 via-zinc-950 to-black hover:from-slate-800 hover:to-zinc-900 active:scale-90 transition-all flex items-center justify-center text-white shadow-2xl border-2 border-slate-500/40 group relative overflow-hidden"
               title="View Net Remaining Balance"
             >
-              {/* Subtle metallic sheen highlight */}
               <div className="absolute top-0 left-0 right-0 h-1/2 bg-white/15 rounded-t-full pointer-events-none" />
               <Fingerprint size={42} className="text-white drop-shadow-[0_2px_12px_rgba(255,255,255,0.45)] group-hover:scale-110 transition-transform" />
             </button>
@@ -369,102 +525,328 @@ export default function Worker() {
 
       {/* ── Net Balance Modal (Fingerprint) ───────────────────────────── */}
       {showBalanceModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowBalanceModal(false)}>
-          <div className="bg-white w-full max-w-md rounded-t-3xl shadow-2xl pb-8 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowBalanceModal(false)}>
+          <div className="bg-white w-full max-w-md rounded-t-3xl shadow-2xl pb-8 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100">
+            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100 sticky top-0 bg-white z-10">
               <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center">
-                  <Fingerprint size={20} />
-                </div>
-                <h2 className="text-lg font-black text-slate-800">Net Remaining Balance</h2>
+                {showTransferForm ? (
+                  <button onClick={() => setShowTransferForm(false)} className="p-1 rounded-xl hover:bg-slate-100 mr-1 text-slate-600">
+                    <ArrowLeft size={20} />
+                  </button>
+                ) : (
+                  <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center">
+                    <Fingerprint size={20} />
+                  </div>
+                )}
+                <h2 className="text-lg font-black text-slate-800">
+                  {showTransferForm ? 'Transfer to Manager' : 'Net Remaining Balance'}
+                </h2>
               </div>
-              <button onClick={() => setShowBalanceModal(false)} className="p-2 rounded-xl hover:bg-slate-100">
-                <X size={18} className="text-slate-500" />
+              <button onClick={() => setShowBalanceModal(false)} className="p-2 rounded-xl hover:bg-slate-100 text-slate-500">
+                <X size={18} />
               </button>
             </div>
 
             {balanceLoading ? (
-              <div className="flex justify-center py-12">
+              <div className="flex justify-center py-16">
                 <div className="w-10 h-10 border-4 border-slate-300 border-t-slate-900 rounded-full animate-spin" />
               </div>
             ) : balanceData ? (
               <div className="px-5 pt-5 space-y-4">
-                {/* Balance Card */}
-                <div className={`rounded-3xl p-6 text-center shadow-2xl relative overflow-hidden border ${
-                  balanceData.netRemaining >= 0
-                    ? 'bg-gradient-to-br from-slate-950 via-zinc-900 to-black text-white border-slate-700/60 shadow-black/40'
-                    : 'bg-gradient-to-br from-rose-950 via-red-950 to-black text-white border-rose-800/60 shadow-rose-950/40'
-                }`}>
-                  <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-inner">
-                    <Fingerprint size={32} />
-                  </div>
-                  <p className="text-slate-400 text-[11px] font-black uppercase tracking-wider mb-1">Live Net Remaining Balance</p>
-                  <p className="text-4xl font-black text-white tracking-tight">
-                    {balanceData.netRemaining >= 0 ? '+' : ''}
-                    {balanceData.netRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                  <span className="inline-block mt-2 px-3 py-0.5 rounded-full bg-white/10 text-xs font-black text-emerald-400 border border-emerald-400/30 backdrop-blur-sm">
-                    ETB
-                  </span>
-                  <p className="text-slate-400 text-[11px] font-medium mt-3 border-t border-slate-800 pt-2">
-                    Net Profit (Deposits − Actual Payouts) minus manual reductions
-                  </p>
-                </div>
 
-                {/* History Toggle */}
-                <button
-                  onClick={() => setShowBalanceHistory(v => !v)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100"
-                >
-                  <div className="flex items-center space-x-2">
-                    <Minus size={16} className="text-purple-500" />
-                    <span className="font-black text-slate-700 text-sm">Reduction History</span>
-                    <span className="bg-purple-100 text-purple-700 text-[10px] font-black px-2 py-0.5 rounded-full">
-                      {balanceData.reductions.length}
-                    </span>
-                  </div>
-                  {showBalanceHistory ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
-                </button>
-
-                {showBalanceHistory && (
-                  <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-                    {balanceData.reductions.length === 0 ? (
-                      <div className="py-8 text-center text-slate-400">
-                        <p className="text-sm font-semibold">No reductions recorded yet</p>
-                      </div>
-                    ) : (
-                      <div className="divide-y divide-slate-50">
-                        {balanceData.reductions.map(r => (
-                          <div key={r.id} className="flex items-start px-4 py-3 space-x-3">
-                            <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center shrink-0 mt-0.5">
-                              <Minus size={14} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-black text-slate-800 text-sm">
-                                -{r.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ETB
-                              </p>
-                              <p className="text-xs text-slate-500 font-medium">{r.note || 'No note'}</p>
-                              <p className="text-[10px] text-slate-400">
-                                {new Date(r.created_at).toLocaleDateString('en-US', {
-                                  day: '2-digit', month: 'short', year: 'numeric',
-                                  hour: '2-digit', minute: '2-digit'
-                                })} • by {r.reduced_by}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
+                {showTransferForm ? (
+                  /* ── TRANSFER FORM VIEW ────────────────────────────── */
+                  <form onSubmit={handleTransferSubmit} className="space-y-4">
+                    {transferError && (
+                      <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-bold text-rose-600">
+                        {transferError}
                       </div>
                     )}
-                  </div>
+                    {transferSuccess && (
+                      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs font-bold text-emerald-700 flex items-center space-x-2">
+                        <CheckCircle2 size={16} />
+                        <span>{transferSuccess}</span>
+                      </div>
+                    )}
+
+                    {/* Balance Preview */}
+                    <div className="p-3 bg-slate-900 text-white rounded-2xl flex items-center justify-between">
+                      <span className="text-xs text-slate-400 font-bold">Current Net Balance:</span>
+                      <span className="text-sm font-black text-emerald-400">
+                        {balanceData.netRemaining.toLocaleString('en-US', { minimumFractionDigits: 2 })} ETB
+                      </span>
+                    </div>
+
+                    {/* Select Manager Account */}
+                    <div>
+                      <label className="text-[11px] font-black uppercase text-slate-500 block mb-1">
+                        Select Manager Account
+                      </label>
+                      {managerAccounts.length === 0 ? (
+                        <p className="text-xs text-amber-600 font-bold bg-amber-50 p-3 rounded-xl border border-amber-200">
+                          No manager accounts configured yet. Contact admin.
+                        </p>
+                      ) : (
+                        <select
+                          value={selectedAccountId}
+                          onChange={e => setSelectedAccountId(e.target.value)}
+                          className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+                          required
+                        >
+                          {managerAccounts.map(acc => (
+                            <option key={acc.id} value={acc.id}>
+                              {BANK_NAMES[acc.bank_type] || acc.bank_type.toUpperCase()} - {acc.account_number} ({acc.account_name})
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+
+                    {/* Selected Account Details & Copy Box */}
+                    {selectedAccount && (
+                      <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs space-y-1">
+                        <div className="flex items-center justify-between text-amber-800 font-bold">
+                          <span>{selectedAccount.account_name}</span>
+                          <span className="text-[10px] uppercase px-2 py-0.5 rounded-full bg-amber-200 font-black">
+                            {selectedAccount.bank_type.toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="font-mono text-sm font-black text-slate-900">{selectedAccount.account_number}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyAccount(selectedAccount.account_number)}
+                            className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 text-amber-800 font-bold text-[10px] flex items-center space-x-1 active:scale-95 transition-all shadow-sm"
+                          >
+                            {copiedAccount ? <Check size={12} className="text-emerald-600" /> : <Copy size={12} />}
+                            <span>{copiedAccount ? 'Copied!' : 'Copy'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Amount Input */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-black uppercase text-slate-500">Transfer Amount (ETB)</label>
+                        <button
+                          type="button"
+                          onClick={() => setTransferAmount(String(Math.max(0, balanceData.netRemaining)))}
+                          className="text-[11px] font-black text-emerald-600 hover:underline"
+                        >
+                          Transfer All
+                        </button>
+                      </div>
+                      <input
+                        type="number"
+                        value={transferAmount}
+                        onChange={e => setTransferAmount(e.target.value)}
+                        placeholder="0.00"
+                        min="1"
+                        step="0.01"
+                        max={balanceData.netRemaining > 0 ? balanceData.netRemaining : undefined}
+                        className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-3 text-base font-black text-slate-900 focus:outline-none focus:border-emerald-500"
+                        required
+                      />
+                    </div>
+
+                    {/* Screenshot Upload */}
+                    <div>
+                      <label className="text-[11px] font-black uppercase text-slate-500 block mb-1">
+                        Payment Screenshot / Receipt
+                      </label>
+                      <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer hover:bg-slate-50 active:scale-98 transition-all">
+                        {screenshotPreview ? (
+                          <div className="relative">
+                            <img src={screenshotPreview} alt="Receipt preview" className="w-24 h-24 object-cover rounded-xl shadow-md border" />
+                            <span className="text-[10px] text-emerald-600 font-black block text-center mt-1">Tap to change</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center text-slate-400">
+                            <UploadCloud size={28} className="mb-1 text-slate-400" />
+                            <span className="text-xs font-bold text-slate-600">Tap to upload receipt image</span>
+                            <span className="text-[10px] text-slate-400">JPG, PNG, WebP</span>
+                          </div>
+                        )}
+                        <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                      </label>
+                    </div>
+
+                    {/* Optional Note */}
+                    <div>
+                      <label className="text-[11px] font-black uppercase text-slate-500 block mb-1">Note (Optional)</label>
+                      <input
+                        type="text"
+                        value={transferNote}
+                        onChange={e => setTransferNote(e.target.value)}
+                        placeholder="e.g. End of day balance payout"
+                        className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-800 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={uploadingTransfer || managerAccounts.length === 0}
+                      className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black text-sm active:scale-95 transition-all shadow-lg shadow-emerald-600/30 disabled:opacity-50"
+                    >
+                      {uploadingTransfer ? 'Submitting Transfer...' : '🚀 Submit Transfer to Manager'}
+                    </button>
+                  </form>
+                ) : (
+                  /* ── BALANCE & HISTORY VIEW ─────────────────────────── */
+                  <>
+                    {/* Balance Card */}
+                    <div className={`rounded-3xl p-6 text-center shadow-2xl relative overflow-hidden border ${
+                      balanceData.netRemaining >= 0
+                        ? 'bg-gradient-to-br from-slate-950 via-zinc-900 to-black text-white border-slate-700/60 shadow-black/40'
+                        : 'bg-gradient-to-br from-rose-950 via-red-950 to-black text-white border-rose-800/60 shadow-rose-950/40'
+                    }`}>
+                      <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-inner">
+                        <Fingerprint size={32} />
+                      </div>
+                      <p className="text-slate-400 text-[11px] font-black uppercase tracking-wider mb-1">Live Net Remaining Balance</p>
+                      <p className="text-4xl font-black text-white tracking-tight">
+                        {balanceData.netRemaining >= 0 ? '+' : ''}
+                        {balanceData.netRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                      <span className="inline-block mt-2 px-3 py-0.5 rounded-full bg-white/10 text-xs font-black text-emerald-400 border border-emerald-400/30 backdrop-blur-sm">
+                        ETB
+                      </span>
+                      <p className="text-slate-400 text-[11px] font-medium mt-3 border-t border-slate-800 pt-2">
+                        Total profit minus approved manager payouts
+                      </p>
+                    </div>
+
+                    {/* Transfer to Manager Action Button */}
+                    <button
+                      onClick={() => setShowTransferForm(true)}
+                      className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 text-white font-black text-sm flex items-center justify-center space-x-2 shadow-lg shadow-emerald-600/25 active:scale-95 transition-all"
+                    >
+                      <Send size={18} />
+                      <span>Transfer to Manager</span>
+                    </button>
+
+                    {/* History Section Toggle */}
+                    <button
+                      onClick={() => setShowBalanceHistory(v => !v)}
+                      className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 rounded-2xl border border-slate-200/80"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <Clock size={16} className="text-slate-600" />
+                        <span className="font-black text-slate-800 text-sm">Transfer & Deduction History</span>
+                        <span className="bg-slate-200 text-slate-800 text-[10px] font-black px-2 py-0.5 rounded-full">
+                          {totalHistoryCount}
+                        </span>
+                      </div>
+                      {showBalanceHistory ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+                    </button>
+
+                    {showBalanceHistory && (
+                      <div className="space-y-2">
+                        {totalHistoryCount === 0 ? (
+                          <div className="py-8 text-center text-slate-400 bg-slate-50 rounded-2xl border">
+                            <p className="text-xs font-bold uppercase tracking-wider">No Transfer History</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">Use "Transfer to Manager" above to payout balance.</p>
+                          </div>
+                        ) : (
+                          <>
+                            {/* Worker Transfers List */}
+                            {workerTransfers.map(tr => (
+                              <div key={tr.id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-200 text-slate-800 uppercase">
+                                      {tr.bank_type}
+                                    </span>
+                                    <span className="text-xs font-bold text-slate-800">{tr.account_name}</span>
+                                  </div>
+                                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                                    tr.status === 'approved' 
+                                      ? 'bg-emerald-100 text-emerald-700' 
+                                      : tr.status === 'rejected'
+                                      ? 'bg-rose-100 text-rose-700'
+                                      : 'bg-amber-100 text-amber-700 animate-pulse'
+                                  }`}>
+                                    {tr.status === 'approved' ? '✅ Approved' : tr.status === 'rejected' ? '❌ Rejected' : '⏳ Pending'}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <p className="font-black text-base text-slate-900">
+                                    -{tr.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ETB
+                                  </p>
+                                  {tr.screenshot_url && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setReceiptPreview(tr.screenshot_url)}
+                                      className="text-xs text-blue-600 font-bold flex items-center space-x-1 hover:underline"
+                                    >
+                                      <Eye size={12} />
+                                      <span>Receipt</span>
+                                    </button>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-200">
+                                  <span>{tr.note || 'Transfer to Manager'}</span>
+                                  <span>{new Date(tr.created_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                                </div>
+                              </div>
+                            ))}
+
+                            {/* Manual reductions (legacy) */}
+                            {manualReductions.map(r => (
+                              <div key={r.id} className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                                <div>
+                                  <p className="font-black text-slate-900 text-sm">
+                                    -{r.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ETB
+                                  </p>
+                                  <p className="text-[10px] text-slate-500">{r.note || 'Manual Reduction'} • by {r.reduced_by}</p>
+                                </div>
+                                <span className="text-[10px] text-slate-400">
+                                  {new Date(r.created_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short' })}
+                                </span>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
+
               </div>
             ) : (
-              <div className="py-12 text-center text-slate-400 font-semibold">Failed to load balance.</div>
+              <div className="py-16 text-center text-slate-400 font-semibold">Failed to load balance.</div>
             )}
           </div>
         </div>
       )}
+
+      {/* ── RECEIPT PREVIEW MODAL ────────────────────────────────────── */}
+      {receiptPreview && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          onClick={() => setReceiptPreview(null)}
+        >
+          <div className="relative max-w-sm w-full bg-slate-900 rounded-3xl p-3 border border-slate-700 shadow-2xl">
+            <button 
+              onClick={() => setReceiptPreview(null)}
+              className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center border border-slate-600 shadow-lg"
+            >
+              <X size={16} />
+            </button>
+            <img 
+              src={receiptPreview} 
+              alt="Receipt Preview" 
+              className="w-full max-h-[80vh] object-contain rounded-2xl" 
+            />
+          </div>
+        </div>
+      )}
+
     </>
   );
 }
