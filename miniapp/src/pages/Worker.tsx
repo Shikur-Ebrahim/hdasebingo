@@ -1,10 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { Navigate, Link } from 'react-router-dom';
-import { ArrowDownToLine, ArrowUpFromLine, TrendingUp, Calendar, RefreshCw, LogOut, Search } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpFromLine, TrendingUp, Calendar, RefreshCw, LogOut, Search, Fingerprint, X, Minus, ChevronDown, ChevronUp } from 'lucide-react';
 import WebApp from '@twa-dev/sdk';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+
+interface Reduction {
+  id: string;
+  amount: number;
+  note: string;
+  reduced_by: string;
+  created_at: string;
+}
 
 function toDateStr(d: Date) {
   const year = d.getFullYear();
@@ -20,6 +28,12 @@ export default function Worker() {
   const [loading, setLoading] = useState(true);
   const [pendingDeposits, setPendingDeposits] = useState(0);
   const [pendingWithdrawals, setPendingWithdrawals] = useState(0);
+
+  // Net remaining balance (fingerprint modal)
+  const [showBalanceModal, setShowBalanceModal] = useState(false);
+  const [balanceData, setBalanceData] = useState<{ netRemaining: number; reductions: Reduction[] } | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
+  const [showBalanceHistory, setShowBalanceHistory] = useState(true);
 
   // Custom date range state
   const [customFrom, setCustomFrom] = useState('');
@@ -139,6 +153,19 @@ export default function Worker() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const openBalanceModal = async () => {
+    setShowBalanceModal(true);
+    setBalanceLoading(true);
+    try {
+      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+      const res = await fetch(`${API_URL}/admin/audit/worker-balance`, {
+        headers: { 'x-telegram-init-data': initData },
+      });
+      if (res.ok) setBalanceData(await res.json());
+    } catch (e) { console.error(e); }
+    finally { setBalanceLoading(false); }
+  };
+
   if (!user || user.role !== 'worker') {
     return <Navigate to="/" replace />;
   }
@@ -146,6 +173,7 @@ export default function Worker() {
   const perms = user.permissions || {};
 
   return (
+    <>
     <div className="min-h-screen bg-slate-50 flex flex-col pb-24">
       {/* Header */}
       <div className="bg-orange-600 text-white px-4 py-6 rounded-b-[2rem] shadow-md relative z-10 shrink-0">
@@ -156,9 +184,19 @@ export default function Worker() {
               Welcome back, {user.first_name}
             </p>
           </div>
-          <Link to="/" className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors">
-            <LogOut size={20} />
-          </Link>
+          <div className="flex items-center space-x-2">
+            {/* Fingerprint Balance Button */}
+            <button
+              onClick={openBalanceModal}
+              className="p-2.5 bg-white/20 rounded-full hover:bg-white/30 transition-colors relative"
+              title="View Net Balance"
+            >
+              <Fingerprint size={20} />
+            </button>
+            <Link to="/" className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors">
+              <LogOut size={20} />
+            </Link>
+          </div>
         </div>
 
         {/* Quick Actions */}
@@ -324,5 +362,97 @@ export default function Worker() {
 
       </div>
     </div>
+
+      {/* ── Net Balance Modal (Fingerprint) ───────────────────────────── */}
+      {showBalanceModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowBalanceModal(false)}>
+          <div className="bg-white w-full max-w-md rounded-t-3xl shadow-2xl pb-8 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100">
+              <div className="flex items-center space-x-2">
+                <Fingerprint size={22} className="text-orange-500" />
+                <h2 className="text-lg font-black text-slate-800">Net Remaining Balance</h2>
+              </div>
+              <button onClick={() => setShowBalanceModal(false)} className="p-2 rounded-xl hover:bg-slate-100">
+                <X size={18} className="text-slate-500" />
+              </button>
+            </div>
+
+            {balanceLoading ? (
+              <div className="flex justify-center py-12">
+                <div className="w-10 h-10 border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+              </div>
+            ) : balanceData ? (
+              <div className="px-5 pt-5 space-y-4">
+                {/* Balance Card */}
+                <div className={`rounded-2xl p-6 text-center ${
+                  balanceData.netRemaining >= 0
+                    ? 'bg-gradient-to-br from-orange-500 to-amber-500'
+                    : 'bg-gradient-to-br from-rose-500 to-red-600'
+                }`}>
+                  <Fingerprint size={32} className="text-white/40 mx-auto mb-2" />
+                  <p className="text-white/80 text-xs font-bold uppercase tracking-wider mb-1">Net Remaining</p>
+                  <p className="text-4xl font-black text-white">
+                    {balanceData.netRemaining >= 0 ? '+' : ''}
+                    {balanceData.netRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                  <p className="text-white/70 text-sm font-bold mt-1">ETB</p>
+                  <p className="text-white/50 text-[10px] font-medium mt-2">Net Profit minus all manual reductions</p>
+                </div>
+
+                {/* History Toggle */}
+                <button
+                  onClick={() => setShowBalanceHistory(v => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100"
+                >
+                  <div className="flex items-center space-x-2">
+                    <Minus size={16} className="text-purple-500" />
+                    <span className="font-black text-slate-700 text-sm">Reduction History</span>
+                    <span className="bg-purple-100 text-purple-700 text-[10px] font-black px-2 py-0.5 rounded-full">
+                      {balanceData.reductions.length}
+                    </span>
+                  </div>
+                  {showBalanceHistory ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+                </button>
+
+                {showBalanceHistory && (
+                  <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+                    {balanceData.reductions.length === 0 ? (
+                      <div className="py-8 text-center text-slate-400">
+                        <p className="text-sm font-semibold">No reductions recorded yet</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-slate-50">
+                        {balanceData.reductions.map(r => (
+                          <div key={r.id} className="flex items-start px-4 py-3 space-x-3">
+                            <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center shrink-0 mt-0.5">
+                              <Minus size={14} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-black text-slate-800 text-sm">
+                                -{r.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ETB
+                              </p>
+                              <p className="text-xs text-slate-500 font-medium">{r.note || 'No note'}</p>
+                              <p className="text-[10px] text-slate-400">
+                                {new Date(r.created_at).toLocaleDateString('en-US', {
+                                  day: '2-digit', month: 'short', year: 'numeric',
+                                  hour: '2-digit', minute: '2-digit'
+                                })} • by {r.reduced_by}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="py-12 text-center text-slate-400 font-semibold">Failed to load balance.</div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

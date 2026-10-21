@@ -147,6 +147,7 @@ function RoleRouter() {
 import AdminDepositMethods from './pages/AdminDepositMethods';
 import AdminWithdrawalMethods from './pages/AdminWithdrawalMethods';
 import AdminUserWithdrawalFee from './pages/AdminUserWithdrawalFee';
+import AdminAudit from './pages/AdminAudit';
 import AdminDeposits from './pages/AdminDeposits';
 import AdminWithdrawals from './pages/AdminWithdrawals';
 import AdminAgentWithdrawals from './pages/AdminAgentWithdrawals';
@@ -400,6 +401,7 @@ function App() {
           <Route path="/admin/deposit-methods" element={<AdminDepositMethods />} />
           <Route path="/admin/withdrawal-methods" element={<AdminWithdrawalMethods />} />
           <Route path="/admin/user-withdrawal-fee" element={<AdminUserWithdrawalFee />} />
+          <Route path="/admin/financial-audit" element={<AdminAudit />} />
           <Route path="/admin/deposits" element={<AdminDeposits />} />
           <Route path="/admin/withdrawals" element={<AdminWithdrawals />} />
           <Route path="/admin/agent-withdrawals" element={<AdminAgentWithdrawals />} />

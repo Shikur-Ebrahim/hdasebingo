@@ -42,6 +42,7 @@ const requireAdmin = async (req: AuthRequest, res: Response, next: NextFunction)
   else if (path.startsWith('/settings') && perms.settings) allowed = true;
   else if (path.startsWith('/tx-report') && perms.reports) allowed = true;
   else if (path.startsWith('/profit-report')) allowed = true; // Allow workers to view profit report
+  else if (path.startsWith('/audit/worker-balance')) allowed = true; // Workers see net remaining balance
   else if (path.startsWith('/games') && perms.games) allowed = true;
   
   // Explicitly deny these to anyone but admin
@@ -1586,5 +1587,118 @@ router.delete('/support-videos/:id', async (req, res) => {
   }
 });
 
+// ─── FINANCIAL AUDIT ROUTES ─────────────────────────────────────────────────
+
+// GET /admin/audit — full financial summary (deposits, withdrawals, fees, reductions, net remaining)
+router.get('/audit', validateTelegramAuth, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { from, to } = req.query;
+
+    let dQuery = supabase.from('deposits').select('amount').eq('status', 'approved');
+    let wQuery = supabase.from('withdrawals').select('amount, net_amount, fee_amount').eq('status', 'approved');
+
+    if (from) { dQuery = dQuery.gte('created_at', from); wQuery = wQuery.gte('created_at', from); }
+    if (to)   { dQuery = dQuery.lte('created_at', to);   wQuery = wQuery.lte('created_at', to); }
+
+    const [dRes, wRes, redRes] = await Promise.all([
+      dQuery,
+      wQuery,
+      supabase.from('audit_reductions').select('*').order('created_at', { ascending: false }),
+    ]);
+
+    if (dRes.error) return res.status(500).json({ error: dRes.error.message });
+    if (wRes.error) return res.status(500).json({ error: wRes.error.message });
+
+    const totalDeposits   = (dRes.data || []).reduce((s, d) => s + Number(d.amount), 0);
+    const totalWithdrawals = (wRes.data || []).reduce((s, w) => {
+      const net = Number((w as any).net_amount);
+      return s + (net > 0 ? net : Number(w.amount));
+    }, 0);
+    const totalFees = (wRes.data || []).reduce((s, w) => s + Number((w as any).fee_amount || 0), 0);
+    const grossRequested = (wRes.data || []).reduce((s, w) => s + Number(w.amount), 0);
+
+    const reductions     = (redRes.data || []) as any[];
+    const totalReduced   = reductions.reduce((s, r) => s + Number(r.amount), 0);
+
+    const netProfit      = totalDeposits - totalWithdrawals;
+    const netRemaining   = netProfit - totalReduced;
+
+    res.json({
+      totalDeposits,
+      totalWithdrawals,   // actual payout (net_amount)
+      grossRequested,     // full amount user requested
+      totalFees,          // fees collected
+      netProfit,          // deposits - actual payouts
+      totalReduced,       // sum of manual reductions
+      netRemaining,       // netProfit - totalReduced
+      reductions,         // full history
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/audit/reduce — add a manual reduction entry
+router.post('/audit/reduce', validateTelegramAuth, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { amount, note } = req.body;
+    const amt = Number(amount);
+    if (!amt || amt <= 0) return res.status(400).json({ error: 'Amount must be positive.' });
+
+    const reducedBy = req.telegramUser?.username || req.telegramUser?.first_name || 'admin';
+
+    const { data, error } = await supabase
+      .from('audit_reductions')
+      .insert({ amount: amt, note: note?.trim() || '', reduced_by: reducedBy })
+      .select()
+      .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true, entry: data });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /admin/audit/reduce/:id — remove a reduction entry
+router.delete('/audit/reduce/:id', validateTelegramAuth, requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { error } = await supabase.from('audit_reductions').delete().eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /admin/audit/worker-balance — worker sees net remaining + reduction history (read-only)
+router.get('/audit/worker-balance', validateTelegramAuth, requireAdmin, async (_req: AuthRequest, res: Response) => {
+  try {
+    const [dRes, wRes, redRes] = await Promise.all([
+      supabase.from('deposits').select('amount').eq('status', 'approved'),
+      supabase.from('withdrawals').select('amount, net_amount').eq('status', 'approved'),
+      supabase.from('audit_reductions').select('*').order('created_at', { ascending: false }),
+    ]);
+
+    const totalDeposits    = (dRes.data || []).reduce((s, d) => s + Number(d.amount), 0);
+    const totalWithdrawals = (wRes.data || []).reduce((s, w) => {
+      const net = Number((w as any).net_amount);
+      return s + (net > 0 ? net : Number(w.amount));
+    }, 0);
+    const netProfit      = totalDeposits - totalWithdrawals;
+    const totalReduced   = ((redRes.data || []) as any[]).reduce((s, r) => s + Number(r.amount), 0);
+    const netRemaining   = netProfit - totalReduced;
+
+    res.json({
+      netRemaining,
+      reductions: (redRes.data || []) as any[],
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
+
 
