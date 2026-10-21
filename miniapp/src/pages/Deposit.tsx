@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, ChevronRight, CheckCircle2, UploadCloud, X, Clock, AlertCircle, Copy, Check, MessageCircle, Play, ChevronLeft, Video as VideoIcon } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
@@ -68,6 +68,7 @@ const typeBadge: Record<string, string> = {
 type Step = 'list' | 'form' | 'success' | 'pending_status';
 
 export default function Deposit() {
+  const navigate = useNavigate();
   const { language } = useGameStore();
   const [methods, setMethods] = useState<DepositMethod[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,6 +120,16 @@ export default function Deposit() {
   };
 
   useEffect(() => { fetchMethods(); }, []);
+
+  // Auto-dismiss success notification after 1 second
+  useEffect(() => {
+    if (step === 'success') {
+      const timer = setTimeout(() => {
+        navigate('/');
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [step, navigate]);
 
   const fetchMethods = async () => {
     try {
@@ -346,33 +357,22 @@ export default function Deposit() {
   if (step === 'success') {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center p-6">
-        <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl shadow-sm border border-gray-100 dark:border-slate-800 p-8 text-center">
-          <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-5 border-4 border-emerald-100">
+        <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl shadow-sm border border-gray-100 dark:border-slate-800 p-8 text-center animate-in fade-in zoom-in-95 duration-200">
+          <div className="w-20 h-20 bg-emerald-50 dark:bg-emerald-950/40 rounded-full flex items-center justify-center mx-auto mb-5 border-4 border-emerald-100 dark:border-emerald-900/50">
             <CheckCircle2 size={40} className="text-emerald-500" />
           </div>
           <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100">{t[language].deposit.submitted}</h2>
           <p className="text-slate-500 dark:text-slate-400 font-medium mt-2 leading-relaxed">
             {t[language].deposit.pendingReview.split('{amount}')[0]}<span className="font-black text-slate-700 dark:text-slate-200">{parseFloat(amount).toLocaleString('en-US')} ETB</span>{t[language].deposit.pendingReview.split('{amount}')[1]}
           </p>
-          <div className="mt-5 bg-yellow-50 border border-yellow-100 rounded-xl p-4 flex items-start space-x-3">
-            <Clock size={18} className="text-yellow-600 mt-0.5 flex-shrink-0" />
-            <p className="text-xs text-yellow-700 font-semibold text-left">{t[language].deposit.willBeCredited}</p>
+          <div className="mt-5 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-100 dark:border-yellow-900/40 rounded-xl p-4 flex items-start space-x-3">
+            <Clock size={18} className="text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+            <p className="text-xs text-yellow-700 dark:text-yellow-400 font-semibold text-left">{t[language].deposit.willBeCredited}</p>
           </div>
-          <Link to="/" className="mt-3 block w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 font-black py-4 rounded-xl text-center transition-all active:scale-95">
-            {t[language].deposit.backHome}
-          </Link>
-          
-          {supportUsername && (
-            <a 
-              href={`https://t.me/${supportUsername.replace('@', '')}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-4 flex items-center justify-center space-x-2 text-blue-600 font-black text-sm bg-blue-50 hover:bg-blue-100 transition-colors py-3.5 rounded-xl w-full border border-blue-100"
-            >
-              <MessageCircle size={18} />
-              <span>Need Help? {t[language].deposit.contactSupport}</span>
-            </a>
-          )}
+          <div className="mt-5 flex items-center justify-center space-x-2 text-xs font-semibold text-slate-400 dark:text-slate-500">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+            <span>Redirecting...</span>
+          </div>
         </div>
       </div>
     );

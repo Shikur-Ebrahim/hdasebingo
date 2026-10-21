@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, ChevronRight, CheckCircle2, Clock, AlertCircle, User, Phone, MessageCircle, Percent } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
@@ -87,6 +87,7 @@ const typeEmoji: Record<string, string> = {
 type Step = 'list' | 'form' | 'success' | 'pending_status';
 
 export default function Withdraw() {
+  const navigate = useNavigate();
   const { user, language } = useGameStore();
   const userBalance = Number(user?.main_balance || 0);
 
@@ -117,6 +118,16 @@ export default function Withdraw() {
   const feeCalc = useMemo(() => calcFee(amtNum, feeSettings), [amtNum, feeSettings]);
 
   useEffect(() => { fetchData(); }, []);
+
+  // Auto-dismiss success notification after 1 second
+  useEffect(() => {
+    if (step === 'success') {
+      const timer = setTimeout(() => {
+        navigate('/');
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [step, navigate]);
 
   const fetchData = async () => {
     try {
@@ -260,32 +271,22 @@ export default function Withdraw() {
   if (step === 'success') {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center p-6">
-        <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl shadow-sm border border-gray-100 dark:border-slate-800 p-8 text-center">
-          <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-5 border-4 border-green-100">
+        <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl shadow-sm border border-gray-100 dark:border-slate-800 p-8 text-center animate-in fade-in zoom-in-95 duration-200">
+          <div className="w-20 h-20 bg-green-50 dark:bg-green-950/40 rounded-full flex items-center justify-center mx-auto mb-5 border-4 border-green-100 dark:border-green-900/50">
             <CheckCircle2 size={40} className="text-green-500" />
           </div>
           <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100">{t[language].withdraw.submitted}</h2>
           <p className="text-slate-500 dark:text-slate-400 font-medium mt-2 leading-relaxed">
             {t[language].withdraw.pendingReview.split('{amount}')[0]}<span className="font-black text-slate-700 dark:text-slate-200">{parseFloat(amount).toLocaleString('en-US')} ETB</span>{t[language].withdraw.pendingReview.split('{amount}')[1]}
           </p>
-          <div className="mt-5 bg-green-50 border border-green-100 rounded-xl p-4">
-            <p className="text-xs text-green-700 font-semibold text-center">{t[language].withdraw.willBeProcessed}</p>
+          <div className="mt-5 bg-green-50 dark:bg-green-950/30 border border-green-100 dark:border-green-900/40 rounded-xl p-4">
+            <p className="text-xs text-green-700 dark:text-green-400 font-semibold text-center">{t[language].withdraw.willBeProcessed}</p>
           </div>
-          {supportContact && (
-            <a 
-              href={`https://t.me/${supportContact.replace('@', '')}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-4 flex items-center justify-center space-x-2 text-blue-600 font-black text-sm bg-blue-50 hover:bg-blue-100 transition-colors py-3.5 rounded-xl w-full border border-blue-100"
-            >
-              <MessageCircle size={18} />
-              <span>Need Help? {t[language].withdraw.contactSupport}</span>
-            </a>
-          )}
 
-          <Link to="/" className="mt-3 block w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white font-black py-4 rounded-xl text-center transition-all active:scale-95">
-            {t[language].withdraw.backHome}
-          </Link>
+          <div className="mt-5 flex items-center justify-center space-x-2 text-xs font-semibold text-slate-400 dark:text-slate-500">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-ping" />
+            <span>Redirecting...</span>
+          </div>
         </div>
       </div>
     );
