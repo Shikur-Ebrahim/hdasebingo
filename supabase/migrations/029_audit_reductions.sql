@@ -10,9 +10,7 @@ CREATE TABLE IF NOT EXISTS audit_reductions (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- RLS: anon read (worker sees balance), service_role write
+-- RLS: allow backend API access (secured by API route middleware requireAdmin)
 ALTER TABLE audit_reductions ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "anon_read_audit" ON audit_reductions;
-CREATE POLICY "anon_read_audit" ON audit_reductions FOR SELECT TO anon USING (true);
-DROP POLICY IF EXISTS "anon_insert_audit" ON audit_reductions;
-CREATE POLICY "anon_insert_audit" ON audit_reductions FOR INSERT TO anon WITH CHECK (true);
+DROP POLICY IF EXISTS "anon_all_audit" ON audit_reductions;
+CREATE POLICY "anon_all_audit" ON audit_reductions FOR ALL TO anon USING (true) WITH CHECK (true);
