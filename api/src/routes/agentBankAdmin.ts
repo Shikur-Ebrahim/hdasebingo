@@ -37,7 +37,7 @@ router.get('/list', requireAdmin, async (_req: AuthRequest, res: Response) => {
     .from('agent_bank_accounts')
     .select(`
       *,
-      users!agent_bank_accounts_telegram_id_fkey(first_name, username)
+      users!agent_bank_accounts_telegram_id_fkey(first_name, username, role)
     `)
     .order('updated_at', { ascending: false });
 

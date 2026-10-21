@@ -105,10 +105,10 @@ agentWithdrawRouter.post('/request', requireAgent, async (req: AuthRequest, res:
     return;
   }
 
-  // 4. Check agent's main balance
+  // 4. Check user's main balance & role
   const { data: user } = await supabase
     .from('users')
-    .select('main_balance, first_name, username')
+    .select('main_balance, first_name, username, role')
     .eq('telegram_id', telegramId)
     .single();
 
@@ -165,15 +165,17 @@ agentWithdrawRouter.post('/request', requireAgent, async (req: AuthRequest, res:
 
     const botToken = process.env.BOT_TOKEN;
     if (botToken && admins && admins.length > 0) {
-      const safeAgentName = (user.username ? `@${user.username}` : user.first_name || 'Agent').replace(/[_*[\]]/g, '\\$&');
+      const userRole = (user.role || '').toLowerCase();
+      const roleTitle = userRole === 'promoter' ? 'Promoter' : 'Agent';
+      const safeAgentName = (user.username ? `@${user.username}` : user.first_name || roleTitle).replace(/[_*[\]]/g, '\\$&');
       const safeBank = bankAccount.bank_name.replace(/[_*[\]]/g, '\\$&');
       const safeHolder = bankAccount.account_holder_name.replace(/[_*[\]]/g, '\\$&');
       const safeAcc = bankAccount.account_number.replace(/[_*[\]]/g, '\\$&');
       const safeId = withdrawal.id.replace(/[_*[\]]/g, '\\$&');
 
       const msg =
-        `⚡ *New Agent Withdrawal Request!*\n\n` +
-        `👤 *Agent:* ${safeAgentName}\n` +
+        `⚡ *New ${roleTitle} Withdrawal Request!*\n\n` +
+        `👤 *${roleTitle}:* ${safeAgentName}\n` +
         `💰 *Amount:* *${numAmount.toLocaleString()} ETB*\n` +
         `🏦 *Bank:* ${safeBank}\n` +
         `📛 *Holder:* ${safeHolder}\n` +
@@ -224,7 +226,7 @@ adminAgentWithdrawRouter.get('/list', requireAdmin, async (req: AuthRequest, res
     .select(`
       id, telegram_id, bank_name, account_holder_name, account_number,
       amount, status, admin_note, created_at, processed_at,
-      users!agent_withdrawals_telegram_id_fkey(first_name, username, main_balance)
+      users!agent_withdrawals_telegram_id_fkey(first_name, username, role, main_balance)
     `)
     .order('created_at', { ascending: false })
     .limit(100);

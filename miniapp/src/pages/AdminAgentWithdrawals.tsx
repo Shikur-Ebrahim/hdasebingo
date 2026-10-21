@@ -37,6 +37,7 @@ interface AgentWithdrawal {
   users?: {
     first_name: string;
     username?: string;
+    role?: string;
     main_balance?: number;
   };
 }
@@ -177,10 +178,10 @@ export default function AdminAgentWithdrawals() {
             </Link>
             <div>
               <h1 className="text-base font-black text-slate-900 leading-tight">
-                Agent Withdrawals
+                Agent & Promoter Withdrawals
               </h1>
               <p className="text-[10px] font-bold text-slate-400">
-                Official Agent commission payouts
+                Official Agent & Promoter commission payouts
               </p>
             </div>
           </div>
@@ -238,25 +239,36 @@ export default function AdminAgentWithdrawals() {
               const isPending = w.status === 'pending';
               const isApproved = w.status === 'approved';
               const isRejected = w.status === 'rejected';
+              const userRole = (w.users?.role || '').toLowerCase();
+              const isPromoter = userRole === 'promoter';
+              const roleTitle = isPromoter ? 'PROMOTER' : 'AGENT';
 
               return (
                 <div
                   key={w.id}
                   className="bg-white rounded-3xl p-5 border border-slate-100 shadow-xs space-y-4 transition-all"
                 >
-                  {/* Top: Agent Profile & Amount */}
+                  {/* Top: Profile & Amount */}
                   <div className="flex items-start justify-between">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center font-black text-sm shadow-xs">
-                        {(w.users?.first_name || 'A').charAt(0).toUpperCase()}
+                      <div className={`w-10 h-10 rounded-2xl ${
+                        isPromoter
+                          ? 'bg-gradient-to-tr from-purple-500 to-indigo-500'
+                          : 'bg-gradient-to-tr from-amber-500 to-orange-500'
+                      } text-white flex items-center justify-center font-black text-sm shadow-xs`}>
+                        {(w.users?.first_name || (isPromoter ? 'P' : 'A')).charAt(0).toUpperCase()}
                       </div>
                       <div>
                         <div className="flex items-center space-x-1.5">
                           <p className="text-sm font-black text-slate-900 leading-tight">
-                            {w.users?.first_name || 'Agent'}
+                            {w.users?.first_name || (isPromoter ? 'Promoter' : 'Agent')}
                           </p>
-                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
-                            AGENT
+                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border ${
+                            isPromoter
+                              ? 'bg-purple-50 text-purple-700 border-purple-200'
+                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                          }`}>
+                            {roleTitle}
                           </span>
                         </div>
                         <p className="text-xs text-slate-400 font-bold mt-0.5">

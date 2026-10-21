@@ -49,6 +49,7 @@ interface AgentBankAccount {
   users?: {
     first_name: string;
     username?: string;
+    role?: string;
     main_balance?: number;
   };
 }
@@ -314,10 +315,10 @@ export default function AdminAgentBanks() {
           </Link>
           <div>
             <h1 className="text-base font-black text-slate-900 leading-tight">
-              Agent Attack Banks
+              Agent & Promoter Banks
             </h1>
             <p className="text-[10px] text-slate-400 font-bold">
-              {accounts.length} Saved Agent {accounts.length === 1 ? 'Bank' : 'Banks'}
+              {accounts.length} Saved {accounts.length === 1 ? 'Bank' : 'Banks'}
             </p>
           </div>
         </div>
@@ -412,17 +413,30 @@ export default function AdminAgentBanks() {
                       </div>
 
                       <div>
-                        <div className="flex items-center space-x-1.5">
-                          <p className="text-sm font-black text-slate-900 leading-tight">
-                            {acc.users?.first_name || 'Agent'}
-                          </p>
-                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
-                            AGENT
-                          </span>
-                        </div>
-                        <p className="text-[11px] font-semibold text-slate-400 mt-0.5">
-                          {acc.users?.username ? `@${acc.users.username}` : `ID: ${acc.telegram_id}`}
-                        </p>
+                        {(() => {
+                          const userRole = (acc.users?.role || '').toLowerCase();
+                          const isPromoter = userRole === 'promoter';
+                          const roleTitle = isPromoter ? 'PROMOTER' : 'AGENT';
+                          return (
+                            <>
+                              <div className="flex items-center space-x-1.5">
+                                <p className="text-sm font-black text-slate-900 leading-tight">
+                                  {acc.users?.first_name || (isPromoter ? 'Promoter' : 'Agent')}
+                                </p>
+                                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border ${
+                                  isPromoter
+                                    ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                                }`}>
+                                  {roleTitle}
+                                </span>
+                              </div>
+                              <p className="text-[11px] font-semibold text-slate-400 mt-0.5">
+                                {acc.users?.username ? `@${acc.users.username}` : `ID: ${acc.telegram_id}`}
+                              </p>
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
 

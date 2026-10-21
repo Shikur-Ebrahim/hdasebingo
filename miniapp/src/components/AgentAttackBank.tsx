@@ -8,6 +8,7 @@
  */
 import { useState, useEffect } from 'react';
 import WebApp from '@twa-dev/sdk';
+import { useGameStore } from '../store/gameStore';
 import {
   X,
   ChevronRight,
@@ -160,6 +161,10 @@ const haptic = (style: 'light' | 'medium' | 'heavy' = 'light') => {
 };
 
 export default function AgentAttackBank({ onClose }: Props) {
+  const { user } = useGameStore();
+  const isPromoter = (user?.role || '').toLowerCase() === 'promoter';
+  const roleTitle = isPromoter ? 'Promoter' : 'Agent';
+
   const [step, setStep] = useState<Step>('loading');
   const [banks, setBanks] = useState<BankItem[]>(VERIFIED_BANKS);
   const [savedAccount, setSavedAccount] = useState<SavedAccount | null>(null);
@@ -615,7 +620,7 @@ export default function AgentAttackBank({ onClose }: Props) {
                 {step === 'done'               && '🎉 Saved'}
               </h2>
               <p className="text-[10px] text-slate-400 font-bold">
-                {step === 'saved_view'         && 'Agent payment details • PIN protected'}
+                {step === 'saved_view'         && `${roleTitle} payment details • PIN protected`}
                 {step === 'bank'               && 'Choose your bank to save or update'}
                 {step === 'details'            && 'Enter your full name & account number'}
                 {step === 'pin_create'         && 'Create a 6-digit PIN to secure your account'}
@@ -674,7 +679,7 @@ export default function AgentAttackBank({ onClose }: Props) {
                           {savedAccount.bank_name}
                         </p>
                         <p className="text-amber-600 text-[10px] font-extrabold uppercase tracking-wider mt-0.5">
-                          Official Agent Account
+                          Official {roleTitle} Account
                         </p>
                       </div>
                     </div>

@@ -70,6 +70,8 @@ const formatAmt = (num: number | string | undefined | null): string => {
 
 export default function AgentWithdrawModal({ onClose, onOpenAttackBank }: Props) {
   const { user, fetchUser } = useGameStore();
+  const isPromoter = (user?.role || '').toLowerCase() === 'promoter';
+  const roleTitle = isPromoter ? 'Promoter' : 'Agent';
 
   const [step, setStep] = useState<Step>('loading');
   const [savedBank, setSavedBank] = useState<SavedBank | null>(null);
@@ -275,7 +277,7 @@ export default function AgentWithdrawModal({ onClose, onOpenAttackBank }: Props)
               <h2 className="text-base font-black text-slate-900 leading-tight">
                 {step === 'loading' && 'Withdraw Funds'}
                 {step === 'no_bank' && 'Link Bank Account'}
-                {step === 'amount'  && 'Agent Withdrawal'}
+                {step === 'amount'  && `${roleTitle} Withdrawal`}
                 {step === 'pin'     && 'Authorize with PIN'}
                 {step === 'done'    && 'Request Submitted'}
                 {step === 'history' && 'Withdrawal History'}
@@ -284,7 +286,7 @@ export default function AgentWithdrawModal({ onClose, onOpenAttackBank }: Props)
                 {step === 'amount'  && 'Fast commission payout to your saved bank'}
                 {step === 'pin'     && 'Enter your 6-digit withdrawal PIN'}
                 {step === 'done'    && 'Admin review in progress'}
-                {step === 'history' && 'Past agent withdrawal requests'}
+                {step === 'history' && `Past ${roleTitle.toLowerCase()} withdrawal requests`}
                 {step === 'no_bank' && 'Attack Bank required before withdrawal'}
               </p>
             </div>
@@ -566,7 +568,7 @@ export default function AgentWithdrawModal({ onClose, onOpenAttackBank }: Props)
               <div className="space-y-1">
                 <h3 className="text-xl font-black text-slate-900">Request Submitted! 🚀</h3>
                 <p className="text-xs text-slate-500 font-semibold max-w-xs mx-auto">
-                  Your agent withdrawal has been sent directly to the Admin for approval.
+                  Your {roleTitle.toLowerCase()} withdrawal has been sent directly to the Admin for approval.
                 </p>
               </div>
 
@@ -631,7 +633,7 @@ export default function AgentWithdrawModal({ onClose, onOpenAttackBank }: Props)
             <div className="px-5 py-4 pb-8 space-y-3">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
-                  Agent Payouts ({history.length})
+                  {roleTitle} Payouts ({history.length})
                 </p>
                 <button
                   type="button"
