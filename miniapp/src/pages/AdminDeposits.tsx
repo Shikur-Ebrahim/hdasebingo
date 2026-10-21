@@ -27,6 +27,7 @@ interface DepositRequest {
   screenshot_url: string;
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
+  updated_at?: string;
   deposit_methods: { type: string; name: string; logo_url: string } | null;
   users: { first_name: string; username: string } | null;
 }
@@ -337,12 +338,21 @@ export default function AdminDeposits() {
     }
   };
 
-  const timeAgo = (dateStr: string) => {
-    const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-    if (diff < 60) return `${diff}s ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return `${Math.floor(diff / 86400)}d ago`;
+  const formatExactTime = (dateStr?: string | null) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    const datePart = d.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+    });
+    const timePart = d.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+    return `${datePart}, ${timePart}`;
   };
 
   const now = new Date();
@@ -523,11 +533,21 @@ export default function AdminDeposits() {
                         >
                           {methodType.toUpperCase()}
                         </span>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <Clock size={11} className="text-slate-400" />
-                          <span className="text-[11px] text-slate-400 font-semibold">
-                            {timeAgo(dep.created_at)}
-                          </span>
+                        <div className="space-y-0.5 mt-1.5">
+                          <div className="flex items-center space-x-1.5 text-slate-500">
+                            <Clock size={11} className="text-slate-400 shrink-0" />
+                            <span className="text-[11px] font-semibold">
+                              Req: <strong className="text-slate-700 font-bold">{formatExactTime(dep.created_at)}</strong>
+                            </span>
+                          </div>
+                          {dep.status === 'approved' && dep.updated_at && (
+                            <div className="flex items-center space-x-1.5 text-emerald-600">
+                              <CheckCircle2 size={11} className="text-emerald-500 shrink-0" />
+                              <span className="text-[11px] font-semibold">
+                                App: <strong className="text-emerald-700 font-bold">{formatExactTime(dep.updated_at)}</strong>
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -598,11 +618,16 @@ export default function AdminDeposits() {
                     </button>
                   </div>
                 ) : (
-                  <div className="bg-emerald-50 border-t border-emerald-100 py-3 text-center">
-                    <span className="text-emerald-700 font-black text-sm flex items-center justify-center space-x-1">
+                  <div className="bg-emerald-50/80 border-t border-emerald-100 px-4 py-2.5 flex items-center justify-between text-xs">
+                    <span className="text-emerald-700 font-black flex items-center space-x-1.5">
                       <CheckCircle2 size={16} />
                       <span>Approved</span>
                     </span>
+                    {dep.updated_at && (
+                      <span className="text-[11px] font-bold text-emerald-700 font-mono">
+                        {formatExactTime(dep.updated_at)}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

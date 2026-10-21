@@ -17,6 +17,7 @@ interface Withdrawal {
   fee_amount?: number;
   net_amount?: number;
   created_at: string;
+  updated_at?: string;
   withdrawal_methods?: { type: string; logo_url?: string };
   users?: { first_name: string; username?: string };
 }
@@ -128,12 +129,21 @@ export default function AdminWithdrawals() {
     }
   };
 
-  const timeAgo = (dateStr: string) => {
-    const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-    if (diff < 60) return `${diff}s ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return `${Math.floor(diff / 86400)}d ago`;
+  const formatExactTime = (dateStr?: string | null) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    const datePart = d.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+    });
+    const timePart = d.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+    return `${datePart}, ${timePart}`;
   };
 
   const now = new Date();
@@ -269,7 +279,22 @@ export default function AdminWithdrawals() {
                       {copiedId === w.id ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
                     </button>
                   </div>
-                  <p className="text-[11px] text-slate-400">{timeAgo(w.created_at)}</p>
+                  <div className="space-y-0.5 mt-1">
+                    <div className="flex items-center space-x-1.5">
+                      <Clock size={11} className="text-slate-400 shrink-0" />
+                      <span className="text-[11px] text-slate-500 font-semibold">
+                        Req: <strong className="text-slate-700 font-bold">{formatExactTime(w.created_at)}</strong>
+                      </span>
+                    </div>
+                    {w.status === 'approved' && w.updated_at && (
+                      <div className="flex items-center space-x-1.5">
+                        <CheckCircle2 size={11} className="text-emerald-500 shrink-0" />
+                        <span className="text-[11px] text-emerald-600 font-semibold">
+                          App: <strong className="text-emerald-700 font-bold">{formatExactTime(w.updated_at)}</strong>
+                        </span>
+                      </div>
+                    )}
+                  </div>
 
                   
                 </div>
@@ -298,9 +323,16 @@ export default function AdminWithdrawals() {
 
                 {/* Approved badge */}
                 {w.status === 'approved' && (
-                  <div className="flex items-center justify-center space-x-1.5 py-3 border-t border-gray-50 text-emerald-600 text-xs font-black">
-                    <CheckCircle2 size={14} />
-                    <span>Approved</span>
+                  <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-50 text-emerald-600 text-xs font-black bg-emerald-50/60">
+                    <span className="flex items-center space-x-1.5">
+                      <CheckCircle2 size={14} />
+                      <span>Approved</span>
+                    </span>
+                    {w.updated_at && (
+                      <span className="text-[11px] font-bold text-emerald-700 font-mono">
+                        {formatExactTime(w.updated_at)}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

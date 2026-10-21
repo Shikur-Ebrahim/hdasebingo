@@ -5,6 +5,12 @@ import { getWithdrawalFeeSettings, saveWithdrawalFeeSettings, calculateWithdrawa
 
 const router = Router();
 
+const BANK_NAMES: Record<string, string> = {
+  cbe: 'Commercial Bank of Ethiopia (CBE)',
+  boa: 'Bank of Abyssinia (BOA)',
+  telebirr: 'Telebirr',
+};
+
 const requireAdmin = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   const telegramId = req.telegramUser!.id.toString();
   
@@ -1849,6 +1855,48 @@ router.post('/worker-transfers', validateTelegramAuth, requireAdmin, async (req:
       .single();
 
     if (error) return res.status(500).json({ error: error.message });
+
+    // Notify all admins via Telegram Bot
+    try {
+      const { data: admins } = await supabase
+        .from('users')
+        .select('telegram_id')
+        .eq('role', 'admin');
+
+      const botToken = process.env.BOT_TOKEN;
+      if (botToken && admins && admins.length > 0) {
+        const safeWorkerName = (req.telegramUser?.username ? `@${req.telegramUser.username}` : (req.telegramUser?.first_name || 'Worker')).replace(/[_*[\]]/g, '\\$&');
+        const bankName = BANK_NAMES[mAccount.bank_type] || mAccount.bank_type.toUpperCase();
+        const safeBank = bankName.replace(/[_*[\]]/g, '\\$&');
+        const safeHolder = mAccount.account_name.replace(/[_*[\]]/g, '\\$&');
+        const safeAcc = mAccount.account_number.replace(/[_*[\]]/g, '\\$&');
+        const safeId = (data.id || '').replace(/[_*[\]]/g, '\\$&');
+        const safeNote = (note || '').trim().replace(/[_*[\]]/g, '\\$&');
+
+        const msg =
+          `⚡ *New Worker Balance Transfer Request!*\n\n` +
+          `👤 *Worker:* ${safeWorkerName}\n` +
+          `💰 *Amount:* *${amt.toLocaleString()} ETB*\n` +
+          `🏦 *Method:* ${safeBank}\n` +
+          `📛 *Holder:* ${safeHolder}\n` +
+          `🔢 *Account:* \`${safeAcc}\`\n` +
+          (safeNote ? `📝 *Note:* ${safeNote}\n` : '') +
+          `\n📋 *Ref:* \`${safeId.slice(0, 8).toUpperCase()}\`\n` +
+          `👉 Check *Admin Dashboard → Financial Audit*`;
+
+        for (const a of admins) {
+          if (!a.telegram_id) continue;
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: a.telegram_id, text: msg, parse_mode: 'Markdown' }),
+          }).catch(() => {});
+        }
+      }
+    } catch (notifyErr) {
+      console.error('Worker transfer admin notification error:', notifyErr);
+    }
+
     res.json({ success: true, transfer: data });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -1901,6 +1949,26 @@ router.put('/worker-transfers/:id/review', validateTelegramAuth, requireAdmin, a
       .single();
 
     if (error) return res.status(500).json({ error: error.message });
+
+    // Notify worker of approval / rejection
+    try {
+      const botToken = process.env.BOT_TOKEN;
+      if (botToken && data?.worker_telegram_id) {
+        const isApproved = action === 'approve';
+        const msg = isApproved
+          ? `✅ *Balance Transfer Approved!*\n\n💰 *Amount:* *${Number(data.amount).toLocaleString()} ETB*\n🏦 *Account:* ${data.account_name} (\`${data.account_number}\`)\n\n✨ Your manager transfer has been approved and deducted from your net balance.`
+          : `❌ *Balance Transfer Rejected*\n\n💰 *Amount:* *${Number(data.amount).toLocaleString()} ETB*\nYour balance transfer request was rejected by admin. Please contact manager for more info.`;
+
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: data.worker_telegram_id, text: msg, parse_mode: 'Markdown' }),
+        }).catch(() => {});
+      }
+    } catch (notifyErr) {
+      console.error('Worker notification error:', notifyErr);
+    }
+
     res.json({ success: true, transfer: data });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
