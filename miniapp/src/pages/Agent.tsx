@@ -193,6 +193,8 @@ export default function Agent() {
   const callingGames = useMemo(() => activeGames.filter(g => g.status === 'calling'), [activeGames]);
   const callingGamesCount = callingGames.length;
   const liveCallingPlayers = useMemo(() => callingGames.reduce((acc, g) => acc + (g.total_players || 0), 0), [callingGames]);
+  // Total active players across ALL stakes in this room (waiting + calling)
+  const totalActivePlayers = useMemo(() => activeGames.reduce((acc, g) => acc + (g.total_players || 0), 0), [activeGames]);
   const liveCallingComm = useMemo(() => {
     return callingGames.reduce((acc, g) => {
       const raw = Number(g.prize_pool || 0);
@@ -2511,7 +2513,7 @@ export default function Agent() {
                 </div>
                 <div className="bg-emerald-50/70 border border-emerald-100 rounded-xl p-2.5 text-center">
                   <p className="text-emerald-600 text-[10px] font-bold mb-0.5">Players</p>
-                  <p className="text-emerald-700 font-black text-sm">{stats?.total_referred_players ?? 0}</p>
+                  <p className="text-emerald-700 font-black text-sm">{totalActivePlayers}</p>
                 </div>
               </div>
             </div>
