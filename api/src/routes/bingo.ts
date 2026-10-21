@@ -116,7 +116,7 @@ router.get('/current', validateTelegramAuth, async (req: AuthRequest, res) => {
 
   const cfg = await getSettings();
 
-  // Find if a game recently finished (< 6s ago) so celebration is guaranteed to display
+  // Find if a game recently finished (< 15s ago) so celebration is guaranteed to display
   let last_finished_game: any = null;
   let finishedQuery = supabase
     .from('bingo_games')
@@ -132,7 +132,7 @@ router.get('/current', validateTelegramAuth, async (req: AuthRequest, res) => {
 
   if (recentFinished && recentFinished.finished_at) {
     const msSince = Date.now() - new Date(recentFinished.finished_at).getTime();
-    if (msSince < 6000) {
+    if (msSince < 15000) {
       last_finished_game = recentFinished;
       if (recentFinished.winner_cartela) {
         const { data: wp } = await supabase.from('bingo_players')

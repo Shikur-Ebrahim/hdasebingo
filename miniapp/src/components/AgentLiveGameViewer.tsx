@@ -208,20 +208,23 @@ export default function AgentLiveGameViewer({
         const matrices: Record<number, number[][]> = data.cartela_matrices || {};
         setCartelaMatrices(matrices);
 
-        // ── Trigger celebration when game finishes ──
+        // ── Trigger celebration from last_finished_game (API returns it for 6s after game ends) ──
+        const fg = data.last_finished_game;
         if (
-          g?.status === 'finished' &&
-          g.winner_cartela != null &&
-          !celebratedGamesRef.current.has(g.id)
+          fg?.id &&
+          fg.winner_cartela != null &&
+          !celebratedGamesRef.current.has(fg.id)
         ) {
-          celebratedGamesRef.current.add(g.id);
-          const winnerMatrix = matrices[g.winner_cartela] ?? null;
+          celebratedGamesRef.current.add(fg.id);
+          // winner_matrix is injected by API into last_finished_game
+          const winnerMatrix: number[][] | null =
+            fg.winner_matrix ?? matrices[fg.winner_cartela] ?? null;
           setCelebration({
-            winner_name: g.winner_first_name || 'Winner',
-            winner_cartela: g.winner_cartela,
-            winner_prize: g.winner_prize || 0,
+            winner_name: fg.winner_first_name || 'Winner',
+            winner_cartela: fg.winner_cartela,
+            winner_prize: fg.winner_prize || 0,
             winner_matrix: winnerMatrix,
-            called: g.called_numbers || [],
+            called: fg.called_numbers || [],
           });
           if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
           celebrationTimerRef.current = setTimeout(() => setCelebration(null), 8000);
