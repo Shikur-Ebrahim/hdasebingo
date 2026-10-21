@@ -297,13 +297,7 @@ export default function Worker() {
             </div>
             <div className="flex-1">
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Withdrawals</p>
-              <p className="text-[10px] font-semibold text-amber-600 -mt-0.5">Actual Payout (after fee)</p>
               <p className="text-xl font-black text-slate-800">{stats.totalWithdrawals.toLocaleString()} ETB</p>
-              {stats.totalFees > 0 && (
-                <p className="text-[10px] font-bold text-emerald-600 mt-0.5">
-                  💰 Fees Collected: +{stats.totalFees.toLocaleString()} ETB
-                </p>
-              )}
             </div>
           </div>
 
