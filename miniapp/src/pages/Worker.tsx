@@ -355,43 +355,29 @@ export default function Worker() {
           </div>
         </div>
 
-        {/* Note */}
-        <div className="bg-blue-50 text-blue-800 p-4 rounded-2xl flex items-start space-x-3 text-xs font-medium mb-6">
-          <Calendar size={18} className="shrink-0 text-blue-500 mt-0.5" />
-          <p>Only <strong>approved</strong> deposits and withdrawals are counted. Pending transactions are excluded.</p>
-        </div>
-
       </div>
     </div>
 
-      {/* ── Fixed Bottom Floating Circular Red Fingerprint Button ── */}
-      <div className="fixed bottom-5 left-0 right-0 flex flex-col items-center justify-center z-40 pointer-events-none">
+      {/* ── Fixed Bottom Floating Circular Black Fingerprint Button ── */}
+      <div className="fixed bottom-6 left-0 right-0 flex items-center justify-center z-40 pointer-events-none">
         <div className="relative flex items-center justify-center pointer-events-auto">
-          {/* Pulsing Aura Rings */}
-          <div className="absolute w-20 h-20 rounded-full bg-red-500/25 animate-ping pointer-events-none" />
-          <div className="absolute w-24 h-24 rounded-full bg-rose-500/20 blur-lg pointer-events-none" />
+          {/* Subtle Dark Aura Ping */}
+          <div className="absolute w-24 h-24 rounded-full bg-slate-900/25 animate-ping pointer-events-none" />
+          <div className="absolute w-28 h-28 rounded-full bg-black/20 blur-xl pointer-events-none" />
 
           {/* Outer Ring Border */}
-          <div className="p-1 rounded-full bg-gradient-to-b from-red-400 via-rose-500 to-red-700 shadow-2xl shadow-red-600/50 backdrop-blur-md">
-            {/* Main Circular Button */}
+          <div className="p-1.5 rounded-full bg-gradient-to-b from-slate-600 via-slate-800 to-black shadow-2xl shadow-black/70 backdrop-blur-md border border-slate-600/40">
+            {/* Main Circular Black Button */}
             <button
               onClick={openBalanceModal}
-              className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-gradient-to-br from-rose-500 via-red-600 to-red-700 hover:from-rose-400 hover:to-red-600 active:scale-90 transition-all flex items-center justify-center text-white shadow-inner border-2 border-white/40 group relative overflow-hidden"
-              title="Tap for Net Remaining Audit"
+              className="w-20 h-20 sm:w-22 sm:h-22 rounded-full bg-gradient-to-br from-slate-900 via-zinc-950 to-black hover:from-slate-800 hover:to-zinc-900 active:scale-90 transition-all flex items-center justify-center text-white shadow-2xl border-2 border-slate-500/40 group relative overflow-hidden"
+              title="View Net Remaining Balance"
             >
-              {/* Subtle sheen highlight */}
-              <div className="absolute top-0 left-0 right-0 h-1/2 bg-white/25 rounded-t-full pointer-events-none" />
-              <Fingerprint size={32} className="text-white drop-shadow-md group-hover:scale-110 transition-transform" />
+              {/* Subtle metallic sheen highlight */}
+              <div className="absolute top-0 left-0 right-0 h-1/2 bg-white/15 rounded-t-full pointer-events-none" />
+              <Fingerprint size={42} className="text-white drop-shadow-[0_2px_12px_rgba(255,255,255,0.45)] group-hover:scale-110 transition-transform" />
             </button>
           </div>
-        </div>
-
-        {/* Floating pill badge */}
-        <div className="pointer-events-auto mt-1.5 px-3 py-0.5 rounded-full bg-slate-900/85 backdrop-blur-md border border-slate-700/60 shadow-md flex items-center space-x-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse inline-block" />
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-200">
-            Audit Balance
-          </span>
         </div>
       </div>
 
@@ -402,7 +388,7 @@ export default function Worker() {
             {/* Modal Header */}
             <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100">
               <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center">
                   <Fingerprint size={20} />
                 </div>
                 <h2 className="text-lg font-black text-slate-800">Net Remaining Balance</h2>
@@ -414,28 +400,28 @@ export default function Worker() {
 
             {balanceLoading ? (
               <div className="flex justify-center py-12">
-                <div className="w-10 h-10 border-4 border-rose-200 border-t-rose-600 rounded-full animate-spin" />
+                <div className="w-10 h-10 border-4 border-slate-300 border-t-slate-900 rounded-full animate-spin" />
               </div>
             ) : balanceData ? (
               <div className="px-5 pt-5 space-y-4">
                 {/* Balance Card */}
-                <div className={`rounded-3xl p-6 text-center shadow-xl relative overflow-hidden ${
+                <div className={`rounded-3xl p-6 text-center shadow-2xl relative overflow-hidden border ${
                   balanceData.netRemaining >= 0
-                    ? 'bg-gradient-to-br from-rose-600 via-red-600 to-rose-700 shadow-red-500/20 text-white'
-                    : 'bg-gradient-to-br from-rose-800 via-red-900 to-slate-900 shadow-rose-900/20 text-white'
+                    ? 'bg-gradient-to-br from-slate-950 via-zinc-900 to-black text-white border-slate-700/60 shadow-black/40'
+                    : 'bg-gradient-to-br from-rose-950 via-red-950 to-black text-white border-rose-800/60 shadow-rose-950/40'
                 }`}>
-                  <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white shadow-inner">
+                  <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-inner">
                     <Fingerprint size={32} />
                   </div>
-                  <p className="text-white/80 text-[11px] font-black uppercase tracking-wider mb-1">Live Net Remaining Balance</p>
+                  <p className="text-slate-400 text-[11px] font-black uppercase tracking-wider mb-1">Live Net Remaining Balance</p>
                   <p className="text-4xl font-black text-white tracking-tight">
                     {balanceData.netRemaining >= 0 ? '+' : ''}
                     {balanceData.netRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
-                  <span className="inline-block mt-1 px-3 py-0.5 rounded-full bg-white/20 text-xs font-black text-white backdrop-blur-sm">
+                  <span className="inline-block mt-2 px-3 py-0.5 rounded-full bg-white/10 text-xs font-black text-emerald-400 border border-emerald-400/30 backdrop-blur-sm">
                     ETB
                   </span>
-                  <p className="text-white/70 text-[11px] font-medium mt-3 border-t border-white/15 pt-2">
+                  <p className="text-slate-400 text-[11px] font-medium mt-3 border-t border-slate-800 pt-2">
                     Net Profit (Deposits − Actual Payouts) minus manual reductions
                   </p>
                 </div>
