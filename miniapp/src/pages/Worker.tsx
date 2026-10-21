@@ -184,20 +184,9 @@ export default function Worker() {
               Welcome back, {user.first_name}
             </p>
           </div>
-          <div className="flex items-center space-x-2">
-            {/* Fingerprint Balance Button */}
-            <button
-              onClick={openBalanceModal}
-              className="p-2.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-full shadow-lg shadow-emerald-950/30 active:scale-90 transition-all border border-emerald-300/40 relative flex items-center justify-center"
-              title="View Net Balance"
-            >
-              <Fingerprint size={20} className="text-white drop-shadow" />
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-300 rounded-full border-2 border-orange-600 animate-pulse" />
-            </button>
-            <Link to="/" className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors">
-              <LogOut size={20} />
-            </Link>
-          </div>
+          <Link to="/" className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors">
+            <LogOut size={20} />
+          </Link>
         </div>
 
         {/* Quick Actions */}
@@ -361,37 +350,35 @@ export default function Worker() {
           <p>Only <strong>approved</strong> deposits and withdrawals are counted. Pending transactions are excluded.</p>
         </div>
 
-        {/* Advanced Green Fingerprint Audit Button */}
-        <button
-          onClick={openBalanceModal}
-          className="mt-4 w-full p-4 rounded-3xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 text-white shadow-xl shadow-emerald-500/25 active:scale-[0.98] transition-all flex items-center justify-between group border border-emerald-300/30 overflow-hidden relative"
-        >
-          {/* Ambient Glows */}
-          <div className="absolute -right-8 -bottom-8 w-28 h-28 bg-white/15 rounded-full blur-2xl pointer-events-none" />
-          <div className="absolute -left-8 -top-8 w-24 h-24 bg-emerald-300/20 rounded-full blur-xl pointer-events-none" />
+        {/* Advanced Circular Red Fingerprint Button */}
+        <div className="flex flex-col items-center justify-center pt-6 pb-2">
+          <div className="relative flex items-center justify-center">
+            {/* Pulsing Aura Rings */}
+            <div className="absolute w-24 h-24 rounded-full bg-red-500/20 animate-ping pointer-events-none" />
+            <div className="absolute w-28 h-28 rounded-full bg-rose-500/10 blur-xl pointer-events-none" />
 
-          <div className="flex items-center space-x-3.5 relative z-10">
-            <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/25 shadow-inner group-hover:scale-105 transition-transform">
-              <Fingerprint size={28} className="text-white" />
-            </div>
-            <div className="text-left">
-              <div className="flex items-center space-x-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping inline-block" />
-                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-100">Audit Verification</span>
-              </div>
-              <p className="text-base font-black text-white leading-tight mt-0.5">
-                Net Remaining Balance
-              </p>
-              <p className="text-[11px] text-emerald-100/90 font-medium">
-                Tap to view live balance & history
-              </p>
+            {/* Outer Ring Border */}
+            <div className="p-1.5 rounded-full bg-gradient-to-b from-red-400 via-rose-500 to-red-700 shadow-2xl shadow-red-500/40">
+              {/* Main Circular Button */}
+              <button
+                onClick={openBalanceModal}
+                className="w-20 h-20 rounded-full bg-gradient-to-br from-rose-500 via-red-600 to-red-700 hover:from-rose-400 hover:to-red-600 active:scale-90 transition-all flex items-center justify-center text-white shadow-inner border border-white/30 group relative overflow-hidden"
+                title="Tap for Net Remaining Audit"
+              >
+                {/* Subtle sheen highlight */}
+                <div className="absolute top-0 left-0 right-0 h-1/2 bg-white/20 rounded-t-full pointer-events-none" />
+                <Fingerprint size={38} className="text-white drop-shadow-lg group-hover:scale-110 transition-transform" />
+              </button>
             </div>
           </div>
 
-          <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md border border-white/20 flex items-center justify-center relative z-10 group-hover:translate-x-1 transition-transform text-white">
-            <ChevronRight size={22} />
+          <div className="flex items-center space-x-1.5 mt-3">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse inline-block" />
+            <span className="text-xs font-black uppercase tracking-wider text-slate-500">
+              Audit Verification
+            </span>
           </div>
-        </button>
+        </div>
 
       </div>
     </div>
@@ -403,7 +390,7 @@ export default function Worker() {
             {/* Modal Header */}
             <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100">
               <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center">
                   <Fingerprint size={20} />
                 </div>
                 <h2 className="text-lg font-black text-slate-800">Net Remaining Balance</h2>
@@ -415,15 +402,15 @@ export default function Worker() {
 
             {balanceLoading ? (
               <div className="flex justify-center py-12">
-                <div className="w-10 h-10 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
+                <div className="w-10 h-10 border-4 border-rose-200 border-t-rose-600 rounded-full animate-spin" />
               </div>
             ) : balanceData ? (
               <div className="px-5 pt-5 space-y-4">
                 {/* Balance Card */}
                 <div className={`rounded-3xl p-6 text-center shadow-xl relative overflow-hidden ${
                   balanceData.netRemaining >= 0
-                    ? 'bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-500 shadow-emerald-500/20 text-white'
-                    : 'bg-gradient-to-br from-rose-600 via-red-600 to-rose-500 shadow-rose-500/20 text-white'
+                    ? 'bg-gradient-to-br from-rose-600 via-red-600 to-rose-700 shadow-red-500/20 text-white'
+                    : 'bg-gradient-to-br from-rose-800 via-red-900 to-slate-900 shadow-rose-900/20 text-white'
                 }`}>
                   <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white shadow-inner">
                     <Fingerprint size={32} />
