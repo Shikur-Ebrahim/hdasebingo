@@ -3,7 +3,8 @@ import {
   ArrowLeft, TrendingUp, ArrowDownToLine, ArrowUpFromLine, Percent, 
   Minus, RefreshCw, Trash2, Calendar, PlusCircle, ChevronDown, 
   ChevronUp, ShieldCheck, Wallet, History, AlertCircle, CheckCircle2, 
-  XCircle, Building2, CreditCard, ExternalLink, X, Eye, Check, Clock
+  XCircle, Building2, CreditCard, ExternalLink, X, Eye, Check, Clock,
+  Landmark, Smartphone
 } from 'lucide-react';
 import { Link, Navigate } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
@@ -230,7 +231,16 @@ export default function AdminAudit() {
   const fmt = (n: number | undefined) => (n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const transfers = data?.transfers || [];
-  const pendingCount = transfers.filter(t => t.status === 'pending').length;
+  const pendingTransfers = transfers.filter(t => t.status === 'pending');
+  const approvedTransfers = transfers.filter(t => t.status === 'approved');
+  const rejectedTransfers = transfers.filter(t => t.status === 'rejected');
+
+  const pendingCount = pendingTransfers.length;
+  const approvedCount = approvedTransfers.length;
+  const rejectedCount = rejectedTransfers.length;
+  const totalCount = transfers.length;
+
+  const pendingAmount = pendingTransfers.reduce((s, t) => s + Number(t.amount || 0), 0);
   const filteredTransfers = transfers.filter(t => transferFilter === 'all' ? true : t.status === transferFilter);
 
   return (
@@ -454,8 +464,51 @@ export default function AdminAudit() {
               <TrendingUp size={36} className={data.netProfit >= 0 ? 'text-emerald-500/30' : 'text-rose-500/30'} />
             </div>
 
+            {/* ── PENDING WORKER SENDS CARD ─────────────────────────────────── */}
+            <div 
+              onClick={() => {
+                setTransferFilter('pending');
+                const el = document.getElementById('worker-transfers-section');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="rounded-3xl p-4 bg-gradient-to-r from-amber-950/70 via-slate-900 to-slate-900 border-2 border-amber-500/40 shadow-xl flex items-center justify-between cursor-pointer active:scale-[0.99] transition-all hover:border-amber-400/70"
+            >
+              <div className="flex items-center space-x-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                  <Clock size={24} />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">
+                      Pending Worker Sends
+                    </span>
+                    {pendingCount > 0 ? (
+                      <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black animate-pulse">
+                        {pendingCount} Pending
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-bold">
+                        0 Pending
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xl font-black text-white mt-0.5">
+                    {pendingCount} <span className="text-xs font-bold text-slate-400">Transfer Request{pendingCount === 1 ? '' : 's'}</span>
+                  </p>
+                  <p className="text-[11px] text-amber-300 font-bold">
+                    +{fmt(pendingAmount)} ETB awaiting approval
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-xs font-black text-amber-400 bg-amber-400/10 border border-amber-400/30 px-3 py-1.5 rounded-xl block">
+                  Review ➔
+                </span>
+              </div>
+            </div>
+
             {/* ── WORKER TRANSFERS (Review & Approvals) ─────────────────────── */}
-            <div className="bg-slate-800/90 rounded-3xl shadow-xl border border-slate-700/70 overflow-hidden">
+            <div id="worker-transfers-section" className="bg-slate-800/90 rounded-3xl shadow-xl border border-slate-700/70 overflow-hidden">
               <div className="px-5 pt-4 pb-3 border-b border-slate-700/60 flex items-center justify-between">
                 <div>
                   <h2 className="font-black text-white text-base flex items-center space-x-2">
@@ -474,19 +527,29 @@ export default function AdminAudit() {
                 )}
               </div>
 
-              {/* Status Filter Tabs */}
-              <div className="flex border-b border-slate-700/60 bg-slate-900/50 p-1">
-                {(['pending', 'approved', 'rejected', 'all'] as const).map(tab => (
+              {/* Status Filter Tabs with Real Counts */}
+              <div className="grid grid-cols-4 border-b border-slate-700/60 bg-slate-900/60 p-1.5 gap-1">
+                {[
+                  { id: 'pending', label: 'Pending', count: pendingCount, activeBadge: 'bg-amber-500 text-slate-950 font-black', idleBadge: pendingCount > 0 ? 'bg-rose-500 text-white font-black animate-pulse' : 'bg-slate-800 text-slate-400' },
+                  { id: 'approved', label: 'Approved', count: approvedCount, activeBadge: 'bg-emerald-500 text-slate-950 font-black', idleBadge: 'bg-slate-800 text-slate-400' },
+                  { id: 'rejected', label: 'Rejected', count: rejectedCount, activeBadge: 'bg-rose-500 text-white font-black', idleBadge: 'bg-slate-800 text-slate-400' },
+                  { id: 'all', label: 'All', count: totalCount, activeBadge: 'bg-slate-700 text-white font-black', idleBadge: 'bg-slate-800 text-slate-400' },
+                ].map(tab => (
                   <button
-                    key={tab}
-                    onClick={() => setTransferFilter(tab)}
-                    className={`flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
-                      transferFilter === tab
-                        ? 'bg-slate-800 text-white shadow-md'
+                    key={tab.id}
+                    onClick={() => setTransferFilter(tab.id as any)}
+                    className={`py-2 px-1 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 ${
+                      transferFilter === tab.id
+                        ? 'bg-slate-800 text-white shadow-md border border-slate-700'
                         : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    {tab} {tab === 'pending' && pendingCount > 0 ? `(${pendingCount})` : ''}
+                    <span>{tab.label}</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                      transferFilter === tab.id ? tab.activeBadge : tab.idleBadge
+                    }`}>
+                      {tab.count}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -646,16 +709,40 @@ export default function AdminAudit() {
                 )}
 
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Bank / Wallet Type</label>
-                  <select
-                    value={newBankType}
-                    onChange={e => setNewBankType(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  >
-                    <option value="cbe">Commercial Bank of Ethiopia (CBE)</option>
-                    <option value="boa">Bank of Abyssinia (BOA)</option>
-                    <option value="telebirr">Telebirr</option>
-                  </select>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">
+                    Select Payment Method
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { key: 'cbe', label: 'CBE', full: 'Commercial Bank', icon: Landmark, gradient: 'from-amber-500 to-orange-600' },
+                      { key: 'boa', label: 'BOA', full: 'Bank of Abyssinia', icon: Building2, gradient: 'from-blue-600 to-indigo-700' },
+                      { key: 'telebirr', label: 'Telebirr', full: 'Telebirr', icon: Smartphone, gradient: 'from-emerald-500 to-teal-600' },
+                    ].map(m => {
+                      const isSelected = newBankType === m.key;
+                      const Icon = m.icon;
+                      return (
+                        <button
+                          key={m.key}
+                          type="button"
+                          onClick={() => setNewBankType(m.key)}
+                          className={`p-3 rounded-2xl border-2 flex flex-col items-center justify-center text-center transition-all active:scale-95 ${
+                            isSelected
+                              ? 'border-amber-400 bg-amber-400/10 shadow-lg shadow-amber-400/10 ring-1 ring-amber-400/30'
+                              : 'border-slate-700 bg-slate-900/60 hover:border-slate-600'
+                          }`}
+                        >
+                          <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${m.gradient} flex items-center justify-center text-white mb-1.5 shadow-sm`}>
+                            <Icon size={18} />
+                          </div>
+                          <span className="text-xs font-black text-white block">{m.label}</span>
+                          <span className="text-[9px] text-slate-400 font-bold block">{m.full}</span>
+                          {isSelected && (
+                            <span className="mt-1 w-2 h-2 rounded-full bg-amber-400" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div>

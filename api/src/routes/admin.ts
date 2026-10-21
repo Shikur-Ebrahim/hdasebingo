@@ -389,19 +389,16 @@ router.delete('/deposits/:id/reject', async (req, res) => {
 
 // Get admin stats (pending counts)
 router.get('/stats', async (req, res) => {
-  const { count: depCount } = await supabase
-    .from('deposits')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'pending');
-    
-  const { count: withCount } = await supabase
-    .from('withdrawals')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'pending');
+  const [depRes, withRes, trRes] = await Promise.all([
+    supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+    supabase.from('withdrawals').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+    supabase.from('worker_transfers').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+  ]);
     
   res.json({ 
-    pendingDeposits: depCount || 0,
-    pendingWithdrawals: withCount || 0 
+    pendingDeposits: depRes.count || 0,
+    pendingWithdrawals: withRes.count || 0,
+    pendingTransfers: trRes.count || 0,
   });
 });
 

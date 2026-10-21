@@ -4,7 +4,8 @@ import { Navigate, Link } from 'react-router-dom';
 import { 
   ArrowDownToLine, ArrowUpFromLine, TrendingUp, Calendar, RefreshCw, 
   Search, Fingerprint, X, Minus, ChevronDown, ChevronUp, ChevronRight, 
-  Send, Copy, Check, UploadCloud, ArrowLeft, Building2, Eye, Clock, CheckCircle2, XCircle
+  Send, Copy, Check, UploadCloud, ArrowLeft, Building2, Eye, Clock, CheckCircle2, XCircle,
+  Landmark, Smartphone
 } from 'lucide-react';
 import WebApp from '@twa-dev/sdk';
 
@@ -90,6 +91,7 @@ export default function Worker() {
   const [transferSuccess, setTransferSuccess] = useState('');
   const [copiedAccount, setCopiedAccount] = useState(false);
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [showAccountModal, setShowAccountModal] = useState(false);
 
   // Custom date range state
   const [customFrom, setCustomFrom] = useState('');
@@ -581,26 +583,72 @@ export default function Worker() {
 
                     {/* Select Manager Account */}
                     <div>
-                      <label className="text-[11px] font-black uppercase text-slate-500 block mb-1">
+                      <label className="text-[11px] font-black uppercase text-slate-500 block mb-1.5">
                         Select Manager Account
                       </label>
                       {managerAccounts.length === 0 ? (
-                        <p className="text-xs text-amber-600 font-bold bg-amber-50 p-3 rounded-xl border border-amber-200">
+                        <p className="text-xs text-amber-600 font-bold bg-amber-50 p-3.5 rounded-2xl border border-amber-200">
                           No manager accounts configured yet. Contact admin.
                         </p>
                       ) : (
-                        <select
-                          value={selectedAccountId}
-                          onChange={e => setSelectedAccountId(e.target.value)}
-                          className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-3 text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
-                          required
-                        >
-                          {managerAccounts.map(acc => (
-                            <option key={acc.id} value={acc.id}>
-                              {BANK_NAMES[acc.bank_type] || acc.bank_type.toUpperCase()} - {acc.account_number} ({acc.account_name})
-                            </option>
-                          ))}
-                        </select>
+                        <div className="space-y-2">
+                          {/* Attractive Mobile-First Dropdown Trigger Button */}
+                          <button
+                            type="button"
+                            onClick={() => setShowAccountModal(true)}
+                            className="w-full flex items-center justify-between p-3.5 bg-slate-50 border-2 border-slate-200 hover:border-emerald-500 rounded-2xl active:scale-[0.99] transition-all shadow-sm"
+                          >
+                            <div className="flex items-center space-x-3 text-left">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs text-white shadow-sm shrink-0 ${
+                                selectedAccount?.bank_type === 'telebirr' ? 'bg-gradient-to-br from-emerald-500 to-teal-600' :
+                                selectedAccount?.bank_type === 'cbe' ? 'bg-gradient-to-br from-amber-500 to-orange-600' :
+                                selectedAccount?.bank_type === 'boa' ? 'bg-gradient-to-br from-blue-600 to-indigo-700' :
+                                'bg-slate-700'
+                              }`}>
+                                {selectedAccount?.bank_type === 'telebirr' ? 'TB' :
+                                 selectedAccount?.bank_type === 'cbe' ? 'CBE' :
+                                 selectedAccount?.bank_type === 'boa' ? 'BOA' : 'BANK'}
+                              </div>
+                              <div>
+                                <span className="font-black text-sm text-slate-900 block leading-tight">
+                                  {selectedAccount ? (BANK_NAMES[selectedAccount.bank_type] || selectedAccount.bank_type.toUpperCase()) : 'Select Payment Method'}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-bold">
+                                  Tap to choose payment method
+                                </span>
+                              </div>
+                            </div>
+                            <div className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 shrink-0">
+                              <ChevronDown size={18} />
+                            </div>
+                          </button>
+
+                          {/* Quick-Select Pills for 1-Tap Switching */}
+                          <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                            {managerAccounts.map(acc => {
+                              const isSelected = selectedAccountId === acc.id;
+                              const shortName = acc.bank_type === 'telebirr' ? 'Telebirr' :
+                                                acc.bank_type === 'cbe' ? 'Commercial Bank (CBE)' :
+                                                acc.bank_type === 'boa' ? 'Bank of Abyssinia (BOA)' :
+                                                acc.bank_type.toUpperCase();
+                              return (
+                                <button
+                                  key={acc.id}
+                                  type="button"
+                                  onClick={() => setSelectedAccountId(acc.id)}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center space-x-1.5 shrink-0 ${
+                                    isSelected
+                                      ? 'bg-slate-900 text-emerald-400 border border-emerald-500 shadow-sm'
+                                      : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
+                                  }`}
+                                >
+                                  <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-emerald-400' : 'bg-slate-400'}`} />
+                                  <span>{shortName}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
                       )}
                     </div>
 
@@ -821,6 +869,87 @@ export default function Worker() {
             ) : (
               <div className="py-16 text-center text-slate-400 font-semibold">Failed to load balance.</div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── SELECT MANAGER ACCOUNT MODAL (Mobile-Screen First) ──────── */}
+      {showAccountModal && (
+        <div 
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200"
+          onClick={() => setShowAccountModal(false)}
+        >
+          <div 
+            className="w-full max-w-md bg-white rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Drawer top bar */}
+            <div className="w-12 h-1.5 rounded-full bg-slate-300 mx-auto -mt-1" />
+            
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-black text-slate-900">Select Manager Account</h3>
+                <p className="text-[11px] text-slate-400 font-bold">Choose payment method to send net balance</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAccountModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 active:scale-95"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-2.5 pt-1">
+              {managerAccounts.map(acc => {
+                const isSelected = selectedAccountId === acc.id;
+                const bankName = BANK_NAMES[acc.bank_type] || acc.bank_type.toUpperCase();
+                return (
+                  <button
+                    key={acc.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedAccountId(acc.id);
+                      setShowAccountModal(false);
+                    }}
+                    className={`w-full p-4 rounded-2xl border-2 flex items-center justify-between text-left transition-all active:scale-[0.98] ${
+                      isSelected
+                        ? 'border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-500/20 shadow-sm'
+                        : 'border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-slate-100/50'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3.5">
+                      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-sm text-white shadow-sm shrink-0 ${
+                        acc.bank_type === 'telebirr' ? 'bg-gradient-to-br from-emerald-500 to-teal-600' :
+                        acc.bank_type === 'cbe' ? 'bg-gradient-to-br from-amber-500 to-orange-600' :
+                        acc.bank_type === 'boa' ? 'bg-gradient-to-br from-blue-600 to-indigo-700' :
+                        'bg-slate-700'
+                      }`}>
+                        {acc.bank_type === 'telebirr' ? 'TB' :
+                         acc.bank_type === 'cbe' ? 'CBE' :
+                         acc.bank_type === 'boa' ? 'BOA' : 'BANK'}
+                      </div>
+                      <div>
+                        <span className="font-black text-slate-900 text-sm block">
+                          {bankName}
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-bold">
+                          Official Manager Account
+                        </span>
+                      </div>
+                    </div>
+
+                    {isSelected ? (
+                      <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-sm shrink-0">
+                        <Check size={14} strokeWidth={3} />
+                      </div>
+                    ) : (
+                      <div className="w-5 h-5 rounded-full border-2 border-slate-300 shrink-0" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
