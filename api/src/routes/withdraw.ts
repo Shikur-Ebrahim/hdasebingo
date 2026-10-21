@@ -1,10 +1,29 @@
 import { Router } from 'express';
 import { AuthRequest, validateTelegramAuth } from '../middleware/auth';
 import { supabase } from '../services/supabase';
+import { getWithdrawalFeeSettings, calculateWithdrawalFee } from '../services/withdrawalFee';
 
 const router = Router();
 
 router.use(validateTelegramAuth);
+
+// GET /api/withdraw/fee-settings — public/user endpoint to get fee tiers and user role
+router.get('/fee-settings', async (req: AuthRequest, res) => {
+  try {
+    const telegramId = req.telegramUser!.id.toString();
+    const [feeSettings, { data: user }] = await Promise.all([
+      getWithdrawalFeeSettings(),
+      supabase.from('users').select('role').eq('telegram_id', telegramId).maybeSingle(),
+    ]);
+    res.json({
+      settings: feeSettings,
+      user_role: user?.role || 'user',
+      is_exempt: user?.role === 'agent' || user?.role === 'promoter',
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // GET /api/withdraw/methods — all active withdrawal methods
 router.get('/methods', async (_req, res) => {
@@ -58,10 +77,10 @@ router.post('/request', async (req: AuthRequest, res) => {
     return;
   }
 
-  // 3. Check user's main balance and atomically deduct
+  // 3. Check user's main balance and role
   const { data: user } = await supabase
     .from('users')
-    .select('main_balance')
+    .select('main_balance, role')
     .eq('telegram_id', telegramId)
     .single();
 
@@ -69,6 +88,14 @@ router.post('/request', async (req: AuthRequest, res) => {
     res.status(400).json({ error: 'Insufficient main balance.' });
     return;
   }
+
+  // Calculate tiered withdrawal fee (Agents & Promoters are strictly 0% exempt)
+  const feeSettings = await getWithdrawalFeeSettings();
+  const { fee_percent, fee_amount, net_amount } = calculateWithdrawalFee(
+    Number(amount),
+    user.role,
+    feeSettings
+  );
 
   // Atomically deduct the main_balance
   const { data: updateData, error: updateErr } = await supabase
@@ -84,19 +111,36 @@ router.post('/request', async (req: AuthRequest, res) => {
     return;
   }
 
-  // 4. Insert withdrawal request
-  const { data: withdrawal, error: insertErr } = await supabase
+  // 4. Insert withdrawal request with fee tracking
+  const insertPayload: any = {
+    telegram_id: telegramId,
+    method_id,
+    amount,
+    fee_percent,
+    fee_amount,
+    net_amount,
+    account_name,
+    account_number,
+    status: 'pending',
+  };
+
+  let { data: withdrawal, error: insertErr } = await supabase
     .from('withdrawals')
-    .insert([{ 
-      telegram_id: telegramId, 
-      method_id, 
-      amount, 
-      account_name, 
-      account_number, 
-      status: 'pending' 
-    }])
+    .insert([insertPayload])
     .select()
     .single();
+
+  // Fallback: if fee columns don't exist yet in Supabase table
+  if (insertErr && (insertErr.message.includes('fee_amount') || insertErr.message.includes('net_amount'))) {
+    const { fee_percent: _, fee_amount: __, net_amount: ___, ...fallbackPayload } = insertPayload;
+    const resFallback = await supabase
+      .from('withdrawals')
+      .insert([fallbackPayload])
+      .select()
+      .single();
+    withdrawal = resFallback.data;
+    insertErr = resFallback.error;
+  }
 
   if (insertErr) {
     // If insertion fails, refund the main_balance
@@ -115,9 +159,14 @@ router.post('/request', async (req: AuthRequest, res) => {
       const safeAccountName = account_name.replace(/[_*[\]]/g, '\\$&');
       const safeAccountNumber = account_number.replace(/[_*[\]]/g, '\\$&');
 
+      const feeNotice = fee_amount > 0 
+        ? `\n🏷️ Fee (${fee_percent}%): *${fee_amount.toLocaleString('en-US')} ETB*\n💵 *Payout to Send: ${net_amount.toLocaleString('en-US')} ETB*`
+        : `\n💵 *Payout to Send: ${Number(amount).toLocaleString('en-US')} ETB* (No Fee)`;
+
       const message = `💸 *New Withdrawal Request!*\n\n` +
                       `👤 User: @${safeUsername}\n` +
-                      `💰 Amount: *${Number(amount).toLocaleString('en-US')} ETB*\n` +
+                      `💰 Requested: *${Number(amount).toLocaleString('en-US')} ETB*` +
+                      feeNotice + `\n` +
                       `🏦 Method: *${safeMethodType}*\n` +
                       `📝 Name: *${safeAccountName}*\n` +
                       `🔢 Account: \`${safeAccountNumber}\`\n\n` +
@@ -139,21 +188,54 @@ router.post('/request', async (req: AuthRequest, res) => {
     console.error('Notification error:', notifyErr);
   }
 
-  res.json({ success: true, withdrawal });
+  res.json({
+    success: true,
+    withdrawal: {
+      ...withdrawal,
+      fee_percent,
+      fee_amount,
+      net_amount,
+    },
+  });
 });
 
 // GET /api/withdraw/history — user's withdrawal history
 router.get('/history', async (req: AuthRequest, res) => {
   const telegramId = req.telegramUser!.id.toString();
-  const { data, error } = await supabase
-    .from('withdrawals')
-    .select('*, withdrawal_methods(type, logo_url)')
-    .eq('telegram_id', telegramId)
-    .order('created_at', { ascending: false })
-    .limit(20);
+  const [{ data, error }, feeSettings, { data: user }] = await Promise.all([
+    supabase
+      .from('withdrawals')
+      .select('*, withdrawal_methods(type, logo_url)')
+      .eq('telegram_id', telegramId)
+      .order('created_at', { ascending: false })
+      .limit(20),
+    getWithdrawalFeeSettings(),
+    supabase.from('users').select('role').eq('telegram_id', telegramId).maybeSingle(),
+  ]);
 
   if (error) { res.status(500).json({ error: error.message }); return; }
-  res.json(data);
+
+  const enriched = (data || []).map((w: any) => {
+    let fee_percent = w.fee_percent;
+    let fee_amount = w.fee_amount;
+    let net_amount = w.net_amount;
+
+    if (fee_percent === undefined || fee_percent === null || net_amount === undefined || net_amount === null) {
+      const calc = calculateWithdrawalFee(Number(w.amount), user?.role, feeSettings);
+      fee_percent = calc.fee_percent;
+      fee_amount = calc.fee_amount;
+      net_amount = calc.net_amount;
+    }
+
+    return {
+      ...w,
+      fee_percent: Number(fee_percent) || 0,
+      fee_amount: Number(fee_amount) || 0,
+      net_amount: Number(net_amount) || Number(w.amount),
+    };
+  });
+
+  res.json(enriched);
 });
 
 export default router;

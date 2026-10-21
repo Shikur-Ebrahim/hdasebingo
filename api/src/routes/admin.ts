@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { AuthRequest, validateTelegramAuth } from '../middleware/auth';
 import { supabase } from '../services/supabase';
+import { getWithdrawalFeeSettings, saveWithdrawalFeeSettings, calculateWithdrawalFee } from '../services/withdrawalFee';
 
 const router = Router();
 
@@ -401,12 +402,34 @@ router.get('/stats', async (req, res) => {
 
 // ─── WITHDRAWAL MANAGEMENT ───────────────────────────────────────────────────
 
+// User withdrawal fee settings
+router.get('/withdrawal-fee', async (req, res) => {
+  try {
+    const settings = await getWithdrawalFeeSettings();
+    res.json({ ok: true, settings });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/withdrawal-fee', async (req, res) => {
+  try {
+    const updated = await saveWithdrawalFeeSettings(req.body);
+    res.json({ ok: true, settings: updated });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Get all withdrawals with user + method info
 router.get('/withdrawals', async (req, res) => {
-  const { data: withdrawals, error } = await supabase
-    .from('withdrawals')
-    .select('*, withdrawal_methods(type, logo_url)')
-    .order('created_at', { ascending: false });
+  const [{ data: withdrawals, error }, feeSettings] = await Promise.all([
+    supabase
+      .from('withdrawals')
+      .select('*, withdrawal_methods(type, logo_url)')
+      .order('created_at', { ascending: false }),
+    getWithdrawalFeeSettings(),
+  ]);
     
   if (error) { res.status(500).json({ error: error.message }); return; }
 
@@ -415,14 +438,28 @@ router.get('/withdrawals', async (req, res) => {
     const telegramIds = [...new Set(withdrawals.map(w => w.telegram_id))];
     const { data: users } = await supabase
       .from('users')
-      .select('telegram_id, first_name, username')
+      .select('telegram_id, first_name, username, role')
       .in('telegram_id', telegramIds);
       
-    if (users) {
-      const userMap = Object.fromEntries(users.map(u => [u.telegram_id, u]));
-      for (const w of withdrawals) {
-        (w as any).users = userMap[w.telegram_id] || null;
+    const userMap = users ? Object.fromEntries(users.map(u => [u.telegram_id, u])) : {};
+    for (const w of withdrawals) {
+      const u = userMap[w.telegram_id] || null;
+      (w as any).users = u;
+
+      let fee_percent = (w as any).fee_percent;
+      let fee_amount = (w as any).fee_amount;
+      let net_amount = (w as any).net_amount;
+
+      if (fee_percent === undefined || fee_percent === null || net_amount === undefined || net_amount === null) {
+        const calc = calculateWithdrawalFee(Number(w.amount), u?.role, feeSettings);
+        fee_percent = calc.fee_percent;
+        fee_amount = calc.fee_amount;
+        net_amount = calc.net_amount;
       }
+
+      (w as any).fee_percent = Number(fee_percent) || 0;
+      (w as any).fee_amount = Number(fee_amount) || 0;
+      (w as any).net_amount = Number(net_amount) || Number(w.amount);
     }
   }
 
@@ -439,7 +476,17 @@ router.post('/withdrawals/:id/approve', async (req, res) => {
 
   // Notify user
   try {
-    const msg = `✅ *Withdrawal Approved!*\n\n💸 Amount: *${Number(withdrawal.amount).toLocaleString('en-US')} ETB* has been sent to your account.\n\n⏳ Funds will arrive within a few minutes.`;
+    const feeSettings = await getWithdrawalFeeSettings();
+    const { data: user } = await supabase.from('users').select('role').eq('telegram_id', withdrawal.telegram_id).maybeSingle();
+    const calc = calculateWithdrawalFee(Number(withdrawal.amount), user?.role, feeSettings);
+    const netAmount = Number(withdrawal.net_amount ?? calc.net_amount);
+    const feeAmount = Number(withdrawal.fee_amount ?? calc.fee_amount);
+    const feePercent = Number(withdrawal.fee_percent ?? calc.fee_percent);
+
+    const feeText = feeAmount > 0 
+      ? `\n🏷️ Fee (${feePercent}%): *${feeAmount.toLocaleString('en-US')} ETB*\n💰 Total Deducted: *${Number(withdrawal.amount).toLocaleString('en-US')} ETB*`
+      : '';
+    const msg = `✅ *Withdrawal Approved!*\n\n💸 Amount: *${netAmount.toLocaleString('en-US')} ETB* has been sent to your account.${feeText}\n\n⏳ Funds will arrive within a few minutes.`;
     await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

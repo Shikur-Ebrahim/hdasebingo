@@ -1,10 +1,32 @@
-import { useState, useEffect } from 'react';
-import { ArrowLeft, ChevronRight, CheckCircle2, Clock, AlertCircle, User, Phone, MessageCircle } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { ArrowLeft, ChevronRight, CheckCircle2, Clock, AlertCircle, User, Phone, MessageCircle, Percent } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
 import VideoGuideButton from '../components/VideoGuideButton';
+
+interface FeeSettings {
+  enabled: boolean;
+  tier1_max: number;   // e.g. 2000
+  tier1_fee: number;   // e.g. 3  (percent)
+  tier2_max: number;   // e.g. 10000
+  tier2_fee: number;   // e.g. 2
+  tier3_fee: number;   // e.g. 1
+  user_role?: string;
+  is_exempt?: boolean;
+}
+
+function calcFee(amount: number, settings: FeeSettings | null): { feePercent: number; feeAmount: number; netAmount: number } {
+  if (!settings || !settings.enabled || settings.is_exempt) {
+    return { feePercent: 0, feeAmount: 0, netAmount: amount };
+  }
+  let pct = settings.tier3_fee;
+  if (amount <= settings.tier1_max) pct = settings.tier1_fee;
+  else if (amount <= settings.tier2_max) pct = settings.tier2_fee;
+  const feeAmount = Math.round(amount * pct) / 100;
+  return { feePercent: pct, feeAmount, netAmount: amount - feeAmount };
+}
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -75,6 +97,9 @@ export default function Withdraw() {
   const [pendingAmount, setPendingAmount] = useState<number | null>(null);
   const [supportContact, setSupportContact] = useState<string>('');
 
+  // Fee settings (fetched once)
+  const [feeSettings, setFeeSettings] = useState<FeeSettings | null>(null);
+
   // Form state
   const [amount, setAmount] = useState('');
   const [accountName, setAccountName] = useState('');
@@ -87,15 +112,20 @@ export default function Withdraw() {
     return { 'Content-Type': 'application/json', 'x-telegram-init-data': initData };
   };
 
+  // Live fee calculation based on current amount input
+  const amtNum = parseFloat(amount) || 0;
+  const feeCalc = useMemo(() => calcFee(amtNum, feeSettings), [amtNum, feeSettings]);
+
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     try {
       const headers = getHeaders();
-      const [methodsRes, historyRes, contactRes] = await Promise.all([
+      const [methodsRes, historyRes, contactRes, feeRes] = await Promise.all([
         fetch(`${API_URL}/withdraw/methods`, { headers }),
         fetch(`${API_URL}/withdraw/history`, { headers }),
         fetch(`${API_URL}/player/support-contact`, { headers }),
+        fetch(`${API_URL}/withdraw/fee-settings`, { headers }),
       ]);
 
       if (methodsRes.ok) setMethods(await methodsRes.json());
@@ -112,6 +142,20 @@ export default function Withdraw() {
       if (contactRes.ok) {
         const support = await contactRes.json();
         setSupportContact(support.username || 'hdasebingo_admin');
+      }
+
+      if (feeRes.ok) {
+        const fs = await feeRes.json();
+        setFeeSettings({
+          enabled: fs.enabled ?? true,
+          tier1_max: fs.tier1_max ?? 2000,
+          tier1_fee: fs.tier1_fee ?? 3,
+          tier2_max: fs.tier2_max ?? 10000,
+          tier2_fee: fs.tier2_fee ?? 2,
+          tier3_fee: fs.tier3_fee ?? 1,
+          user_role: fs.user_role,
+          is_exempt: fs.is_exempt ?? false,
+        });
       }
     } catch (err) {
       console.error(err);
@@ -312,6 +356,30 @@ export default function Withdraw() {
                   Max
                 </button>
               </div>
+
+              {/* Fee Preview */}
+              {feeSettings && feeSettings.enabled && !feeSettings.is_exempt && amtNum > 0 && (
+                <div className="mt-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5 flex flex-col gap-1">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1 text-xs text-amber-700 font-bold">
+                      <Percent size={12} />
+                      Service Fee ({feeCalc.feePercent}%)
+                    </span>
+                    <span className="text-xs font-black text-amber-700">
+                      -{feeCalc.feeAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ETB
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-amber-100 pt-1 mt-0.5">
+                    <span className="text-xs text-emerald-700 font-bold">✅ You'll receive</span>
+                    <span className="text-sm font-black text-emerald-700">
+                      {feeCalc.netAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ETB
+                    </span>
+                  </div>
+                </div>
+              )}
+              {feeSettings && feeSettings.is_exempt && (
+                <p className="text-xs text-emerald-600 font-bold mt-1.5">✅ No service fee (exempt account)</p>
+              )}
             </div>
 
             {/* Full Name */}
@@ -364,7 +432,11 @@ export default function Withdraw() {
                   : `bg-gradient-to-r ${gradient}`
               }`}
             >
-              {submitting ? t[language].withdraw.submitting : `${t[language].withdraw.title} ${(amount && !isNaN(parseFloat(amount))) ? parseFloat(amount).toLocaleString('en-US') : '0'} ETB`}
+              {submitting
+                ? t[language].withdraw.submitting
+                : feeSettings && feeSettings.enabled && !feeSettings.is_exempt && amtNum > 0
+                  ? `Withdraw ${amtNum.toLocaleString('en-US')} ETB → Get ${feeCalc.netAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ETB`
+                  : `${t[language].withdraw.title} ${(amount && !isNaN(parseFloat(amount))) ? parseFloat(amount).toLocaleString('en-US') : '0'} ETB`}
             </button>
           </div>
         </form>

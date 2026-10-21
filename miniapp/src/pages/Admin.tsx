@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
-import { Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Landmark, CreditCard, Gamepad2, Receipt, Settings2, Search, Radio, Building2, Video, Megaphone, BadgeDollarSign } from 'lucide-react';
+import { Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Landmark, CreditCard, Gamepad2, Receipt, Settings2, Search, Radio, Building2, Video, Megaphone, BadgeDollarSign, Percent } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 
@@ -42,6 +42,7 @@ export default function Admin() {
   let adminModules = [
     { id: 'dep_methods', title: 'Deposit Methods', icon: Landmark, color: 'text-blue-600', bg: 'bg-blue-100', show: isAdmin },
     { id: 'with_methods', title: 'Withdraw Methods', icon: CreditCard, color: 'text-purple-600', bg: 'bg-purple-100', show: isAdmin },
+    { id: 'user_withdrawal_fee', title: 'User Withdrawal Fee', icon: Percent, color: 'text-amber-600', bg: 'bg-amber-100', show: isAdmin },
     { id: 'deposits', title: 'Deposits', icon: ArrowDownToLine, color: 'text-emerald-600', bg: 'bg-emerald-100', show: isAdmin || perms.deposits },
     { id: 'withdrawals', title: 'Withdrawals', icon: ArrowUpFromLine, color: 'text-rose-600', bg: 'bg-rose-100', show: isAdmin || perms.withdrawals },
     { id: 'agent_withdrawals', title: 'Agent & Promoter Withdrawals', icon: BadgeDollarSign, color: 'text-amber-600', bg: 'bg-amber-100', show: isAdmin },
@@ -171,6 +172,7 @@ export default function Admin() {
             user_audit: '/admin/user-audit',
             tx_report: '/admin/tx-report',
             settings: '/admin/settings',
+            user_withdrawal_fee: '/admin/user-withdrawal-fee',
             broadcast: '/admin/broadcast',
             support_videos: '/admin/support-videos',
           };
