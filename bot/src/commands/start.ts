@@ -6,17 +6,27 @@ import path from 'path';
 // Cache the file_id after first upload so we don't re-upload every time
 let bannerFileId: string | null = null;
 
+function escapeHtml(str: string): string {
+  return (str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 export async function startCommand(ctx: Context) {
   const user = ctx.from!;
   
-  // Extract inviter ID or room ID from start payload (e.g., /start ref_12345 or /start room_UUID)
+  // Extract inviter ID or room ID from start payload (e.g., /start ref_12345 or /start room_UUID or /start qr)
   let inviterId: string | undefined = undefined;
   let roomId: string | undefined = undefined;
+  let isFromQr = false;
   if (ctx.message?.text) {
     const parts = ctx.message.text.split(' ');
     if (parts.length > 1) {
       const payload = parts[1].trim();
-      if (payload.startsWith('ref_')) {
+      if (payload === 'qr' || payload === 'start' || payload === 'play') {
+        isFromQr = true;
+      } else if (payload.startsWith('ref_')) {
         inviterId = payload.replace('ref_', '');
       } else if (payload.startsWith('room_')) {
         roomId = payload.replace('room_', '');
@@ -85,11 +95,13 @@ export async function startCommand(ctx: Context) {
     ],
   };
 
+  const safeName = escapeHtml(user.first_name || 'ተጫዋች');
   const caption =
-    `🎉 *እንኳን በደህና መጡ, ${user.first_name}!*\n\n` +
-    `⚡ *ታላቁ የህዳሴ ቢንጎ • Hdasebingo* ላይ እንኳን ደህና መጡ! 🇪🇹\n\n` +
+    `🎉 <b>እንኳን በደህና መጡ, ${safeName}!</b>\n\n` +
+    `⚡ <b>ታላቁ የህዳሴ ቢንጎ • Hdasebingo</b> ላይ እንኳን ደህና መጡ! 🇪🇹\n\n` +
     `🌊 ከጓደኞችዎ ጋር ቢንጎ ይጫወቱ፣ ታላላቅ ሽልማቶችን ያሸንፉ! 🏆\n\n` +
-    `✨ *ታላቁ የኢትዮጵያ ህዳሴ ግድብ 🇪🇹*`;
+    `👉 ከታች <b>START PLAYING</b> የሚለውን ይጫኑና ጨዋታውን ይጀምሩ! 🚀\n\n` +
+    `✨ <b>ታላቁ የኢትዮጵያ ህዳሴ ግድብ 🇪🇹</b>`;
 
   try {
     let msg;
@@ -97,7 +109,7 @@ export async function startCommand(ctx: Context) {
       // Use cached file_id (fast, no re-upload)
       msg = await ctx.replyWithPhoto(bannerFileId, {
         caption,
-        parse_mode: 'Markdown',
+        parse_mode: 'HTML',
         reply_markup: { inline_keyboard: keyboard.inline_keyboard },
       });
     } else {
@@ -105,7 +117,7 @@ export async function startCommand(ctx: Context) {
       const bannerPath = path.join(__dirname, '../../assets/banner.jpg');
       msg = await ctx.replyWithPhoto(new InputFile(bannerPath), {
         caption,
-        parse_mode: 'Markdown',
+        parse_mode: 'HTML',
         reply_markup: { inline_keyboard: keyboard.inline_keyboard },
       });
       // Cache the file_id for next time
@@ -115,10 +127,18 @@ export async function startCommand(ctx: Context) {
     }
   } catch (e) {
     console.error('Photo send error:', e);
-    // Fallback: text only
-    await ctx.reply(caption, {
-      parse_mode: 'Markdown',
-      reply_markup: { inline_keyboard: keyboard.inline_keyboard },
-    });
+    // Fallback: text with keyboard (HTML)
+    try {
+      await ctx.reply(caption, {
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: keyboard.inline_keyboard },
+      });
+    } catch (textErr) {
+      console.error('HTML text send error:', textErr);
+      // Absolute fallback: plain text without parse_mode
+      await ctx.reply(`🎉 እንኳን ወደ ታላቁ የህዳሴ ቢንጎ በደህና መጡ!\n\nለመጫወት ከታች ያለውን START PLAYING የሚለውን ይጫኑ!`, {
+        reply_markup: { inline_keyboard: keyboard.inline_keyboard },
+      });
+    }
   }
 }

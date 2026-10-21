@@ -16,10 +16,11 @@ export default function AdminHdaseQr() {
 
   // Preset options for QR code link
   // 1. 'qr' (Adwa exact format: https://t.me/hdasebingo_bot?start=qr) - auto-starts bot & delivers play button instantly
-  // 2. 'play' (https://t.me/hdasebingo_bot?start=play)
-  // 3. 'direct_app' (https://t.me/hdasebingo_bot/app - if BotFather short name is configured)
-  // 4. 'custom' (admin typed link)
-  const [selectedPreset, setSelectedPreset] = useState<'qr' | 'play' | 'direct_app' | 'custom'>('qr');
+  // 2. 'bot' (https://t.me/hdasebingo_bot - direct bot chat page)
+  // 3. 'play' (https://t.me/hdasebingo_bot?start=play)
+  // 4. 'direct_app' (https://t.me/hdasebingo_bot/app - if BotFather short name is configured)
+  // 5. 'custom' (admin typed link)
+  const [selectedPreset, setSelectedPreset] = useState<'qr' | 'bot' | 'play' | 'direct_app' | 'custom'>('qr');
   const [customUrl, setCustomUrl] = useState(`https://t.me/${botUsername}?start=qr`);
   
   const [copiedLink, setCopiedLink] = useState(false);
@@ -35,9 +36,11 @@ export default function AdminHdaseQr() {
     ? customUrl 
     : selectedPreset === 'qr'
       ? `https://t.me/${botUsername}?start=qr`
-      : selectedPreset === 'play'
-        ? `https://t.me/${botUsername}?start=play`
-        : `https://t.me/${botUsername}/app`;
+      : selectedPreset === 'bot'
+        ? `https://t.me/${botUsername}`
+        : selectedPreset === 'play'
+          ? `https://t.me/${botUsername}?start=play`
+          : `https://t.me/${botUsername}/app`;
 
   const triggerHaptic = (style: 'light' | 'medium' | 'heavy' = 'light') => {
     try {
@@ -584,7 +587,7 @@ export default function AdminHdaseQr() {
           </div>
 
           {/* Quick Presets */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => { triggerHaptic('light'); setSelectedPreset('qr'); }}
               className={`p-2.5 rounded-xl border text-center transition-all ${
@@ -593,8 +596,20 @@ export default function AdminHdaseQr() {
                   : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold'
               }`}
             >
-              <div className="text-xs">⭐ ?start=qr</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">Adwa Format</div>
+              <div className="text-xs font-bold">⭐ ?start=qr</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">Adwa Auto-Start (Recommended)</div>
+            </button>
+
+            <button
+              onClick={() => { triggerHaptic('light'); setSelectedPreset('bot'); }}
+              className={`p-2.5 rounded-xl border text-center transition-all ${
+                selectedPreset === 'bot'
+                  ? 'border-amber-500 bg-amber-50/80 shadow-sm ring-1 ring-amber-400 font-black text-amber-900'
+                  : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold'
+              }`}
+            >
+              <div className="text-xs font-bold">🤖 @{botUsername}</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">Direct Bot Page</div>
             </button>
 
             <button
@@ -605,7 +620,7 @@ export default function AdminHdaseQr() {
                   : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold'
               }`}
             >
-              <div className="text-xs">🎮 ?start=play</div>
+              <div className="text-xs font-bold">🎮 ?start=play</div>
               <div className="text-[10px] text-slate-500 mt-0.5">Play Direct</div>
             </button>
 
@@ -617,8 +632,8 @@ export default function AdminHdaseQr() {
                   : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold'
               }`}
             >
-              <div className="text-xs">📱 /app</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">Direct App</div>
+              <div className="text-xs font-bold">📱 /app</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">Direct Mini App</div>
             </button>
           </div>
 
