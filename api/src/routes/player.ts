@@ -782,6 +782,7 @@ router.get('/promoter-dashboard', validateTelegramAuth, async (req: AuthRequest,
     }
 
     const allPromotedRoomIds = Array.from(roomsMap.keys());
+    let totalActivePlayersAcrossAllRooms = 0;
     if (allPromotedRoomIds.length > 0) {
       // 1. Fetch active games for all promoted rooms
       const { data: activeGamesForAll } = await supabase
@@ -812,8 +813,9 @@ router.get('/promoter-dashboard', validateTelegramAuth, async (req: AuthRequest,
       }
 
       (activeGamesForAll || []).forEach((g: any) => {
+        const count = gameUniquePlayersMap[g.id] ?? Number(g.total_players || 0);
+        totalActivePlayersAcrossAllRooms += count;
         if (g.room_id) {
-          const count = gameUniquePlayersMap[g.id] ?? Number(g.total_players || 0);
           roomPlayersMap[g.room_id] = (roomPlayersMap[g.room_id] || 0) + count;
         }
       });
@@ -1042,6 +1044,7 @@ router.get('/promoter-dashboard', validateTelegramAuth, async (req: AuthRequest,
         total_commission_all_time: Number(totalCommissionAllTime.toFixed(2)),
         total_volume_all_time: Number(totalPotVolume.toFixed(2)),
         total_referred_players: referredCount || 0,
+        total_active_players: totalActivePlayersAcrossAllRooms,
         promoter_commission_rate: promoterRate,
         total_promoted_rooms: promotedRooms.length,
       },

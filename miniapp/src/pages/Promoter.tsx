@@ -98,6 +98,7 @@ interface PromoterStats {
   total_commission_all_time: number;
   total_volume_all_time: number;
   total_referred_players: number;
+  total_active_players?: number;
   promoter_commission_rate: number;
   total_promoted_rooms: number;
 }
@@ -922,17 +923,19 @@ export default function Promoter() {
     (user as any)?.promoter_commission_rate ??
     3;
 
-  // Real-time active players across all promoted rooms
+  // Real-time active players across all promoted rooms and all stakes
   const totalPromoterPlayers = useMemo(() => {
-    const fromRooms = (promotedRooms || []).reduce((sum, r) => {
+    if (stats?.total_active_players !== undefined) {
+      return stats.total_active_players;
+    }
+    return (promotedRooms || []).reduce((sum, r) => {
       const storeRoom = rooms.find((x) => x.id === r.id);
-      const p = (r.total_players !== undefined && r.total_players > 0)
-        ? r.total_players
-        : (storeRoom?.total_players ?? r.total_players ?? 0);
+      const p = (r.total_players !== undefined)
+        ? Number(r.total_players || 0)
+        : Number(storeRoom?.total_players || 0);
       return sum + p;
     }, 0);
-    return fromRooms > 0 ? fromRooms : (stats?.total_referred_players ?? 0);
-  }, [promotedRooms, rooms, stats]);
+  }, [stats?.total_active_players, promotedRooms, rooms]);
 
   // Promoter moving horizontal ticker items
   const promoterMarqueeItems = useMemo(() => {

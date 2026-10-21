@@ -282,12 +282,21 @@ adminAgentWithdrawRouter.post('/approve', requireAdmin, async (req: AuthRequest,
 
   if (error) { res.status(500).json({ error: error.message }); return; }
 
-  // Notify agent
+  // Notify agent / promoter
   try {
+    const { data: recipientUser } = await supabase
+      .from('users')
+      .select('role')
+      .eq('telegram_id', record.telegram_id)
+      .maybeSingle();
+
+    const isPromoter = (recipientUser?.role || '').toLowerCase() === 'promoter';
+    const roleTitle = isPromoter ? 'Promoter' : 'Agent';
+
     const botToken = process.env.BOT_TOKEN;
     if (botToken && record.telegram_id) {
       const msg =
-        `✅ *Your Agent Withdrawal is Approved!*\n\n` +
+        `✅ *Your ${roleTitle} Withdrawal is Approved!*\n\n` +
         `💰 Amount: *${Number(record.amount).toLocaleString()} ETB*\n` +
         `🏦 Bank: *${record.bank_name}*\n` +
         `📋 Ref: \`${record.id.slice(0, 8).toUpperCase()}\`\n\n` +
@@ -322,12 +331,15 @@ adminAgentWithdrawRouter.post('/reject', requireAdmin, async (req: AuthRequest, 
     return;
   }
 
-  // 1. Refund agent's balance
+  // 1. Refund balance & get role
   const { data: agentUser } = await supabase
     .from('users')
-    .select('main_balance')
+    .select('main_balance, role')
     .eq('telegram_id', record.telegram_id)
     .single();
+
+  const isPromoter = (agentUser?.role || '').toLowerCase() === 'promoter';
+  const roleTitle = isPromoter ? 'Promoter' : 'Agent';
 
   if (agentUser) {
     const refundedBalance = Number(agentUser.main_balance || 0) + Number(record.amount);
@@ -349,12 +361,12 @@ adminAgentWithdrawRouter.post('/reject', requireAdmin, async (req: AuthRequest, 
 
   if (error) { res.status(500).json({ error: error.message }); return; }
 
-  // 3. Notify agent
+  // 3. Notify agent / promoter
   try {
     const botToken = process.env.BOT_TOKEN;
     if (botToken && record.telegram_id) {
       const msg =
-        `❌ *Your Agent Withdrawal Was Rejected*\n\n` +
+        `❌ *Your ${roleTitle} Withdrawal Was Rejected*\n\n` +
         `💰 Amount: *${Number(record.amount).toLocaleString()} ETB* *(Refunded to your balance)*\n` +
         `🏦 Bank: *${record.bank_name}*\n` +
         `📋 Ref: \`${record.id.slice(0, 8).toUpperCase()}\`\n` +
