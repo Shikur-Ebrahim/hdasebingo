@@ -31,7 +31,7 @@ const hashPin = (pin: string, salt: string): string =>
 const verifyPin = (inputPin: string, storedHash: string, storedSalt: string): boolean =>
   hashPin(inputPin, storedSalt) === storedHash;
 
-// Middleware: Require Agent
+// Middleware: Require Agent or Promoter
 const requireAgent = async (
   req: AuthRequest,
   res: Response,
@@ -43,8 +43,8 @@ const requireAgent = async (
     .select('role')
     .eq('telegram_id', telegramId)
     .single();
-  if (!data || data.role !== 'agent') {
-    res.status(403).json({ error: 'Agent access only.' });
+  if (!data || (data.role !== 'agent' && data.role !== 'promoter')) {
+    res.status(403).json({ error: 'Agent or Promoter access only.' });
     return;
   }
   next();
