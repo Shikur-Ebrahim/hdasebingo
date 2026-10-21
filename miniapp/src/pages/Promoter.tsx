@@ -1554,46 +1554,12 @@ export default function Promoter() {
                               </div>
                             </div>
 
-                            {/* Live Stakes Presets Row */}
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between text-[9px] text-slate-400 font-bold uppercase">
-                                <span>Live Stakes</span>
-                                {liveGame && (
-                                  <span className="text-emerald-600 font-black">
-                                    {liveGame.stake} ETB Active
-                                  </span>
-                                )}
+                            {hasLiveGame && (
+                              <div className="flex items-center justify-center gap-1 py-1 px-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-black">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                <span>Live Table Active</span>
                               </div>
-                              <div className="grid grid-cols-4 gap-1">
-                                {presets.map((stk) => {
-                                  const stakeInfo = roomActiveStakes.find((s) => s.stake === stk);
-                                  const isCalling = stakeInfo?.status === 'calling';
-                                  const isWaiting = stakeInfo?.status === 'waiting' && ((stakeInfo.players || 0) > 0);
-
-                                  return (
-                                    <div
-                                      key={stk}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleOpenRoomDetail(rm, stk);
-                                      }}
-                                      className={`py-1 px-0.5 rounded-lg text-center flex flex-col items-center justify-center transition-all border ${
-                                        isCalling
-                                          ? 'bg-emerald-500 border-emerald-600 text-white shadow-2xs font-black'
-                                          : isWaiting
-                                          ? 'bg-amber-500 border-amber-600 text-white font-bold'
-                                          : 'bg-slate-50 border-slate-200 text-slate-600 font-bold'
-                                      }`}
-                                    >
-                                      <span className="text-[10px] leading-none">{stk}</span>
-                                      <span className={`text-[7px] leading-tight uppercase ${isCalling || isWaiting ? 'text-white/80' : 'text-slate-400'}`}>
-                                        {isCalling ? 'LIVE' : isWaiting ? 'WAIT' : 'ETB'}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
+                            )}
 
                             <button
                               type="button"
@@ -2742,160 +2708,55 @@ export default function Promoter() {
                   const liveGame = rm.live_game || roomActiveStakes.find(s => s.status === 'calling') || null;
 
                   return (
-                    <div
+                    <button
                       key={rm.id}
-                      className="w-full p-3.5 rounded-2xl border border-slate-200/90 hover:border-amber-400 bg-white hover:bg-amber-50/20 text-left transition-all shadow-xs space-y-2.5"
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic('medium');
+                        setShowRoomsModal(false);
+                        handleOpenRoomDetail(rm);
+                        setActiveTab('rooms');
+                      }}
+                      className="w-full p-3.5 rounded-2xl border border-slate-200/90 hover:border-amber-400 bg-white hover:bg-amber-50/20 text-left flex items-center justify-between transition-all active:scale-[0.98] shadow-xs"
                     >
-                      {/* Top Row: Room Header, Players/Games & Monitor Button */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div
-                          onClick={() => {
-                            triggerHaptic('medium');
-                            setShowRoomsModal(false);
-                            handleOpenRoomDetail(rm);
-                            setActiveTab('rooms');
-                          }}
-                          className="flex items-center gap-3 min-w-0 cursor-pointer flex-1"
-                        >
-                          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center font-black shrink-0 shadow-sm relative">
-                            <DoorOpen size={20} />
-                            {hasLiveGame && (
-                              <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border-2 border-white"></span>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center font-black shrink-0 shadow-sm relative">
+                          <DoorOpen size={20} />
+                          {hasLiveGame && (
+                            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border-2 border-white"></span>
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="text-sm font-black text-slate-900 truncate">
+                              {rm.room_name}
+                            </p>
+                            {hasLiveGame ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500 text-white text-[9px] font-black uppercase tracking-wider shadow-xs shadow-emerald-500/20 animate-pulse">
+                                <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                                LIVE
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-slate-400">
+                                IDLE
                               </span>
                             )}
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <p className="text-sm font-black text-slate-900 truncate">
-                                {rm.room_name}
-                              </p>
-                              {hasLiveGame ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500 text-white text-[9px] font-black uppercase tracking-wider shadow-xs shadow-emerald-500/20 animate-pulse">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
-                                  LIVE
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-bold text-slate-400">
-                                  IDLE
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-slate-500 font-bold mt-0.5">
-                              {displayPlayers} active player{displayPlayers !== 1 ? 's' : ''} • {displayGames} games
-                            </p>
-                          </div>
+                          <p className="text-[11px] text-slate-400 font-bold mt-0.5">
+                            {displayPlayers} active player{displayPlayers !== 1 ? 's' : ''} • {displayGames} games
+                          </p>
                         </div>
+                      </div>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            triggerHaptic('medium');
-                            setShowRoomsModal(false);
-                            handleOpenRoomDetail(rm);
-                            setActiveTab('rooms');
-                          }}
-                          className="shrink-0 px-3 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-600 border border-orange-200 text-xs font-black transition-all active:scale-95"
-                        >
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                        <span className="text-xs font-black px-3 py-1.5 rounded-xl bg-orange-50 text-orange-600 border border-orange-200">
                           Monitor →
-                        </button>
+                        </span>
                       </div>
-
-                      {/* Live Calling Alert Banner (if a table is live) */}
-                      {liveGame && (
-                        <div
-                          onClick={() => {
-                            triggerHaptic('medium');
-                            setShowRoomsModal(false);
-                            handleOpenRoomDetail(rm, liveGame.stake);
-                            setActiveTab('rooms');
-                          }}
-                          className="p-2 rounded-xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-emerald-500/15 border border-emerald-400/40 flex items-center justify-between cursor-pointer hover:border-emerald-500 transition-all shadow-2xs"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="relative flex h-2.5 w-2.5">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                            </span>
-                            <span className="text-xs font-black text-emerald-800">
-                              🔥 {liveGame.stake} ETB Table is LIVE
-                            </span>
-                            <span className="text-[10px] font-bold text-emerald-700 bg-white/80 px-1.5 py-0.5 rounded-md border border-emerald-200">
-                              {liveGame.players} player{liveGame.players !== 1 ? 's' : ''}
-                            </span>
-                          </div>
-                          <span className="text-[10px] font-black text-emerald-700 flex items-center">
-                            Watch <ChevronRight size={12} />
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Live Stake Presets: 10, 20, 50, 100 ETB */}
-                      <div className="pt-2 border-t border-slate-100">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                            <Flame size={11} className="text-amber-500" />
-                            Live Stakes
-                          </span>
-                          <span className="text-[9px] text-slate-400 font-bold">Tap stake to view</span>
-                        </div>
-
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {presets.map((stk) => {
-                            const stakeInfo = roomActiveStakes.find((s) => s.stake === stk);
-                            const isCalling = stakeInfo?.status === 'calling';
-                            const isWaiting = stakeInfo?.status === 'waiting' && ((stakeInfo.players || 0) > 0);
-                            const pCount = stakeInfo?.players || 0;
-
-                            return (
-                              <button
-                                key={stk}
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  triggerHaptic('light');
-                                  setShowRoomsModal(false);
-                                  handleOpenRoomDetail(rm, stk);
-                                  setActiveTab('rooms');
-                                }}
-                                className={`p-2 rounded-xl text-center flex flex-col items-center justify-center transition-all active:scale-95 border ${
-                                  isCalling
-                                    ? 'bg-gradient-to-br from-emerald-500 to-teal-600 border-emerald-400 text-white shadow-sm shadow-emerald-500/30'
-                                    : isWaiting
-                                    ? 'bg-gradient-to-br from-amber-500 to-orange-500 border-amber-400 text-white shadow-xs'
-                                    : 'bg-slate-50 hover:bg-slate-100 border-slate-200/70 text-slate-700'
-                                }`}
-                              >
-                                <div className="flex items-center gap-0.5 leading-none">
-                                  <span className="text-xs font-black">{stk}</span>
-                                  <span className={`text-[8px] uppercase font-bold ${isCalling || isWaiting ? 'text-white/80' : 'text-slate-400'}`}>
-                                    ETB
-                                  </span>
-                                </div>
-
-                                <div className="mt-1 flex items-center gap-1">
-                                  {isCalling ? (
-                                    <span className="inline-flex items-center gap-0.5 text-[8px] font-black uppercase tracking-wider bg-white/25 px-1 py-0.2 rounded-full text-white">
-                                      <span className="w-1 h-1 rounded-full bg-white animate-pulse" />
-                                      LIVE{pCount > 0 ? ` · ${pCount}` : ''}
-                                    </span>
-                                  ) : isWaiting ? (
-                                    <span className="text-[8px] font-black uppercase tracking-wider bg-black/20 px-1 py-0.2 rounded-full text-white">
-                                      WAIT · {pCount}
-                                    </span>
-                                  ) : (
-                                    <span className="text-[8px] font-bold text-slate-400 uppercase">
-                                      IDLE
-                                    </span>
-                                  )}
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
+                    </button>
                   );
                 })
               )}
