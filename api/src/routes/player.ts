@@ -787,7 +787,7 @@ router.get('/promoter-dashboard', validateTelegramAuth, async (req: AuthRequest,
       // 1. Fetch active games for all promoted rooms
       const { data: activeGamesForAll } = await supabase
         .from('bingo_games')
-        .select('id, room_id, total_players')
+        .select('id, room_id, total_players, stake, status, prize_pool')
         .in('room_id', allPromotedRoomIds)
         .in('status', ['waiting', 'calling']);
 
@@ -834,11 +834,35 @@ router.get('/promoter-dashboard', validateTelegramAuth, async (req: AuthRequest,
         }
       });
 
+      const STAKE_PRESETS = [10, 20, 50, 100];
       for (const [id, r] of roomsMap.entries()) {
+        const roomGames = (activeGamesForAll || []).filter((g: any) => g.room_id === id);
+
+        const activeStakes = STAKE_PRESETS.map((stk) => {
+          const matching = roomGames.filter((g: any) => Number(g.stake) === stk);
+          const callingGame = matching.find((g: any) => g.status === 'calling');
+          const waitingGame = matching.find((g: any) => g.status === 'waiting');
+          const chosen = callingGame || waitingGame || null;
+          const pCount = chosen ? (gameUniquePlayersMap[chosen.id] ?? Number(chosen.total_players || 0)) : 0;
+          return {
+            stake: stk,
+            status: chosen ? (chosen.status as 'calling' | 'waiting') : 'idle',
+            players: pCount,
+            prize_pool: chosen ? Number(chosen.prize_pool || 0) : 0,
+            game_id: chosen ? chosen.id : null,
+          };
+        });
+
+        const liveStakes = activeStakes.filter(s => s.status === 'calling');
+        const liveGame = liveStakes[0] || null;
+
         roomsMap.set(id, {
           ...r,
           total_players: roomPlayersMap[id] || 0,
           total_games: Math.max(roomFinishedGamesMap[id] || 0, Number(r.total_games || 0)),
+          active_stakes: activeStakes,
+          live_stakes: liveStakes.map(s => s.stake),
+          live_game: liveGame,
         });
       }
     }
