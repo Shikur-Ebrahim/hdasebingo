@@ -359,14 +359,13 @@ export default function Worker() {
     </div>
 
       {/* ── Fixed Bottom Floating Circular Black Fingerprint Button ── */}
-      <div className="fixed bottom-6 left-0 right-0 flex items-center justify-center z-40 pointer-events-none">
+      <div className="fixed bottom-1 left-0 right-0 flex items-center justify-center z-40 pointer-events-none">
         <div className="relative flex items-center justify-center pointer-events-auto">
-          {/* Subtle Dark Aura Ping */}
-          <div className="absolute w-24 h-24 rounded-full bg-slate-900/25 animate-ping pointer-events-none" />
-          <div className="absolute w-28 h-28 rounded-full bg-black/20 blur-xl pointer-events-none" />
+          {/* Subtle Outer Ping Wave */}
+          <div className="absolute w-22 h-22 rounded-full bg-slate-800/20 animate-ping pointer-events-none" />
 
           {/* Outer Ring Border */}
-          <div className="p-1.5 rounded-full bg-gradient-to-b from-slate-600 via-slate-800 to-black shadow-2xl shadow-black/70 backdrop-blur-md border border-slate-600/40">
+          <div className="p-1 rounded-full bg-gradient-to-b from-slate-600 via-slate-800 to-black shadow-xl shadow-black/60 border border-slate-600/40">
             {/* Main Circular Black Button */}
             <button
               onClick={openBalanceModal}
