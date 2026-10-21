@@ -5,6 +5,7 @@ import WebApp from '@twa-dev/sdk';
 import { QRCodeCanvas } from 'qrcode.react';
 import AgentAttackBank from '../components/AgentAttackBank';
 import AgentWithdrawModal from '../components/AgentWithdrawModal';
+import AgentLiveGameViewer from '../components/AgentLiveGameViewer';
 import {
   Users,
   Gamepad2,
@@ -176,6 +177,8 @@ export default function Agent() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showAttackBank, setShowAttackBank] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [viewerStake, setViewerStake] = useState<number | null>(null);
+  const [showStakeModal, setShowStakeModal] = useState(false);
 
   const formatEthPhone = (phone: string) => {
     if (!phone) return '+251999992524';
@@ -1676,8 +1679,8 @@ export default function Agent() {
                     <button
                       key={stk}
                       onClick={() => {
-                        triggerHaptic('medium');
-                        setSelectedLiveStake(stk);
+                        triggerHaptic('heavy');
+                        setViewerStake(stk);
                       }}
                       className={`relative overflow-hidden rounded-2xl p-4 border text-left space-y-3 active:scale-[.97] transition-all shadow-sm ${
                         isCalling
@@ -2431,8 +2434,7 @@ export default function Agent() {
                   onClick={() => {
                     triggerHaptic('medium');
                     setShowProfileModal(false);
-                    setActiveTab('live');
-                    setSelectedLiveStake(null);
+                    setShowStakeModal(true);
                   }}
                   className="relative flex flex-col items-center justify-center gap-2 py-3.5 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 shadow-[0_4px_16px_rgba(249,115,22,0.25)] active:scale-95 transition-all overflow-hidden group"
                 >
@@ -2532,6 +2534,127 @@ export default function Agent() {
             setShowWithdrawModal(false);
             setShowAttackBank(true);
           }}
+        />
+      )}
+
+      {/* ─── STAKE SELECTION MODAL (Triggered by "See Games") ─── */}
+      {showStakeModal && (
+        <div
+          className="fixed inset-0 z-[110] flex items-end justify-center"
+          onClick={() => setShowStakeModal(false)}
+        >
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-md bg-white rounded-t-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 pb-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drag handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-slate-200" />
+            </div>
+
+            {/* Modal Header */}
+            <div className="px-5 pt-3 pb-3 flex items-center justify-between border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center shadow-xs">
+                  <Gamepad2 size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 leading-tight">Select Game Stake</h3>
+                  <p className="text-[11px] text-slate-400 font-bold">Watch live bingo calling for your room</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowStakeModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:text-slate-800"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Stake Cards List */}
+            <div className="px-5 pt-4 space-y-2.5">
+              {[10, 20, 50, 100].map((stk) => {
+                const game = activeGames.find((g) => Number(g.stake) === stk);
+                const isCalling = game?.status === 'calling';
+                const isWaiting = game?.status === 'waiting';
+                const players = game?.total_players || 0;
+                const pot = game?.prize_pool || (stk * players);
+
+                return (
+                  <button
+                    key={stk}
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic('heavy');
+                      setShowStakeModal(false);
+                      setViewerStake(stk);
+                    }}
+                    className={`w-full p-4 rounded-2xl border text-left flex items-center justify-between transition-all active:scale-[0.98] shadow-xs ${
+                      isCalling
+                        ? 'bg-gradient-to-r from-emerald-500 to-teal-600 border-emerald-400 text-white shadow-emerald-500/20'
+                        : isWaiting
+                        ? 'bg-gradient-to-r from-orange-400 to-amber-500 border-orange-300 text-white shadow-orange-500/15'
+                        : 'bg-white border-slate-200 hover:border-amber-300 text-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center font-black leading-none ${
+                        isCalling || isWaiting ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-900'
+                      }`}>
+                        <span className="text-base">{stk}</span>
+                        <span className="text-[8px] opacity-80">ETB</span>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-black">
+                            {stk} ETB Table
+                          </p>
+                          {isCalling && (
+                            <span className="inline-flex items-center gap-1 bg-white/25 rounded-full px-2 py-0.5 text-[9px] font-black uppercase">
+                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                              LIVE CALLING
+                            </span>
+                          )}
+                          {isWaiting && (
+                            <span className="inline-flex items-center gap-1 bg-white/20 rounded-full px-2 py-0.5 text-[9px] font-black uppercase">
+                              WAITING
+                            </span>
+                          )}
+                        </div>
+                        <p className={`text-[11px] font-medium mt-0.5 ${
+                          isCalling || isWaiting ? 'text-white/80' : 'text-slate-400'
+                        }`}>
+                          {players > 0 ? `${players} player${players > 1 ? 's' : ''} • Pot: ${pot} ETB` : 'Tap to watch table'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      <span className={`text-xs font-black px-3 py-1.5 rounded-xl ${
+                        isCalling || isWaiting
+                          ? 'bg-white text-slate-900 shadow-xs'
+                          : 'bg-orange-50 text-orange-600 border border-orange-200'
+                      }`}>
+                        Watch Game →
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── LIVE GAME SPECTATOR / MONITOR ─── */}
+      {viewerStake !== null && room && (
+        <AgentLiveGameViewer
+          roomId={room.id}
+          roomName={room.room_name}
+          initialStake={viewerStake}
+          onClose={() => setViewerStake(null)}
         />
       )}
     </div>
