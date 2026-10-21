@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { Navigate, Link } from 'react-router-dom';
-import { ArrowDownToLine, ArrowUpFromLine, TrendingUp, Calendar, RefreshCw, LogOut, Search, Fingerprint, X, Minus, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpFromLine, TrendingUp, Calendar, RefreshCw, LogOut, Search, Fingerprint, X, Minus, ChevronDown, ChevronUp, ChevronRight, Sparkles, ShieldCheck } from 'lucide-react';
 import WebApp from '@twa-dev/sdk';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -188,10 +188,11 @@ export default function Worker() {
             {/* Fingerprint Balance Button */}
             <button
               onClick={openBalanceModal}
-              className="p-2.5 bg-white/20 rounded-full hover:bg-white/30 transition-colors relative"
+              className="p-2.5 bg-emerald-500 hover:bg-emerald-400 text-white rounded-full shadow-lg shadow-emerald-950/30 active:scale-90 transition-all border border-emerald-300/40 relative flex items-center justify-center"
               title="View Net Balance"
             >
-              <Fingerprint size={20} />
+              <Fingerprint size={20} className="text-white drop-shadow" />
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-300 rounded-full border-2 border-orange-600 animate-pulse" />
             </button>
             <Link to="/" className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors">
               <LogOut size={20} />
@@ -360,6 +361,38 @@ export default function Worker() {
           <p>Only <strong>approved</strong> deposits and withdrawals are counted. Pending transactions are excluded.</p>
         </div>
 
+        {/* Advanced Green Fingerprint Audit Button */}
+        <button
+          onClick={openBalanceModal}
+          className="mt-4 w-full p-4 rounded-3xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 text-white shadow-xl shadow-emerald-500/25 active:scale-[0.98] transition-all flex items-center justify-between group border border-emerald-300/30 overflow-hidden relative"
+        >
+          {/* Ambient Glows */}
+          <div className="absolute -right-8 -bottom-8 w-28 h-28 bg-white/15 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute -left-8 -top-8 w-24 h-24 bg-emerald-300/20 rounded-full blur-xl pointer-events-none" />
+
+          <div className="flex items-center space-x-3.5 relative z-10">
+            <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/25 shadow-inner group-hover:scale-105 transition-transform">
+              <Fingerprint size={28} className="text-white" />
+            </div>
+            <div className="text-left">
+              <div className="flex items-center space-x-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping inline-block" />
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-100">Audit Verification</span>
+              </div>
+              <p className="text-base font-black text-white leading-tight mt-0.5">
+                Net Remaining Balance
+              </p>
+              <p className="text-[11px] text-emerald-100/90 font-medium">
+                Tap to view live balance & history
+              </p>
+            </div>
+          </div>
+
+          <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md border border-white/20 flex items-center justify-center relative z-10 group-hover:translate-x-1 transition-transform text-white">
+            <ChevronRight size={22} />
+          </div>
+        </button>
+
       </div>
     </div>
 
@@ -370,7 +403,9 @@ export default function Worker() {
             {/* Modal Header */}
             <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100">
               <div className="flex items-center space-x-2">
-                <Fingerprint size={22} className="text-orange-500" />
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                  <Fingerprint size={20} />
+                </div>
                 <h2 className="text-lg font-black text-slate-800">Net Remaining Balance</h2>
               </div>
               <button onClick={() => setShowBalanceModal(false)} className="p-2 rounded-xl hover:bg-slate-100">
@@ -380,24 +415,30 @@ export default function Worker() {
 
             {balanceLoading ? (
               <div className="flex justify-center py-12">
-                <div className="w-10 h-10 border-4 border-orange-200 border-t-orange-500 rounded-full animate-spin" />
+                <div className="w-10 h-10 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
               </div>
             ) : balanceData ? (
               <div className="px-5 pt-5 space-y-4">
                 {/* Balance Card */}
-                <div className={`rounded-2xl p-6 text-center ${
+                <div className={`rounded-3xl p-6 text-center shadow-xl relative overflow-hidden ${
                   balanceData.netRemaining >= 0
-                    ? 'bg-gradient-to-br from-orange-500 to-amber-500'
-                    : 'bg-gradient-to-br from-rose-500 to-red-600'
+                    ? 'bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-500 shadow-emerald-500/20 text-white'
+                    : 'bg-gradient-to-br from-rose-600 via-red-600 to-rose-500 shadow-rose-500/20 text-white'
                 }`}>
-                  <Fingerprint size={32} className="text-white/40 mx-auto mb-2" />
-                  <p className="text-white/80 text-xs font-bold uppercase tracking-wider mb-1">Net Remaining</p>
-                  <p className="text-4xl font-black text-white">
+                  <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white shadow-inner">
+                    <Fingerprint size={32} />
+                  </div>
+                  <p className="text-white/80 text-[11px] font-black uppercase tracking-wider mb-1">Live Net Remaining Balance</p>
+                  <p className="text-4xl font-black text-white tracking-tight">
                     {balanceData.netRemaining >= 0 ? '+' : ''}
                     {balanceData.netRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
-                  <p className="text-white/70 text-sm font-bold mt-1">ETB</p>
-                  <p className="text-white/50 text-[10px] font-medium mt-2">Net Profit minus all manual reductions</p>
+                  <span className="inline-block mt-1 px-3 py-0.5 rounded-full bg-white/20 text-xs font-black text-white backdrop-blur-sm">
+                    ETB
+                  </span>
+                  <p className="text-white/70 text-[11px] font-medium mt-3 border-t border-white/15 pt-2">
+                    Net Profit (Deposits − Actual Payouts) minus manual reductions
+                  </p>
                 </div>
 
                 {/* History Toggle */}
