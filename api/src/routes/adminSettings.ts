@@ -72,6 +72,7 @@ router.put('/', async (req: AuthRequest, res) => {
 
   const { 
     call_interval_ms, waiting_period_s, release_time_s, min_players, max_players, prize_percent,
+    max_cartelas_per_user,
     early_call_8_enabled, early_call_8_rewards,
     early_call_10_enabled, early_call_10_rewards
   } = req.body;
@@ -83,6 +84,7 @@ router.put('/', async (req: AuthRequest, res) => {
   const mnp = Math.max(2,     Math.min(50,    Number(min_players)       || DEFAULT_SETTINGS.min_players));
   const mxp = Math.max(10,    Math.min(500,   Number(max_players)       || DEFAULT_SETTINGS.max_players));
   const pp  = Math.max(50,    Math.min(100,   Number(prize_percent)     || DEFAULT_SETTINGS.prize_percent));
+  const mxc = Math.max(1,     Math.min(20,    Number(max_cartelas_per_user) || DEFAULT_SETTINGS.max_cartelas_per_user));
 
   const payload: any = {
     call_interval_ms: ci,
@@ -91,6 +93,7 @@ router.put('/', async (req: AuthRequest, res) => {
     min_players:      mnp,
     max_players:      mxp,
     prize_percent:    pp,
+    max_cartelas_per_user: mxc,
     early_call_8_enabled:  !!early_call_8_enabled,
     early_call_8_rewards:  early_call_8_rewards || DEFAULT_SETTINGS.early_call_8_rewards,
     early_call_10_enabled: !!early_call_10_enabled,
@@ -108,9 +111,11 @@ router.put('/', async (req: AuthRequest, res) => {
     ({ error } = await supabase.from('game_settings').insert({ id: 1, ...payload }));
   }
 
-  // Fallback: if release_time_s column doesn't exist yet in Supabase table
-  if (error && error.message?.includes('release_time_s')) {
-    const { release_time_s: _, ...fallbackPayload } = payload;
+  // Fallback: if release_time_s or max_cartelas_per_user column doesn't exist yet in Supabase table
+  if (error && (error.message?.includes('release_time_s') || error.message?.includes('max_cartelas_per_user'))) {
+    const fallbackPayload = { ...payload };
+    if (error.message?.includes('release_time_s')) delete fallbackPayload.release_time_s;
+    if (error.message?.includes('max_cartelas_per_user')) delete fallbackPayload.max_cartelas_per_user;
     if (existing) {
       ({ error } = await supabase.from('game_settings').update(fallbackPayload).eq('id', 1));
     } else {
