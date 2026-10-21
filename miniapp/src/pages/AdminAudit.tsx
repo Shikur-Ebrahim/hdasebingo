@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { 
   ArrowLeft, TrendingUp, ArrowDownToLine, ArrowUpFromLine, Percent, 
-  Minus, RefreshCw, Trash2, Calendar, PlusCircle, ChevronDown, 
-  ChevronUp, ShieldCheck, Wallet, History, AlertCircle, CheckCircle2, 
-  XCircle, Building2, CreditCard, ExternalLink, X, Eye, Check, Clock,
-  Landmark, Smartphone
+  Minus, RefreshCw, Trash2, Calendar, ShieldCheck, Wallet,
+  CheckCircle2, XCircle, Building2, X, Eye, Check, Clock,
+  Landmark, Smartphone, ChevronRight
 } from 'lucide-react';
 import { Link, Navigate } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
@@ -64,14 +63,20 @@ const BANK_NAMES: Record<string, string> = {
   telebirr: 'Telebirr',
 };
 
-const BANK_BADGES: Record<string, string> = {
-  cbe: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-  boa: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
-  telebirr: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+const BANK_COLORS: Record<string, { bg: string; text: string; badge: string }> = {
+  cbe:      { bg: 'bg-amber-50',   text: 'text-amber-700',   badge: 'bg-amber-100 text-amber-700' },
+  boa:      { bg: 'bg-blue-50',    text: 'text-blue-700',    badge: 'bg-blue-100 text-blue-700' },
+  telebirr: { bg: 'bg-emerald-50', text: 'text-emerald-700', badge: 'bg-emerald-100 text-emerald-700' },
 };
 
 function toDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function fmtDate(dateStr: string) {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }) +
+    ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 }
 
 export default function AdminAudit() {
@@ -94,7 +99,7 @@ export default function AdminAudit() {
   const [savingAccount, setSavingAccount] = useState(false);
   const [accountError, setAccountError] = useState('');
 
-  // Worker Transfers Filter Tab
+  // Worker Transfers Filter
   const [transferFilter, setTransferFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -140,7 +145,7 @@ export default function AdminAudit() {
     e.preventDefault();
     setAccountError('');
     if (!newAccountName.trim() || !newAccountNumber.trim()) {
-      setAccountError('Account name and account number are required.');
+      setAccountError('Account name and number are required.');
       return;
     }
     setSavingAccount(true);
@@ -155,10 +160,7 @@ export default function AdminAudit() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) {
-        setAccountError(json.error || 'Failed to save account.');
-        return;
-      }
+      if (!res.ok) { setAccountError(json.error || 'Failed to save.'); return; }
       setNewAccountName('');
       setNewAccountNumber('');
       fetchManagerAccounts();
@@ -174,17 +176,14 @@ export default function AdminAudit() {
     try {
       await fetch(`${API_URL}/admin/manager-accounts/${id}`, { method: 'DELETE', headers: getHeaders() });
       fetchManagerAccounts();
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
   };
 
   const handleReviewTransfer = async (transferId: string, action: 'approve' | 'reject') => {
-    const confirmMsg = action === 'approve' 
-      ? 'Approve this transfer? It will automatically deduct from Net Profit and update Net Remaining Balance.'
-      : 'Reject this transfer? The amount will not be deducted.';
-    if (!confirm(confirmMsg)) return;
-
+    const msg = action === 'approve'
+      ? 'Approve this transfer? It will deduct from Net Profit.'
+      : 'Reject this transfer?';
+    if (!confirm(msg)) return;
     setReviewingId(transferId);
     try {
       const res = await fetch(`${API_URL}/admin/worker-transfers/${transferId}/review`, {
@@ -192,14 +191,9 @@ export default function AdminAudit() {
         headers: getHeaders(),
         body: JSON.stringify({ action }),
       });
-      if (res.ok) {
-        fetchAudit('', ''); // refresh live balance & transfers
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setReviewingId(null);
-    }
+      if (res.ok) fetchAudit('', '');
+    } catch (e) { console.error(e); }
+    finally { setReviewingId(null); }
   };
 
   const startOf = (d: Date) => { const c = new Date(d); c.setHours(0, 0, 0, 0); return c.toISOString(); };
@@ -209,12 +203,12 @@ export default function AdminAudit() {
     setActivePreset(preset);
     setShowCustom(false);
     const now = new Date();
-    if (preset === 'Today')      { fetchAudit(startOf(now), endOf(now)); return; }
-    if (preset === 'Yesterday')  { const y = new Date(now); y.setDate(y.getDate() - 1); fetchAudit(startOf(y), endOf(y)); return; }
-    if (preset === '7 Days')     { const d = new Date(now); d.setDate(d.getDate() - 7); fetchAudit(startOf(d), endOf(now)); return; }
-    if (preset === '1 Month')    { const d = new Date(now); d.setMonth(d.getMonth() - 1); fetchAudit(startOf(d), endOf(now)); return; }
-    if (preset === '3 Months')   { const d = new Date(now); d.setMonth(d.getMonth() - 3); fetchAudit(startOf(d), endOf(now)); return; }
-    fetchAudit('', ''); // All Time
+    if (preset === 'Today')     { fetchAudit(startOf(now), endOf(now)); return; }
+    if (preset === 'Yesterday') { const y = new Date(now); y.setDate(y.getDate() - 1); fetchAudit(startOf(y), endOf(y)); return; }
+    if (preset === '7 Days')    { const d = new Date(now); d.setDate(d.getDate() - 7); fetchAudit(startOf(d), endOf(now)); return; }
+    if (preset === '1 Month')   { const d = new Date(now); d.setMonth(d.getMonth() - 1); fetchAudit(startOf(d), endOf(now)); return; }
+    if (preset === '3 Months')  { const d = new Date(now); d.setMonth(d.getMonth() - 3); fetchAudit(startOf(d), endOf(now)); return; }
+    fetchAudit('', '');
   };
 
   const applyCustom = () => {
@@ -228,60 +222,55 @@ export default function AdminAudit() {
 
   if (!user || user.role !== 'admin') return <Navigate to="/" replace />;
 
-  const fmt = (n: number | undefined) => (n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmt = (n: number | undefined) =>
+    (n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const transfers = data?.transfers || [];
-  const pendingTransfers = transfers.filter(t => t.status === 'pending');
+  const transfers     = data?.transfers || [];
+  const pendingTransfers  = transfers.filter(t => t.status === 'pending');
   const approvedTransfers = transfers.filter(t => t.status === 'approved');
   const rejectedTransfers = transfers.filter(t => t.status === 'rejected');
-
-  const pendingCount = pendingTransfers.length;
+  const pendingCount  = pendingTransfers.length;
   const approvedCount = approvedTransfers.length;
   const rejectedCount = rejectedTransfers.length;
-  const totalCount = transfers.length;
-
+  const totalCount    = transfers.length;
   const pendingAmount = pendingTransfers.reduce((s, t) => s + Number(t.amount || 0), 0);
   const filteredTransfers = transfers.filter(t => transferFilter === 'all' ? true : t.status === transferFilter);
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 pb-20">
-      
-      {/* ── Top Header ──────────────────────────────────────────────── */}
-      <div className="bg-gradient-to-b from-slate-950 via-slate-900 to-slate-900 px-4 pt-5 pb-5 border-b border-slate-800/80 sticky top-0 z-20 backdrop-blur-md">
+    <div className="min-h-screen bg-gray-50 text-slate-900 pb-24">
+
+      {/* ── Top Header ─────────────────────────────────────────────── */}
+      <div className="bg-white px-4 pt-5 pb-4 border-b border-gray-100 sticky top-0 z-20 shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <Link 
-              to="/admin" 
-              className="w-10 h-10 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-slate-300 hover:text-white active:scale-95 transition-all"
+            <Link
+              to="/admin"
+              className="w-10 h-10 rounded-2xl bg-gray-100 flex items-center justify-center text-slate-600 active:scale-95 transition-all"
             >
               <ArrowLeft size={20} />
             </Link>
             <div>
-              <div className="flex items-center space-x-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">FINANCIAL AUDIT</span>
-              </div>
-              <h1 className="text-xl font-black text-white leading-tight">Worker & Profit Audit</h1>
+              <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                Financial Audit
+              </p>
+              <h1 className="text-lg font-bold text-slate-900 leading-tight">Worker & Profit Audit</h1>
             </div>
           </div>
 
           <div className="flex items-center space-x-2">
-            {/* Manager Accounts Button */}
             <button
               onClick={openManagerAccounts}
-              className="px-3 py-2 rounded-2xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/40 text-amber-300 flex items-center space-x-1.5 text-xs font-black active:scale-95 transition-all"
-              title="Manage Manager Accounts"
+              className="px-3 py-2.5 rounded-2xl bg-amber-500 text-white flex items-center space-x-1.5 text-xs font-bold active:scale-95 transition-all shadow-sm shadow-amber-200"
             >
-              <Building2 size={16} />
-              <span>Manager Accounts</span>
+              <Building2 size={15} />
+              <span>Accounts</span>
             </button>
-
             <button
               onClick={() => fetchAudit('', '')}
-              className="w-10 h-10 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-slate-300 hover:text-emerald-400 active:scale-95 transition-all"
-              title="Refresh Audit Data"
+              className="w-10 h-10 rounded-2xl bg-gray-100 flex items-center justify-center text-slate-500 active:scale-95 transition-all"
             >
-              <RefreshCw size={18} className={loading ? 'animate-spin text-emerald-400' : ''} />
+              <RefreshCw size={18} className={loading ? 'animate-spin text-emerald-500' : ''} />
             </button>
           </div>
         </div>
@@ -289,16 +278,16 @@ export default function AdminAudit() {
 
       <div className="px-4 pt-4 space-y-4 max-w-lg mx-auto">
 
-        {/* ── Date Preset Pills ─────────────────────────────────────────── */}
-        <div className="flex overflow-x-auto hide-scrollbar space-x-2 pb-1 snap-x">
+        {/* ── Date Presets ───────────────────────────────────────────── */}
+        <div className="flex overflow-x-auto gap-2 pb-1 no-scrollbar snap-x">
           {['Today', 'Yesterday', '7 Days', '1 Month', '3 Months', 'All Time'].map(p => (
             <button
               key={p}
               onClick={() => applyPreset(p)}
-              className={`snap-start whitespace-nowrap px-4 py-2 rounded-2xl text-[11px] font-black transition-all ${
+              className={`snap-start whitespace-nowrap px-4 py-2 rounded-full text-xs font-semibold transition-all ${
                 activePreset === p
-                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-lg shadow-emerald-500/25 scale-105'
-                  : 'bg-slate-800/80 text-slate-400 border border-slate-700/60 hover:text-white'
+                  ? 'bg-slate-900 text-white shadow-md'
+                  : 'bg-white text-slate-600 border border-gray-200'
               }`}
             >
               {p}
@@ -306,367 +295,336 @@ export default function AdminAudit() {
           ))}
           <button
             onClick={() => { setShowCustom(v => !v); setActivePreset('Custom'); }}
-            className={`snap-start whitespace-nowrap px-4 py-2 rounded-2xl text-[11px] font-black flex items-center space-x-1 transition-all ${
-              activePreset === 'Custom' 
-                ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-lg shadow-emerald-500/25' 
-                : 'bg-slate-800/80 text-slate-400 border border-slate-700/60 hover:text-white'
+            className={`snap-start whitespace-nowrap px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              activePreset === 'Custom'
+                ? 'bg-slate-900 text-white shadow-md'
+                : 'bg-white text-slate-600 border border-gray-200'
             }`}
           >
             <Calendar size={12} />
-            <span>Custom</span>
+            Custom
           </button>
         </div>
 
-        {/* ── Custom Date Range Picker ───────────────────────────────────── */}
+        {/* ── Custom Date Picker ─────────────────────────────────────── */}
         {showCustom && (
-          <div className="bg-slate-800/90 rounded-3xl p-4 shadow-xl border border-slate-700/80 backdrop-blur-md">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Custom Audit Period</p>
-            <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 space-y-3">
+            <p className="text-sm font-semibold text-slate-700">Custom period</p>
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">From</label>
-                <input 
-                  type="date" 
-                  value={customFrom} 
+                <label className="text-xs text-slate-500 mb-1 block font-medium">From</label>
+                <input
+                  type="date"
+                  value={customFrom}
                   max={toDateStr(new Date())}
                   onChange={e => setCustomFrom(e.target.value)}
-                  className="w-full border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white bg-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-400" 
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-800 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-400"
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">To</label>
-                <input 
-                  type="date" 
-                  value={customTo} 
+                <label className="text-xs text-slate-500 mb-1 block font-medium">To</label>
+                <input
+                  type="date"
+                  value={customTo}
                   max={toDateStr(new Date())}
                   onChange={e => setCustomTo(e.target.value)}
-                  className="w-full border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white bg-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-400" 
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-xs font-medium text-slate-800 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-400"
                 />
               </div>
             </div>
-            <button 
-              onClick={applyCustom} 
+            <button
+              onClick={applyCustom}
               disabled={!customFrom || !customTo}
-              className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-black text-xs disabled:opacity-40 active:scale-98 transition-transform"
+              className="w-full py-3 rounded-2xl bg-slate-900 text-white font-semibold text-sm disabled:opacity-40 active:scale-[0.99] transition-transform"
             >
-              Apply Custom Range
+              Apply Range
             </button>
           </div>
         )}
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 space-y-3">
-            <div className="w-12 h-12 border-4 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin" />
-            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Auditing Transactions...</p>
+          <div className="flex flex-col items-center justify-center py-24 space-y-3">
+            <div className="w-10 h-10 border-4 border-emerald-200 border-t-emerald-500 rounded-full animate-spin" />
+            <p className="text-sm text-slate-400 font-medium">Loading audit data...</p>
           </div>
         ) : data ? (
           <>
-            {/* ── HERO CARD: Net Remaining Balance ─────────────────────────── */}
-            <div className="rounded-3xl p-6 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 border-2 border-emerald-500/40 shadow-2xl shadow-emerald-950/40 relative overflow-hidden">
-              <div className="flex items-center justify-between mb-3 relative z-10">
-                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-[10px] font-black uppercase tracking-wider text-emerald-300">
-                  <ShieldCheck size={12} />
+            {/* ── Net Remaining Balance Hero ──────────────────────────── */}
+            <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-5 shadow-xl">
+              <div className="flex items-center justify-between mb-1">
+                <span className="flex items-center gap-1.5 text-emerald-400 text-xs font-medium">
+                  <ShieldCheck size={13} />
                   Live Net Remaining
                 </span>
-                <span className="text-[10px] font-bold text-slate-400">
-                  {activePreset}
-                </span>
+                <span className="text-xs text-slate-400 font-medium">{activePreset}</span>
               </div>
-
-              <div className="relative z-10">
-                <p className="text-4xl font-black text-white tracking-tight">
-                  {data.netRemaining >= 0 ? '+' : ''}{fmt(data.netRemaining)}
-                  <span className="text-base text-emerald-400 ml-1.5 font-bold">ETB</span>
-                </p>
-                <p className="text-[11px] text-slate-400 font-medium mt-1">
-                  Actual money retained after worker payouts & manager transfers
-                </p>
-              </div>
-
-              {/* Quick Math Breakdown Pill */}
-              <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] font-bold relative z-10">
-                <div className="flex items-center space-x-1 text-emerald-400">
-                  <span>Profit:</span>
-                  <span>+{fmt(data.netProfit)}</span>
-                </div>
-                <span className="text-slate-600 font-black">−</span>
-                <div className="flex items-center space-x-1 text-purple-400">
-                  <span>Transferred:</span>
-                  <span>-{fmt(data.totalReduced)}</span>
-                </div>
-                <span className="text-slate-600 font-black">=</span>
-                <div className="flex items-center space-x-1 text-white">
-                  <span>Remaining:</span>
-                  <span className="text-emerald-300">{fmt(data.netRemaining)}</span>
-                </div>
+              <p className="text-4xl font-bold text-white tracking-tight mt-2">
+                {data.netRemaining >= 0 ? '+' : ''}{fmt(data.netRemaining)}
+                <span className="text-lg text-emerald-400 ml-1.5 font-semibold">ETB</span>
+              </p>
+              <p className="text-xs text-slate-400 mt-1">After payouts & manager transfers</p>
+              <div className="mt-4 pt-3 border-t border-slate-700 flex items-center justify-between text-xs font-medium">
+                <span className="text-emerald-400">Profit: +{fmt(data.netProfit)}</span>
+                <span className="text-slate-500">−</span>
+                <span className="text-purple-400">Transferred: {fmt(data.totalReduced)}</span>
+                <span className="text-slate-500">=</span>
+                <span className="text-white font-bold">{fmt(data.netRemaining)}</span>
               </div>
             </div>
 
-            {/* ── 2x2 Financial Metric Grid ─────────────────────────────────── */}
+            {/* ── 2×2 Metric Cards ──────────────────────────────────────── */}
             <div className="grid grid-cols-2 gap-3">
-              {/* Total Deposits */}
-              <div className="bg-slate-800/80 rounded-3xl p-4 border border-slate-700/60 shadow-lg relative overflow-hidden">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mb-2.5">
+              <div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-2.5">
                   <ArrowDownToLine size={20} />
                 </div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Deposits</p>
-                <p className="text-lg font-black text-white mt-0.5">{fmt(data.totalDeposits)}</p>
-                <span className="text-[10px] text-emerald-400 font-bold">Approved inflows</span>
+                <p className="text-xs text-slate-500 font-medium">Total Deposits</p>
+                <p className="text-lg font-bold text-slate-900 mt-0.5">{fmt(data.totalDeposits)}</p>
+                <span className="text-[11px] text-emerald-600 font-medium">Approved inflows</span>
               </div>
 
-              {/* Actual Payout */}
-              <div className="bg-slate-800/80 rounded-3xl p-4 border border-slate-700/60 shadow-lg relative overflow-hidden">
-                <div className="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center mb-2.5">
+              <div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mb-2.5">
                   <ArrowUpFromLine size={20} />
                 </div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Actual Payout</p>
-                <p className="text-lg font-black text-white mt-0.5">{fmt(data.totalWithdrawals)}</p>
-                <span className="text-[10px] text-rose-400 font-bold">Sent to users (net)</span>
+                <p className="text-xs text-slate-500 font-medium">Total Payout</p>
+                <p className="text-lg font-bold text-slate-900 mt-0.5">{fmt(data.totalWithdrawals)}</p>
+                <span className="text-[11px] text-rose-500 font-medium">Sent to users</span>
               </div>
 
-              {/* Fees Collected */}
-              <div className="bg-slate-800/80 rounded-3xl p-4 border border-slate-700/60 shadow-lg relative overflow-hidden">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center mb-2.5">
+              <div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mb-2.5">
                   <Percent size={20} />
                 </div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Fees Retained</p>
-                <p className="text-lg font-black text-amber-300 mt-0.5">+{fmt(data.totalFees)}</p>
-                <span className="text-[10px] text-amber-400/80 font-bold">Platform profit cut</span>
+                <p className="text-xs text-slate-500 font-medium">Fees Retained</p>
+                <p className="text-lg font-bold text-amber-600 mt-0.5">+{fmt(data.totalFees)}</p>
+                <span className="text-[11px] text-amber-500 font-medium">Platform cut</span>
               </div>
 
-              {/* Total Transferred / Reduced */}
-              <div className="bg-slate-800/80 rounded-3xl p-4 border border-slate-700/60 shadow-lg relative overflow-hidden">
-                <div className="w-10 h-10 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center mb-2.5">
+              <div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm">
+                <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center mb-2.5">
                   <Minus size={20} />
                 </div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Transferred Out</p>
-                <p className="text-lg font-black text-purple-300 mt-0.5">-{fmt(data.totalReduced)}</p>
-                <span className="text-[10px] text-purple-400/80 font-bold">Manager payouts</span>
+                <p className="text-xs text-slate-500 font-medium">Transferred Out</p>
+                <p className="text-lg font-bold text-purple-600 mt-0.5">-{fmt(data.totalReduced)}</p>
+                <span className="text-[11px] text-purple-500 font-medium">Manager payouts</span>
               </div>
             </div>
 
-            {/* ── Net Profit Comparison Banner ─────────────────────────────── */}
-            <div className={`rounded-3xl p-5 border shadow-xl flex items-center justify-between ${
+            {/* ── Net Profit Banner ─────────────────────────────────────── */}
+            <div className={`rounded-3xl p-4 border shadow-sm flex items-center justify-between ${
               data.netProfit >= 0
-                ? 'bg-gradient-to-r from-emerald-950 via-slate-900 to-slate-900 border-emerald-500/30'
-                : 'bg-gradient-to-r from-rose-950 via-slate-900 to-slate-900 border-rose-500/30'
+                ? 'bg-emerald-50 border-emerald-200'
+                : 'bg-rose-50 border-rose-200'
             }`}>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-0.5">
-                  Net Profit (Deposits − Payouts)
+                <p className="text-xs text-slate-500 font-medium mb-0.5">Net Profit (Deposits − Payouts)</p>
+                <p className={`text-2xl font-bold ${data.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  {data.netProfit >= 0 ? '+' : ''}{fmt(data.netProfit)}
+                  <span className="text-sm text-slate-400 ml-1 font-normal">ETB</span>
                 </p>
-                <p className="text-2xl font-black text-white">
-                  {data.netProfit >= 0 ? '+' : ''}{fmt(data.netProfit)} <span className="text-sm text-slate-400">ETB</span>
-                </p>
-                <p className="text-[10px] text-slate-400 mt-0.5">
-                  Gross requested by users: <strong className="text-slate-200">{fmt(data.grossRequested)} ETB</strong>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Gross requested: <strong className="text-slate-700">{fmt(data.grossRequested)} ETB</strong>
                 </p>
               </div>
-              <TrendingUp size={36} className={data.netProfit >= 0 ? 'text-emerald-500/30' : 'text-rose-500/30'} />
+              <TrendingUp size={34} className={data.netProfit >= 0 ? 'text-emerald-300' : 'text-rose-300'} />
             </div>
 
-            {/* ── PENDING WORKER SENDS CARD ─────────────────────────────────── */}
-            <div 
+            {/* ── Pending Worker Sends Banner ───────────────────────────── */}
+            <button
               onClick={() => {
                 setTransferFilter('pending');
                 const el = document.getElementById('worker-transfers-section');
                 if (el) el.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="rounded-3xl p-4 bg-gradient-to-r from-amber-950/70 via-slate-900 to-slate-900 border-2 border-amber-500/40 shadow-xl flex items-center justify-between cursor-pointer active:scale-[0.99] transition-all hover:border-amber-400/70"
+              className="w-full rounded-3xl p-4 bg-white border-2 border-amber-200 shadow-sm flex items-center justify-between active:scale-[0.99] transition-all"
             >
               <div className="flex items-center space-x-3.5">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
-                  <Clock size={24} />
+                <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+                  <Clock size={22} />
                 </div>
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-400">
-                      Pending Worker Sends
-                    </span>
+                <div className="text-left">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-slate-700">Pending Worker Sends</span>
                     {pendingCount > 0 ? (
-                      <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black animate-pulse">
-                        {pendingCount} Pending
+                      <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-bold animate-pulse">
+                        {pendingCount}
                       </span>
                     ) : (
-                      <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-bold">
-                        0 Pending
-                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-gray-100 text-slate-400 text-[10px] font-medium">0</span>
                     )}
                   </div>
-                  <p className="text-xl font-black text-white mt-0.5">
-                    {pendingCount} <span className="text-xs font-bold text-slate-400">Transfer Request{pendingCount === 1 ? '' : 's'}</span>
+                  <p className="text-xl font-bold text-slate-900 mt-0.5">
+                    {pendingCount} <span className="text-xs font-normal text-slate-500">transfer{pendingCount === 1 ? '' : 's'}</span>
                   </p>
-                  <p className="text-[11px] text-amber-300 font-bold">
-                    +{fmt(pendingAmount)} ETB awaiting approval
-                  </p>
+                  <p className="text-xs text-amber-600 font-medium">+{fmt(pendingAmount)} ETB awaiting approval</p>
                 </div>
               </div>
-              <div className="text-right">
-                <span className="text-xs font-black text-amber-400 bg-amber-400/10 border border-amber-400/30 px-3 py-1.5 rounded-xl block">
-                  Review ➔
-                </span>
+              <div className="flex items-center gap-1 text-amber-600 bg-amber-50 px-3 py-2 rounded-2xl">
+                <span className="text-xs font-semibold">Review</span>
+                <ChevronRight size={14} />
               </div>
-            </div>
+            </button>
 
-            {/* ── WORKER TRANSFERS (Review & Approvals) ─────────────────────── */}
-            <div id="worker-transfers-section" className="bg-slate-800/90 rounded-3xl shadow-xl border border-slate-700/70 overflow-hidden">
-              <div className="px-5 pt-4 pb-3 border-b border-slate-700/60 flex items-center justify-between">
+            {/* ── Worker Transfers Section ──────────────────────────────── */}
+            <div id="worker-transfers-section" className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="px-5 pt-4 pb-3 border-b border-gray-100 flex items-center justify-between">
                 <div>
-                  <h2 className="font-black text-white text-base flex items-center space-x-2">
-                    <Wallet size={18} className="text-amber-400" />
-                    <span>Worker Transfers to Manager</span>
+                  <h2 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                    <Wallet size={17} className="text-amber-500" />
+                    Worker Transfers to Manager
                   </h2>
-                  <p className="text-[10px] text-slate-400 font-medium">
-                    Review and approve balance payouts sent by workers
-                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">Review and approve balance payouts</p>
                 </div>
-
                 {pendingCount > 0 && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-rose-500 text-white text-xs font-black animate-pulse">
+                  <span className="px-2.5 py-1 rounded-full bg-rose-500 text-white text-xs font-bold animate-pulse">
                     {pendingCount} Pending
                   </span>
                 )}
               </div>
 
-              {/* Status Filter Tabs with Real Counts */}
-              <div className="grid grid-cols-4 border-b border-slate-700/60 bg-slate-900/60 p-1.5 gap-1">
+              {/* Filter Tabs with Counts */}
+              <div className="grid grid-cols-4 bg-gray-50 border-b border-gray-100 p-1.5 gap-1">
                 {[
-                  { id: 'pending', label: 'Pending', count: pendingCount, activeBadge: 'bg-amber-500 text-slate-950 font-black', idleBadge: pendingCount > 0 ? 'bg-rose-500 text-white font-black animate-pulse' : 'bg-slate-800 text-slate-400' },
-                  { id: 'approved', label: 'Approved', count: approvedCount, activeBadge: 'bg-emerald-500 text-slate-950 font-black', idleBadge: 'bg-slate-800 text-slate-400' },
-                  { id: 'rejected', label: 'Rejected', count: rejectedCount, activeBadge: 'bg-rose-500 text-white font-black', idleBadge: 'bg-slate-800 text-slate-400' },
-                  { id: 'all', label: 'All', count: totalCount, activeBadge: 'bg-slate-700 text-white font-black', idleBadge: 'bg-slate-800 text-slate-400' },
-                ].map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setTransferFilter(tab.id as any)}
-                    className={`py-2 px-1 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 ${
-                      transferFilter === tab.id
-                        ? 'bg-slate-800 text-white shadow-md border border-slate-700'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <span>{tab.label}</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                      transferFilter === tab.id ? tab.activeBadge : tab.idleBadge
-                    }`}>
-                      {tab.count}
-                    </span>
-                  </button>
-                ))}
+                  { id: 'pending',  label: 'Pending',  count: pendingCount  },
+                  { id: 'approved', label: 'Approved', count: approvedCount },
+                  { id: 'rejected', label: 'Rejected', count: rejectedCount },
+                  { id: 'all',      label: 'All',      count: totalCount    },
+                ].map(tab => {
+                  const isActive = transferFilter === tab.id;
+                  const badgeColors: Record<string, string> = {
+                    pending:  isActive ? 'bg-amber-500 text-white' : (pendingCount > 0 ? 'bg-rose-100 text-rose-600 animate-pulse' : 'bg-gray-200 text-gray-500'),
+                    approved: isActive ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-500',
+                    rejected: isActive ? 'bg-rose-500 text-white' : 'bg-gray-200 text-gray-500',
+                    all:      isActive ? 'bg-slate-700 text-white' : 'bg-gray-200 text-gray-500',
+                  };
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setTransferFilter(tab.id as any)}
+                      className={`py-2 px-1 rounded-2xl text-xs font-semibold transition-all flex flex-col items-center gap-1 ${
+                        isActive ? 'bg-white shadow-sm text-slate-900 border border-gray-200' : 'text-slate-500'
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${badgeColors[tab.id]}`}>
+                        {tab.count}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Transfer Cards List */}
+              {/* Transfer Cards */}
               <div className="p-3 space-y-3">
                 {filteredTransfers.length === 0 ? (
-                  <div className="py-12 text-center text-slate-500">
-                    <Wallet size={36} className="mx-auto mb-2 opacity-30" />
-                    <p className="text-xs font-bold uppercase tracking-wider">No {transferFilter} transfers</p>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      When workers send net balance to manager, requests appear here.
-                    </p>
+                  <div className="py-12 text-center">
+                    <Wallet size={36} className="mx-auto mb-2 text-gray-200" />
+                    <p className="text-sm font-semibold text-slate-500">No {transferFilter} transfers</p>
+                    <p className="text-xs text-slate-400 mt-1">Transfer requests from workers appear here.</p>
                   </div>
                 ) : (
                   filteredTransfers.map(tr => {
                     const isReviewing = reviewingId === tr.id;
-                    const bankName = BANK_NAMES[tr.bank_type] || tr.bank_type.toUpperCase();
-                    const bankBadge = BANK_BADGES[tr.bank_type] || 'bg-slate-700 text-slate-300';
+                    const bankName    = BANK_NAMES[tr.bank_type] || tr.bank_type.toUpperCase();
+                    const bankColors  = BANK_COLORS[tr.bank_type] || { bg: 'bg-gray-50', text: 'text-gray-700', badge: 'bg-gray-100 text-gray-700' };
 
                     return (
-                      <div 
-                        key={tr.id} 
-                        className="bg-slate-900/90 rounded-2xl p-4 border border-slate-700/70 shadow-md space-y-3"
-                      >
-                        {/* Top: Worker & Amount */}
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                              From Worker
-                            </span>
-                            <p className="font-black text-white text-sm">{tr.worker_name}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-black text-xl text-emerald-400 tracking-tight">
-                              +{fmt(tr.amount)} <span className="text-xs text-slate-400">ETB</span>
-                            </p>
-                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${bankBadge}`}>
-                              {tr.bank_type.toUpperCase()}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Middle: Manager Account Sent To */}
-                        <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/60 text-xs space-y-1">
-                          <p className="text-slate-400 text-[10px] font-bold uppercase">Sent to Manager Account:</p>
-                          <div className="flex items-center justify-between font-bold text-slate-200">
-                            <span>{tr.account_name}</span>
-                            <span className="font-mono text-amber-300">{tr.account_number}</span>
-                          </div>
-                          <p className="text-[10px] text-slate-400">{bankName}</p>
-                        </div>
-
-                        {/* Note & Date */}
-                        <div className="flex items-center justify-between text-[11px] text-slate-400">
-                          <span className="truncate max-w-[200px]">{tr.note || 'No note'}</span>
-                          <span>
-                            {new Date(tr.created_at).toLocaleDateString('en-US', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-
-                        {/* Screenshot Thumbnail */}
-                        {tr.screenshot_url && (
-                          <div className="flex items-center justify-between p-2 rounded-xl bg-slate-800/50 border border-slate-700/40">
-                            <div className="flex items-center space-x-2">
-                              <img 
-                                src={tr.screenshot_url} 
-                                alt="Receipt" 
-                                className="w-12 h-12 object-cover rounded-lg border border-slate-700 cursor-pointer hover:opacity-80 transition-opacity"
-                                onClick={() => setPreviewImage(tr.screenshot_url)}
-                              />
-                              <div>
-                                <p className="text-xs font-bold text-white">Payment Screenshot</p>
-                                <p className="text-[10px] text-slate-400">Tap image to view full receipt</p>
-                              </div>
+                      <div key={tr.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                        {/* Card Header */}
+                        <div className="p-4">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="text-[11px] text-slate-400 font-medium">From worker</p>
+                              <p className="font-bold text-slate-900 text-sm">{tr.worker_name}</p>
+                              <p className="text-[11px] text-slate-400 mt-1">{fmtDate(tr.created_at)}</p>
                             </div>
+                            <div className="text-right">
+                              <p className="font-bold text-2xl text-emerald-600">+{fmt(tr.amount)}</p>
+                              <p className="text-xs text-slate-400 font-medium">ETB</p>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 inline-block ${bankColors.badge}`}>
+                                {tr.bank_type.toUpperCase()}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Manager Account */}
+                          <div className={`mt-3 p-3 rounded-2xl ${bankColors.bg}`}>
+                            <p className="text-[10px] text-slate-500 font-medium mb-1">Sent to manager account</p>
+                            <div className="flex items-center justify-between">
+                              <span className={`text-xs font-bold ${bankColors.text}`}>{tr.account_name}</span>
+                              <span className="text-xs font-mono font-bold text-slate-700">{tr.account_number}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-0.5">{bankName}</p>
+                          </div>
+
+                          {/* Note */}
+                          {tr.note && (
+                            <p className="text-xs text-slate-500 mt-2 italic">"{tr.note}"</p>
+                          )}
+                        </div>
+
+                        {/* Screenshot */}
+                        {tr.screenshot_url && (
+                          <div className="px-4 pb-3">
                             <button
                               onClick={() => setPreviewImage(tr.screenshot_url)}
-                              className="px-2.5 py-1.5 rounded-lg bg-slate-700 text-xs font-bold text-slate-200 hover:text-white flex items-center space-x-1"
+                              className="w-full flex items-center justify-between p-3 rounded-2xl bg-gray-50 border border-gray-200 active:scale-[0.99] transition-all"
                             >
-                              <Eye size={12} />
-                              <span>View</span>
+                              <div className="flex items-center gap-3">
+                                <img
+                                  src={tr.screenshot_url}
+                                  alt="Receipt"
+                                  className="w-12 h-12 object-cover rounded-xl border border-gray-200"
+                                />
+                                <div className="text-left">
+                                  <p className="text-xs font-semibold text-slate-800">Payment Screenshot</p>
+                                  <p className="text-[11px] text-slate-400">Tap to view full receipt</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white border border-gray-200 text-slate-600">
+                                <Eye size={13} />
+                                <span className="text-xs font-medium">View</span>
+                              </div>
                             </button>
                           </div>
                         )}
 
-                        {/* Status / Actions */}
+                        {/* Actions / Status */}
                         {tr.status === 'pending' ? (
-                          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
+                          <div className="grid grid-cols-2 border-t border-gray-100">
                             <button
                               onClick={() => handleReviewTransfer(tr.id, 'approve')}
                               disabled={isReviewing}
-                              className="py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center justify-center space-x-1 active:scale-95 transition-all shadow-md shadow-emerald-900/30 disabled:opacity-50"
+                              className="py-3.5 flex items-center justify-center gap-1.5 text-emerald-700 font-semibold text-sm bg-emerald-50 hover:bg-emerald-100 border-r border-gray-100 active:scale-[0.99] transition-all disabled:opacity-50"
                             >
-                              <CheckCircle2 size={16} />
-                              <span>{isReviewing ? '...' : 'Approve Transfer'}</span>
+                              <CheckCircle2 size={17} />
+                              <span>{isReviewing ? 'Processing...' : 'Approve'}</span>
                             </button>
                             <button
                               onClick={() => handleReviewTransfer(tr.id, 'reject')}
                               disabled={isReviewing}
-                              className="py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs flex items-center justify-center space-x-1 active:scale-95 transition-all shadow-md shadow-rose-900/30 disabled:opacity-50"
+                              className="py-3.5 flex items-center justify-center gap-1.5 text-rose-600 font-semibold text-sm bg-rose-50 hover:bg-rose-100 active:scale-[0.99] transition-all disabled:opacity-50"
                             >
-                              <XCircle size={16} />
+                              <XCircle size={17} />
                               <span>{isReviewing ? '...' : 'Reject'}</span>
                             </button>
                           </div>
                         ) : (
-                          <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
-                            <span className="text-[11px] text-slate-400">
-                              Reviewed by <strong className="text-white">{tr.reviewed_by || 'Admin'}</strong>
-                            </span>
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                              tr.status === 'approved' 
-                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40' 
-                                : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
+                          <div className={`px-4 py-3 border-t border-gray-100 flex items-center justify-between text-xs ${
+                            tr.status === 'approved' ? 'bg-emerald-50' : 'bg-rose-50'
+                          }`}>
+                            <span className={`flex items-center gap-1.5 font-semibold ${
+                              tr.status === 'approved' ? 'text-emerald-700' : 'text-rose-600'
                             }`}>
-                              {tr.status === 'approved' ? '✅ Approved' : '❌ Rejected'}
+                              {tr.status === 'approved'
+                                ? <><CheckCircle2 size={14} /> Approved</>
+                                : <><XCircle size={14} /> Rejected</>
+                              }
+                            </span>
+                            <span className="text-slate-400">
+                              by {tr.reviewed_by || 'Admin'}
+                              {tr.reviewed_at ? ` · ${fmtDate(tr.reviewed_at)}` : ''}
                             </span>
                           </div>
                         )}
@@ -676,47 +634,56 @@ export default function AdminAudit() {
                 )}
               </div>
             </div>
-
           </>
         ) : (
-          <div className="py-20 text-center text-slate-400 font-bold">
+          <div className="py-20 text-center text-slate-400 font-medium">
             Failed to load audit data.
           </div>
         )}
-
       </div>
 
-      {/* ── MANAGER ACCOUNTS MODAL ─────────────────────────────────────── */}
+      {/* ── Manager Accounts Modal ──────────────────────────────────── */}
       {showManagerModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowManagerModal(false)}>
-          <div className="bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl border border-slate-700 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-800">
-              <div className="flex items-center space-x-2">
-                <Building2 size={20} className="text-amber-400" />
-                <h2 className="text-lg font-black text-white">Manager Receiving Accounts</h2>
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowManagerModal(false)}
+        >
+          <div
+            className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Drawer handle */}
+            <div className="w-10 h-1 rounded-full bg-gray-300 mx-auto mt-3 mb-1" />
+
+            <div className="flex items-center justify-between px-5 pt-3 pb-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <Building2 size={19} className="text-amber-500" />
+                <h2 className="text-base font-bold text-slate-900">Manager Receiving Accounts</h2>
               </div>
-              <button onClick={() => setShowManagerModal(false)} className="p-2 rounded-xl hover:bg-slate-800 text-slate-400">
-                <X size={18} />
+              <button
+                onClick={() => setShowManagerModal(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-slate-500 active:scale-95"
+              >
+                <X size={17} />
               </button>
             </div>
 
             <div className="p-5 space-y-5">
               {/* Add Account Form */}
-              <form onSubmit={handleAddAccount} className="bg-slate-800/80 rounded-2xl p-4 border border-slate-700/70 space-y-3">
-                <p className="text-xs font-black uppercase tracking-wider text-amber-400">Add New Manager Account</p>
+              <form onSubmit={handleAddAccount} className="bg-gray-50 rounded-2xl p-4 border border-gray-200 space-y-4">
+                <p className="text-sm font-semibold text-slate-800">Add New Manager Account</p>
                 {accountError && (
-                  <p className="text-xs text-rose-400 font-bold bg-rose-500/10 p-2 rounded-xl">{accountError}</p>
+                  <p className="text-xs text-rose-600 font-medium bg-rose-50 p-2.5 rounded-xl border border-rose-200">{accountError}</p>
                 )}
 
+                {/* Bank Selector */}
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">
-                    Select Payment Method
-                  </label>
+                  <label className="text-xs text-slate-500 font-medium block mb-2">Select Payment Method</label>
                   <div className="grid grid-cols-3 gap-2">
                     {[
-                      { key: 'cbe', label: 'CBE', full: 'Commercial Bank', icon: Landmark, gradient: 'from-amber-500 to-orange-600' },
-                      { key: 'boa', label: 'BOA', full: 'Bank of Abyssinia', icon: Building2, gradient: 'from-blue-600 to-indigo-700' },
-                      { key: 'telebirr', label: 'Telebirr', full: 'Telebirr', icon: Smartphone, gradient: 'from-emerald-500 to-teal-600' },
+                      { key: 'cbe',      label: 'CBE',     full: 'Commercial Bank',   icon: Landmark,    grad: 'from-amber-400 to-orange-500' },
+                      { key: 'boa',      label: 'BOA',     full: 'Bank of Abyssinia', icon: Building2,   grad: 'from-blue-500 to-indigo-600' },
+                      { key: 'telebirr', label: 'Telebirr',full: 'Telebirr',          icon: Smartphone,  grad: 'from-emerald-400 to-teal-500' },
                     ].map(m => {
                       const isSelected = newBankType === m.key;
                       const Icon = m.icon;
@@ -725,20 +692,18 @@ export default function AdminAudit() {
                           key={m.key}
                           type="button"
                           onClick={() => setNewBankType(m.key)}
-                          className={`p-3 rounded-2xl border-2 flex flex-col items-center justify-center text-center transition-all active:scale-95 ${
+                          className={`p-3 rounded-2xl border-2 flex flex-col items-center text-center transition-all active:scale-95 ${
                             isSelected
-                              ? 'border-amber-400 bg-amber-400/10 shadow-lg shadow-amber-400/10 ring-1 ring-amber-400/30'
-                              : 'border-slate-700 bg-slate-900/60 hover:border-slate-600'
+                              ? 'border-slate-900 bg-white shadow-sm'
+                              : 'border-gray-200 bg-white hover:border-gray-300'
                           }`}
                         >
-                          <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${m.gradient} flex items-center justify-center text-white mb-1.5 shadow-sm`}>
+                          <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${m.grad} flex items-center justify-center text-white mb-1.5`}>
                             <Icon size={18} />
                           </div>
-                          <span className="text-xs font-black text-white block">{m.label}</span>
-                          <span className="text-[9px] text-slate-400 font-bold block">{m.full}</span>
-                          {isSelected && (
-                            <span className="mt-1 w-2 h-2 rounded-full bg-amber-400" />
-                          )}
+                          <span className="text-xs font-bold text-slate-900">{m.label}</span>
+                          <span className="text-[9px] text-slate-400">{m.full}</span>
+                          {isSelected && <span className="mt-1 w-1.5 h-1.5 rounded-full bg-slate-900" />}
                         </button>
                       );
                     })}
@@ -746,25 +711,25 @@ export default function AdminAudit() {
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Account Holder Name</label>
+                  <label className="text-xs text-slate-500 font-medium block mb-1.5">Account Holder Name</label>
                   <input
                     type="text"
                     value={newAccountName}
                     onChange={e => setNewAccountName(e.target.value)}
                     placeholder="e.g. Shikur Ebrahim"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Account / Phone Number</label>
+                  <label className="text-xs text-slate-500 font-medium block mb-1.5">Account / Phone Number</label>
                   <input
                     type="text"
                     value={newAccountNumber}
                     onChange={e => setNewAccountNumber(e.target.value)}
-                    placeholder="e.g. 100023456789 or 0912345678"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-xs font-mono font-bold text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    placeholder="e.g. 1000488262045 or 0912345678"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
                     required
                   />
                 </div>
@@ -772,40 +737,42 @@ export default function AdminAudit() {
                 <button
                   type="submit"
                   disabled={savingAccount}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black text-xs active:scale-95 transition-all disabled:opacity-50"
+                  className="w-full py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm active:scale-[0.99] transition-all disabled:opacity-50 shadow-sm"
                 >
-                  {savingAccount ? 'Saving...' : '➕ Save Manager Account'}
+                  {savingAccount ? 'Saving...' : '+ Save Manager Account'}
                 </button>
               </form>
 
-              {/* Accounts List */}
+              {/* Saved Accounts List */}
               <div className="space-y-2">
-                <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Configured Accounts ({managerAccounts.length})</p>
+                <p className="text-sm font-semibold text-slate-700">Configured Accounts ({managerAccounts.length})</p>
                 {loadingAccounts ? (
-                  <p className="text-xs text-slate-500 text-center py-4">Loading accounts...</p>
+                  <p className="text-sm text-slate-400 text-center py-4">Loading...</p>
                 ) : managerAccounts.length === 0 ? (
-                  <p className="text-xs text-slate-500 text-center py-4">No accounts added yet.</p>
+                  <p className="text-sm text-slate-400 text-center py-4">No accounts added yet.</p>
                 ) : (
-                  managerAccounts.map(acc => (
-                    <div key={acc.id} className="flex items-center justify-between p-3 rounded-2xl bg-slate-800/80 border border-slate-700">
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${BANK_BADGES[acc.bank_type] || 'bg-slate-700'}`}>
-                            {acc.bank_type.toUpperCase()}
-                          </span>
-                          <span className="font-bold text-white text-xs">{acc.account_name}</span>
+                  managerAccounts.map(acc => {
+                    const col = BANK_COLORS[acc.bank_type] || { bg: 'bg-gray-50', badge: 'bg-gray-100 text-gray-700' };
+                    return (
+                      <div key={acc.id} className={`flex items-center justify-between p-3 rounded-2xl ${col.bg} border border-gray-200`}>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${col.badge}`}>
+                              {acc.bank_type.toUpperCase()}
+                            </span>
+                            <span className="text-sm font-semibold text-slate-900">{acc.account_name}</span>
+                          </div>
+                          <p className="text-xs font-mono text-slate-600 mt-0.5">{acc.account_number}</p>
                         </div>
-                        <p className="text-xs font-mono text-amber-300 font-bold mt-1">{acc.account_number}</p>
+                        <button
+                          onClick={() => handleDeleteAccount(acc.id)}
+                          className="p-2 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
-                      <button
-                        onClick={() => handleDeleteAccount(acc.id)}
-                        className="p-2 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -813,28 +780,23 @@ export default function AdminAudit() {
         </div>
       )}
 
-      {/* ── IMAGE PREVIEW MODAL ────────────────────────────────────────── */}
+      {/* ── Image Preview Modal ─────────────────────────────────────── */}
       {previewImage && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
           onClick={() => setPreviewImage(null)}
         >
-          <div className="relative max-w-sm w-full bg-slate-900 rounded-3xl p-3 border border-slate-700 shadow-2xl">
-            <button 
+          <div className="relative max-w-sm w-full bg-white rounded-3xl p-3 shadow-2xl">
+            <button
               onClick={() => setPreviewImage(null)}
-              className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center border border-slate-600 shadow-lg"
+              className="absolute -top-3 -right-3 w-9 h-9 rounded-full bg-white text-slate-700 flex items-center justify-center border border-gray-200 shadow-lg"
             >
               <X size={16} />
             </button>
-            <img 
-              src={previewImage} 
-              alt="Receipt Preview" 
-              className="w-full max-h-[80vh] object-contain rounded-2xl" 
-            />
+            <img src={previewImage} alt="Receipt" className="w-full max-h-[80vh] object-contain rounded-2xl" />
           </div>
         </div>
       )}
-
     </div>
   );
 }
