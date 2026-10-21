@@ -89,6 +89,63 @@ const AMHARIC_NUM: Record<number, string> = {
 
 const STAKE_PRESETS = [10, 20, 50, 100];
 
+// ── Winning-cell helpers (mirrored from BingoGame.tsx) ──────────────────────
+const getWinningCells = (matrix: number[][], called: number[]) => {
+  const winCells = new Set<string>();
+  if (!matrix || !called) return winCells;
+  const calledSet = new Set((called || []).map(Number));
+  const m = (r: number, c: number) => {
+    const val = Number(matrix[r]?.[c] ?? -1);
+    return val === 0 || calledSet.has(val);
+  };
+  for (let r = 0; r < 5; r++) {
+    if ([0, 1, 2, 3, 4].every(c => m(r, c)))
+      for (let c = 0; c < 5; c++) winCells.add(`${r}-${c}`);
+  }
+  for (let c = 0; c < 5; c++) {
+    if ([0, 1, 2, 3, 4].every(r => m(r, c)))
+      for (let r = 0; r < 5; r++) winCells.add(`${r}-${c}`);
+  }
+  if ([0, 1, 2, 3, 4].every(i => m(i, i)))
+    for (let i = 0; i < 5; i++) winCells.add(`${i}-${i}`);
+  if ([0, 1, 2, 3, 4].every(i => m(i, 4 - i)))
+    for (let i = 0; i < 5; i++) winCells.add(`${i}-${4 - i}`);
+  if (m(0, 0) && m(0, 4) && m(4, 0) && m(4, 4)) {
+    ['0-0', '0-4', '4-0', '4-4'].forEach(k => winCells.add(k));
+  }
+  if (m(1, 1) && m(1, 3) && m(3, 1) && m(3, 3)) {
+    ['1-1', '1-3', '3-1', '3-3'].forEach(k => winCells.add(k));
+  }
+  return winCells;
+};
+
+const getWinningPatternTitle = (matrix: number[][], called: number[]): string => {
+  if (!matrix || !called) return 'BINGO!';
+  const calledSet = new Set((called || []).map(Number));
+  const m = (r: number, c: number) => {
+    const val = Number(matrix[r]?.[c] ?? -1);
+    return val === 0 || calledSet.has(val);
+  };
+  const isOuterCorners = m(0, 0) && m(0, 4) && m(4, 0) && m(4, 4);
+  const isInnerCorners = m(1, 1) && m(1, 3) && m(3, 1) && m(3, 3);
+  const isRow = [0, 1, 2, 3, 4].some(r => [0, 1, 2, 3, 4].every(c => m(r, c)));
+  const isCol = [0, 1, 2, 3, 4].some(c => [0, 1, 2, 3, 4].every(r => m(r, c)));
+  const isDiag =
+    [0, 1, 2, 3, 4].every(i => m(i, i)) || [0, 1, 2, 3, 4].every(i => m(i, 4 - i));
+  if (isInnerCorners && !isRow && !isCol && !isDiag) return '🎯 2ND CORNER BINGO!';
+  if (isOuterCorners && !isRow && !isCol && !isDiag) return '🎯 4 CORNERS BINGO!';
+  if (isInnerCorners || isOuterCorners) return '🎯 CORNER BINGO!';
+  return 'BINGO!';
+};
+
+interface CelebrationState {
+  winner_name: string;
+  winner_cartela: number;
+  winner_prize: number;
+  winner_matrix: number[][] | null;
+  called: number[];
+}
+
 export default function AgentLiveGameViewer({
   roomId,
   roomName,
@@ -104,8 +161,12 @@ export default function AgentLiveGameViewer({
   const [copiedLink, setCopiedLink] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
 
+  const [celebration, setCelebration] = useState<CelebrationState | null>(null);
+
   const prevCalledCountRef = useRef(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const celebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const celebratedGamesRef = useRef<Set<string>>(new Set());
 
   const haptic = (style: 'light' | 'medium' | 'heavy' = 'light') => {
     if (typeof WebApp !== 'undefined' && WebApp.HapticFeedback) {
@@ -144,7 +205,27 @@ export default function AgentLiveGameViewer({
         const g: BGame | null = data.game || null;
         setGame(g);
         setTakenCartelas(Array.isArray(data.taken_cartelas) ? data.taken_cartelas : []);
-        setCartelaMatrices(data.cartela_matrices || {});
+        const matrices: Record<number, number[][]> = data.cartela_matrices || {};
+        setCartelaMatrices(matrices);
+
+        // ── Trigger celebration when game finishes ──
+        if (
+          g?.status === 'finished' &&
+          g.winner_cartela != null &&
+          !celebratedGamesRef.current.has(g.id)
+        ) {
+          celebratedGamesRef.current.add(g.id);
+          const winnerMatrix = matrices[g.winner_cartela] ?? null;
+          setCelebration({
+            winner_name: g.winner_first_name || 'Winner',
+            winner_cartela: g.winner_cartela,
+            winner_prize: g.winner_prize || 0,
+            winner_matrix: winnerMatrix,
+            called: g.called_numbers || [],
+          });
+          if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
+          celebrationTimerRef.current = setTimeout(() => setCelebration(null), 8000);
+        }
 
         // Check for newly called balls to play sound
         const newCalledLen = g?.called_numbers?.length || 0;
@@ -315,6 +396,111 @@ export default function AgentLiveGameViewer({
         </div>
       </div>
 
+      {/* ── Full-Screen Celebration Overlay ── */}
+      {celebration && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white border-2 border-amber-300 rounded-3xl p-4 text-center max-w-sm w-full shadow-2xl flex flex-col items-center relative my-auto">
+            {/* Dismiss button */}
+            <button
+              type="button"
+              onClick={() => setCelebration(null)}
+              className="absolute top-3 right-3 w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 active:scale-90 transition-all"
+            >
+              <X size={14} />
+            </button>
+
+            {/* Trophy + BINGO! badge */}
+            <div className="flex flex-col items-center mb-3">
+              <div className="text-5xl mb-1 animate-bounce">🏆</div>
+              <div className="bg-amber-400 text-amber-950 px-7 py-1.5 rounded-full font-black text-2xl tracking-widest shadow-md">
+                BINGO!
+              </div>
+            </div>
+
+            {/* Winner info card */}
+            <div className="w-full bg-amber-50/80 rounded-2xl p-3 mb-3 border border-amber-200/80 shadow-sm">
+              <p className="text-amber-800 text-[9px] uppercase tracking-widest mb-1 font-black">WINNER</p>
+              <p className="text-slate-900 font-black text-2xl leading-tight">{celebration.winner_name}</p>
+              <p className="text-amber-700 text-xs font-bold mt-0.5 flex items-center justify-center gap-1.5">
+                <LayoutGrid size={12} className="text-amber-500 shrink-0" />
+                CARTELA {celebration.winner_cartela}
+              </p>
+              <div className="mt-2 inline-block bg-emerald-500 text-white px-6 py-1.5 rounded-full font-black text-lg shadow-[0_4px_16px_rgba(16,185,129,0.4)]">
+                🎉 {celebration.winner_prize} ETB
+              </div>
+            </div>
+
+            {/* Winner 5×5 cartela grid */}
+            {celebration.winner_matrix ? (() => {
+              const winCells = getWinningCells(celebration.winner_matrix, celebration.called);
+              const winTitle = getWinningPatternTitle(celebration.winner_matrix, celebration.called);
+              return (
+                <div className="w-full rounded-2xl overflow-hidden border-2 border-amber-300 mb-3 shadow-md bg-white">
+                  {/* B-I-N-G-O header */}
+                  <div className="grid grid-cols-5">
+                    {BINGO_LETTERS.map(l => (
+                      <div
+                        key={l}
+                        className="flex items-center justify-center py-1.5 font-black text-white text-sm"
+                        style={{ background: LETTER_BG[l] }}
+                      >
+                        {l}
+                      </div>
+                    ))}
+                  </div>
+                  {/* Grid cells */}
+                  <div className="grid grid-cols-5 gap-[2px] p-[2px] bg-amber-50/60">
+                    {Array.from({ length: 5 }).flatMap((_, r) =>
+                      Array.from({ length: 5 }).map((_, c) => {
+                        const num = celebration.winner_matrix![r][c];
+                        const isFree = num === 0;
+                        const isWin = winCells.has(`${r}-${c}`);
+                        const isCalled = celebration.called.includes(num);
+                        return (
+                          <div
+                            key={`${r}-${c}`}
+                            className={`aspect-square flex items-center justify-center font-black text-xs rounded transition-all ${
+                              isFree
+                                ? 'bg-amber-400 text-amber-950'
+                                : isWin
+                                ? 'bg-emerald-500 text-white shadow-md ring-2 ring-amber-300 scale-105 z-10'
+                                : isCalled
+                                ? 'bg-orange-100 text-slate-800 font-bold'
+                                : 'bg-white text-slate-800 border border-slate-100'
+                            }`}
+                          >
+                            {isFree ? '★' : num}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                  {/* Footer: cartela number + pattern title */}
+                  <div className="py-2 px-3 flex items-center justify-between bg-white border-t border-amber-200">
+                    <p className="text-amber-800 font-black text-[11px] tracking-wider uppercase flex items-center gap-1.5">
+                      <LayoutGrid size={13} className="text-amber-500" />
+                      CARTELA {celebration.winner_cartela}
+                    </p>
+                    <span className="text-emerald-700 text-[10px] font-black uppercase tracking-wider bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300 shadow-sm">
+                      {winTitle}
+                    </span>
+                  </div>
+                </div>
+              );
+            })() : (
+              <div className="w-full bg-amber-50/80 rounded-2xl p-4 mb-3 border border-amber-200 flex flex-col items-center">
+                <div className="animate-spin text-2xl mb-1">⏳</div>
+                <p className="text-amber-800 text-xs font-bold">Loading winning cartela...</p>
+              </div>
+            )}
+
+            <p className="text-slate-400 text-[10px] font-black uppercase tracking-wider animate-pulse">
+              Next game starting soon...
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── Scrollable Game Area ── */}
       <div className="flex-1 overflow-y-auto px-2 pt-2 pb-6 space-y-2.5" style={{ scrollbarWidth: 'none' }}>
         {loading && !game ? (
@@ -357,26 +543,6 @@ export default function AgentLiveGameViewer({
                 )}
               </div>
             </div>
-
-            {/* ── Winner Banner if Just Finished ── */}
-            {game?.status === 'finished' && game.winner_first_name && (
-              <div className="bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 rounded-2xl p-3 text-white shadow-md flex items-center justify-between animate-in zoom-in-95">
-                <div className="flex items-center space-x-2">
-                  <div className="w-9 h-9 rounded-xl bg-white/25 flex items-center justify-center text-lg">
-                    🏆
-                  </div>
-                  <div>
-                    <p className="text-xs font-black">Winner: {game.winner_first_name}</p>
-                    <p className="text-[10px] opacity-90 font-bold">
-                      Cartela #{game.winner_cartela} • Prize: {game.winner_prize || 0} ETB
-                    </p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-black bg-white text-amber-900 px-2.5 py-1 rounded-xl shadow-xs">
-                  Game Ended
-                </span>
-              </div>
-            )}
 
             {/* ── 1-75 Master Tracker Board (Exact Match from Screenshot 1) ── */}
             <div className="bg-white rounded-2xl px-2 py-2 border-2 border-amber-200/90 shadow-sm">
