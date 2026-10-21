@@ -246,7 +246,7 @@ export default function AdminWithdrawals() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-black text-slate-800  text-lg">{Number(w.amount).toLocaleString('en-US')} <span className="text-sm font-bold text-slate-500 ">ETB</span></p>
+                    <p className="font-black text-slate-800  text-lg">{Number((w.net_amount && Number(w.net_amount) > 0) ? w.net_amount : w.amount).toLocaleString('en-US')} <span className="text-sm font-bold text-slate-500 ">ETB</span></p>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeColor}`}>{methodLabel}</span>
                   </div>
                 </div>
@@ -271,25 +271,7 @@ export default function AdminWithdrawals() {
                   </div>
                   <p className="text-[11px] text-slate-400">{timeAgo(w.created_at)}</p>
 
-                  {/* Fee & Payout to Send breakdown */}
-                  <div className="mt-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 block uppercase">
-                        Fee {w.fee_percent ? `(${w.fee_percent}%)` : ''}
-                      </span>
-                      <span className="font-bold text-amber-600">
-                        {Number(w.fee_amount || 0) > 0 ? `-${Number(w.fee_amount).toLocaleString('en-US')} ETB` : '0 ETB'}
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[10px] font-black text-emerald-700 block uppercase">
-                        Payout to Send
-                      </span>
-                      <span className="text-sm font-black text-emerald-600">
-                        {Number(w.net_amount || (w.amount - (w.fee_amount || 0))).toLocaleString('en-US')} ETB
-                      </span>
-                    </div>
-                  </div>
+                  
                 </div>
 
                 {/* Action buttons — only for pending */}

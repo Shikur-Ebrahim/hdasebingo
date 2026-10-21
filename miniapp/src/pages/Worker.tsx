@@ -184,20 +184,7 @@ export default function Worker() {
               Welcome back, {user.first_name}
             </p>
           </div>
-          <div className="flex items-center space-x-2">
-            {/* Top Green Fingerprint Button */}
-            <button
-              onClick={openBalanceModal}
-              className="p-2.5 bg-emerald-500 hover:bg-emerald-400 active:scale-90 text-white rounded-full shadow-md shadow-emerald-900/30 transition-all border border-emerald-300/40 relative flex items-center justify-center"
-              title="View Net Balance"
-            >
-              <Fingerprint size={20} className="text-white drop-shadow" />
-              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-300 rounded-full border-2 border-orange-600 animate-pulse" />
-            </button>
-            <Link to="/" className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors">
-              <LogOut size={20} />
-            </Link>
-          </div>
+          
         </div>
 
         {/* Quick Actions */}
