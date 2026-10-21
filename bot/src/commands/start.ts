@@ -67,7 +67,9 @@ export async function startCommand(ctx: Context) {
   const inviteLink = `https://t.me/${botUsername}?start=ref_${user.id}`;
   const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent('🎮 Play Hdasebingo with me! Join and let\'s win together! 🎱')}`;
 
-  const playButtonText = '🎱 PLAY NOW!';
+  const playButtonText = invitedRoomName 
+    ? `🎱 ወደ ${invitedRoomName} ግባ (PLAY!)` 
+    : '🎱 START PLAYING (አሁኑኑ ይጫወቱ)!';
 
   const keyboard = {
     inline_keyboard: [

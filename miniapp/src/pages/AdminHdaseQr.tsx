@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { 
   ArrowLeft, Download, Share2, Copy, Check, CheckCircle2, 
-  Send, ExternalLink, Sparkles, QrCode, Smartphone, RefreshCw 
+  Send, ExternalLink, Sparkles, QrCode, Smartphone, RefreshCw, Edit3
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
@@ -14,8 +14,14 @@ export default function AdminHdaseQr() {
   const { user } = useGameStore();
   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'hdasebingo_bot';
 
-  // QR Mode: 'miniapp' (opens miniapp automatically) or 'bot' (opens bot chat directly)
-  const [qrMode, setQrMode] = useState<'miniapp' | 'bot'>('miniapp');
+  // Preset options for QR code link
+  // 1. 'qr' (Adwa exact format: https://t.me/hdasebingo_bot?start=qr) - auto-starts bot & delivers play button instantly
+  // 2. 'play' (https://t.me/hdasebingo_bot?start=play)
+  // 3. 'direct_app' (https://t.me/hdasebingo_bot/app - if BotFather short name is configured)
+  // 4. 'custom' (admin typed link)
+  const [selectedPreset, setSelectedPreset] = useState<'qr' | 'play' | 'direct_app' | 'custom'>('qr');
+  const [customUrl, setCustomUrl] = useState(`https://t.me/${botUsername}?start=qr`);
+  
   const [copiedLink, setCopiedLink] = useState(false);
   const [downloadedFlyer, setDownloadedFlyer] = useState(false);
   const [isSavingFlyer, setIsSavingFlyer] = useState(false);
@@ -24,11 +30,14 @@ export default function AdminHdaseQr() {
 
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Link that gets encoded in the QR code
-  // miniapp mode: ?startapp starts the bot and automatically opens the mini app!
-  const targetLink = qrMode === 'miniapp'
-    ? `https://t.me/${botUsername}?startapp`
-    : `https://t.me/${botUsername}`;
+  // Determine active target link
+  const targetLink = selectedPreset === 'custom' 
+    ? customUrl 
+    : selectedPreset === 'qr'
+      ? `https://t.me/${botUsername}?start=qr`
+      : selectedPreset === 'play'
+        ? `https://t.me/${botUsername}?start=play`
+        : `https://t.me/${botUsername}/app`;
 
   const triggerHaptic = (style: 'light' | 'medium' | 'heavy' = 'light') => {
     try {
@@ -101,7 +110,7 @@ export default function AdminHdaseQr() {
       drawDiamond(26, height - 26, 4.5);
       drawDiamond(width - 26, height - 26, 4.5);
 
-      // Delicate corner bracket accents
+      // Corner bracket accents
       const drawCornerBracket = (x: number, y: number, xDir: number, yDir: number) => {
         ctx.strokeStyle = '#c59b27';
         ctx.lineWidth = 1.2;
@@ -415,9 +424,8 @@ export default function AdminHdaseQr() {
     }
   }, [botUsername]);
 
-  // Refresh preview when QR changes or mode switches
+  // Refresh preview when target link changes
   const refreshPreview = useCallback(() => {
-    // slight delay to ensure QRCodeCanvas has drawn
     setTimeout(() => {
       const url = generateFlyerImage();
       if (url) setPreviewDataUrl(url);
@@ -426,7 +434,7 @@ export default function AdminHdaseQr() {
 
   useEffect(() => {
     refreshPreview();
-  }, [refreshPreview, qrMode]);
+  }, [refreshPreview, targetLink]);
 
   // Download directly to device / gallery
   const handleDownloadFlyer = () => {
@@ -436,7 +444,7 @@ export default function AdminHdaseQr() {
 
     const a = document.createElement('a');
     a.href = dataUrl;
-    a.download = `hdasebingo-official-qr-${qrMode}.png`;
+    a.download = `hdasebingo-official-qr.png`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -489,7 +497,6 @@ export default function AdminHdaseQr() {
     if (!dataUrl) return;
 
     try {
-      // Convert data URL to Blob for native sharing
       const res = await fetch(dataUrl);
       const blob = await res.blob();
       const file = new File([blob], 'hdasebingo-qr.png', { type: 'image/png' });
@@ -567,65 +574,83 @@ export default function AdminHdaseQr() {
       </div>
 
       <div className="p-4 max-w-xl mx-auto w-full space-y-4">
-        {/* Mode Selector Card */}
+        {/* Preset Selector Card */}
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">QR Code Target</span>
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">QR Code Link Mode</span>
             <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
               @{botUsername}
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          {/* Quick Presets */}
+          <div className="grid grid-cols-3 gap-2">
             <button
-              onClick={() => { triggerHaptic('light'); setQrMode('miniapp'); }}
-              className={`p-3 rounded-xl border text-left transition-all ${
-                qrMode === 'miniapp'
-                  ? 'border-amber-500 bg-amber-50/70 shadow-sm ring-1 ring-amber-400'
-                  : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600'
+              onClick={() => { triggerHaptic('light'); setSelectedPreset('qr'); }}
+              className={`p-2.5 rounded-xl border text-center transition-all ${
+                selectedPreset === 'qr'
+                  ? 'border-amber-500 bg-amber-50/80 shadow-sm ring-1 ring-amber-400 font-black text-amber-900'
+                  : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold'
               }`}
             >
-              <div className="flex items-center space-x-1.5 mb-1">
-                <Smartphone size={15} className={qrMode === 'miniapp' ? 'text-amber-600' : 'text-slate-500'} />
-                <span className="text-xs font-black text-slate-800">Auto Open Mini App</span>
-              </div>
-              <p className="text-[10px] text-slate-500 leading-tight">
-                Starts bot & launches game screen automatically
-              </p>
+              <div className="text-xs">⭐ ?start=qr</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">Adwa Format</div>
             </button>
 
             <button
-              onClick={() => { triggerHaptic('light'); setQrMode('bot'); }}
-              className={`p-3 rounded-xl border text-left transition-all ${
-                qrMode === 'bot'
-                  ? 'border-amber-500 bg-amber-50/70 shadow-sm ring-1 ring-amber-400'
-                  : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600'
+              onClick={() => { triggerHaptic('light'); setSelectedPreset('play'); }}
+              className={`p-2.5 rounded-xl border text-center transition-all ${
+                selectedPreset === 'play'
+                  ? 'border-amber-500 bg-amber-50/80 shadow-sm ring-1 ring-amber-400 font-black text-amber-900'
+                  : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold'
               }`}
             >
-              <div className="flex items-center space-x-1.5 mb-1">
-                <QrCode size={15} className={qrMode === 'bot' ? 'text-amber-600' : 'text-slate-500'} />
-                <span className="text-xs font-black text-slate-800">Bot Chat Direct</span>
-              </div>
-              <p className="text-[10px] text-slate-500 leading-tight">
-                Opens bot chat with Start & Menu buttons
-              </p>
+              <div className="text-xs">🎮 ?start=play</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">Play Direct</div>
+            </button>
+
+            <button
+              onClick={() => { triggerHaptic('light'); setSelectedPreset('direct_app'); }}
+              className={`p-2.5 rounded-xl border text-center transition-all ${
+                selectedPreset === 'direct_app'
+                  ? 'border-amber-500 bg-amber-50/80 shadow-sm ring-1 ring-amber-400 font-black text-amber-900'
+                  : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold'
+              }`}
+            >
+              <div className="text-xs">📱 /app</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">Direct App</div>
             </button>
           </div>
 
-          {/* Current Link Bar */}
-          <div className="flex items-center space-x-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
-            <span className="text-xs font-mono text-slate-600 truncate flex-1">{targetLink}</span>
-            <button
-              onClick={handleCopyLink}
-              className="px-2.5 py-1 text-xs font-bold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 active:scale-95 transition-all flex items-center space-x-1 shrink-0"
-            >
-              {copiedLink ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
-              <span>{copiedLink ? 'Copied' : 'Copy'}</span>
-            </button>
+          {/* Editable / Current URL */}
+          <div className="space-y-1.5 pt-1">
+            <label className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
+              <span>Encoded URL:</span>
+              {selectedPreset === 'qr' && <span className="text-emerald-600 font-semibold">✓ Exact Adwa match (auto-start)</span>}
+            </label>
+            <div className="flex items-center space-x-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
+              <input
+                type="text"
+                value={selectedPreset === 'custom' ? customUrl : targetLink}
+                onChange={(e) => {
+                  setSelectedPreset('custom');
+                  setCustomUrl(e.target.value);
+                }}
+                className="text-xs font-mono text-slate-800 bg-transparent flex-1 focus:outline-none"
+                placeholder="https://t.me/hdasebingo_bot?start=qr"
+              />
+              <button
+                onClick={handleCopyLink}
+                className="px-2.5 py-1 text-xs font-bold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 active:scale-95 transition-all flex items-center space-x-1 shrink-0"
+              >
+                {copiedLink ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                <span>{copiedLink ? 'Copied' : 'Copy'}</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Quick Action Buttons */}
+        {/* Action Buttons */}
         <div className="grid grid-cols-2 gap-2.5">
           <button
             onClick={handleDownloadFlyer}
@@ -672,13 +697,13 @@ export default function AdminHdaseQr() {
           </a>
         </div>
 
-        {/* Telegram Chat Save Tip */}
+        {/* Gallery tip */}
         <div className="bg-amber-50 border border-amber-200/80 rounded-2xl p-3.5 text-xs text-amber-900 space-y-1">
           <p className="font-bold flex items-center space-x-1.5">
-            <span>💡 How to Save to Phone Gallery:</span>
+            <span>💡 How Scanning Works:</span>
           </p>
           <p className="text-[11px] text-amber-800 leading-relaxed">
-            Tap <b>"Save to Gallery"</b> above. The bot will send this high-resolution photo directly to your Telegram chat. In the chat, tap the photo, tap <b>⋮</b> (top-right), and select <b>"Save to Gallery"</b>!
+            Scanning <b>?start=qr</b> (default) triggers the Telegram Bot directly without showing "Restart", and immediately presents the player with the <b>START PLAYING</b> button to launch the Mini App!
           </p>
         </div>
 
