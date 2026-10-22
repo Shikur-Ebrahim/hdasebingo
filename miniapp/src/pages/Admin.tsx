@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
-import { Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Landmark, CreditCard, Gamepad2, Receipt, Settings2, Search, Radio, Building2, Video, Megaphone, BadgeDollarSign, Percent, ShieldCheck, QrCode } from 'lucide-react';
+import { Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Landmark, CreditCard, Gamepad2, Receipt, Settings2, Search, Radio, Building2, Video, Megaphone, BadgeDollarSign, Percent, ShieldCheck, QrCode, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 
@@ -59,6 +59,7 @@ export default function Admin() {
     { id: 'broadcast', title: 'Broadcast', icon: Radio, color: 'text-pink-600', bg: 'bg-pink-100', show: isAdmin },
     { id: 'support_videos', title: 'Support Videos', icon: Video, color: 'text-violet-600', bg: 'bg-violet-100', show: isAdmin },
     { id: 'hdase_qr', title: 'HDASE QR Code', icon: QrCode, color: 'text-amber-600', bg: 'bg-amber-100', show: isAdmin },
+    { id: 'channel_proofs', title: 'Channel Proofs', icon: Sparkles, color: 'text-emerald-600', bg: 'bg-emerald-100', show: isAdmin },
   ].filter(m => m.show);
 
   return (
@@ -179,6 +180,7 @@ export default function Admin() {
             broadcast: '/admin/broadcast',
             support_videos: '/admin/support-videos',
             hdase_qr: '/admin/hdase-qr',
+            channel_proofs: '/admin/channel-proofs',
           };
           if (routeMap[mod.id]) {
             return (

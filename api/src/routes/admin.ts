@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { AuthRequest, validateTelegramAuth } from '../middleware/auth';
 import { supabase } from '../services/supabase';
 import { getWithdrawalFeeSettings, saveWithdrawalFeeSettings, calculateWithdrawalFee } from '../services/withdrawalFee';
+import { checkAndAutoPostProofs } from './channelProofs';
 
 const router = Router();
 
@@ -383,6 +384,9 @@ router.post('/deposits/:id/approve', async (req, res) => {
     }
   }
 
+  // Check auto-post milestone in background
+  checkAndAutoPostProofs('deposit').catch(e => console.error('auto-post deposit error:', e));
+
   res.json({ success: true, isFirstDeposit, isSecondDeposit, depositorBonus, inviterBonus, weekendBonus });
 });
 
@@ -501,6 +505,9 @@ router.post('/withdrawals/:id/approve', async (req, res) => {
       body: JSON.stringify({ chat_id: withdrawal.telegram_id, text: msg, parse_mode: 'Markdown' })
     });
   } catch (err) { console.error('Failed to notify user:', err); }
+
+  // Check auto-post milestone in background
+  checkAndAutoPostProofs('withdrawal').catch(e => console.error('auto-post withdrawal error:', e));
 
   res.json({ success: true });
 });
