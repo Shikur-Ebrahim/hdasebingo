@@ -241,34 +241,11 @@ export default function SupportVideos() {
   const renderSupportContactHub = () => (
     <div 
       ref={contactHubRef}
-      className="mt-6 mb-4 bg-white border border-slate-200/90 rounded-3xl p-4 shadow-md space-y-3.5 select-none relative overflow-hidden"
+      className="mt-5 mb-4 bg-white border border-slate-200/90 rounded-3xl p-3.5 shadow-md space-y-2.5 select-none relative overflow-hidden"
     >
       {/* Subtle light ambient glow */}
       <div className="absolute top-0 right-0 w-44 h-44 bg-violet-100/60 rounded-full blur-2xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-36 h-36 bg-amber-50/80 rounded-full blur-2xl pointer-events-none" />
-
-      {/* Header with 24/7 status */}
-      <div className="flex items-center justify-between z-10 relative">
-        <div className="flex items-center space-x-2.5">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-violet-500/20">
-            <Headphones size={20} className="text-white" />
-          </div>
-          <div>
-            <h3 className="font-black text-sm text-slate-900 tracking-tight leading-tight">
-              {language === 'am' ? 'የቀጥታ ደንበኞች ድጋፍ መስመር' : 'Direct Support & Assistance'}
-            </h3>
-            <p className="text-[11px] text-slate-500 font-medium leading-tight mt-0.5">
-              {language === 'am' ? 'በስልክ በቀጥታ ይደውሉ ወይም በቴሌግራም ያግኙን' : 'Call our lines directly or chat on Telegram'}
-            </p>
-          </div>
-        </div>
-
-        {/* 24/7 Live Pulse Badge */}
-        <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[9.5px] font-black shrink-0">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-          <span>24/7 LIVE</span>
-        </div>
-      </div>
 
       {/* 2 Call Cards (Ethiopia & USA) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 z-10 relative">
@@ -422,24 +399,6 @@ export default function SupportVideos() {
       {!selectedCategory ? (
         /* Category Selection Grid without the redundant top illustration */
         <div className="px-4 pt-4">
-          {/* Quick "Browse All Videos" banner */}
-          <button
-            onClick={() => selectCategory('all')}
-            className="w-full mb-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white p-3.5 rounded-2xl shadow-md flex items-center justify-between active:scale-[0.98] transition-all"
-          >
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-xl">
-                🗂
-              </div>
-              <div className="text-left">
-                <p className="font-black text-sm">Browse All Videos</p>
-                <p className="text-[11px] text-white/80 font-medium">See tutorials from all categories</p>
-              </div>
-            </div>
-            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center font-black">
-              →
-            </div>
-          </button>
 
           {/* 6 Category Tiles in 2-column grid */}
           <div className="grid grid-cols-2 gap-3">

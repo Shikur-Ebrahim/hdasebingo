@@ -255,7 +255,7 @@ export default function Home() {
         </button>
         <Link
           to="/help-videos"
-          className="relative group flex flex-col items-center justify-center space-y-1 bg-gradient-to-br from-violet-600 via-indigo-600 to-purple-700 hover:from-violet-500 hover:to-purple-600 text-white py-2.5 rounded-xl font-black text-[11px] shadow-md shadow-violet-500/30 active:scale-95 transition-all overflow-hidden border border-violet-400/40"
+          className="relative group flex flex-col items-center justify-center space-y-1 bg-black hover:bg-slate-900 text-white py-2.5 rounded-xl font-bold text-[11px] shadow-sm active:scale-95 transition-all overflow-hidden border border-slate-800"
         >
           {/* Subtle animated shimmer highlight */}
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full duration-1000 transition-transform pointer-events-none" />
