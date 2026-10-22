@@ -1058,6 +1058,149 @@ router.get('/bingo-report', validateTelegramAuth, requireAdmin, async (req, res)
   });
 });
 
+// GET /admin/game-report — per-game commission breakdown report
+router.get('/game-report', validateTelegramAuth, requireAdmin, async (req, res) => {
+  const period = (req.query.period as string) || 'week';
+
+  let startDate = new Date();
+  startDate.setHours(0, 0, 0, 0);
+  let endDate = new Date();
+  endDate.setHours(23, 59, 59, 999);
+  const now = new Date();
+
+  switch (period) {
+    case 'today':
+      break;
+    case 'week':
+      startDate.setDate(now.getDate() - 7);
+      endDate = now;
+      break;
+    case 'month':
+      startDate.setMonth(now.getMonth() - 1);
+      endDate = now;
+      break;
+    case 'all':
+      startDate = new Date(0);
+      endDate = now;
+      break;
+    default:
+      break;
+  }
+
+  try {
+    // 1. Fetch finished bingo_games with room join
+    const { data: games, error: gErr } = await supabase
+      .from('bingo_games')
+      .select('id, stake, status, winner_prize, winner_first_name, winner_cartela, created_at, finished_at, room_id')
+      .eq('status', 'finished')
+      .gte('created_at', startDate.toISOString())
+      .lte('created_at', endDate.toISOString())
+      .order('created_at', { ascending: false });
+
+    if (gErr) return res.status(500).json({ error: gErr.message });
+
+    // 2. Fetch all rooms to get commission rates
+    const { data: rooms } = await supabase
+      .from('rooms')
+      .select('id, room_name, commission_rate, promoter_commission_rate, agent_name');
+
+    const roomMap: Record<string, any> = {};
+    (rooms || []).forEach((r: any) => { roomMap[r.id] = r; });
+
+    // 3. Fetch player counts for games in range
+    const gameIds = (games || []).map((g: any) => g.id);
+    let playerCounts: Record<string, number> = {};
+    if (gameIds.length > 0) {
+      const { data: players } = await supabase
+        .from('bingo_players')
+        .select('game_id')
+        .in('game_id', gameIds);
+      (players || []).forEach((p: any) => {
+        playerCounts[p.game_id] = (playerCounts[p.game_id] || 0) + 1;
+      });
+    }
+
+    // 4. Enrich games with commission breakdown
+    let total_games = 0;
+    let total_pot = 0;
+    let total_room_commission = 0;
+    let total_promoter_commission = 0;
+    let total_platform_commission = 0;
+
+    const enrichedGames = (games || []).map((g: any) => {
+      const room = roomMap[g.room_id] || null;
+      const players_count = playerCounts[g.id] || 0;
+      const stake = Number(g.stake || 0);
+      const pot = players_count * stake;
+      const winner_prize = Number(g.winner_prize || 0);
+      const comm_rate = Number(room?.commission_rate ?? 8);
+      const promo_rate = Number(room?.promoter_commission_rate ?? 3);
+
+      const room_commission = pot * comm_rate / 100;
+      const promoter_commission = pot * promo_rate / 100;
+      const platform_commission = pot - winner_prize - room_commission - promoter_commission;
+
+      total_games++;
+      total_pot += pot;
+      total_room_commission += room_commission;
+      total_promoter_commission += promoter_commission;
+      total_platform_commission += Math.max(0, platform_commission);
+
+      return {
+        ...g,
+        room_name: room?.room_name || 'Unknown Room',
+        agent_name: room?.agent_name || null,
+        commission_rate: comm_rate,
+        promoter_commission_rate: promo_rate,
+        players_count,
+        pot,
+        winner_prize,
+        room_commission: Math.round(room_commission * 100) / 100,
+        promoter_commission: Math.round(promoter_commission * 100) / 100,
+        platform_commission: Math.round(Math.max(0, platform_commission) * 100) / 100,
+      };
+    });
+
+    // 5. Build 14-day chart buckets
+    const chartBuckets: Record<string, { games_count: number; room_commission: number; platform_commission: number; pot: number }> = {};
+    const DAY_MS = 86400000;
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * DAY_MS);
+      const key = d.toISOString().slice(0, 10);
+      chartBuckets[key] = { games_count: 0, room_commission: 0, platform_commission: 0, pot: 0 };
+    }
+    enrichedGames.forEach((g: any) => {
+      const key = g.created_at?.slice(0, 10);
+      if (key && chartBuckets[key]) {
+        chartBuckets[key].games_count++;
+        chartBuckets[key].room_commission += g.room_commission;
+        chartBuckets[key].platform_commission += g.platform_commission;
+        chartBuckets[key].pot += g.pot;
+      }
+    });
+
+    const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const chart_data = Object.entries(chartBuckets).map(([date, vals]) => {
+      const d = new Date(date);
+      return { date, label: DAYS[d.getDay()], ...vals };
+    });
+
+    res.json({
+      stats: {
+        total_games,
+        total_pot,
+        total_room_commission: Math.round(total_room_commission * 100) / 100,
+        total_promoter_commission: Math.round(total_promoter_commission * 100) / 100,
+        total_platform_commission: Math.round(total_platform_commission * 100) / 100,
+      },
+      games: enrichedGames,
+      chart_data,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /admin/bingo-games/:id/finish — force-finish a stuck game
 router.post('/bingo-games/:id/finish', validateTelegramAuth, requireAdmin, async (req, res) => {
   const { error } = await supabase

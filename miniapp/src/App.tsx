@@ -21,6 +21,7 @@ import Rules from './pages/Rules';
 import Support from './pages/Support';
 import AdminHdaseQr from './pages/AdminHdaseQr';
 import AdminChannelProofs from './pages/AdminChannelProofs';
+import AdminGameReport from './pages/AdminGameReport';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Show/hide Telegram's native Back button based on route depth
@@ -418,6 +419,7 @@ function App() {
           <Route path="/admin/support-videos" element={<AdminSupportVideos />} />
           <Route path="/admin/hdase-qr" element={<AdminHdaseQr />} />
           <Route path="/admin/channel-proofs" element={<AdminChannelProofs />} />
+          <Route path="/admin/game-report" element={<AdminGameReport />} />
           <Route path="/help-videos" element={<SupportVideos />} />
           <Route path="/worker" element={<Worker />} />
           <Route path="/agent" element={<Agent />} />

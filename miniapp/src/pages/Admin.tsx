@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
-import { Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Landmark, CreditCard, Gamepad2, Receipt, Settings2, Search, Radio, Building2, Video, Megaphone, BadgeDollarSign, Percent, ShieldCheck, QrCode, Sparkles } from 'lucide-react';
+import { Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Landmark, CreditCard, Gamepad2, Receipt, Settings2, Search, Radio, Building2, Video, Megaphone, BadgeDollarSign, Percent, ShieldCheck, QrCode, Sparkles, BarChart3 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 
@@ -61,6 +61,7 @@ export default function Admin() {
     { id: 'bingo_games', title: 'Bingo Games', icon: Gamepad2, color: 'text-yellow-600', bg: 'bg-yellow-100', show: isAdmin || perms.games },
     { id: 'user_audit', title: 'User Audit', icon: Search, color: 'text-cyan-600', bg: 'bg-cyan-100', show: isAdmin || perms.reports },
     { id: 'tx_report', title: 'Transaction Report', icon: Receipt, color: 'text-teal-600', bg: 'bg-teal-100', show: isAdmin || perms.reports },
+    { id: 'game_report', title: 'Game Report', icon: BarChart3, color: 'text-indigo-600', bg: 'bg-indigo-100', show: isAdmin },
     { id: 'settings', title: 'Settings', icon: Settings2, color: 'text-slate-600', bg: 'bg-slate-100', show: isAdmin || perms.settings },
     { id: 'broadcast', title: 'Broadcast', icon: Radio, color: 'text-pink-600', bg: 'bg-pink-100', show: isAdmin },
     { id: 'support_videos', title: 'Support Videos', icon: Video, color: 'text-violet-600', bg: 'bg-violet-100', show: isAdmin },
@@ -226,6 +227,7 @@ export default function Admin() {
               bingo_games: '/admin/bingo-games',
             user_audit: '/admin/user-audit',
             tx_report: '/admin/tx-report',
+            game_report: '/admin/game-report',
             settings: '/admin/settings',
             user_withdrawal_fee: '/admin/user-withdrawal-fee',
             financial_audit: '/admin/financial-audit',
