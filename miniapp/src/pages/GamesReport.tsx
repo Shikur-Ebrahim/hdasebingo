@@ -126,7 +126,7 @@ export default function GamesReport() {
   const [filter, setFilter] = useState<'all' | 'wins' | 'losses'>('all');
   const [chartMetric, setChartMetric] = useState<ChartMetric>('games');
   const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
-  const [viewMode, setViewMode] = useState<'table' | 'chart'>('chart');
+  const [viewMode, setViewMode] = useState<'table' | 'chart'>('table');
 
   const headers = useCallback(() => ({
     'Content-Type': 'application/json',
@@ -391,15 +391,6 @@ export default function GamesReport() {
             </p>
             <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
               <button
-                onClick={() => setViewMode('chart')}
-                className={`px-3 py-1 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all ${
-                  viewMode === 'chart' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'
-                }`}
-              >
-                <BarChart3 size={12} />
-                Cards
-              </button>
-              <button
                 onClick={() => setViewMode('table')}
                 className={`px-3 py-1 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all ${
                   viewMode === 'table' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'
@@ -407,6 +398,15 @@ export default function GamesReport() {
               >
                 <TableProperties size={12} />
                 Table
+              </button>
+              <button
+                onClick={() => setViewMode('chart')}
+                className={`px-3 py-1 rounded-lg flex items-center gap-1.5 text-xs font-bold transition-all ${
+                  viewMode === 'chart' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'
+                }`}
+              >
+                <BarChart3 size={12} />
+                Cards
               </button>
             </div>
           </div>
