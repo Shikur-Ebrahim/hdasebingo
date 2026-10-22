@@ -2,14 +2,13 @@ import { Router, Response, NextFunction } from 'express';
 import { AuthRequest, validateTelegramAuth } from '../middleware/auth';
 import { supabase } from '../services/supabase';
 import { uploadToR2 } from '../services/r2';
-import { generateFlyerPng, DepositRow, WithdrawalRow } from '../services/flyerGenerator';
 
 const router = Router();
 
 // Default Telegram Channel
 export const DEFAULT_PROOF_CHANNEL = '@dmg_official_channel';
 
-// ── Middleware: Admin or Worker ───────────────────────────────────────────────
+// ── Middleware: Admin or Worker with permissions ──────────────────────────────
 const requireAdminOrWorker = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   const telegramId = req.telegramUser!.id.toString();
   const { data } = await supabase.from('users').select('role, permissions').eq('telegram_id', telegramId).single();
@@ -46,6 +45,7 @@ export async function resolveProofChannel(customChannel?: string | null): Promis
   if (customChannel && customChannel.trim()) {
     return normalizeTelegramChannel(customChannel);
   }
+
   try {
     const { data: rows } = await supabase
       .from('settings')
@@ -54,142 +54,24 @@ export async function resolveProofChannel(customChannel?: string | null): Promis
 
     if (rows && rows.length > 0) {
       const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
-      if (map.channel_post_target?.trim()) return normalizeTelegramChannel(map.channel_post_target);
-      if (map.channel_link?.trim()) return normalizeTelegramChannel(map.channel_link);
-      if (map.telegram_channel_id?.trim()) return normalizeTelegramChannel(map.telegram_channel_id);
-      if (map.channel_id?.trim()) return normalizeTelegramChannel(map.channel_id);
+      if (map.channel_post_target?.trim()) {
+        return normalizeTelegramChannel(map.channel_post_target);
+      }
+      if (map.channel_link?.trim()) {
+        return normalizeTelegramChannel(map.channel_link);
+      }
+      if (map.telegram_channel_id?.trim()) {
+        return normalizeTelegramChannel(map.telegram_channel_id);
+      }
+      if (map.channel_id?.trim()) {
+        return normalizeTelegramChannel(map.channel_id);
+      }
     }
   } catch (err) {
     console.error('Failed to resolve proof channel from settings:', err);
   }
+
   return DEFAULT_PROOF_CHANNEL;
-}
-
-// ── Helper: Enrich withdrawals with user names ────────────────────────────────
-async function enrichWithdrawals(withdrawalsRaw: any[]): Promise<any[]> {
-  if (!withdrawalsRaw || withdrawalsRaw.length === 0) return [];
-  const tgIds = [...new Set(withdrawalsRaw.map((w: any) => w.telegram_id))];
-  const { data: usersData } = await supabase
-    .from('users')
-    .select('telegram_id, first_name, username')
-    .in('telegram_id', tgIds);
-  const userMap = usersData ? Object.fromEntries(usersData.map((u: any) => [u.telegram_id, u])) : {};
-  return withdrawalsRaw.map((w: any) => ({ ...w, users: userMap[w.telegram_id] || null }));
-}
-
-// ── Helper: Send photo buffer to Telegram via multipart/form-data ─────────────
-async function sendPhotoToTelegram(
-  botToken: string,
-  chatId: string,
-  pngBuffer: Buffer,
-  caption: string,
-  replyMarkup: object
-): Promise<{ ok: boolean; result?: any; description?: string }> {
-  // Build multipart body manually (Node 18+ has FormData built-in but not in older versions)
-  // Use a simple boundary-based multipart approach for compatibility
-  const boundary = `----FormBoundary${Date.now()}`;
-  const crlf = '\r\n';
-
-  const parts: Buffer[] = [];
-
-  const addField = (name: string, value: string) => {
-    parts.push(Buffer.from(
-      `--${boundary}${crlf}` +
-      `Content-Disposition: form-data; name="${name}"${crlf}${crlf}` +
-      `${value}${crlf}`
-    ));
-  };
-
-  addField('chat_id', chatId);
-  addField('caption', caption);
-  addField('parse_mode', 'HTML');
-  addField('reply_markup', JSON.stringify(replyMarkup));
-
-  // Photo file part
-  parts.push(Buffer.from(
-    `--${boundary}${crlf}` +
-    `Content-Disposition: form-data; name="photo"; filename="proof.png"${crlf}` +
-    `Content-Type: image/png${crlf}${crlf}`
-  ));
-  parts.push(pngBuffer);
-  parts.push(Buffer.from(`${crlf}--${boundary}--${crlf}`));
-
-  const body = Buffer.concat(parts);
-
-  const res = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
-    method: 'POST',
-    headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
-    body,
-  });
-
-  return res.json() as Promise<any>;
-}
-
-// ── Helper: Build Amharic caption ─────────────────────────────────────────────
-function buildCaption(type: 'deposit' | 'withdrawal', threshold: number, botUsername: string): string {
-  if (type === 'deposit') {
-    return (
-      `🌟 <b>የተረጋገጡ ዲፖዚቶች • ህዳሴ ቢንጎ</b> 🌟\n\n` +
-      `✅ <b>የ${threshold} ተጫዋቾች ዲፖዚት በተሳካ ሁኔታ ገቢ ተደርጓል!</b>\n` +
-      `⚡ ፈጣን እና አስተማማኝ የሂሳብ መሙያ።\n` +
-      `🛡️ 100% የታመነ እና የተረጋገጠ አሰራር።\n\n` +
-      `🎮 <b>አሁኑኑ ይጫወቱ:</b> @${botUsername}`
-    );
-  }
-  return (
-    `🏆 <b>የተረጋገጡ የሽልማት ክፍያዎች • ህዳሴ ቢንጎ</b> 🏆\n\n` +
-    `💸 <b>የ${threshold} አሸናፊዎች የሽልማት ክፍያ በተሳካ ሁኔታ ተፈጽሟል!</b>\n` +
-    `⚡ ፈጣን የባንክ እና የቴሌብር ክፍያ።\n` +
-    `🎱 በየቀኑ በ 75-ኳስ ቢንጎ ይጫወቱ፣ ያሸንፉ፣ ወዲያውኑ ብርዎን ያውጡ!\n\n` +
-    `🎮 <b>ይጫወቱ እና ያሸንፉ:</b> @${botUsername}`
-  );
-}
-
-// ── Core: Generate flyer PNG from DB rows and post to Telegram channel ─────────
-/**
- * Generates the canvas flyer server-side and posts it to Telegram.
- * Used by both auto-post and the manual "Post to Channel" button.
- *
- * @param type        'deposit' | 'withdrawal'
- * @param items       The DB rows for the NEW batch (since lastPostAt)
- * @param channelId   Resolved Telegram channel ID (@username or -chat_id)
- * @param botToken    Bot token
- * @param botUsername Bot username (for CTA text)
- * @param threshold   Threshold count (for caption text)
- * @returns           The public R2 URL of the uploaded flyer, or throws
- */
-async function generateAndPostFlyer(
-  type: 'deposit' | 'withdrawal',
-  items: (DepositRow | WithdrawalRow)[],
-  channelId: string,
-  botToken: string,
-  botUsername: string,
-  threshold: number
-): Promise<{ publicImageUrl: string; messageId?: number }> {
-  // 1. Generate PNG server-side (exact same design as admin canvas)
-  const pngBuffer = await generateFlyerPng(type, items, botUsername);
-
-  // 2. Upload to R2
-  const filename = `channel-proofs/${type}/${Date.now()}_proof.png`;
-  const publicImageUrl = await uploadToR2(filename, pngBuffer, 'image/png');
-
-  // 3. Build caption & button
-  const caption = buildCaption(type, threshold, botUsername);
-  const replyMarkup = {
-    inline_keyboard: [[
-      { text: '🎮 አሁኑኑ ይጫወቱ • PLAY NOW', url: `https://t.me/${botUsername}` }
-    ]]
-  };
-
-  // 4. Post to Telegram channel using multipart (direct buffer upload)
-  const tgData = await sendPhotoToTelegram(botToken, channelId, pngBuffer, caption, replyMarkup);
-
-  if (!tgData.ok) {
-    console.error('Telegram sendPhoto error:', tgData);
-    throw new Error(`Telegram error: ${tgData.description || 'Failed to post to channel'}`);
-  }
-
-  return { publicImageUrl, messageId: tgData.result?.message_id };
 }
 
 // ── GET /api/channel-proofs/data ──────────────────────────────────────────────
@@ -221,7 +103,7 @@ router.get('/data', validateTelegramAuth, requireAdminOrWorker, async (req: Auth
     const lastDepositPostAt = sMap.last_channel_post_deposit_at || null;
     const lastWithdrawPostAt = sMap.last_channel_post_withdraw_at || null;
 
-    // 2. Fetch recent approved deposits (limit 20 for preview)
+    // 2. Fetch recent approved deposits (limit 20 for preview / selection)
     const { data: depositsRaw } = await supabase
       .from('deposits')
       .select('id, telegram_id, amount, status, created_at, updated_at, deposit_methods(id, name, type), users!deposits_telegram_id_fkey(first_name, username)')
@@ -229,7 +111,7 @@ router.get('/data', validateTelegramAuth, requireAdminOrWorker, async (req: Auth
       .order('updated_at', { ascending: false })
       .limit(20);
 
-    // 3. Fetch recent approved withdrawals (limit 20 for preview)
+    // 3. Fetch recent approved withdrawals (limit 20 for preview / selection)
     const { data: withdrawalsRaw } = await supabase
       .from('withdrawals')
       .select('id, telegram_id, method_id, amount, net_amount, fee_amount, account_name, account_number, status, created_at, updated_at, withdrawal_methods(id, type)')
@@ -237,14 +119,31 @@ router.get('/data', validateTelegramAuth, requireAdminOrWorker, async (req: Auth
       .order('updated_at', { ascending: false })
       .limit(20);
 
-    const enrichedWithdrawals = await enrichWithdrawals(withdrawalsRaw || []);
+    // Enrich withdrawals with user names
+    let enrichedWithdrawals: any[] = withdrawalsRaw || [];
+    if (enrichedWithdrawals.length > 0) {
+      const tgIds = [...new Set(enrichedWithdrawals.map(w => w.telegram_id))];
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('telegram_id, first_name, username')
+        .in('telegram_id', tgIds);
+
+      const userMap = usersData ? Object.fromEntries(usersData.map(u => [u.telegram_id, u])) : {};
+      enrichedWithdrawals = enrichedWithdrawals.map(w => ({
+        ...w,
+        users: userMap[w.telegram_id] || null
+      }));
+    }
 
     // 4. Count unposted deposits since lastDepositPostAt
     let unpostedDepositQuery = supabase
       .from('deposits')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'approved');
-    if (lastDepositPostAt) unpostedDepositQuery = unpostedDepositQuery.gt('updated_at', lastDepositPostAt);
+
+    if (lastDepositPostAt) {
+      unpostedDepositQuery = unpostedDepositQuery.gt('updated_at', lastDepositPostAt);
+    }
     const { count: unpostedDepositsCount } = await unpostedDepositQuery;
 
     // 5. Count unposted withdrawals since lastWithdrawPostAt
@@ -252,7 +151,10 @@ router.get('/data', validateTelegramAuth, requireAdminOrWorker, async (req: Auth
       .from('withdrawals')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'approved');
-    if (lastWithdrawPostAt) unpostedWithdrawQuery = unpostedWithdrawQuery.gt('updated_at', lastWithdrawPostAt);
+
+    if (lastWithdrawPostAt) {
+      unpostedWithdrawQuery = unpostedWithdrawQuery.gt('updated_at', lastWithdrawPostAt);
+    }
     const { count: unpostedWithdrawalsCount } = await unpostedWithdrawQuery;
 
     res.json({
@@ -278,8 +180,7 @@ router.get('/data', validateTelegramAuth, requireAdminOrWorker, async (req: Auth
   }
 });
 
-// ── POST /api/channel-proofs/sync-cache ──────────────────────────────────────
-// Still accepts browser canvas base64 for preview sync — kept for compatibility
+// ── POST /api/channel-proofs/sync-cache (Sync generated canvas image to R2 for auto-post) ──
 router.post('/sync-cache', validateTelegramAuth, requireAdminOrWorker, async (req: AuthRequest, res) => {
   try {
     const { type, image_base64 } = req.body;
@@ -309,15 +210,18 @@ router.post('/sync-cache', validateTelegramAuth, requireAdminOrWorker, async (re
   }
 });
 
-// ── POST /api/channel-proofs/post (Manual "Post to Channel" button) ──────────
-// If the browser sends image_base64 → use THAT exact canvas image (pixel-perfect match)
-// If no image_base64 → generate server-side from DB (used as fallback / auto-post path)
+// ── POST /api/channel-proofs/post (Manual or Triggered 1-click Post to Channel) ──
 router.post('/post', validateTelegramAuth, requireAdminOrWorker, async (req: AuthRequest, res) => {
   try {
-    const { type, custom_channel, image_base64 } = req.body;
+    const { type, image_base64, custom_channel, caption } = req.body;
 
     if (!type || (type !== 'deposit' && type !== 'withdrawal')) {
       res.status(400).json({ error: 'type must be deposit or withdrawal' });
+      return;
+    }
+
+    if (!image_base64) {
+      res.status(400).json({ error: 'image_base64 is required' });
       return;
     }
 
@@ -328,120 +232,79 @@ router.post('/post', validateTelegramAuth, requireAdminOrWorker, async (req: Aut
     }
 
     const botUsername = process.env.BOT_USERNAME || 'hdasebingo_bot';
-    const channelId = await resolveProofChannel(custom_channel);
-    const isDeposit = type === 'deposit';
 
-    // Fetch settings to determine threshold and lastPostAt
-    const { data: sRows } = await supabase
-      .from('settings')
-      .select('key, value')
-      .in('key', [
-        'channel_post_deposit_threshold',
-        'channel_post_withdraw_threshold',
-        'last_channel_post_deposit_at',
-        'last_channel_post_withdraw_at',
-      ]);
-    const sMap = Object.fromEntries((sRows || []).map(r => [r.key, r.value]));
-    const threshold = parseInt(
-      (isDeposit ? sMap.channel_post_deposit_threshold : sMap.channel_post_withdraw_threshold) || '10',
-      10
-    ) || 10;
-    const lastPostAt = isDeposit ? sMap.last_channel_post_deposit_at : sMap.last_channel_post_withdraw_at;
-
-    // Fetch the NEW batch items (approved since lastPostAt) — up to 10 for the flyer
-    let items: any[] = [];
-    if (isDeposit) {
-      let q = supabase
-        .from('deposits')
-        .select('id, telegram_id, amount, status, updated_at, deposit_methods(id, name, type), users!deposits_telegram_id_fkey(first_name, username)')
-        .eq('status', 'approved')
-        .order('updated_at', { ascending: false })
-        .limit(10);
-      if (lastPostAt) q = q.gt('updated_at', lastPostAt);
-      const { data } = await q;
-      items = data || [];
-      // If the new batch has fewer than 10 items, pad with most recent older ones
-      if (items.length < 10) {
-        const extra = await supabase
-          .from('deposits')
-          .select('id, telegram_id, amount, status, updated_at, deposit_methods(id, name, type), users!deposits_telegram_id_fkey(first_name, username)')
-          .eq('status', 'approved')
-          .order('updated_at', { ascending: false })
-          .limit(10 - items.length);
-        if (extra.data) {
-          const existingIds = new Set(items.map((x: any) => x.id));
-          const padded = extra.data.filter((x: any) => !existingIds.has(x.id));
-          items = [...items, ...padded];
-        }
-      }
-    } else {
-      let q = supabase
-        .from('withdrawals')
-        .select('id, telegram_id, method_id, amount, net_amount, fee_amount, account_name, account_number, status, updated_at, withdrawal_methods(id, type)')
-        .eq('status', 'approved')
-        .order('updated_at', { ascending: false })
-        .limit(10);
-      if (lastPostAt) q = q.gt('updated_at', lastPostAt);
-      const { data } = await q;
-      items = await enrichWithdrawals(data || []);
-      // Pad if needed
-      if (items.length < 10) {
-        const extra = await supabase
-          .from('withdrawals')
-          .select('id, telegram_id, method_id, amount, net_amount, fee_amount, account_name, account_number, status, updated_at, withdrawal_methods(id, type)')
-          .eq('status', 'approved')
-          .order('updated_at', { ascending: false })
-          .limit(10 - items.length);
-        if (extra.data) {
-          const enrichedExtra = await enrichWithdrawals(extra.data);
-          const existingIds = new Set(items.map((x: any) => x.id));
-          const padded = enrichedExtra.filter((x: any) => !existingIds.has(x.id));
-          items = [...items, ...padded];
-        }
-      }
-    }
-
-    // ── STRATEGY: Use browser canvas if provided (pixel-perfect match with admin view)
-    //             Otherwise generate server-side (for auto-post / fallback)
+    // 1. Upload high-res canvas image to R2
+    const base64Data = image_base64.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+    const filename = `channel-proofs/${type}/${Date.now()}_proof.png`;
+    
     let publicImageUrl = '';
-    let messageId: number | undefined;
-
-    if (image_base64) {
-      // Browser sent the exact rendered canvas — use it directly (guaranteed to match admin view)
-      const base64Data = image_base64.replace(/^data:image\/\w+;base64,/, '');
-      const pngBuffer = Buffer.from(base64Data, 'base64');
-      const filename = `channel-proofs/${type}/${Date.now()}_proof.png`;
-      publicImageUrl = await uploadToR2(filename, pngBuffer, 'image/png');
-
-      const caption = buildCaption(type, threshold, botUsername);
-      const replyMarkup = {
-        inline_keyboard: [[
-          { text: '🎮 አሁኑኑ ይጫወቱ • PLAY NOW', url: `https://t.me/${botUsername}` }
-        ]]
-      };
-      const tgData = await sendPhotoToTelegram(botToken, channelId, pngBuffer, caption, replyMarkup);
-      if (!tgData.ok) {
-        res.status(502).json({ error: `Telegram error: ${tgData.description || 'Failed to post'}`, channelId, tgData });
-        return;
-      }
-      messageId = tgData.result?.message_id;
-    } else {
-      // No browser canvas — generate server-side from DB
-      const result = await generateAndPostFlyer(
-        type,
-        items as (DepositRow | WithdrawalRow)[],
-        channelId,
-        botToken,
-        botUsername,
-        threshold
-      );
-      publicImageUrl = result.publicImageUrl;
-      messageId = result.messageId;
+    try {
+      publicImageUrl = await uploadToR2(filename, buffer, 'image/png');
+    } catch (uploadErr) {
+      console.error('Error uploading proof image to R2:', uploadErr);
+      res.status(500).json({ error: 'Failed to upload proof image to storage' });
+      return;
     }
 
-    // Update settings: lastPostAt + cached image
+    // 2. Resolve destination channel
+    const channelId = await resolveProofChannel(custom_channel);
+
+    // 3. Prepare clean Amharic Telegram Caption (no redundant channel link)
+    let finalCaption = caption;
+    if (!finalCaption) {
+      if (type === 'deposit') {
+        finalCaption =
+          `🌟 <b>የተረጋገጡ ዲፖዚቶች • ህዳሴ ቢንጎ</b> 🌟\n\n` +
+          `✅ <b>የተጫዋቾች ዲፖዚት በተሳካ ሁኔታ ገቢ ተደርጓል!</b>\n` +
+          `⚡ ፈጣን እና አስተማማኝ የሂሳብ መሙያ።\n` +
+          `🛡️ 100% የታመነ እና የተረጋገጠ አሰራር።\n\n` +
+          `💰 በ <b>ቴሌብር፣ ንግድ ባንክ (CBE)፣ አቢሲኒያ ወይም አዋሽ</b> አስገብተው አሁኑኑ ይጫወቱ!\n\n` +
+          `🎮 <b>አሁኑኑ ይጫወቱ:</b> @${botUsername}`;
+      } else {
+        finalCaption =
+          `🏆 <b>የተረጋገጡ የሽልማት ክፍያዎች • ህዳሴ ቢንጎ</b> 🏆\n\n` +
+          `💸 <b>የአሸናፊዎች የሽልማት ክፍያ በተሳካ ሁኔታ ተፈጽሟል!</b>\n` +
+          `🎉 ለሁሉም አሸናፊዎቻችን እንኳን ደስ አላችሁ!\n` +
+          `⚡ ፈጣን የባንክ እና የቴሌብር ክፍያ።\n\n` +
+          `🎱 በየቀኑ በ 75-ኳስ ቢንጎ ይጫወቱ፣ ያሸንፉ፣ ወዲያውኑ ብርዎን ያውጡ!\n\n` +
+          `🎮 <b>ይጫወቱ እና ያሸንፉ:</b> @${botUsername}`;
+      }
+    }
+
+    // 4. Send EXACT canvas photo to channel via Telegram Bot API with ONLY Play button
+    const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: channelId,
+        photo: publicImageUrl,
+        caption: finalCaption,
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '🎮 አሁኑኑ ይጫወቱ • PLAY NOW', url: `https://t.me/${botUsername}` }
+            ]
+          ]
+        }
+      }),
+    });
+
+    const tgData = (await tgRes.json()) as any;
+    if (!tgRes.ok || !tgData.ok) {
+      console.error('Telegram sendPhoto error:', tgData);
+      res.status(502).json({
+        error: `Telegram error: ${tgData.description || 'Failed to post to channel'}`,
+        channelId,
+        tgData
+      });
+      return;
+    }
+
+    // 5. Update settings with last post timestamp and cached image URL
     const nowIso = new Date().toISOString();
-    const settingsToUpdate = isDeposit
+    const settingsToUpdate = type === 'deposit'
       ? [
           { key: 'last_channel_post_deposit_at', value: nowIso },
           { key: 'last_channel_post_deposit_image', value: publicImageUrl },
@@ -455,14 +318,20 @@ router.post('/post', validateTelegramAuth, requireAdminOrWorker, async (req: Aut
 
     await supabase.from('settings').upsert(settingsToUpdate, { onConflict: 'key' });
 
-    res.json({ success: true, channelId, publicImageUrl, messageId, postedAt: nowIso });
+    res.json({
+      success: true,
+      channelId,
+      publicImageUrl,
+      messageId: tgData.result?.message_id,
+      postedAt: nowIso,
+    });
   } catch (err: any) {
     console.error('Error posting proof to channel:', err);
     res.status(500).json({ error: err.message || 'Internal server error' });
   }
 });
 
-// ── POST /api/channel-proofs/send-to-me ──────────────────────────────────────
+// ── POST /api/channel-proofs/send-to-me (Deliver directly to Admin's chat) ─────
 router.post('/send-to-me', validateTelegramAuth, requireAdminOrWorker, async (req: AuthRequest, res) => {
   try {
     const telegramId = req.telegramUser!.id.toString();
@@ -504,21 +373,36 @@ router.post('/send-to-me', validateTelegramAuth, requireAdminOrWorker, async (re
     const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: telegramId, photo: publicUrl, caption, parse_mode: 'HTML' }),
+      body: JSON.stringify({
+        chat_id: telegramId,
+        photo: publicUrl,
+        caption,
+        parse_mode: 'HTML',
+      }),
     });
 
     const tgData = (await tgRes.json()) as any;
-    res.json({ success: tgRes.ok && tgData.ok, publicUrl, tgData });
+    res.json({
+      success: tgRes.ok && tgData.ok,
+      publicUrl,
+      tgData,
+    });
   } catch (err: any) {
     console.error('send-to-me error:', err);
     res.status(500).json({ error: err.message || 'Internal server error' });
   }
 });
 
-// ── PUT /api/channel-proofs/settings ─────────────────────────────────────────
+// ── PUT /api/channel-proofs/settings (Update Auto-post configurations) ──────────
 router.put('/settings', validateTelegramAuth, requireAdminOrWorker, async (req: AuthRequest, res) => {
   try {
-    const { depositThreshold, depositEnabled, withdrawThreshold, withdrawEnabled, targetChannel } = req.body;
+    const {
+      depositThreshold,
+      depositEnabled,
+      withdrawThreshold,
+      withdrawEnabled,
+      targetChannel
+    } = req.body;
 
     const updates = [
       { key: 'channel_post_deposit_threshold', value: String(Math.max(1, parseInt(depositThreshold || '10', 10))) },
@@ -541,10 +425,7 @@ router.put('/settings', validateTelegramAuth, requireAdminOrWorker, async (req: 
   }
 });
 
-// ── Auto-post: called after every deposit/withdrawal approval ─────────────────
-// Primary auto-post: the frontend page auto-posts via browser canvas (exact match).
-// This server-side fallback fires ONLY when the admin page is closed —
-// it uses the last canvas image cached in R2 by the frontend's sync-cache call.
+// ── Helper: check and auto post in background when threshold reached ─────────
 export async function checkAndAutoPostProofs(type: 'deposit' | 'withdrawal'): Promise<void> {
   try {
     const botToken = process.env.BOT_TOKEN;
@@ -552,7 +433,7 @@ export async function checkAndAutoPostProofs(type: 'deposit' | 'withdrawal'): Pr
 
     const botUsername = process.env.BOT_USERNAME || 'hdasebingo_bot';
 
-    // Fetch relevant settings
+    // Fetch settings
     const { data: sRows } = await supabase
       .from('settings')
       .select('key, value')
@@ -566,7 +447,7 @@ export async function checkAndAutoPostProofs(type: 'deposit' | 'withdrawal'): Pr
         'last_channel_post_deposit_at',
         'last_channel_post_withdraw_at',
         'last_channel_post_deposit_image',
-        'last_channel_post_withdraw_image',
+        'last_channel_post_withdraw_image'
       ]);
 
     const sMap = Object.fromEntries((sRows || []).map(r => [r.key, r.value]));
@@ -584,37 +465,68 @@ export async function checkAndAutoPostProofs(type: 'deposit' | 'withdrawal'): Pr
     ) || 10;
 
     const lastPostAt = isDeposit ? sMap.last_channel_post_deposit_at : sMap.last_channel_post_withdraw_at;
+    const table = isDeposit ? 'deposits' : 'withdrawals';
 
-    // Count approved records since last post
-    let countQ = supabase
-      .from(isDeposit ? 'deposits' : 'withdrawals')
+    // Count unposted approved records
+    let q = supabase
+      .from(table)
       .select('id', { count: 'exact', head: true })
       .eq('status', 'approved');
-    if (lastPostAt) countQ = countQ.gt('updated_at', lastPostAt);
-    const { count } = await countQ;
+
+    if (lastPostAt) {
+      q = q.gt('updated_at', lastPostAt);
+    }
+
+    const { count } = await q;
     const unposted = count ?? 0;
 
-    if (unposted < threshold) return; // Not yet reached
-
-    // Use the cached canvas image that the frontend synced to R2
-    const cachedImage = isDeposit
-      ? sMap.last_channel_post_deposit_image
-      : sMap.last_channel_post_withdraw_image;
-
-    if (!cachedImage) {
-      console.log(`[AutoPost-Server] ${type} threshold reached (${unposted}/${threshold}) but no cached canvas image yet. Open the admin Channel Proofs page to render the canvas.`);
+    if (unposted < threshold) {
+      // Threshold not yet reached
       return;
     }
 
     const channelId = normalizeTelegramChannel(sMap.channel_post_target || sMap.channel_link || DEFAULT_PROOF_CHANNEL);
-    const caption = buildCaption(type, threshold, botUsername);
+    const cachedImage = isDeposit ? sMap.last_channel_post_deposit_image : sMap.last_channel_post_withdraw_image;
+
+    // CRITICAL: ONLY post if the exact canvas image is cached on R2 and is fresh!
+    // NEVER send a plain text message, and NEVER send an outdated flyer from a past batch!
+    const imageUpdatedAt = sMap[`last_channel_post_${type}_image_at`];
+    if (!cachedImage || !imageUpdatedAt) {
+      console.log(`Auto-post for ${type} reached milestone (${unposted}/${threshold}), but awaiting fresh canvas flyer render from admin. Plain text fallback skipped.`);
+      return;
+    }
+
+    if (lastPostAt && new Date(imageUpdatedAt) <= new Date(lastPostAt)) {
+      console.log(`Auto-post for ${type}: cached flyer is from previous batch. Waiting for admin to render fresh flyer.`);
+      return;
+    }
+
+    let caption = '';
+    if (isDeposit) {
+      caption =
+        `🌟 <b>የተረጋገጡ ዲፖዚቶች • ህዳሴ ቢንጎ</b> 🌟\n\n` +
+        `✅ <b>የ${threshold} ተጫዋቾች ዲፖዚት በተሳካ ሁኔታ ገቢ ተደርጓል!</b>\n` +
+        `⚡ ፈጣን እና አስተማማኝ የሂሳብ መሙያ።\n` +
+        `🛡️ 100% የታመነ እና የተረጋገጠ አሰራር።\n\n` +
+        `🎮 <b>አሁኑኑ ይጫወቱ:</b> @${botUsername}`;
+    } else {
+      caption =
+        `🏆 <b>የተረጋገጡ የሽልማት ክፍያዎች • ህዳሴ ቢንጎ</b> 🏆\n\n` +
+        `💸 <b>የ${threshold} አሸናፊዎች የሽልማት ክፍያ በተሳካ ሁኔታ ተፈጽሟል!</b>\n` +
+        `⚡ ፈጣን የባንክ እና የቴሌብር ክፍያ።\n` +
+        `🎱 በየቀኑ በ 75-ኳስ ቢንጎ ይጫወቱ፣ ያሸንፉ፣ ወዲያውኑ ብርዎን ያውጡ!\n\n` +
+        `🎮 <b>ይጫወቱ እና ያሸንፉ:</b> @${botUsername}`;
+    }
+
+    // ONLY PLAY BINGO NOW BUTTON
     const replyMarkup = {
-      inline_keyboard: [[
-        { text: '🎮 አሁኑኑ ይጫወቱ • PLAY NOW', url: `https://t.me/${botUsername}` }
-      ]]
+      inline_keyboard: [
+        [
+          { text: '🎮 አሁኑኑ ይጫወቱ • PLAY NOW', url: `https://t.me/${botUsername}` }
+        ]
+      ]
     };
 
-    // Post the cached canvas image (the exact same PNG the admin page rendered)
     const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -623,22 +535,23 @@ export async function checkAndAutoPostProofs(type: 'deposit' | 'withdrawal'): Pr
         photo: cachedImage,
         caption,
         parse_mode: 'HTML',
-        reply_markup: replyMarkup,
-      }),
+        reply_markup: replyMarkup
+      })
     });
 
     const tgData = (await tgRes.json()) as any;
     if (!tgRes.ok || !tgData.ok) {
-      console.error('[AutoPost-Server] Failed to post to channel:', tgData);
+      console.error('Failed to auto-post proof photo to channel:', tgData);
       return;
     }
 
+    // Update last post timestamp
     const nowIso = new Date().toISOString();
     await supabase.from('settings').upsert([
-      { key: isDeposit ? 'last_channel_post_deposit_at' : 'last_channel_post_withdraw_at', value: nowIso },
+      { key: isDeposit ? 'last_channel_post_deposit_at' : 'last_channel_post_withdraw_at', value: nowIso }
     ], { onConflict: 'key' });
 
-    console.log(`✅ [AutoPost-Server] Posted ${type} canvas proof to ${channelId} (${unposted}/${threshold} milestone).`);
+    console.log(`Auto-posted ${type} exact canvas proof to ${channelId} (${threshold} items milestone).`);
   } catch (autoErr) {
     console.error('Error during checkAndAutoPostProofs:', autoErr);
   }

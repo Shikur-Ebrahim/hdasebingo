@@ -196,12 +196,6 @@ export default function AdminChannelProofs() {
     fetchData();
   }, [fetchData]);
 
-  // ── Poll every 30 s — auto-post triggers even when page is left open ──────────
-  useEffect(() => {
-    const interval = setInterval(() => { fetchData(); }, 30_000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
-
   // ── 1. GENERATE APPROVED DEPOSITS CANVAS POSTER (Ivory + Emerald Green + Amharic) ──
   const generateDepositCanvas = useCallback((): string | null => {
     try {
@@ -962,74 +956,6 @@ export default function AdminChannelProofs() {
   const activeEnabled = activeTab === 'deposit' ? settings.depositEnabled : settings.withdrawEnabled;
   const progressPct = Math.min(100, Math.round((activeUnposted / Math.max(1, activeThreshold)) * 100));
 
-  // ── Auto-post tracker refs (prevent double-posting) ──────────────────────────
-  const autoPostingDeposit = useRef(false);
-  const autoPostingWithdrawal = useRef(false);
-
-  // ── Core post function (shared by manual button AND auto-post) ────────────────
-  const postToChannel = useCallback(async (type: 'deposit' | 'withdrawal', dataUrl: string) => {
-    try {
-      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
-      const res = await fetch(`${API_URL}/channel-proofs/post`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-telegram-init-data': initData,
-        },
-        body: JSON.stringify({
-          type,
-          image_base64: dataUrl,   // exact browser canvas — pixel-perfect
-          custom_channel: settings.targetChannel,
-        }),
-      });
-      const json = await res.json();
-      if (res.ok && json.success) {
-        triggerSuccessHaptic();
-        fetchData(); // refresh counts
-        return true;
-      }
-      console.error('Auto-post error:', json.error);
-      return false;
-    } catch (e) {
-      console.error('Auto-post network error:', e);
-      return false;
-    }
-  }, [settings.targetChannel, fetchData]);
-
-  // ── AUTO-POST: Deposits ───────────────────────────────────────────────────────
-  // Fires automatically whenever unpostedDeposits >= depositThreshold
-  useEffect(() => {
-    if (loading) return;
-    if (!settings.depositEnabled) return;
-    if (unpostedDeposits < settings.depositThreshold) return;
-    if (!depositDataUrl) return;
-    if (autoPostingDeposit.current) return;
-    if (recentDeposits.length === 0) return;
-
-    autoPostingDeposit.current = true;
-    console.log(`[AutoPost] Deposit threshold reached (${unpostedDeposits}/${settings.depositThreshold}). Posting canvas...`);
-    postToChannel('deposit', depositDataUrl).finally(() => {
-      autoPostingDeposit.current = false;
-    });
-  }, [loading, unpostedDeposits, settings.depositThreshold, settings.depositEnabled, depositDataUrl, recentDeposits.length, postToChannel]);
-
-  // ── AUTO-POST: Withdrawals ────────────────────────────────────────────────────
-  // Fires automatically whenever unpostedWithdrawals >= withdrawThreshold
-  useEffect(() => {
-    if (loading) return;
-    if (!settings.withdrawEnabled) return;
-    if (unpostedWithdrawals < settings.withdrawThreshold) return;
-    if (!withdrawalDataUrl) return;
-    if (autoPostingWithdrawal.current) return;
-    if (recentWithdrawals.length === 0) return;
-
-    autoPostingWithdrawal.current = true;
-    console.log(`[AutoPost] Withdrawal threshold reached (${unpostedWithdrawals}/${settings.withdrawThreshold}). Posting canvas...`);
-    postToChannel('withdrawal', withdrawalDataUrl).finally(() => {
-      autoPostingWithdrawal.current = false;
-    });
-  }, [loading, unpostedWithdrawals, settings.withdrawThreshold, settings.withdrawEnabled, withdrawalDataUrl, recentWithdrawals.length, postToChannel]);
-
   // ── Download Poster to Device ────────────────────────────────────────────────
   const handleDownloadPoster = () => {
     triggerHaptic('medium');
@@ -1089,10 +1015,9 @@ export default function AdminChannelProofs() {
   // ── Post Now to Official Channel ─────────────────────────────────────────────
   const handlePostToChannel = async () => {
     triggerHaptic('heavy');
-
     const dataUrl = activeDataUrl || (activeTab === 'deposit' ? generateDepositCanvas() : generateWithdrawalCanvas());
     if (!dataUrl) {
-      setPostErrorMsg('ምስሉ በመዘጋጀት ላይ ነው፣ እባክዎ ጥቂት ሰከንዶች ይጠብቁ...');
+      setPostErrorMsg('ምስሉ በመዘጋጀት ላይ ነው፣ እባክዎ ጥቂት ሰከንዶች ይጠብቁ... (Canvas is rendering, please wait)');
       return;
     }
 
@@ -1100,14 +1025,35 @@ export default function AdminChannelProofs() {
     setPostErrorMsg(null);
     setPostSuccessMsg(null);
 
-    const ok = await postToChannel(activeTab, dataUrl);
-    if (ok) {
-      setPostSuccessMsg(`ትክክለኛው የ${activeTab === 'deposit' ? 'ዲፖዚት' : 'ክፍያ'} ምስል በተሳካ ሁኔታ ወደ ${settings.targetChannel} ተልኳል! 🎉`);
-      setTimeout(() => setPostSuccessMsg(null), 5000);
-    } else {
-      setPostErrorMsg('Failed to post to channel. Ensure the bot is an admin in the channel!');
+    try {
+      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+      const res = await fetch(`${API_URL}/channel-proofs/post`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-init-data': initData,
+        },
+        body: JSON.stringify({
+          type: activeTab,
+          image_base64: dataUrl,
+          custom_channel: settings.targetChannel,
+        }),
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success) {
+        triggerSuccessHaptic();
+        setPostSuccessMsg(`ትክክለኛው የ${activeTab === 'deposit' ? 'ዲፖዚት' : 'ክፍያ'} ምስል በተሳካ ሁኔታ ወደ ${json.channelId || settings.targetChannel} ተልኳል! 🎉`);
+        fetchData();
+        setTimeout(() => setPostSuccessMsg(null), 5000);
+      } else {
+        setPostErrorMsg(json.error || 'Failed to post to channel. Ensure the bot is an admin in the channel!');
+      }
+    } catch (e: any) {
+      setPostErrorMsg(e.message || 'Network error while posting to channel');
+    } finally {
+      setIsPosting(false);
     }
-    setIsPosting(false);
   };
 
   // ── Save Auto-post Settings ──────────────────────────────────────────────────
