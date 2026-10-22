@@ -1,6 +1,8 @@
 import { Context } from 'grammy';
 import { InputFile } from 'grammy';
 import { upsertUser } from '../services/game';
+import { supabase } from '../services/supabase';
+import { getDynamicBotSettings } from '../services/settings';
 import path from 'path';
 
 // Cache the file_id after first upload so we don't re-upload every time
@@ -46,22 +48,19 @@ export async function startCommand(ctx: Context) {
 
   const miniAppUrl = process.env.MINI_APP_URL || 'https://hdasebingo-44kc.vercel.app';
   
-  // Fetch dynamic links & room name if roomId is present
-  let supportUsername = 'hdasebingo_admin';
-  let channelLink = 'https://t.me/hdasebingo';
+  // Dynamically fetch live support and channel settings from public.settings database
+  const settings = await getDynamicBotSettings();
+  const supportUrl = settings.support_url;
+  const channelUrl = settings.channel_url;
+
   let invitedRoomName: string | null = null;
-  try {
-    const { supabase } = await import('../services/supabase');
-    const { data: supportData } = await supabase.from('settings').select('value').eq('key', 'support_username').single();
-    const { data: channelData } = await supabase.from('settings').select('value').eq('key', 'channel_link').single();
-    if (supportData) supportUsername = supportData.value;
-    if (channelData) channelLink = channelData.value;
-    if (roomId) {
+  if (roomId) {
+    try {
       const { data: rData } = await supabase.from('rooms').select('room_name').eq('id', roomId).maybeSingle();
       if (rData?.room_name) invitedRoomName = rData.room_name;
+    } catch (err) {
+      console.error('Failed to fetch invited room in bot:', err);
     }
-  } catch (err) {
-    console.error('Failed to fetch settings in bot:', err);
   }
 
   // Construct play URL with room parameter if user was invited
@@ -71,8 +70,6 @@ export async function startCommand(ctx: Context) {
     playUrl = `${playUrl}${sep}room=${encodeURIComponent(roomId)}&startapp=room_${encodeURIComponent(roomId)}`;
   }
 
-  const channelUrl = channelLink;
-  const supportUrl = `https://t.me/${supportUsername.replace('@', '')}`;
   const botUsername = 'hdasebingo_bot';
   const inviteLink = `https://t.me/${botUsername}?start=ref_${user.id}`;
   const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent('🎮 Play Hdasebingo with me! Join and let\'s win together! 🎱')}`;

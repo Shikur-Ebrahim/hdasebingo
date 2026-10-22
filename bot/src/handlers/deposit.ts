@@ -1,5 +1,6 @@
 import { Context } from 'grammy';
 import { supabase } from '../services/supabase';
+import { getDynamicBotSettings } from '../services/settings';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import fetch from 'node-fetch';
 
@@ -55,15 +56,16 @@ export async function startDeposit(ctx: Context) {
     .single();
 
   if (pending) {
-    // Fetch support contact (worker or admin)
+    // Fetch support contact (worker or admin from settings)
     let supportText = '';
+    const settings = await getDynamicBotSettings();
     let { data: worker } = await supabase
       .from('users')
       .select('username')
       .eq('role', 'worker')
       .not('username', 'is', null)
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (!worker) {
       const { data: admin } = await supabase
@@ -72,12 +74,13 @@ export async function startDeposit(ctx: Context) {
         .eq('role', 'admin')
         .not('username', 'is', null)
         .limit(1)
-        .single();
+        .maybeSingle();
       worker = admin;
     }
 
-    if (worker?.username) {
-      const safeWorker = worker.username.replace(/[_*[\]]/g, '\\$&');
+    const contactUser = worker?.username || settings.support_username;
+    if (contactUser) {
+      const safeWorker = contactUser.replace(/[_*[\]]/g, '\\$&');
       supportText = `\n\n💬 Need help? Contact support: @${safeWorker}`;
     }
 
@@ -315,6 +318,7 @@ export async function handleDepositScreenshot(ctx: Context) {
     // Fetch support contact for success message
     let supportText = '📞 For support, contact our team.';
     let inlineKeyboard;
+    const settings = await getDynamicBotSettings();
     
     let { data: worker } = await supabase
       .from('users')
@@ -322,7 +326,7 @@ export async function handleDepositScreenshot(ctx: Context) {
       .eq('role', 'worker')
       .not('username', 'is', null)
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (!worker) {
       const { data: admin } = await supabase
@@ -331,14 +335,17 @@ export async function handleDepositScreenshot(ctx: Context) {
         .eq('role', 'admin')
         .not('username', 'is', null)
         .limit(1)
-        .single();
+        .maybeSingle();
       worker = admin;
     }
 
-    if (worker?.username) {
-      const safeUsername = worker.username.replace(/[_*[\]]/g, '\\$&');
+    const finalSupportUser = worker?.username || settings.support_username;
+    const finalSupportUrl = worker?.username ? `https://t.me/${worker.username}` : settings.support_url;
+
+    if (finalSupportUser) {
+      const safeUsername = finalSupportUser.replace(/[_*[\]]/g, '\\$&');
       supportText = `💬 Need help? Contact support: @${safeUsername}`;
-      inlineKeyboard = { inline_keyboard: [[{ text: '💬 Contact Support', url: `https://t.me/${worker.username}` }]] };
+      inlineKeyboard = { inline_keyboard: [[{ text: '💬 Contact Support', url: finalSupportUrl }]] };
     }
 
     const safeMethodName = (session.methodName || '').replace(/[_*[\]]/g, '\\$&');
