@@ -180,6 +180,30 @@ router.get('/data', validateTelegramAuth, requireAdminOrWorker, async (req: Auth
   }
 });
 
+// ── POST /api/channel-proofs/sync-cache (Sync generated canvas image to R2 for auto-post) ──
+router.post('/sync-cache', validateTelegramAuth, requireAdminOrWorker, async (req: AuthRequest, res) => {
+  try {
+    const { type, image_base64 } = req.body;
+    if (!type || !image_base64) {
+      res.status(400).json({ error: 'type and image_base64 are required' });
+      return;
+    }
+
+    const base64Data = image_base64.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+    const filename = `channel-proofs/${type}/cached_flyer.png`;
+    const publicUrl = await uploadToR2(filename, buffer, 'image/png');
+
+    const settingKey = type === 'deposit' ? 'last_channel_post_deposit_image' : 'last_channel_post_withdraw_image';
+    await supabase.from('settings').upsert([{ key: settingKey, value: publicUrl }], { onConflict: 'key' });
+
+    res.json({ success: true, publicUrl });
+  } catch (err: any) {
+    console.error('sync-cache error:', err);
+    res.status(500).json({ error: err.message || 'Internal server error' });
+  }
+});
+
 // ── POST /api/channel-proofs/post (Manual or Triggered 1-click Post to Channel) ──
 router.post('/post', validateTelegramAuth, requireAdminOrWorker, async (req: AuthRequest, res) => {
   try {
@@ -201,6 +225,8 @@ router.post('/post', validateTelegramAuth, requireAdminOrWorker, async (req: Aut
       return;
     }
 
+    const botUsername = process.env.BOT_USERNAME || 'hdasebingo_bot';
+
     // 1. Upload high-res canvas image to R2
     const base64Data = image_base64.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(base64Data, 'base64');
@@ -218,18 +244,17 @@ router.post('/post', validateTelegramAuth, requireAdminOrWorker, async (req: Aut
     // 2. Resolve destination channel
     const channelId = await resolveProofChannel(custom_channel);
 
-    // 3. Prepare rich Telegram Caption
+    // 3. Prepare clean Telegram Caption (no redundant channel link)
     let finalCaption = caption;
     if (!finalCaption) {
       if (type === 'deposit') {
         finalCaption =
           `🌟 <b>OFFICIAL APPROVED DEPOSITS • HDASE BINGO</b> 🌟\n\n` +
           `✅ <b>10 Recent Deposits Successfully Credited!</b>\n` +
-          `⚡ Fast, safe & automated wallet reloads.\n` +
-          `🛡️ 100% Verified player deposits.\n\n` +
+          `⚡ Fast, safe & automated wallet top-ups.\n` +
+          `🛡️ 100% Verified player reloads.\n\n` +
           `💰 Deposit via <b>Telebirr, CBE, BOA or Awash</b> and join live 75-Ball Bingo rooms!\n\n` +
-          `🎮 <b>Play Now:</b> @hdasebingo_bot\n` +
-          `📢 <b>Official Channel:</b> ${channelId}`;
+          `🎮 <b>Play Now:</b> @${botUsername}`;
       } else {
         finalCaption =
           `🏆 <b>OFFICIAL CASHOUT PROOFS • HDASE BINGO</b> 🏆\n\n` +
@@ -237,12 +262,11 @@ router.post('/post', validateTelegramAuth, requireAdminOrWorker, async (req: Aut
           `🎉 Congratulations to all our lucky winners!\n` +
           `⚡ Instant bank & Telebirr payouts guaranteed.\n\n` +
           `🎱 Win real ETB cash daily in high-stake & friendly rooms!\n\n` +
-          `🎮 <b>Play & Win:</b> @hdasebingo_bot\n` +
-          `📢 <b>Official Channel:</b> ${channelId}`;
+          `🎮 <b>Play & Cashout:</b> @${botUsername}`;
       }
     }
 
-    // 4. Send photo to channel via Telegram Bot API
+    // 4. Send EXACT canvas photo to channel via Telegram Bot API with ONLY Play button
     const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -254,8 +278,7 @@ router.post('/post', validateTelegramAuth, requireAdminOrWorker, async (req: Aut
         reply_markup: {
           inline_keyboard: [
             [
-              { text: '🎮 PLAY BINGO NOW', url: 'https://t.me/hdasebingo_bot' },
-              { text: '📢 OFFICIAL CHANNEL', url: `https://t.me/${channelId.replace('@', '')}` }
+              { text: '🎮 PLAY BINGO NOW', url: `https://t.me/${botUsername}` }
             ]
           ]
         }
@@ -400,6 +423,8 @@ export async function checkAndAutoPostProofs(type: 'deposit' | 'withdrawal'): Pr
     const botToken = process.env.BOT_TOKEN;
     if (!botToken) return;
 
+    const botUsername = process.env.BOT_USERNAME || 'hdasebingo_bot';
+
     // Fetch settings
     const { data: sRows } = await supabase
       .from('settings')
@@ -455,103 +480,55 @@ export async function checkAndAutoPostProofs(type: 'deposit' | 'withdrawal'): Pr
     const channelId = normalizeTelegramChannel(sMap.channel_post_target || sMap.channel_link || DEFAULT_PROOF_CHANNEL);
     const cachedImage = isDeposit ? sMap.last_channel_post_deposit_image : sMap.last_channel_post_withdraw_image;
 
-    // Fetch latest batch items to generate detailed summary
-    let textItems: string[] = [];
-    let batchTotal = 0;
-
-    if (isDeposit) {
-      const { data: recent } = await supabase
-        .from('deposits')
-        .select('amount, deposit_methods(name, type), users!deposits_telegram_id_fkey(first_name, username)')
-        .eq('status', 'approved')
-        .order('updated_at', { ascending: false })
-        .limit(threshold);
-
-      (recent || []).forEach((d: any, idx: number) => {
-        const u = d.users;
-        const rawName = u?.first_name || u?.username || 'Player';
-        const masked = rawName.length > 2 ? `${rawName.substring(0, 2)}***` : `${rawName}*`;
-        const method = d.deposit_methods?.name || d.deposit_methods?.type || 'Bank';
-        const amt = Number(d.amount || 0);
-        batchTotal += amt;
-        textItems.push(`${idx + 1}. 👤 <b>${masked}</b> • 💳 <i>${method}</i> • 💰 <b>+${amt.toLocaleString()} ETB</b> ✅`);
-      });
-    } else {
-      const { data: recentW } = await supabase
-        .from('withdrawals')
-        .select('amount, net_amount, fee_amount, account_name, account_number, withdrawal_methods(type)')
-        .eq('status', 'approved')
-        .order('updated_at', { ascending: false })
-        .limit(threshold);
-
-      (recentW || []).forEach((w: any, idx: number) => {
-        const rawName = w.account_name || 'Winner';
-        const masked = rawName.length > 2 ? `${rawName.substring(0, 2)}***` : `${rawName}*`;
-        const method = w.withdrawal_methods?.type || 'Bank';
-        const net = Number(w.net_amount || w.amount || 0);
-        batchTotal += net;
-        textItems.push(`${idx + 1}. 🏆 <b>${masked}</b> • 🏦 <i>${method}</i> • 💸 <b>${net.toLocaleString()} ETB</b> ✅`);
-      });
+    // CRITICAL: ONLY post if the exact canvas image is cached on R2!
+    // NEVER send a plain text message to the channel!
+    if (!cachedImage) {
+      console.log(`Auto-post for ${type} reached milestone (${unposted}/${threshold}), but awaiting canvas flyer sync. Plain text fallback skipped.`);
+      return;
     }
-
-    const itemsSummary = textItems.slice(0, 10).join('\n');
 
     let caption = '';
     if (isDeposit) {
       caption =
         `🌟 <b>OFFICIAL APPROVED DEPOSITS • HDASE BINGO</b> 🌟\n\n` +
         `✅ <b>Batch Milestone: ${threshold} Deposits Credited!</b>\n` +
-        `💵 <b>Batch Volume: ${batchTotal.toLocaleString()} ETB</b>\n\n` +
-        `${itemsSummary}\n\n` +
-        `⚡ Automated & Instant Wallet Top-up.\n` +
+        `⚡ Automated & Instant Wallet Top-ups.\n` +
         `🛡️ 100% Verified Player Network.\n\n` +
-        `🎮 <b>Play Now:</b> @hdasebingo_bot\n` +
-        `📢 <b>Official Channel:</b> ${channelId}`;
+        `🎮 <b>Play Now:</b> @${botUsername}`;
     } else {
       caption =
         `🏆 <b>OFFICIAL CASHOUT PROOFS • HDASE BINGO</b> 🏆\n\n` +
         `💸 <b>Batch Milestone: ${threshold} Cashouts Paid Out!</b>\n` +
-        `🎉 <b>Total Paid: ${batchTotal.toLocaleString()} ETB</b>\n\n` +
-        `${itemsSummary}\n\n` +
         `⚡ Guaranteed Fast Bank & Telebirr Payouts.\n` +
         `🎱 Win Real ETB Daily in 75-Ball Bingo!\n\n` +
-        `🎮 <b>Play & Win:</b> @hdasebingo_bot\n` +
-        `📢 <b>Official Channel:</b> ${channelId}`;
+        `🎮 <b>Play & Cashout:</b> @${botUsername}`;
     }
 
+    // ONLY PLAY BINGO NOW BUTTON
     const replyMarkup = {
       inline_keyboard: [
         [
-          { text: '🎮 PLAY BINGO NOW', url: 'https://t.me/hdasebingo_bot' },
-          { text: '📢 OFFICIAL CHANNEL', url: `https://t.me/${channelId.replace('@', '')}` }
+          { text: '🎮 PLAY BINGO NOW', url: `https://t.me/${botUsername}` }
         ]
       ]
     };
 
-    // If we have a cached banner image, post with sendPhoto; otherwise post with sendMessage
-    if (cachedImage) {
-      await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: channelId,
-          photo: cachedImage,
-          caption,
-          parse_mode: 'HTML',
-          reply_markup: replyMarkup
-        })
-      });
-    } else {
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: channelId,
-          text: caption,
-          parse_mode: 'HTML',
-          reply_markup: replyMarkup
-        })
-      });
+    const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: channelId,
+        photo: cachedImage,
+        caption,
+        parse_mode: 'HTML',
+        reply_markup: replyMarkup
+      })
+    });
+
+    const tgData = (await tgRes.json()) as any;
+    if (!tgRes.ok || !tgData.ok) {
+      console.error('Failed to auto-post proof photo to channel:', tgData);
+      return;
     }
 
     // Update last post timestamp
@@ -560,7 +537,7 @@ export async function checkAndAutoPostProofs(type: 'deposit' | 'withdrawal'): Pr
       { key: isDeposit ? 'last_channel_post_deposit_at' : 'last_channel_post_withdraw_at', value: nowIso }
     ], { onConflict: 'key' });
 
-    console.log(`Auto-posted ${type} proofs to ${channelId} (${threshold} items reach milestone).`);
+    console.log(`Auto-posted ${type} exact canvas proof to ${channelId} (${threshold} items milestone).`);
   } catch (autoErr) {
     console.error('Error during checkAndAutoPostProofs:', autoErr);
   }

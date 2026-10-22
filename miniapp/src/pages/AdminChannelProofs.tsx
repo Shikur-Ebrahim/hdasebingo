@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   ArrowLeft, Download, Send, RefreshCw, Settings2, CheckCircle2,
-  Share2, Trophy, ArrowDownToLine, ArrowUpFromLine, ShieldCheck,
-  Zap, ExternalLink, Sparkles, Check, AlertCircle, Eye
+  Trophy, ArrowDownToLine, ArrowUpFromLine,
+  ExternalLink, Sparkles, Check, AlertCircle, Eye
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
@@ -133,25 +133,6 @@ export default function AdminChannelProofs() {
     return `${clean.substring(0, 3)}***${clean.slice(-1)}`;
   };
 
-  // Helper: Mask account numbers
-  const maskAccount = (acc?: string): string => {
-    if (!acc || !acc.trim()) return '••••••••';
-    const clean = acc.trim();
-    if (clean.length <= 4) return `••••${clean}`;
-    return `${clean.substring(0, 3)}••••${clean.slice(-3)}`;
-  };
-
-  // Helper: Format Ethiopia timestamp
-  const formatTime = (iso?: string): string => {
-    if (!iso) return 'Today';
-    try {
-      const d = new Date(iso);
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-    } catch {
-      return 'Today';
-    }
-  };
-
   // ── Fetch data from API ───────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -185,7 +166,7 @@ export default function AdminChannelProofs() {
     fetchData();
   }, [fetchData]);
 
-  // ── 1. GENERATE APPROVED DEPOSITS CANVAS POSTER (750 x 1150) ──────────────────
+  // ── 1. GENERATE APPROVED DEPOSITS CANVAS POSTER (750 x 1150 - Green Accents) ──
   const generateDepositCanvas = useCallback((): string | null => {
     try {
       const width = 750;
@@ -300,9 +281,9 @@ export default function AdminChannelProofs() {
       ctx.font = 'bold 12px sans-serif';
       ctx.fillText('INSTANT WALLET TOP-UPS • 100% VERIFIED', width / 2, 188);
 
-      // Gold divider line
-      ctx.strokeStyle = '#d4af37';
-      ctx.lineWidth = 1.2;
+      // Green divider line
+      ctx.strokeStyle = '#15803d';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(width / 2 - 160, 198);
       ctx.lineTo(width / 2 + 160, 198);
@@ -311,7 +292,7 @@ export default function AdminChannelProofs() {
       // 6. Luxury Central Table Card (holds 10 rows)
       const tableX = 40;
       const tableY = 216;
-      const tableW = width - 80; // 670px
+      const tableW = width - 80;
       const tableH = 630;
       const tableRadius = 20;
 
@@ -356,13 +337,11 @@ export default function AdminChannelProofs() {
         const item = displayDeposits[i];
         const rowY = tableY + headH + i * rowH;
 
-        // Alternate row fill
         if (i % 2 === 1) {
           ctx.fillStyle = '#fdfbf7';
           ctx.fillRect(tableX + 1, rowY, tableW - 2, rowH);
         }
 
-        // Horizontal row border
         if (i < 9) {
           ctx.strokeStyle = '#f1e7d0';
           ctx.lineWidth = 1;
@@ -376,12 +355,12 @@ export default function AdminChannelProofs() {
         ctx.textBaseline = 'middle';
 
         // Index pill
-        ctx.fillStyle = '#e2e8f0';
+        ctx.fillStyle = '#dcfce7';
         ctx.beginPath();
         ctx.arc(tableX + 24, midRowY, 12, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.fillStyle = '#334155';
+        ctx.fillStyle = '#15803d';
         ctx.font = 'bold 11px sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText(String(i + 1), tableX + 24, midRowY);
@@ -430,7 +409,6 @@ export default function AdminChannelProofs() {
           ctx.font = 'bold 12px sans-serif';
           ctx.fillText('✅ Credited', tableX + tableW - 20, midRowY);
         } else {
-          // Placeholder row
           ctx.textAlign = 'left';
           ctx.fillStyle = '#94a3b8';
           ctx.font = 'italic 13px sans-serif';
@@ -543,7 +521,7 @@ export default function AdminChannelProofs() {
     }
   }, [recentDeposits, botUsername]);
 
-  // ── 2. GENERATE APPROVED WITHDRAWALS (CASHOUT) CANVAS (750 x 1150) ────────────
+  // ── 2. GENERATE APPROVED WITHDRAWALS CANVAS (750 x 1150 - Light Ivory with RED Lines & Accents) ──
   const generateWithdrawalCanvas = useCallback((): string | null => {
     try {
       const width = 750;
@@ -554,35 +532,34 @@ export default function AdminChannelProofs() {
       const ctx = canvas.getContext('2d');
       if (!ctx) return null;
 
-      // 1. Victory Emerald & Deep Obsidian gradient background
+      // 1. Crystal-clear warm ivory luxury background (exact same clarity as deposit)
       const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-      bgGrad.addColorStop(0, '#042217');
-      bgGrad.addColorStop(0.3, '#063323');
-      bgGrad.addColorStop(0.7, '#031f15');
-      bgGrad.addColorStop(1, '#01120c');
+      bgGrad.addColorStop(0, '#ffffff');
+      bgGrad.addColorStop(0.2, '#fdfbf7');
+      bgGrad.addColorStop(0.6, '#faf4e6');
+      bgGrad.addColorStop(1, '#f3ebd6');
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, width, height);
 
-      // Radial victory glow in upper center
-      const radial = ctx.createRadialGradient(width / 2, 380, 40, width / 2, 380, 600);
-      radial.addColorStop(0, 'rgba(16, 185, 129, 0.22)');
-      radial.addColorStop(0.6, 'rgba(5, 150, 105, 0.08)');
-      radial.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      // Radial ambient lighting
+      const radial = ctx.createRadialGradient(width / 2, 420, 50, width / 2, 420, 580);
+      radial.addColorStop(0, 'rgba(255, 255, 255, 0.98)');
+      radial.addColorStop(1, 'rgba(245, 235, 215, 0)');
       ctx.fillStyle = radial;
       ctx.fillRect(0, 0, width, height);
 
       // 2. Double gold ornate border frame
-      ctx.strokeStyle = '#d4af37';
+      ctx.strokeStyle = '#c59b27';
       ctx.lineWidth = 2.5;
       ctx.strokeRect(20, 20, width - 40, height - 40);
 
-      ctx.strokeStyle = '#fef08a';
+      ctx.strokeStyle = '#e6c86e';
       ctx.lineWidth = 1;
       ctx.strokeRect(26, 26, width - 52, height - 52);
 
       // Corner diamonds
-      const drawDiamond = (x: number, y: number, s: number) => {
-        ctx.fillStyle = '#fef08a';
+      const drawDiamond = (x: number, y: number, s: number, color = '#b8860b') => {
+        ctx.fillStyle = color;
         ctx.beginPath();
         ctx.moveTo(x, y - s);
         ctx.lineTo(x + s, y);
@@ -596,12 +573,12 @@ export default function AdminChannelProofs() {
       drawDiamond(26, height - 26, 4.5);
       drawDiamond(width - 26, height - 26, 4.5);
 
-      // 3. Top Royal Crown & HB Medallion Emblem
+      // 3. Top Royal Crown & HB Medallion Emblem with Ruby Red accent
       const emblemY = 76;
       const emblemX = width / 2;
 
       // Crown base
-      ctx.fillStyle = '#fbbf24';
+      ctx.fillStyle = '#d4af37';
       ctx.beginPath();
       ctx.roundRect(emblemX - 22, emblemY - 34, 44, 7, 2);
       ctx.fill();
@@ -619,7 +596,7 @@ export default function AdminChannelProofs() {
       ctx.fill();
 
       // Crown pearls
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = '#fef08a';
       [-25, -12, 0, 12, 25].forEach((px, idx) => {
         const py = idx === 2 ? emblemY - 57 : (idx === 0 || idx === 4) ? emblemY - 53 : emblemY - 41;
         ctx.beginPath();
@@ -627,13 +604,13 @@ export default function AdminChannelProofs() {
         ctx.fill();
       });
 
-      // Medallion Circle with HB Monogram
-      ctx.fillStyle = '#064e3b';
+      // Medallion Circle with HB Monogram in deep ruby red
+      ctx.fillStyle = '#991b1b'; // Ruby Red medallion
       ctx.beginPath();
       ctx.arc(emblemX, emblemY - 10, 23, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.strokeStyle = '#fef08a';
+      ctx.strokeStyle = '#d4af37';
       ctx.lineWidth = 3;
       ctx.stroke();
 
@@ -645,51 +622,52 @@ export default function AdminChannelProofs() {
       ctx.textBaseline = 'alphabetic';
 
       // 4. Main Title "HDASE BINGO"
-      ctx.fillStyle = '#fef08a';
+      ctx.fillStyle = '#0f172a';
       ctx.font = '900 38px "Times New Roman", Georgia, serif';
       ctx.textAlign = 'center';
       ctx.fillText('HDASE BINGO', width / 2, 134);
 
-      // 5. Header: "OFFICIAL CASHOUT PROOFS"
-      ctx.fillStyle = '#34d399'; // Bright emerald
-      ctx.font = '900 20px sans-serif';
-      ctx.fillText('🏆 OFFICIAL CASHOUT PROOFS', width / 2, 168);
+      // 5. Header: "OFFICIAL CASHOUT PROOFS" in Ruby Red
+      ctx.fillStyle = '#dc2626'; // Bold Ruby Red
+      ctx.font = '900 19px sans-serif';
+      ctx.fillText('🔴 OFFICIAL CASHOUT PROOFS', width / 2, 168);
 
-      ctx.fillStyle = '#a7f3d0';
+      ctx.fillStyle = '#991b1b'; // Red subtitle
       ctx.font = 'bold 12px sans-serif';
       ctx.fillText('VERIFIED WINNERS • INSTANT BANK & TELEBIRR PAYOUTS', width / 2, 188);
 
-      // Gold divider line
-      ctx.strokeStyle = '#d4af37';
-      ctx.lineWidth = 1.2;
+      // DISTINCTIVE RED DIVIDER LINE (as requested by user)
+      ctx.strokeStyle = '#dc2626';
+      ctx.lineWidth = 1.8;
       ctx.beginPath();
-      ctx.moveTo(width / 2 - 160, 198);
-      ctx.lineTo(width / 2 + 160, 198);
+      ctx.moveTo(width / 2 - 170, 198);
+      ctx.lineTo(width / 2 + 170, 198);
       ctx.stroke();
+      drawDiamond(width / 2, 198, 5, '#dc2626');
 
-      // 6. Luxury Dark Obsidian Table Card (holds 10 rows)
+      // 6. Luxury Central White Table Card (holds 10 rows)
       const tableX = 40;
       const tableY = 216;
       const tableW = width - 80;
       const tableH = 630;
       const tableRadius = 20;
 
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-      ctx.shadowBlur = 28;
-      ctx.shadowOffsetY = 10;
-      ctx.fillStyle = '#06261b';
+      ctx.shadowColor = 'rgba(180, 50, 50, 0.09)';
+      ctx.shadowBlur = 24;
+      ctx.shadowOffsetY = 8;
+      ctx.fillStyle = '#ffffff';
       ctx.beginPath();
       ctx.roundRect(tableX, tableY, tableW, tableH, tableRadius);
       ctx.fill();
       ctx.shadowColor = 'transparent';
 
-      ctx.strokeStyle = '#d4af37';
+      ctx.strokeStyle = '#c59b27';
       ctx.lineWidth = 2.5;
       ctx.stroke();
 
       // Table Header Row
       const headH = 46;
-      ctx.fillStyle = '#021810';
+      ctx.fillStyle = '#1e293b';
       ctx.beginPath();
       ctx.roundRect(tableX, tableY, tableW, headH, [tableRadius, tableRadius, 0, 0]);
       ctx.fill();
@@ -715,15 +693,14 @@ export default function AdminChannelProofs() {
         const item = displayWithdrawals[i];
         const rowY = tableY + headH + i * rowH;
 
-        // Alternate row fill
+        // Alternate row fill with soft rose tint
         if (i % 2 === 1) {
-          ctx.fillStyle = '#083324';
+          ctx.fillStyle = '#fff9f9';
           ctx.fillRect(tableX + 1, rowY, tableW - 2, rowH);
         }
 
-        // Horizontal row border
         if (i < 9) {
-          ctx.strokeStyle = '#0b4230';
+          ctx.strokeStyle = '#fee2e2'; // Light red row separator
           ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.moveTo(tableX + 10, rowY + rowH);
@@ -734,13 +711,13 @@ export default function AdminChannelProofs() {
         const midRowY = rowY + rowH / 2;
         ctx.textBaseline = 'middle';
 
-        // Index pill
-        ctx.fillStyle = '#0f513d';
+        // Index pill in rose red
+        ctx.fillStyle = '#fee2e2';
         ctx.beginPath();
         ctx.arc(tableX + 24, midRowY, 12, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.fillStyle = '#fef08a';
+        ctx.fillStyle = '#991b1b';
         ctx.font = 'bold 11px sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText(String(i + 1), tableX + 24, midRowY);
@@ -754,78 +731,72 @@ export default function AdminChannelProofs() {
 
           // Winner Name
           ctx.textAlign = 'left';
-          ctx.fillStyle = '#ffffff';
+          ctx.fillStyle = '#0f172a';
           ctx.font = 'bold 14px sans-serif';
           ctx.fillText(winnerName, tableX + 50, midRowY);
 
-          // Method Badge
-          const isTelebirr = method.toLowerCase().includes('tele');
-          const isCbe = method.toLowerCase().includes('cbe');
-          const badgeBg = isTelebirr ? '#431407' : isCbe ? '#3b0764' : '#064e3b';
-          const badgeBorder = isTelebirr ? '#ea580c' : isCbe ? '#9333ea' : '#10b981';
-          const badgeText = isTelebirr ? '#fdba74' : isCbe ? '#d8b4fe' : '#6ee7b7';
-
-          ctx.fillStyle = badgeBg;
+          // Method Badge in soft rose/red style
+          ctx.fillStyle = '#fff1f2';
           ctx.beginPath();
           ctx.roundRect(tableX + 225, midRowY - 12, 100, 24, 6);
           ctx.fill();
-          ctx.strokeStyle = badgeBorder;
+          ctx.strokeStyle = '#f43f5e';
           ctx.lineWidth = 1;
           ctx.stroke();
 
-          ctx.fillStyle = badgeText;
+          ctx.fillStyle = '#9f1239';
           ctx.font = 'bold 11px sans-serif';
           ctx.textAlign = 'center';
           ctx.fillText(method.substring(0, 12), tableX + 275, midRowY);
 
-          // Amount
+          // Net Payout in BOLD RUBY RED (clean and readable)
           ctx.textAlign = 'right';
-          ctx.fillStyle = '#34d399';
+          ctx.fillStyle = '#dc2626'; // Bold Red
           ctx.font = '900 15px sans-serif';
           ctx.fillText(`+${net.toLocaleString()} ETB`, tableX + 480, midRowY);
 
           // Status Badge
-          ctx.fillStyle = '#fbbf24';
+          ctx.fillStyle = '#16a34a';
           ctx.font = 'bold 12px sans-serif';
           ctx.fillText('✅ Paid Out', tableX + tableW - 20, midRowY);
         } else {
-          // Placeholder row
           ctx.textAlign = 'left';
-          ctx.fillStyle = '#6ee7b7';
+          ctx.fillStyle = '#94a3b8';
           ctx.font = 'italic 13px sans-serif';
           ctx.fillText('Verified Winner Cashout', tableX + 50, midRowY);
 
           ctx.textAlign = 'right';
-          ctx.fillStyle = '#34d399';
+          ctx.fillStyle = '#dc2626';
           ctx.font = 'bold 13px sans-serif';
           ctx.fillText('+1,500 ETB', tableX + 480, midRowY);
           ctx.fillText('✅ Paid Out', tableX + tableW - 20, midRowY);
         }
       }
 
-      // Summary Card Footer inside Table Box
+      // Summary Card Footer inside Table Box (Champagne & Rose Gold)
       const sumBoxY = tableY + tableH - 62;
       const sumGrad = ctx.createLinearGradient(tableX, sumBoxY, tableX + tableW, sumBoxY);
-      sumGrad.addColorStop(0, '#042e20');
-      sumGrad.addColorStop(1, '#064e3b');
+      sumGrad.addColorStop(0, '#fee2e2');
+      sumGrad.addColorStop(0.5, '#fef9c3');
+      sumGrad.addColorStop(1, '#fee2e2');
       ctx.fillStyle = sumGrad;
       ctx.beginPath();
       ctx.roundRect(tableX + 12, sumBoxY, tableW - 24, 50, 12);
       ctx.fill();
-      ctx.strokeStyle = '#34d399';
+      ctx.strokeStyle = '#f87171'; // Red border
       ctx.lineWidth = 1.2;
       ctx.stroke();
 
       const midSumY = sumBoxY + 25;
       ctx.textAlign = 'left';
-      ctx.fillStyle = '#a7f3d0';
+      ctx.fillStyle = '#991b1b';
       ctx.font = 'bold 14px sans-serif';
       ctx.fillText('💸 BATCH TOTAL PAID OUT:', tableX + 28, midSumY);
 
       ctx.textAlign = 'right';
-      ctx.fillStyle = '#fef08a';
+      ctx.fillStyle = '#b91c1c';
       ctx.font = '900 19px sans-serif';
-      const displaySum = batchSum > 0 ? batchSum : 28400;
+      const displaySum = batchSum > 0 ? batchSum : 8636;
       ctx.fillText(`${displaySum.toLocaleString()} ETB`, tableX + tableW - 28, midSumY);
 
       // 7. Trust Badges row
@@ -844,13 +815,13 @@ export default function AdminChannelProofs() {
         ctx.textAlign = 'center';
         ctx.fillText(b.icon, colX, badgeY);
 
-        ctx.fillStyle = '#a7f3d0';
+        ctx.fillStyle = '#991b1b';
         ctx.font = '900 10.5px sans-serif';
         ctx.fillText(b.label, colX, badgeY + 22);
 
         if (idx < 3) {
           const divX = 50 + (idx + 1) * colW;
-          ctx.strokeStyle = '#0d5942';
+          ctx.strokeStyle = '#fca5a5';
           ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.moveTo(divX, badgeY - 12);
@@ -859,27 +830,27 @@ export default function AdminChannelProofs() {
         }
       });
 
-      // 8. Cursive Motto
+      // 8. Cursive Motto in deep ruby red
       ctx.textAlign = 'center';
-      ctx.fillStyle = '#fef08a';
+      ctx.fillStyle = '#7f1d1d';
       ctx.font = 'italic bold 22px "Brush Script MT", "Great Vibes", "Lucida Calligraphy", cursive, serif';
       ctx.fillText('Play With Trust  •  Win Real Cash  •  Instant Cashouts', width / 2, 946);
 
-      // 9. Official Bot Handle Box
+      // 9. Official Bot Handle Box in Ruby Red gradient
       const botBoxW = 420;
       const botBoxH = 46;
       const botBoxX = (width - botBoxW) / 2;
       const botBoxY = 975;
 
       const botGrad = ctx.createLinearGradient(botBoxX, botBoxY, botBoxX + botBoxW, botBoxY);
-      botGrad.addColorStop(0, '#d97706');
-      botGrad.addColorStop(1, '#b45309');
+      botGrad.addColorStop(0, '#dc2626');
+      botGrad.addColorStop(1, '#991b1b');
       ctx.fillStyle = botGrad;
       ctx.beginPath();
       ctx.roundRect(botBoxX, botBoxY, botBoxW, botBoxH, 23);
       ctx.fill();
 
-      ctx.strokeStyle = '#fef08a';
+      ctx.strokeStyle = '#fbbf24'; // Gold border
       ctx.lineWidth = 2;
       ctx.stroke();
 
@@ -891,7 +862,7 @@ export default function AdminChannelProofs() {
       ctx.textBaseline = 'alphabetic';
 
       // 10. Footer
-      ctx.fillStyle = '#6ee7b7';
+      ctx.fillStyle = '#9c8141';
       ctx.font = '600 12px sans-serif';
       ctx.fillText('Official Channel Partner • Powered by HDASE BINGO', width / 2, 1056);
 
@@ -914,6 +885,35 @@ export default function AdminChannelProofs() {
 
     return () => clearTimeout(timer);
   }, [generateDepositCanvas, generateWithdrawalCanvas, recentDeposits, recentWithdrawals]);
+
+  // Automatic background cache sync so R2 ALWAYS has fresh high-res canvas images
+  useEffect(() => {
+    if (depositDataUrl) {
+      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+      fetch(`${API_URL}/channel-proofs/sync-cache`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-init-data': initData,
+        },
+        body: JSON.stringify({ type: 'deposit', image_base64: depositDataUrl }),
+      }).catch(() => {});
+    }
+  }, [depositDataUrl]);
+
+  useEffect(() => {
+    if (withdrawalDataUrl) {
+      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+      fetch(`${API_URL}/channel-proofs/sync-cache`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-init-data': initData,
+        },
+        body: JSON.stringify({ type: 'withdrawal', image_base64: withdrawalDataUrl }),
+      }).catch(() => {});
+    }
+  }, [withdrawalDataUrl]);
 
   // Active data URL based on tab
   const activeDataUrl = activeTab === 'deposit' ? depositDataUrl : withdrawalDataUrl;
@@ -1196,17 +1196,17 @@ export default function AdminChannelProofs() {
             </div>
 
             {/* Withdrawals Trigger */}
-            <div className="p-3 bg-amber-50/70 border border-amber-100 rounded-xl">
+            <div className="p-3 bg-rose-50/70 border border-rose-100 rounded-xl">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-black text-amber-900 flex items-center gap-1.5">
-                  <ArrowUpFromLine size={14} className="text-amber-600" />
+                <span className="text-xs font-black text-rose-900 flex items-center gap-1.5">
+                  <ArrowUpFromLine size={14} className="text-rose-600" />
                   <span>Approved Withdrawals Auto-Post</span>
                 </span>
                 <input
                   type="checkbox"
                   checked={formWithdrawEnabled}
                   onChange={(e) => setFormWithdrawEnabled(e.target.checked)}
-                  className="w-4 h-4 accent-amber-600 rounded"
+                  className="w-4 h-4 accent-rose-600 rounded"
                 />
               </div>
               <div className="flex items-center justify-between text-xs font-bold text-slate-700">
@@ -1269,7 +1269,7 @@ export default function AdminChannelProofs() {
             }}
             className={`flex-1 py-2.5 rounded-xl font-black text-xs flex items-center justify-center space-x-1.5 transition-all ${
               activeTab === 'withdrawal'
-                ? 'bg-amber-600 text-white shadow-md'
+                ? 'bg-rose-600 text-white shadow-md'
                 : 'text-slate-600 hover:bg-slate-50'
             }`}
           >
@@ -1277,7 +1277,7 @@ export default function AdminChannelProofs() {
             <span>Approved Withdrawals</span>
             {unpostedWithdrawals > 0 && (
               <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                activeTab === 'withdrawal' ? 'bg-white text-amber-700' : 'bg-amber-100 text-amber-800'
+                activeTab === 'withdrawal' ? 'bg-white text-rose-700' : 'bg-rose-100 text-rose-800'
               }`}>
                 {unpostedWithdrawals}
               </span>
@@ -1304,7 +1304,7 @@ export default function AdminChannelProofs() {
               className={`h-full rounded-full transition-all duration-500 ${
                 activeTab === 'deposit'
                   ? 'bg-gradient-to-r from-emerald-500 to-green-600'
-                  : 'bg-gradient-to-r from-amber-500 to-yellow-600'
+                  : 'bg-gradient-to-r from-rose-500 to-red-600'
               } ${activeUnposted >= activeThreshold ? 'animate-pulse' : ''}`}
               style={{ width: `${progressPct}%` }}
             />
@@ -1334,7 +1334,7 @@ export default function AdminChannelProofs() {
         <div className="bg-white rounded-2xl border border-slate-200 p-3 shadow-sm">
           <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
             <span className="text-xs font-black text-slate-700 flex items-center gap-1.5">
-              <Eye size={14} className="text-emerald-600" />
+              <Eye size={14} className={activeTab === 'deposit' ? 'text-emerald-600' : 'text-rose-600'} />
               <span>Live Flyer Canvas Preview</span>
             </span>
             <span className="text-[10px] text-slate-400 font-bold bg-slate-100 px-2 py-0.5 rounded-full">
@@ -1368,7 +1368,7 @@ export default function AdminChannelProofs() {
           className={`w-full py-3.5 rounded-2xl font-black text-sm flex items-center justify-center space-x-2 shadow-lg active:scale-95 transition-all ${
             activeTab === 'deposit'
               ? 'bg-gradient-to-r from-emerald-600 to-green-700 text-white shadow-emerald-600/25'
-              : 'bg-gradient-to-r from-amber-600 to-yellow-600 text-white shadow-amber-600/25'
+              : 'bg-gradient-to-r from-rose-600 to-red-700 text-white shadow-rose-600/25'
           } ${isPosting ? 'opacity-70 cursor-wait' : ''}`}
         >
           {isPosting ? (
@@ -1415,7 +1415,7 @@ export default function AdminChannelProofs() {
             href={`https://t.me/${settings.targetChannel.replace('@', '')}`}
             target="_blank"
             rel="noreferrer"
-            className="text-xs font-bold text-emerald-700 hover:text-emerald-800 inline-flex items-center gap-1"
+            className="text-xs font-bold text-slate-600 hover:text-slate-800 inline-flex items-center gap-1"
           >
             <span>Target: {settings.targetChannel}</span>
             <ExternalLink size={12} />
