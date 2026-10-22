@@ -590,12 +590,6 @@ export default function Withdraw() {
               </div>
             </div>
 
-            {/* Info box */}
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-              <p className="text-xs text-blue-700 font-medium leading-relaxed">
-                ⚠️ {t[language].withdraw.infoBox}
-              </p>
-            </div>
 
             <button
               type="submit"
