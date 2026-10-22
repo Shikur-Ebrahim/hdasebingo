@@ -1012,21 +1012,16 @@ export default function AdminChannelProofs() {
     }
   };
 
-  // ── Post Now to Official Channel ─────────────────────────────────────────────
+  // ── Post Now to Official Channel (server generates the flyer server-side) ────
   const handlePostToChannel = async () => {
     triggerHaptic('heavy');
-    const dataUrl = activeDataUrl || (activeTab === 'deposit' ? generateDepositCanvas() : generateWithdrawalCanvas());
-    if (!dataUrl) {
-      setPostErrorMsg('ምስሉ በመዘጋጀት ላይ ነው፣ እባክዎ ጥቂት ሰከንዶች ይጠብቁ... (Canvas is rendering, please wait)');
-      return;
-    }
-
     setIsPosting(true);
     setPostErrorMsg(null);
     setPostSuccessMsg(null);
 
     try {
       const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+      // Server generates the flyer from DB — no need to send image_base64
       const res = await fetch(`${API_URL}/channel-proofs/post`, {
         method: 'POST',
         headers: {
@@ -1035,7 +1030,6 @@ export default function AdminChannelProofs() {
         },
         body: JSON.stringify({
           type: activeTab,
-          image_base64: dataUrl,
           custom_channel: settings.targetChannel,
         }),
       });
