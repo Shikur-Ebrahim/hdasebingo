@@ -9,7 +9,6 @@ import {
   Calendar,
   TrendingUp,
   ChevronDown,
-  Percent,
   Gamepad2,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -23,7 +22,6 @@ interface Tx {
   type:
     | 'deposit'
     | 'withdrawal'
-    | 'withdrawal_fee'
     | 'welcome_bonus'
     | 'deposit_bonus'
     | 'second_deposit_bonus'
@@ -31,8 +29,6 @@ interface Tx {
     | 'jackpot_8'
     | 'jackpot_10';
   amount: number;
-  gross_amount?: number;
-  fee_amount?: number;
   status: string;
   created_at: string;
   username: string;
@@ -43,9 +39,7 @@ interface Tx {
 
 interface Stats {
   totalDeposits: number;
-  totalWithdrawals: number; // Actual net payout
-  totalWithdrawalGross?: number;
-  totalWithdrawalFees?: number;
+  totalWithdrawals: number; // Actual withdrawal amount
   totalWelcomeBonus: number;
   totalDepBonus: number;
   totalSecondDepBonus: number;
@@ -79,18 +73,11 @@ const TYPE_META: Record<
     badge: 'bg-emerald-100 text-emerald-700',
   },
   withdrawal: {
-    label: 'Withdrawal (Payout)',
+    label: 'Withdrawal',
     icon: <ArrowUpCircle size={14} />,
     color: 'text-rose-600',
     bg: 'bg-rose-50',
     badge: 'bg-rose-100 text-rose-700',
-  },
-  withdrawal_fee: {
-    label: 'Withdrawal Fee',
-    icon: <Percent size={14} />,
-    color: 'text-teal-600',
-    bg: 'bg-teal-50',
-    badge: 'bg-teal-100 text-teal-700',
   },
   welcome_bonus: {
     label: 'Welcome Bonus',
@@ -180,8 +167,6 @@ export default function AdminTxReport() {
   const [stats, setStats] = useState<Stats>({
     totalDeposits: 0,
     totalWithdrawals: 0,
-    totalWithdrawalGross: 0,
-    totalWithdrawalFees: 0,
     totalWelcomeBonus: 0,
     totalDepBonus: 0,
     totalSecondDepBonus: 0,
@@ -271,7 +256,7 @@ export default function AdminTxReport() {
   const filtered = filter === 'all' ? transactions : transactions.filter((t) => t.type === filter);
   const visibleTxs = filtered.slice(0, visibleCount);
 
-  // Net Profit formula using actual payout
+  // Net Profit formula: Deposits - Withdrawals (Actual) - Bonuses - Jackpots
   const netProfit =
     (stats.totalDeposits || 0) -
     (stats.totalWithdrawals || 0) -
@@ -292,23 +277,12 @@ export default function AdminTxReport() {
       bg: 'bg-emerald-50',
     },
     {
-      label: 'Withdrawals (Payout)',
+      label: 'Withdrawals',
       value: stats.totalWithdrawals,
-      sub:
-        (stats.totalWithdrawalGross || 0) > stats.totalWithdrawals
-          ? `Gross: ${fmt(stats.totalWithdrawalGross || 0)} ETB`
-          : 'Actual Paid Out',
+      sub: 'Actual Cash Out',
       icon: <ArrowUpCircle size={16} />,
       color: 'text-rose-600',
       bg: 'bg-rose-50',
-    },
-    {
-      label: 'Withdrawal Fees',
-      value: stats.totalWithdrawalFees || 0,
-      sub: 'Service Fee Retained',
-      icon: <Percent size={16} />,
-      color: 'text-teal-600',
-      bg: 'bg-teal-50',
     },
     {
       label: 'Match Commission',
@@ -372,7 +346,6 @@ export default function AdminTxReport() {
     { id: 'all', label: 'All' },
     { id: 'deposit', label: 'Deposit' },
     { id: 'withdrawal', label: 'Withdrawal' },
-    { id: 'withdrawal_fee', label: 'Withdrawal Fee' },
     { id: 'welcome_bonus', label: 'Welcome Bonus' },
     { id: 'deposit_bonus', label: '1st Deposit Bonus' },
     { id: 'second_deposit_bonus', label: '2nd Deposit Bonus' },
@@ -521,7 +494,7 @@ export default function AdminTxReport() {
                 <TrendingUp size={16} className="text-emerald-400" />
                 <span className="text-white font-bold text-xs">Net Profit Breakdown</span>
               </div>
-              <span className="text-[10px] text-slate-400 font-medium">True Cash & Payout Flow</span>
+              <span className="text-[10px] text-slate-400 font-medium">True Cash Flow</span>
             </div>
 
             {/* Formula rows */}
@@ -537,40 +510,16 @@ export default function AdminTxReport() {
                 </span>
               </div>
 
-              {/* Withdrawals (Actual Payout) */}
+              {/* Withdrawals */}
               <div className="flex items-center justify-between">
-                <div className="flex flex-col">
-                  <div className="flex items-center space-x-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                    <span className="text-white/80 text-[11px] font-medium">
-                      Withdrawals (Actual Payout)
-                    </span>
-                  </div>
-                  {(stats.totalWithdrawalGross || 0) > 0 && (
-                    <span className="text-[9px] text-slate-400 pl-3">
-                      Gross: {fmt(stats.totalWithdrawalGross || 0)} · Fee: {fmt(stats.totalWithdrawalFees || 0)} ETB
-                    </span>
-                  )}
+                <div className="flex items-center space-x-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                  <span className="text-white/80 text-[11px] font-medium">Withdrawals</span>
                 </div>
                 <span className="text-rose-400 font-bold text-[12px]">
                   −{fmt(stats.totalWithdrawals)} ETB
                 </span>
               </div>
-
-              {/* Withdrawal Fee Collected (Retained) */}
-              {(stats.totalWithdrawalFees || 0) > 0 && (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-teal-400" />
-                    <span className="text-teal-300 text-[11px] font-medium">
-                      Withdrawal Fee (Retained Profit)
-                    </span>
-                  </div>
-                  <span className="text-teal-300 font-bold text-[11px]">
-                    +{fmt(stats.totalWithdrawalFees || 0)} ETB
-                  </span>
-                </div>
-              )}
 
               {/* Game Match Platform Commission */}
               {(stats.totalGameProfit || 0) > 0 && (
@@ -710,7 +659,6 @@ export default function AdminTxReport() {
               {visibleTxs.map((tx) => {
                 const meta = TYPE_META[tx.type] || TYPE_META.deposit;
                 const isWithdrawal = tx.type === 'withdrawal';
-                const isFee = tx.type === 'withdrawal_fee';
 
                 return (
                   <div
@@ -743,28 +691,16 @@ export default function AdminTxReport() {
 
                       <p className="text-xs font-bold text-slate-800 truncate">@{tx.username}</p>
 
-                      <div className="flex items-center flex-wrap gap-x-2 text-[10px] text-slate-400 font-medium mt-0.5">
-                        <span>{fmtTime(tx.created_at)}</span>
-                        {isWithdrawal && (tx.fee_amount || 0) > 0 && (
-                          <span className="text-teal-600 font-semibold bg-teal-50 px-1.5 py-0.2 rounded-md">
-                            Fee: {fmt(tx.fee_amount || 0)} · Gross: {fmt(tx.gross_amount || 0)} ETB
-                          </span>
-                        )}
-                        {isFee && (
-                          <span className="text-slate-500 font-medium">
-                            Deducted from gross {fmt(tx.gross_amount || 0)} ETB
-                          </span>
-                        )}
-                      </div>
+                      <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                        {fmtTime(tx.created_at)}
+                      </p>
                     </div>
 
                     <div className="text-right shrink-0">
                       <p className={`text-sm font-bold ${meta.color}`}>
                         {isWithdrawal ? '−' : '+'}{fmt(tx.amount)}
                       </p>
-                      <p className="text-[9px] text-slate-400 font-semibold">
-                        {isWithdrawal ? 'Payout ETB' : isFee ? 'Fee ETB' : 'ETB'}
-                      </p>
+                      <p className="text-[9px] text-slate-400 font-semibold">ETB</p>
                     </div>
                   </div>
                 );

@@ -765,8 +765,6 @@ router.get('/tx-report', validateTelegramAuth, requireAdmin, async (req, res) =>
 
   let totalDeposits = 0;
   let totalWithdrawals = 0; // Actual net payout sent to users
-  let totalWithdrawalGross = 0; // Total requested amount
-  let totalWithdrawalFees = 0; // Platform withdrawal fees collected
   let totalDepBonus = 0;
   let totalSecondDepBonus = 0;
   let totalInvBonus = 0;
@@ -816,36 +814,18 @@ router.get('/tx-report', validateTelegramAuth, requireAdmin, async (req, res) =>
 
     if (w.status === 'approved') {
       totalWithdrawals += actualPayout;
-      totalWithdrawalGross += grossAmt;
-      totalWithdrawalFees += feeAmt;
     }
 
     const username = wUsersMap[w.telegram_id] || 'Unknown';
     txList.push({
       id: w.id,
       type: 'withdrawal',
-      amount: actualPayout, // actual payout amount
-      gross_amount: grossAmt,
-      fee_amount: feeAmt,
+      amount: actualPayout, // actual withdrawal amount
       status: w.status,
       created_at: w.created_at,
       username,
       telegram_id: w.telegram_id,
     });
-
-    // Also record fee if approved and fee > 0
-    if (w.status === 'approved' && feeAmt > 0) {
-      txList.push({
-        id: w.id + '_fee',
-        type: 'withdrawal_fee',
-        amount: feeAmt,
-        gross_amount: grossAmt,
-        status: 'approved',
-        created_at: w.created_at,
-        username,
-        telegram_id: w.telegram_id,
-      });
-    }
   });
 
   // ─── Bingo jackpot wins (8-call and 10-call) ────────────────────────────────
@@ -950,8 +930,6 @@ router.get('/tx-report', validateTelegramAuth, requireAdmin, async (req, res) =>
     stats: {
       totalDeposits,
       totalWithdrawals,
-      totalWithdrawalGross,
-      totalWithdrawalFees,
       totalDepBonus,
       totalSecondDepBonus,
       totalInvBonus,
