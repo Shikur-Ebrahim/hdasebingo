@@ -30,6 +30,9 @@ interface AgentWithdrawal {
   account_holder_name: string;
   account_number: string;
   amount: number;
+  fee_percent?: number;
+  fee_amount?: number;
+  net_amount?: number;
   status: 'pending' | 'approved' | 'rejected';
   admin_note?: string;
   created_at: string;
@@ -331,6 +334,37 @@ export default function AdminAgentWithdrawals() {
                           title="Copy Account Number"
                         >
                           {copiedField === `${w.id}-acc` ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Server Fee & Net Payout Breakdown */}
+                  <div className="bg-purple-50/70 rounded-2xl p-3 border border-purple-100 space-y-1.5 text-xs">
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="text-purple-700 font-bold">Requested Gross Amount:</span>
+                      <span className="font-black text-slate-800">{Number(w.amount).toLocaleString()} ETB</span>
+                    </div>
+                    {Number(w.fee_amount || 0) > 0 && (
+                      <div className="flex justify-between items-center text-[11px]">
+                        <span className="text-purple-700 font-bold">Server Fee ({w.fee_percent || 0}%):</span>
+                        <span className="font-black text-rose-600">-{Number(w.fee_amount).toLocaleString()} ETB</span>
+                      </div>
+                    )}
+                    <div className="h-px bg-purple-200/60" />
+                    <div className="flex justify-between items-center">
+                      <span className="text-purple-900 font-black text-xs">Net Payout to Send:</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-black text-emerald-600 text-sm">
+                          {Number(w.net_amount || w.amount).toLocaleString()} ETB
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(String(w.net_amount || w.amount), `${w.id}-net`)}
+                          className="p-1 rounded-md hover:bg-purple-100 text-purple-600 active:scale-95"
+                          title="Copy Net Amount"
+                        >
+                          {copiedField === `${w.id}-net` ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
                         </button>
                       </div>
                     </div>

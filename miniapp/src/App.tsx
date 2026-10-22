@@ -22,6 +22,7 @@ import Support from './pages/Support';
 import AdminHdaseQr from './pages/AdminHdaseQr';
 import AdminChannelProofs from './pages/AdminChannelProofs';
 import AdminGameReport from './pages/AdminGameReport';
+import AdminAgencyWithdrawalFee from './pages/AdminAgencyWithdrawalFee';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Show/hide Telegram's native Back button based on route depth
@@ -404,6 +405,7 @@ function App() {
           <Route path="/admin/deposit-methods" element={<AdminDepositMethods />} />
           <Route path="/admin/withdrawal-methods" element={<AdminWithdrawalMethods />} />
           <Route path="/admin/user-withdrawal-fee" element={<AdminUserWithdrawalFee />} />
+          <Route path="/admin/agency-withdrawal-fee" element={<AdminAgencyWithdrawalFee />} />
           <Route path="/admin/financial-audit" element={<AdminAudit />} />
           <Route path="/admin/deposits" element={<AdminDeposits />} />
           <Route path="/admin/withdrawals" element={<AdminWithdrawals />} />

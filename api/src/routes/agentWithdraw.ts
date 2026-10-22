@@ -16,6 +16,7 @@ import { Router, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { AuthRequest, validateTelegramAuth } from '../middleware/auth';
 import { supabase } from '../services/supabase';
+import { getAgencyWithdrawalFeeSettings, calculateAgencyWithdrawalFee } from '../services/agencyWithdrawalFee';
 
 // ── Agent Router ──
 export const agentWithdrawRouter = Router();
@@ -70,6 +71,18 @@ const requireAdmin = async (
 };
 
 // ─────────────────────────────────────────────
+// AGENT: GET /api/agent-withdraw/fee-settings
+// ─────────────────────────────────────────────
+agentWithdrawRouter.get('/fee-settings', requireAgent, async (_req: AuthRequest, res: Response) => {
+  try {
+    const settings = await getAgencyWithdrawalFeeSettings();
+    res.json({ ok: true, settings });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
 // AGENT: POST /api/agent-withdraw/request
 // ─────────────────────────────────────────────
 agentWithdrawRouter.post('/request', requireAgent, async (req: AuthRequest, res: Response) => {
@@ -119,6 +132,10 @@ agentWithdrawRouter.post('/request', requireAgent, async (req: AuthRequest, res:
     return;
   }
 
+  // Calculate Server Fee for agency / promoter
+  const feeSettings = await getAgencyWithdrawalFeeSettings();
+  const feeCalc = calculateAgencyWithdrawalFee(numAmount, feeSettings);
+
   // 5. Atomically deduct balance
   const currentBal = Number(user.main_balance);
   const newBal = currentBal - numAmount;
@@ -135,19 +152,35 @@ agentWithdrawRouter.post('/request', requireAgent, async (req: AuthRequest, res:
     return;
   }
 
-  // 6. Insert into agent_withdrawals
-  const { data: withdrawal, error: insertErr } = await supabase
+  // 6. Insert into agent_withdrawals with fee breakdown (with fallback if schema doesn't have columns)
+  const insertPayload: any = {
+    telegram_id: telegramId,
+    bank_name: bankAccount.bank_name,
+    account_holder_name: bankAccount.account_holder_name,
+    account_number: bankAccount.account_number,
+    amount: numAmount,
+    status: 'pending',
+    fee_percent: feeCalc.fee_percent,
+    fee_amount: feeCalc.fee_amount,
+    net_amount: feeCalc.net_amount,
+  };
+
+  let { data: withdrawal, error: insertErr } = await supabase
     .from('agent_withdrawals')
-    .insert([{
-      telegram_id: telegramId,
-      bank_name: bankAccount.bank_name,
-      account_holder_name: bankAccount.account_holder_name,
-      account_number: bankAccount.account_number,
-      amount: numAmount,
-      status: 'pending',
-    }])
+    .insert([insertPayload])
     .select()
     .single();
+
+  if (insertErr && (insertErr.message.includes('fee_') || insertErr.message.includes('net_amount'))) {
+    const { fee_percent: _, fee_amount: __, net_amount: ___, ...fallbackPayload } = insertPayload;
+    const fallbackRes = await supabase
+      .from('agent_withdrawals')
+      .insert([fallbackPayload])
+      .select()
+      .single();
+    withdrawal = fallbackRes.data;
+    insertErr = fallbackRes.error;
+  }
 
   if (insertErr) {
     // Refund balance on insert failure
@@ -171,17 +204,23 @@ agentWithdrawRouter.post('/request', requireAgent, async (req: AuthRequest, res:
       const safeBank = bankAccount.bank_name.replace(/[_*[\]]/g, '\\$&');
       const safeHolder = bankAccount.account_holder_name.replace(/[_*[\]]/g, '\\$&');
       const safeAcc = bankAccount.account_number.replace(/[_*[\]]/g, '\\$&');
-      const safeId = withdrawal.id.replace(/[_*[\]]/g, '\\$&');
+      const safeId = (withdrawal?.id || '').replace(/[_*[\]]/g, '\\$&');
+
+      const feeNotice = feeCalc.fee_amount > 0
+        ? `⚙️ *Server Fee (${feeCalc.fee_percent}%):* *-${feeCalc.fee_amount.toLocaleString()} ETB*\n` +
+          `💵 *Net Payout to Send:* *${feeCalc.net_amount.toLocaleString()} ETB*\n`
+        : `💵 *Net Payout to Send:* *${numAmount.toLocaleString()} ETB*\n`;
 
       const msg =
         `⚡ *New ${roleTitle} Withdrawal Request!*\n\n` +
         `👤 *${roleTitle}:* ${safeAgentName}\n` +
         `💰 *Amount:* *${numAmount.toLocaleString()} ETB*\n` +
+        feeNotice +
         `🏦 *Bank:* ${safeBank}\n` +
         `📛 *Holder:* ${safeHolder}\n` +
         `🔢 *Account:* \`${safeAcc}\`\n\n` +
         `📋 *Ref:* \`${safeId.slice(0, 8).toUpperCase()}\`\n` +
-        `👉 Check *Admin Dashboard → Agent Withdrawals*`;
+        `👉 Check *Admin Dashboard → Agent & Promoter Withdrawals*`;
 
       for (const a of admins) {
         if (!a.telegram_id) continue;
@@ -196,7 +235,15 @@ agentWithdrawRouter.post('/request', requireAgent, async (req: AuthRequest, res:
     console.error('Admin notification error:', notifyErr);
   }
 
-  res.json({ success: true, withdrawal });
+  res.json({
+    success: true,
+    withdrawal: {
+      ...withdrawal,
+      fee_percent: feeCalc.fee_percent,
+      fee_amount: feeCalc.fee_amount,
+      net_amount: feeCalc.net_amount,
+    },
+  });
 });
 
 // ─────────────────────────────────────────────
@@ -212,7 +259,29 @@ agentWithdrawRouter.get('/history', requireAgent, async (req: AuthRequest, res: 
     .limit(30);
 
   if (error) { res.status(500).json({ error: error.message }); return; }
-  res.json(data || []);
+
+  const feeSettings = await getAgencyWithdrawalFeeSettings();
+  const enriched = (data || []).map((w: any) => {
+    let fee_percent = w.fee_percent;
+    let fee_amount = w.fee_amount;
+    let net_amount = w.net_amount;
+
+    if (fee_percent === undefined || fee_percent === null || net_amount === undefined || net_amount === null) {
+      const calc = calculateAgencyWithdrawalFee(w.amount, feeSettings);
+      fee_percent = calc.fee_percent;
+      fee_amount = calc.fee_amount;
+      net_amount = calc.net_amount;
+    }
+
+    return {
+      ...w,
+      fee_percent: Number(fee_percent) || 0,
+      fee_amount: Number(fee_amount) || 0,
+      net_amount: Number(net_amount) || Number(w.amount),
+    };
+  });
+
+  res.json(enriched);
 });
 
 // ─────────────────────────────────────────────
@@ -237,7 +306,29 @@ adminAgentWithdrawRouter.get('/list', requireAdmin, async (req: AuthRequest, res
 
   const { data, error } = await query;
   if (error) { res.status(500).json({ error: error.message }); return; }
-  res.json(data || []);
+
+  const feeSettings = await getAgencyWithdrawalFeeSettings();
+  const enriched = (data || []).map((w: any) => {
+    let fee_percent = w.fee_percent;
+    let fee_amount = w.fee_amount;
+    let net_amount = w.net_amount;
+
+    if (fee_percent === undefined || fee_percent === null || net_amount === undefined || net_amount === null) {
+      const calc = calculateAgencyWithdrawalFee(w.amount, feeSettings);
+      fee_percent = calc.fee_percent;
+      fee_amount = calc.fee_amount;
+      net_amount = calc.net_amount;
+    }
+
+    return {
+      ...w,
+      fee_percent: Number(fee_percent) || 0,
+      fee_amount: Number(fee_amount) || 0,
+      net_amount: Number(net_amount) || Number(w.amount),
+    };
+  });
+
+  res.json(enriched);
 });
 
 // ─────────────────────────────────────────────
@@ -293,13 +384,22 @@ adminAgentWithdrawRouter.post('/approve', requireAdmin, async (req: AuthRequest,
     const isPromoter = (recipientUser?.role || '').toLowerCase() === 'promoter';
     const roleTitle = isPromoter ? 'Promoter' : 'Agent';
 
+    const feeSettings = await getAgencyWithdrawalFeeSettings();
+    const feeCalc = calculateAgencyWithdrawalFee(record.amount, feeSettings);
+
     const botToken = process.env.BOT_TOKEN;
     if (botToken && record.telegram_id) {
+      const feeLines = feeCalc.fee_amount > 0
+        ? `⚙️ *Server Fee (${feeCalc.fee_percent}%):* *-${feeCalc.fee_amount.toLocaleString()} ETB*\n` +
+          `💵 *Net Payout Received:* *${feeCalc.net_amount.toLocaleString()} ETB*\n`
+        : `💵 *Payout Received:* *${Number(record.amount).toLocaleString()} ETB*\n`;
+
       const msg =
         `✅ *Your ${roleTitle} Withdrawal is Approved!*\n\n` +
-        `💰 Amount: *${Number(record.amount).toLocaleString()} ETB*\n` +
-        `🏦 Bank: *${record.bank_name}*\n` +
-        `📋 Ref: \`${record.id.slice(0, 8).toUpperCase()}\`\n\n` +
+        `💰 *Requested Amount:* *${Number(record.amount).toLocaleString()} ETB*\n` +
+        feeLines +
+        `🏦 *Bank:* *${record.bank_name}*\n` +
+        `📋 *Ref:* \`${record.id.slice(0, 8).toUpperCase()}\`\n\n` +
         `Your payout has been processed successfully. Thank you for being a valued partner!`;
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',

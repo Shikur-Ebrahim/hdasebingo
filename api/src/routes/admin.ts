@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { AuthRequest, validateTelegramAuth } from '../middleware/auth';
 import { supabase } from '../services/supabase';
 import { getWithdrawalFeeSettings, saveWithdrawalFeeSettings, calculateWithdrawalFee } from '../services/withdrawalFee';
+import { getAgencyWithdrawalFeeSettings, saveAgencyWithdrawalFeeSettings, calculateAgencyWithdrawalFee } from '../services/agencyWithdrawalFee';
 import { checkAndAutoPostProofs } from './channelProofs';
 
 const router = Router();
@@ -456,6 +457,25 @@ router.get('/withdrawal-fee', async (req, res) => {
 router.put('/withdrawal-fee', async (req, res) => {
   try {
     const updated = await saveWithdrawalFeeSettings(req.body);
+    res.json({ ok: true, settings: updated });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Agency & Promoter withdrawal fee settings
+router.get('/agency-withdrawal-fee', async (req, res) => {
+  try {
+    const settings = await getAgencyWithdrawalFeeSettings();
+    res.json({ ok: true, settings });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/agency-withdrawal-fee', async (req, res) => {
+  try {
+    const updated = await saveAgencyWithdrawalFeeSettings(req.body);
     res.json({ ok: true, settings: updated });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

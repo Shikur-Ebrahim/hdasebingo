@@ -24,11 +24,38 @@ import {
   Landmark,
   Eye,
   EyeOff,
+  Coins,
 } from 'lucide-react';
 import { useGameStore } from '../store/gameStore';
 import { VERIFIED_BANKS, getBankDetails, BankItem } from './AgentAttackBank';
 
 const API = import.meta.env.VITE_API_URL || '/api';
+
+interface AgencyFeeSettings {
+  is_enabled: boolean;
+  tier1_max_amount: number;
+  tier1_fee_percent: number;
+  tier2_max_amount: number;
+  tier2_fee_percent: number;
+  tier3_max_amount: number;
+  tier3_fee_percent: number;
+  tier4_max_amount: number;
+  tier4_fee_percent: number;
+  tier5_fee_percent: number;
+}
+
+const DEFAULT_AGENCY_FEE: AgencyFeeSettings = {
+  is_enabled: true,
+  tier1_max_amount: 5000,
+  tier1_fee_percent: 20,
+  tier2_max_amount: 25000,
+  tier2_fee_percent: 15,
+  tier3_max_amount: 75000,
+  tier3_fee_percent: 10,
+  tier4_max_amount: 150000,
+  tier4_fee_percent: 5,
+  tier5_fee_percent: 3,
+};
 
 interface SavedBank {
   id: string;
@@ -43,6 +70,9 @@ interface AgentWithdrawalRecord {
   account_holder_name: string;
   account_number: string;
   amount: number;
+  fee_percent?: number;
+  fee_amount?: number;
+  net_amount?: number;
   status: 'pending' | 'approved' | 'rejected';
   admin_note?: string;
   created_at: string;
@@ -84,8 +114,32 @@ export default function AgentWithdrawModal({ onClose, onOpenAttackBank }: Props)
   const [history, setHistory] = useState<AgentWithdrawalRecord[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [successRecord, setSuccessRecord] = useState<AgentWithdrawalRecord | null>(null);
+  const [feeSettings, setFeeSettings] = useState<AgencyFeeSettings>(DEFAULT_AGENCY_FEE);
 
   const mainBalance = Number(user?.main_balance || 0);
+
+  const calculateFee = (amtNum: number) => {
+    if (!feeSettings.is_enabled || amtNum <= 0) {
+      return { feePercent: 0, feeAmount: 0, netAmount: amtNum };
+    }
+    let pct = 0;
+    if (amtNum <= feeSettings.tier1_max_amount) {
+      pct = feeSettings.tier1_fee_percent;
+    } else if (amtNum <= feeSettings.tier2_max_amount) {
+      pct = feeSettings.tier2_fee_percent;
+    } else if (amtNum <= feeSettings.tier3_max_amount) {
+      pct = feeSettings.tier3_fee_percent;
+    } else if (amtNum <= feeSettings.tier4_max_amount) {
+      pct = feeSettings.tier4_fee_percent;
+    } else {
+      pct = feeSettings.tier5_fee_percent;
+    }
+    const feeAmount = Math.round(((amtNum * pct) / 100) * 100) / 100;
+    const netAmount = Math.max(0, Math.round((amtNum - feeAmount) * 100) / 100);
+    return { feePercent: pct, feeAmount, netAmount };
+  };
+
+  const currentFee = calculateFee(Number(amount) || 0);
 
   // Load saved bank account & sync live logos on mount
   useEffect(() => {
@@ -97,6 +151,16 @@ export default function AgentWithdrawModal({ onClose, onOpenAttackBank }: Props)
 
         const res = await fetch(`${API}/agent-bank/saved`, { headers });
         const data = await res.json();
+
+        // Fetch live agency fee settings
+        fetch(`${API}/agent-withdraw/fee-settings`, { headers })
+          .then(r => r.ok ? r.json() : null)
+          .then(d => {
+            if (isMounted && d?.settings) {
+              setFeeSettings(d.settings);
+            }
+          })
+          .catch(() => {});
 
         // Also fetch live method logos for perfect logo display
         try {
@@ -471,6 +535,28 @@ export default function AgentWithdrawModal({ onClose, onOpenAttackBank }: Props)
                     MAX
                   </button>
                 </div>
+
+                {/* Server Fee Live Calculation Strip */}
+                {Number(amount) > 0 && (
+                  <div className="bg-purple-50/80 border border-purple-200/90 rounded-2xl p-3.5 space-y-2 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-purple-800 font-bold text-[11px] flex items-center gap-1.5">
+                        <Coins size={13} className="text-purple-600" />
+                        Server Fee ({currentFee.feePercent}%):
+                      </span>
+                      <span className="font-black text-rose-600">
+                        {currentFee.feeAmount > 0 ? `-${formatAmt(currentFee.feeAmount)} ETB` : '0 ETB (0%)'}
+                      </span>
+                    </div>
+                    <div className="h-px bg-purple-200/60" />
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 font-bold text-[11px]">Net Bank Payout:</span>
+                      <span className="font-black text-emerald-600 text-sm">
+                        {formatAmt(currentFee.netAmount)} ETB
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <button
@@ -492,9 +578,16 @@ export default function AgentWithdrawModal({ onClose, onOpenAttackBank }: Props)
                   <Lock size={22} />
                 </div>
                 <p className="text-sm font-black text-slate-900">Enter Withdrawal PIN</p>
-                <p className="text-xs text-slate-500 font-semibold">
-                  Confirm payout of <strong className="text-amber-600 font-black">{formatAmt(amount)} ETB</strong>
-                </p>
+                <div className="space-y-0.5 pt-0.5">
+                  <p className="text-xs text-slate-500 font-semibold">
+                    Amount: <strong className="text-slate-800 font-black">{formatAmt(amount)} ETB</strong>
+                  </p>
+                  {currentFee.feeAmount > 0 && (
+                    <p className="text-[11px] text-purple-700 font-bold">
+                      Server Fee ({currentFee.feePercent}%): -{formatAmt(currentFee.feeAmount)} ETB • You Receive: <strong className="text-emerald-600 font-black">{formatAmt(currentFee.netAmount)} ETB</strong>
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Dots indicator */}
@@ -576,10 +669,26 @@ export default function AgentWithdrawModal({ onClose, onOpenAttackBank }: Props)
               <div className="w-full bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-left space-y-2.5">
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-slate-400 font-semibold">Amount</span>
-                  <span className="text-emerald-600 font-black text-lg">
+                  <span className="text-slate-900 font-black text-base">
                     {formatAmt(successRecord.amount)} ETB
                   </span>
                 </div>
+                {Number(successRecord.fee_amount || 0) > 0 && (
+                  <>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-purple-700 font-bold">Server Fee ({successRecord.fee_percent || 0}%)</span>
+                      <span className="text-rose-600 font-black">
+                        -{formatAmt(successRecord.fee_amount)} ETB
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-700 font-bold">Net Payout to Bank</span>
+                      <span className="text-emerald-600 font-black text-lg">
+                        {formatAmt(successRecord.net_amount || successRecord.amount)} ETB
+                      </span>
+                    </div>
+                  </>
+                )}
                 <div className="h-px bg-slate-200/60" />
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-slate-400 font-semibold">Destination Bank</span>
@@ -701,13 +810,20 @@ export default function AgentWithdrawModal({ onClose, onOpenAttackBank }: Props)
                             year: 'numeric',
                           })}
                         </span>
-                        <span
-                          className={`text-base font-black ${
-                            isRejected ? 'text-rose-600 line-through' : 'text-slate-900'
-                          }`}
-                        >
-                          {formatAmt(rec.amount)} ETB
-                        </span>
+                        <div className="text-right">
+                          <span
+                            className={`text-sm font-black ${
+                              isRejected ? 'text-rose-600 line-through' : 'text-slate-900'
+                            }`}
+                          >
+                            {formatAmt(rec.amount)} ETB
+                          </span>
+                          {Number(rec.fee_amount || 0) > 0 && (
+                            <p className="text-[10px] font-bold text-purple-700">
+                              Fee: -{formatAmt(rec.fee_amount)} • Net: <strong className="text-emerald-700">{formatAmt(rec.net_amount || rec.amount)} ETB</strong>
+                            </p>
+                          )}
+                        </div>
                       </div>
 
                       {rec.admin_note && (
