@@ -244,25 +244,25 @@ router.post('/post', validateTelegramAuth, requireAdminOrWorker, async (req: Aut
     // 2. Resolve destination channel
     const channelId = await resolveProofChannel(custom_channel);
 
-    // 3. Prepare clean Telegram Caption (no redundant channel link)
+    // 3. Prepare clean Amharic Telegram Caption (no redundant channel link)
     let finalCaption = caption;
     if (!finalCaption) {
       if (type === 'deposit') {
         finalCaption =
-          `🌟 <b>OFFICIAL APPROVED DEPOSITS • HDASE BINGO</b> 🌟\n\n` +
-          `✅ <b>10 Recent Deposits Successfully Credited!</b>\n` +
-          `⚡ Fast, safe & automated wallet top-ups.\n` +
-          `🛡️ 100% Verified player reloads.\n\n` +
-          `💰 Deposit via <b>Telebirr, CBE, BOA or Awash</b> and join live 75-Ball Bingo rooms!\n\n` +
-          `🎮 <b>Play Now:</b> @${botUsername}`;
+          `🌟 <b>የተረጋገጡ ዲፖዚቶች • ህዳሴ ቢንጎ</b> 🌟\n\n` +
+          `✅ <b>የተጫዋቾች ዲፖዚት በተሳካ ሁኔታ ገቢ ተደርጓል!</b>\n` +
+          `⚡ ፈጣን እና አስተማማኝ የሂሳብ መሙያ።\n` +
+          `🛡️ 100% የታመነ እና የተረጋገጠ አሰራር።\n\n` +
+          `💰 በ <b>ቴሌብር፣ ንግድ ባንክ (CBE)፣ አቢሲኒያ ወይም አዋሽ</b> አስገብተው አሁኑኑ ይጫወቱ!\n\n` +
+          `🎮 <b>አሁኑኑ ይጫወቱ:</b> @${botUsername}`;
       } else {
         finalCaption =
-          `🏆 <b>OFFICIAL CASHOUT PROOFS • HDASE BINGO</b> 🏆\n\n` +
-          `💸 <b>10 Winner Cashouts Approved & Paid Out!</b>\n` +
-          `🎉 Congratulations to all our lucky winners!\n` +
-          `⚡ Instant bank & Telebirr payouts guaranteed.\n\n` +
-          `🎱 Win real ETB cash daily in high-stake & friendly rooms!\n\n` +
-          `🎮 <b>Play & Cashout:</b> @${botUsername}`;
+          `🏆 <b>የተረጋገጡ የሽልማት ክፍያዎች • ህዳሴ ቢንጎ</b> 🏆\n\n` +
+          `💸 <b>የአሸናፊዎች የሽልማት ክፍያ በተሳካ ሁኔታ ተፈጽሟል!</b>\n` +
+          `🎉 ለሁሉም አሸናፊዎቻችን እንኳን ደስ አላችሁ!\n` +
+          `⚡ ፈጣን የባንክ እና የቴሌብር ክፍያ።\n\n` +
+          `🎱 በየቀኑ በ 75-ኳስ ቢንጎ ይጫወቱ፣ ያሸንፉ፣ ወዲያውኑ ብርዎን ያውጡ!\n\n` +
+          `🎮 <b>ይጫወቱ እና ያሸንፉ:</b> @${botUsername}`;
       }
     }
 
@@ -278,7 +278,7 @@ router.post('/post', validateTelegramAuth, requireAdminOrWorker, async (req: Aut
         reply_markup: {
           inline_keyboard: [
             [
-              { text: '🎮 PLAY BINGO NOW', url: `https://t.me/${botUsername}` }
+              { text: '🎮 አሁኑኑ ይጫወቱ • PLAY NOW', url: `https://t.me/${botUsername}` }
             ]
           ]
         }
@@ -490,25 +490,25 @@ export async function checkAndAutoPostProofs(type: 'deposit' | 'withdrawal'): Pr
     let caption = '';
     if (isDeposit) {
       caption =
-        `🌟 <b>OFFICIAL APPROVED DEPOSITS • HDASE BINGO</b> 🌟\n\n` +
-        `✅ <b>Batch Milestone: ${threshold} Deposits Credited!</b>\n` +
-        `⚡ Automated & Instant Wallet Top-ups.\n` +
-        `🛡️ 100% Verified Player Network.\n\n` +
-        `🎮 <b>Play Now:</b> @${botUsername}`;
+        `🌟 <b>የተረጋገጡ ዲፖዚቶች • ህዳሴ ቢንጎ</b> 🌟\n\n` +
+        `✅ <b>የ${threshold} ተጫዋቾች ዲፖዚት በተሳካ ሁኔታ ገቢ ተደርጓል!</b>\n` +
+        `⚡ ፈጣን እና አስተማማኝ የሂሳብ መሙያ።\n` +
+        `🛡️ 100% የታመነ እና የተረጋገጠ አሰራር።\n\n` +
+        `🎮 <b>አሁኑኑ ይጫወቱ:</b> @${botUsername}`;
     } else {
       caption =
-        `🏆 <b>OFFICIAL CASHOUT PROOFS • HDASE BINGO</b> 🏆\n\n` +
-        `💸 <b>Batch Milestone: ${threshold} Cashouts Paid Out!</b>\n` +
-        `⚡ Guaranteed Fast Bank & Telebirr Payouts.\n` +
-        `🎱 Win Real ETB Daily in 75-Ball Bingo!\n\n` +
-        `🎮 <b>Play & Cashout:</b> @${botUsername}`;
+        `🏆 <b>የተረጋገጡ የሽልማት ክፍያዎች • ህዳሴ ቢንጎ</b> 🏆\n\n` +
+        `💸 <b>የ${threshold} አሸናፊዎች የሽልማት ክፍያ በተሳካ ሁኔታ ተፈጽሟል!</b>\n` +
+        `⚡ ፈጣን የባንክ እና የቴሌብር ክፍያ።\n` +
+        `🎱 በየቀኑ በ 75-ኳስ ቢንጎ ይጫወቱ፣ ያሸንፉ፣ ወዲያውኑ ብርዎን ያውጡ!\n\n` +
+        `🎮 <b>ይጫወቱ እና ያሸንፉ:</b> @${botUsername}`;
     }
 
     // ONLY PLAY BINGO NOW BUTTON
     const replyMarkup = {
       inline_keyboard: [
         [
-          { text: '🎮 PLAY BINGO NOW', url: `https://t.me/${botUsername}` }
+          { text: '🎮 አሁኑኑ ይጫወቱ • PLAY NOW', url: `https://t.me/${botUsername}` }
         ]
       ]
     };

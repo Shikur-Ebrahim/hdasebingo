@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   ArrowLeft, Download, Send, RefreshCw, Settings2, CheckCircle2,
-  Trophy, ArrowDownToLine, ArrowUpFromLine,
+  ArrowDownToLine, ArrowUpFromLine,
   ExternalLink, Sparkles, Check, AlertCircle, Eye
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -124,13 +124,43 @@ export default function AdminChannelProofs() {
     } catch {}
   };
 
-  // Helper: Mask player names for public flyers
-  const maskName = (name?: string): string => {
-    if (!name || !name.trim()) return 'Player***';
-    const clean = name.trim();
-    if (clean.length <= 2) return `${clean}***`;
-    if (clean.length <= 4) return `${clean.substring(0, 2)}***`;
-    return `${clean.substring(0, 3)}***${clean.slice(-1)}`;
+  // Helper: Exact Player Name (No Masking)
+  const getExactPlayerName = (u?: { first_name?: string; username?: string }): string => {
+    if (u?.first_name && u.first_name.trim()) {
+      return u.first_name.trim();
+    }
+    if (u?.username && u.username.trim()) {
+      return `@${u.username.trim().replace(/^@/, '')}`;
+    }
+    return 'Player';
+  };
+
+  // Helper: Exact Winner Name (No Masking)
+  const getExactWinnerName = (item: WithdrawalItem): string => {
+    if (item.account_name && item.account_name.trim()) {
+      return item.account_name.trim();
+    }
+    if (item.users?.first_name && item.users.first_name.trim()) {
+      return item.users.first_name.trim();
+    }
+    if (item.users?.username && item.users.username.trim()) {
+      return `@${item.users.username.trim().replace(/^@/, '')}`;
+    }
+    return 'Winner';
+  };
+
+  // Helper: Clean Bank / Method Name
+  const formatMethodName = (type?: string, name?: string): string => {
+    const t = (type || '').toLowerCase();
+    if (t === 'telebirr') return 'Telebirr';
+    if (t === 'cbe') return 'CBE Bank';
+    if (t === 'cbebirr') return 'CBE Birr';
+    if (t === 'boa' || t === 'abyssinia') return 'Abyssinia';
+    if (t === 'awash') return 'Awash Bank';
+    if (t === 'dashen') return 'Dashen Bank';
+    if (t === 'amhara') return 'Amhara Bank';
+    if (t === 'ebirr') return 'eBirr';
+    return name || type || 'Telebirr';
   };
 
   // ── Fetch data from API ───────────────────────────────────────────────────────
@@ -166,7 +196,7 @@ export default function AdminChannelProofs() {
     fetchData();
   }, [fetchData]);
 
-  // ── 1. GENERATE APPROVED DEPOSITS CANVAS POSTER (750 x 1150 - Green Accents) ──
+  // ── 1. GENERATE APPROVED DEPOSITS CANVAS POSTER (Ivory + Emerald Green + Amharic) ──
   const generateDepositCanvas = useCallback((): string | null => {
     try {
       const width = 750;
@@ -203,8 +233,8 @@ export default function AdminChannelProofs() {
       ctx.strokeRect(26, 26, width - 52, height - 52);
 
       // Corner diamonds
-      const drawDiamond = (x: number, y: number, s: number) => {
-        ctx.fillStyle = '#b8860b';
+      const drawDiamond = (x: number, y: number, s: number, col = '#b8860b') => {
+        ctx.fillStyle = col;
         ctx.beginPath();
         ctx.moveTo(x, y - s);
         ctx.lineTo(x + s, y);
@@ -272,22 +302,23 @@ export default function AdminChannelProofs() {
       ctx.textAlign = 'center';
       ctx.fillText('HDASE BINGO', width / 2, 134);
 
-      // 5. Header: "APPROVED DEPOSITS PROOF"
+      // 5. Header in Amharic & English: "የተረጋገጡ ዲፖዚቶች • APPROVED DEPOSITS"
       ctx.fillStyle = '#15803d'; // Green badge
       ctx.font = '900 19px sans-serif';
-      ctx.fillText('✅ OFFICIAL APPROVED DEPOSITS', width / 2, 168);
+      ctx.fillText('✅ የተረጋገጡ ዲፖዚቶች • APPROVED DEPOSITS', width / 2, 168);
 
-      ctx.fillStyle = '#8a6a1d';
-      ctx.font = 'bold 12px sans-serif';
-      ctx.fillText('INSTANT WALLET TOP-UPS • 100% VERIFIED', width / 2, 188);
+      ctx.fillStyle = '#166534';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText('ፈጣን የሂሳብ መሙያ • 100% የታመነ እና የተረጋገጠ አሰራር', width / 2, 188);
 
       // Green divider line
       ctx.strokeStyle = '#15803d';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 1.6;
       ctx.beginPath();
-      ctx.moveTo(width / 2 - 160, 198);
-      ctx.lineTo(width / 2 + 160, 198);
+      ctx.moveTo(width / 2 - 170, 198);
+      ctx.lineTo(width / 2 + 170, 198);
       ctx.stroke();
+      drawDiamond(width / 2, 198, 4.5, '#15803d');
 
       // 6. Luxury Central Table Card (holds 10 rows)
       const tableX = 40;
@@ -321,20 +352,20 @@ export default function AdminChannelProofs() {
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.fillText('#', tableX + 16, tableY + headH / 2);
-      ctx.fillText('PLAYER', tableX + 50, tableY + headH / 2);
-      ctx.fillText('METHOD', tableX + 225, tableY + headH / 2);
+      ctx.fillText('ተጫዋች (PLAYER)', tableX + 46, tableY + headH / 2);
+      ctx.fillText('ዘዴ (METHOD)', tableX + 225, tableY + headH / 2);
       ctx.textAlign = 'right';
-      ctx.fillText('AMOUNT (ETB)', tableX + 480, tableY + headH / 2);
-      ctx.fillText('STATUS', tableX + tableW - 20, tableY + headH / 2);
+      ctx.fillText('መጠን (AMOUNT)', tableX + 480, tableY + headH / 2);
+      ctx.fillText('ሁኔታ (STATUS)', tableX + tableW - 20, tableY + headH / 2);
       ctx.textBaseline = 'alphabetic';
 
-      // Rows: display 10 items
-      const displayDeposits = recentDeposits.slice(0, 10);
+      // Rows: display real deposits from database (fallback to cycling if < 10)
       const rowH = 50;
       let batchSum = 0;
+      const sourceList = recentDeposits.length > 0 ? recentDeposits : [];
 
       for (let i = 0; i < 10; i++) {
-        const item = displayDeposits[i];
+        const item = sourceList.length > 0 ? (sourceList[i] || sourceList[i % sourceList.length]) : null;
         const rowY = tableY + headH + i * rowH;
 
         if (i % 2 === 1) {
@@ -354,71 +385,71 @@ export default function AdminChannelProofs() {
         const midRowY = rowY + rowH / 2;
         ctx.textBaseline = 'middle';
 
-        // Index pill
+        // Index pill in green
         ctx.fillStyle = '#dcfce7';
         ctx.beginPath();
         ctx.arc(tableX + 24, midRowY, 12, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.fillStyle = '#15803d';
-        ctx.font = 'bold 11px sans-serif';
+        // Index number in SOLID BLACK
+        ctx.fillStyle = '#000000';
+        ctx.font = '900 12px sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText(String(i + 1), tableX + 24, midRowY);
 
         if (item) {
           const amt = Number(item.amount || 0);
           batchSum += amt;
-          const rawName = item.users?.first_name || item.users?.username || 'Player';
-          const playerName = maskName(rawName);
-          const method = item.deposit_methods?.name || item.deposit_methods?.type || 'Telebirr';
+          const playerName = getExactPlayerName(item.users);
+          const method = formatMethodName(item.deposit_methods?.type, item.deposit_methods?.name);
 
-          // Player Name
+          // Player Name in SOLID BLACK (crisp, bold, ultra-readable)
           ctx.textAlign = 'left';
-          ctx.fillStyle = '#0f172a';
-          ctx.font = 'bold 14px sans-serif';
-          ctx.fillText(playerName, tableX + 50, midRowY);
+          ctx.fillStyle = '#000000';
+          ctx.font = '900 14px sans-serif';
+          ctx.fillText(playerName.substring(0, 16), tableX + 46, midRowY);
 
-          // Method Badge
+          // Method Badge with SOLID BLACK text
           const isTelebirr = method.toLowerCase().includes('tele');
           const isCbe = method.toLowerCase().includes('cbe');
           const badgeBg = isTelebirr ? '#fff7ed' : isCbe ? '#faf5ff' : '#f0fdf4';
           const badgeBorder = isTelebirr ? '#fb923c' : isCbe ? '#c084fc' : '#86efac';
-          const badgeText = isTelebirr ? '#c2410c' : isCbe ? '#7e22ce' : '#15803d';
 
           ctx.fillStyle = badgeBg;
           ctx.beginPath();
-          ctx.roundRect(tableX + 225, midRowY - 12, 100, 24, 6);
+          ctx.roundRect(tableX + 225, midRowY - 12, 100, 25, 6);
           ctx.fill();
           ctx.strokeStyle = badgeBorder;
-          ctx.lineWidth = 1;
+          ctx.lineWidth = 1.2;
           ctx.stroke();
 
-          ctx.fillStyle = badgeText;
-          ctx.font = 'bold 11px sans-serif';
+          ctx.fillStyle = '#000000'; // SOLID BLACK method text
+          ctx.font = 'bold 11.5px sans-serif';
           ctx.textAlign = 'center';
           ctx.fillText(method.substring(0, 12), tableX + 275, midRowY);
 
-          // Amount
+          // Amount in Bold Deep Green
           ctx.textAlign = 'right';
           ctx.fillStyle = '#15803d';
           ctx.font = '900 15px sans-serif';
           ctx.fillText(`+${amt.toLocaleString()} ETB`, tableX + 480, midRowY);
 
-          // Status Badge
-          ctx.fillStyle = '#16a34a';
-          ctx.font = 'bold 12px sans-serif';
-          ctx.fillText('✅ Credited', tableX + tableW - 20, midRowY);
+          // Status Badge in Amharic
+          ctx.fillStyle = '#15803d';
+          ctx.font = '900 12px sans-serif';
+          ctx.fillText('✅ ገቢ ተደርጓል', tableX + tableW - 20, midRowY);
         } else {
+          // Placeholder only if database is completely empty
           ctx.textAlign = 'left';
-          ctx.fillStyle = '#94a3b8';
-          ctx.font = 'italic 13px sans-serif';
-          ctx.fillText('Verified Player Deposit', tableX + 50, midRowY);
+          ctx.fillStyle = '#000000';
+          ctx.font = 'bold 13px sans-serif';
+          ctx.fillText('ተጫዋች', tableX + 46, midRowY);
 
           ctx.textAlign = 'right';
-          ctx.fillStyle = '#94a3b8';
-          ctx.font = 'bold 13px sans-serif';
-          ctx.fillText('+500 ETB', tableX + 480, midRowY);
-          ctx.fillText('✅ Credited', tableX + tableW - 20, midRowY);
+          ctx.fillStyle = '#15803d';
+          ctx.font = '900 14px sans-serif';
+          ctx.fillText('+100 ETB', tableX + 480, midRowY);
+          ctx.fillText('✅ ገቢ ተደርጓል', tableX + tableW - 20, midRowY);
         }
       }
 
@@ -437,23 +468,23 @@ export default function AdminChannelProofs() {
 
       const midSumY = sumBoxY + 25;
       ctx.textAlign = 'left';
-      ctx.fillStyle = '#713f12';
-      ctx.font = 'bold 14px sans-serif';
-      ctx.fillText('💰 BATCH TOTAL CREDITED:', tableX + 28, midSumY);
+      ctx.fillStyle = '#000000'; // SOLID BLACK label
+      ctx.font = '900 14px sans-serif';
+      ctx.fillText('💰 አጠቃላይ የተጨመረ ዲፖዚት (TOTAL):', tableX + 28, midSumY);
 
       ctx.textAlign = 'right';
-      ctx.fillStyle = '#854d0e';
-      ctx.font = '900 18px sans-serif';
-      const displaySum = batchSum > 0 ? batchSum : 12500;
+      ctx.fillStyle = '#15803d'; // Deep green amount
+      ctx.font = '900 19px sans-serif';
+      const displaySum = batchSum > 0 ? batchSum : 1500;
       ctx.fillText(`${displaySum.toLocaleString()} ETB`, tableX + tableW - 28, midSumY);
 
-      // 7. Trust Badges row
+      // 7. Trust Badges row in Amharic & English
       const badgeY = 878;
       const badges = [
-        { icon: '⚡', label: 'INSTANT CREDIT' },
-        { icon: '🛡️', label: '100% SECURE' },
-        { icon: '🎱', label: '75 BINGO' },
-        { icon: '💎', label: 'OFFICIAL HB' },
+        { icon: '⚡', label: 'ፈጣን ገቢ' },
+        { icon: '🛡️', label: '100% አስተማማኝ' },
+        { icon: '🎱', label: '75 ቢንጎ' },
+        { icon: '💎', label: 'ህዳሴ ቢንጎ' },
       ];
 
       const colW = (width - 100) / 4;
@@ -463,8 +494,8 @@ export default function AdminChannelProofs() {
         ctx.textAlign = 'center';
         ctx.fillText(b.icon, colX, badgeY);
 
-        ctx.fillStyle = '#785614';
-        ctx.font = '900 10.5px sans-serif';
+        ctx.fillStyle = '#000000'; // SOLID BLACK badge text
+        ctx.font = '900 11px sans-serif';
         ctx.fillText(b.label, colX, badgeY + 22);
 
         if (idx < 3) {
@@ -478,14 +509,14 @@ export default function AdminChannelProofs() {
         }
       });
 
-      // 8. Cursive Motto
+      // 8. Cursive Motto in Amharic
       ctx.textAlign = 'center';
-      ctx.fillStyle = '#261b0c';
-      ctx.font = 'italic bold 22px "Brush Script MT", "Great Vibes", "Lucida Calligraphy", cursive, serif';
-      ctx.fillText('Real Players  •  Instant Deposits  •  Big Cash Wins', width / 2, 946);
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 20px "Times New Roman", Georgia, serif';
+      ctx.fillText('እውነተኛ ተጫዋቾች  •  ፈጣን ዲፖዚት  •  ትልቅ ሽልማት', width / 2, 946);
 
-      // 9. Official Bot Handle Box
-      const botBoxW = 420;
+      // 9. Official Bot Handle Box in Green
+      const botBoxW = 440;
       const botBoxH = 46;
       const botBoxX = (width - botBoxW) / 2;
       const botBoxY = 975;
@@ -506,13 +537,13 @@ export default function AdminChannelProofs() {
       ctx.font = '900 16px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`🎮 PLAY NOW: @${botUsername}`, width / 2, botBoxY + botBoxH / 2);
+      ctx.fillText(`🎮 አሁኑኑ ይጫወቱ: @${botUsername}`, width / 2, botBoxY + botBoxH / 2);
       ctx.textBaseline = 'alphabetic';
 
       // 10. Footer
-      ctx.fillStyle = '#9c8141';
-      ctx.font = '600 12px sans-serif';
-      ctx.fillText('Official Channel Partner • Powered by HDASE BINGO', width / 2, 1056);
+      ctx.fillStyle = '#64748b';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillText('ህዳሴ ቢንጎ • Official Partner Network • Powered by HDASE BINGO', width / 2, 1056);
 
       return canvas.toDataURL('image/png');
     } catch (e) {
@@ -521,7 +552,7 @@ export default function AdminChannelProofs() {
     }
   }, [recentDeposits, botUsername]);
 
-  // ── 2. GENERATE APPROVED WITHDRAWALS CANVAS (750 x 1150 - Light Ivory with RED Lines & Accents) ──
+  // ── 2. GENERATE APPROVED WITHDRAWALS CANVAS (Ivory + Ruby RED Line & Accents + Amharic) ──
   const generateWithdrawalCanvas = useCallback((): string | null => {
     try {
       const width = 750;
@@ -558,8 +589,8 @@ export default function AdminChannelProofs() {
       ctx.strokeRect(26, 26, width - 52, height - 52);
 
       // Corner diamonds
-      const drawDiamond = (x: number, y: number, s: number, color = '#b8860b') => {
-        ctx.fillStyle = color;
+      const drawDiamond = (x: number, y: number, s: number, col = '#b8860b') => {
+        ctx.fillStyle = col;
         ctx.beginPath();
         ctx.moveTo(x, y - s);
         ctx.lineTo(x + s, y);
@@ -627,14 +658,14 @@ export default function AdminChannelProofs() {
       ctx.textAlign = 'center';
       ctx.fillText('HDASE BINGO', width / 2, 134);
 
-      // 5. Header: "OFFICIAL CASHOUT PROOFS" in Ruby Red
+      // 5. Header in Amharic & English: "የተረጋገጡ የሽልማት ክፍያዎች • CASHOUT PROOFS"
       ctx.fillStyle = '#dc2626'; // Bold Ruby Red
       ctx.font = '900 19px sans-serif';
-      ctx.fillText('🔴 OFFICIAL CASHOUT PROOFS', width / 2, 168);
+      ctx.fillText('🔴 የተረጋገጡ የሽልማት ክፍያዎች • CASHOUT PROOFS', width / 2, 168);
 
       ctx.fillStyle = '#991b1b'; // Red subtitle
-      ctx.font = 'bold 12px sans-serif';
-      ctx.fillText('VERIFIED WINNERS • INSTANT BANK & TELEBIRR PAYOUTS', width / 2, 188);
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText('የታመኑ አሸናፊዎች • ፈጣን የባንክ እና ቴሌብር ክፍያ', width / 2, 188);
 
       // DISTINCTIVE RED DIVIDER LINE (as requested by user)
       ctx.strokeStyle = '#dc2626';
@@ -677,23 +708,22 @@ export default function AdminChannelProofs() {
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.fillText('#', tableX + 16, tableY + headH / 2);
-      ctx.fillText('WINNER', tableX + 50, tableY + headH / 2);
-      ctx.fillText('METHOD / BANK', tableX + 225, tableY + headH / 2);
+      ctx.fillText('አሸናፊ (WINNER)', tableX + 46, tableY + headH / 2);
+      ctx.fillText('ዘዴ / ባንክ (METHOD)', tableX + 225, tableY + headH / 2);
       ctx.textAlign = 'right';
-      ctx.fillText('NET PAYOUT (ETB)', tableX + 480, tableY + headH / 2);
-      ctx.fillText('STATUS', tableX + tableW - 20, tableY + headH / 2);
+      ctx.fillText('የተከፈለ (NET PAYOUT)', tableX + 480, tableY + headH / 2);
+      ctx.fillText('ሁኔታ (STATUS)', tableX + tableW - 20, tableY + headH / 2);
       ctx.textBaseline = 'alphabetic';
 
-      // Rows: display 10 items
-      const displayWithdrawals = recentWithdrawals.slice(0, 10);
+      // Rows: display real withdrawals from database
       const rowH = 50;
       let batchSum = 0;
+      const sourceList = recentWithdrawals.length > 0 ? recentWithdrawals : [];
 
       for (let i = 0; i < 10; i++) {
-        const item = displayWithdrawals[i];
+        const item = sourceList.length > 0 ? (sourceList[i] || sourceList[i % sourceList.length]) : null;
         const rowY = tableY + headH + i * rowH;
 
-        // Alternate row fill with soft rose tint
         if (i % 2 === 1) {
           ctx.fillStyle = '#fff9f9';
           ctx.fillRect(tableX + 1, rowY, tableW - 2, rowH);
@@ -717,63 +747,63 @@ export default function AdminChannelProofs() {
         ctx.arc(tableX + 24, midRowY, 12, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.fillStyle = '#991b1b';
-        ctx.font = 'bold 11px sans-serif';
+        // Index number in SOLID BLACK
+        ctx.fillStyle = '#000000';
+        ctx.font = '900 12px sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText(String(i + 1), tableX + 24, midRowY);
 
         if (item) {
           const net = Number(item.net_amount || item.amount || 0);
           batchSum += net;
-          const rawName = item.account_name || item.users?.first_name || item.users?.username || 'Winner';
-          const winnerName = maskName(rawName);
-          const method = item.withdrawal_methods?.type || 'Bank';
+          const winnerName = getExactWinnerName(item);
+          const method = formatMethodName(item.withdrawal_methods?.type);
 
-          // Winner Name
+          // Winner Name in SOLID BLACK (crisp, bold, ultra-readable)
           ctx.textAlign = 'left';
-          ctx.fillStyle = '#0f172a';
-          ctx.font = 'bold 14px sans-serif';
-          ctx.fillText(winnerName, tableX + 50, midRowY);
+          ctx.fillStyle = '#000000';
+          ctx.font = '900 14px sans-serif';
+          ctx.fillText(winnerName.substring(0, 16), tableX + 46, midRowY);
 
-          // Method Badge in soft rose/red style
+          // Method Badge with SOLID BLACK text
           ctx.fillStyle = '#fff1f2';
           ctx.beginPath();
-          ctx.roundRect(tableX + 225, midRowY - 12, 100, 24, 6);
+          ctx.roundRect(tableX + 225, midRowY - 12, 100, 25, 6);
           ctx.fill();
           ctx.strokeStyle = '#f43f5e';
-          ctx.lineWidth = 1;
+          ctx.lineWidth = 1.2;
           ctx.stroke();
 
-          ctx.fillStyle = '#9f1239';
-          ctx.font = 'bold 11px sans-serif';
+          ctx.fillStyle = '#000000'; // SOLID BLACK method text
+          ctx.font = 'bold 11.5px sans-serif';
           ctx.textAlign = 'center';
           ctx.fillText(method.substring(0, 12), tableX + 275, midRowY);
 
-          // Net Payout in BOLD RUBY RED (clean and readable)
+          // Net Payout in BOLD RUBY RED
           ctx.textAlign = 'right';
-          ctx.fillStyle = '#dc2626'; // Bold Red
+          ctx.fillStyle = '#dc2626';
           ctx.font = '900 15px sans-serif';
           ctx.fillText(`+${net.toLocaleString()} ETB`, tableX + 480, midRowY);
 
-          // Status Badge
-          ctx.fillStyle = '#16a34a';
-          ctx.font = 'bold 12px sans-serif';
-          ctx.fillText('✅ Paid Out', tableX + tableW - 20, midRowY);
+          // Status Badge in Amharic
+          ctx.fillStyle = '#15803d';
+          ctx.font = '900 12px sans-serif';
+          ctx.fillText('✅ ተከፍሏል', tableX + tableW - 20, midRowY);
         } else {
           ctx.textAlign = 'left';
-          ctx.fillStyle = '#94a3b8';
-          ctx.font = 'italic 13px sans-serif';
-          ctx.fillText('Verified Winner Cashout', tableX + 50, midRowY);
+          ctx.fillStyle = '#000000';
+          ctx.font = 'bold 13px sans-serif';
+          ctx.fillText('አሸናፊ', tableX + 46, midRowY);
 
           ctx.textAlign = 'right';
           ctx.fillStyle = '#dc2626';
-          ctx.font = 'bold 13px sans-serif';
-          ctx.fillText('+1,500 ETB', tableX + 480, midRowY);
-          ctx.fillText('✅ Paid Out', tableX + tableW - 20, midRowY);
+          ctx.font = '900 14px sans-serif';
+          ctx.fillText('+500 ETB', tableX + 480, midRowY);
+          ctx.fillText('✅ ተከፍሏል', tableX + tableW - 20, midRowY);
         }
       }
 
-      // Summary Card Footer inside Table Box (Champagne & Rose Gold)
+      // Summary Card Footer inside Table Box
       const sumBoxY = tableY + tableH - 62;
       const sumGrad = ctx.createLinearGradient(tableX, sumBoxY, tableX + tableW, sumBoxY);
       sumGrad.addColorStop(0, '#fee2e2');
@@ -783,29 +813,29 @@ export default function AdminChannelProofs() {
       ctx.beginPath();
       ctx.roundRect(tableX + 12, sumBoxY, tableW - 24, 50, 12);
       ctx.fill();
-      ctx.strokeStyle = '#f87171'; // Red border
+      ctx.strokeStyle = '#f87171';
       ctx.lineWidth = 1.2;
       ctx.stroke();
 
       const midSumY = sumBoxY + 25;
       ctx.textAlign = 'left';
-      ctx.fillStyle = '#991b1b';
-      ctx.font = 'bold 14px sans-serif';
-      ctx.fillText('💸 BATCH TOTAL PAID OUT:', tableX + 28, midSumY);
+      ctx.fillStyle = '#000000'; // SOLID BLACK label
+      ctx.font = '900 14px sans-serif';
+      ctx.fillText('💸 አጠቃላይ የተከፈለ ሽልማት (TOTAL):', tableX + 28, midSumY);
 
       ctx.textAlign = 'right';
-      ctx.fillStyle = '#b91c1c';
+      ctx.fillStyle = '#dc2626'; // Bold Red amount
       ctx.font = '900 19px sans-serif';
       const displaySum = batchSum > 0 ? batchSum : 8636;
       ctx.fillText(`${displaySum.toLocaleString()} ETB`, tableX + tableW - 28, midSumY);
 
-      // 7. Trust Badges row
+      // 7. Trust Badges row in Amharic & English
       const badgeY = 878;
       const badges = [
-        { icon: '⚡', label: 'FAST PAYOUT' },
-        { icon: '🏆', label: 'REAL WINNERS' },
-        { icon: '🛡️', label: '100% SECURE' },
-        { icon: '💎', label: 'OFFICIAL HB' },
+        { icon: '⚡', label: 'ፈጣን ክፍያ' },
+        { icon: '🏆', label: 'እውነተኛ አሸናፊዎች' },
+        { icon: '🛡️', label: '100% አስተማማኝ' },
+        { icon: '💎', label: 'ህዳሴ ቢንጎ' },
       ];
 
       const colW = (width - 100) / 4;
@@ -815,8 +845,8 @@ export default function AdminChannelProofs() {
         ctx.textAlign = 'center';
         ctx.fillText(b.icon, colX, badgeY);
 
-        ctx.fillStyle = '#991b1b';
-        ctx.font = '900 10.5px sans-serif';
+        ctx.fillStyle = '#000000'; // SOLID BLACK text
+        ctx.font = '900 11px sans-serif';
         ctx.fillText(b.label, colX, badgeY + 22);
 
         if (idx < 3) {
@@ -830,14 +860,14 @@ export default function AdminChannelProofs() {
         }
       });
 
-      // 8. Cursive Motto in deep ruby red
+      // 8. Cursive Motto in Amharic
       ctx.textAlign = 'center';
       ctx.fillStyle = '#7f1d1d';
-      ctx.font = 'italic bold 22px "Brush Script MT", "Great Vibes", "Lucida Calligraphy", cursive, serif';
-      ctx.fillText('Play With Trust  •  Win Real Cash  •  Instant Cashouts', width / 2, 946);
+      ctx.font = 'bold 20px "Times New Roman", Georgia, serif';
+      ctx.fillText('በእምነት ይጫወቱ  •  እውነተኛ ብር ያሸንፉ  •  ወዲያውኑ ያውጡ', width / 2, 946);
 
       // 9. Official Bot Handle Box in Ruby Red gradient
-      const botBoxW = 420;
+      const botBoxW = 440;
       const botBoxH = 46;
       const botBoxX = (width - botBoxW) / 2;
       const botBoxY = 975;
@@ -847,10 +877,10 @@ export default function AdminChannelProofs() {
       botGrad.addColorStop(1, '#991b1b');
       ctx.fillStyle = botGrad;
       ctx.beginPath();
-      ctx.roundRect(botBoxX, botBoxY, botBoxW, botBoxH, 23);
+      ctx.roundRect(botBoxX, botBoxY, botBoxH, botBoxH, 23);
       ctx.fill();
 
-      ctx.strokeStyle = '#fbbf24'; // Gold border
+      ctx.strokeStyle = '#fbbf24';
       ctx.lineWidth = 2;
       ctx.stroke();
 
@@ -858,13 +888,13 @@ export default function AdminChannelProofs() {
       ctx.font = '900 16px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`🎮 PLAY & CASHOUT: @${botUsername}`, width / 2, botBoxY + botBoxH / 2);
+      ctx.fillText(`🎮 ይጫወቱ እና ያውጡ: @${botUsername}`, width / 2, botBoxY + botBoxH / 2);
       ctx.textBaseline = 'alphabetic';
 
       // 10. Footer
-      ctx.fillStyle = '#9c8141';
-      ctx.font = '600 12px sans-serif';
-      ctx.fillText('Official Channel Partner • Powered by HDASE BINGO', width / 2, 1056);
+      ctx.fillStyle = '#64748b';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillText('ህዳሴ ቢንጎ • Official Partner Network • Powered by HDASE BINGO', width / 2, 1056);
 
       return canvas.toDataURL('image/png');
     } catch (e) {
@@ -875,6 +905,8 @@ export default function AdminChannelProofs() {
 
   // Update previews whenever data or active tab changes
   useEffect(() => {
+    if (loading) return;
+
     const timer = setTimeout(() => {
       const depUrl = generateDepositCanvas();
       if (depUrl) setDepositDataUrl(depUrl);
@@ -884,11 +916,11 @@ export default function AdminChannelProofs() {
     }, 120);
 
     return () => clearTimeout(timer);
-  }, [generateDepositCanvas, generateWithdrawalCanvas, recentDeposits, recentWithdrawals]);
+  }, [loading, generateDepositCanvas, generateWithdrawalCanvas, recentDeposits, recentWithdrawals]);
 
-  // Automatic background cache sync so R2 ALWAYS has fresh high-res canvas images
+  // Automatic background cache sync so R2 ALWAYS has fresh high-res canvas images with real data
   useEffect(() => {
-    if (depositDataUrl) {
+    if (depositDataUrl && recentDeposits.length > 0) {
       const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
       fetch(`${API_URL}/channel-proofs/sync-cache`, {
         method: 'POST',
@@ -899,10 +931,10 @@ export default function AdminChannelProofs() {
         body: JSON.stringify({ type: 'deposit', image_base64: depositDataUrl }),
       }).catch(() => {});
     }
-  }, [depositDataUrl]);
+  }, [depositDataUrl, recentDeposits.length]);
 
   useEffect(() => {
-    if (withdrawalDataUrl) {
+    if (withdrawalDataUrl && recentWithdrawals.length > 0) {
       const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
       fetch(`${API_URL}/channel-proofs/sync-cache`, {
         method: 'POST',
@@ -913,7 +945,7 @@ export default function AdminChannelProofs() {
         body: JSON.stringify({ type: 'withdrawal', image_base64: withdrawalDataUrl }),
       }).catch(() => {});
     }
-  }, [withdrawalDataUrl]);
+  }, [withdrawalDataUrl, recentWithdrawals.length]);
 
   // Active data URL based on tab
   const activeDataUrl = activeTab === 'deposit' ? depositDataUrl : withdrawalDataUrl;
