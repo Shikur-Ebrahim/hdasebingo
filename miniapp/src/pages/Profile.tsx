@@ -76,8 +76,8 @@ export default function Profile() {
           isProfileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {/* ── HEADER ── */}
-        <div className="bg-slate-900 rounded-br-[1.5rem] px-4 pt-4 pb-4 shadow-md relative shrink-0">
+        {/* ── HEADER (Chocolate Brown) ── */}
+        <div className="bg-[#3B2219] rounded-br-[1.5rem] px-4 pt-4 pb-4 shadow-md relative shrink-0">
           <button
             onClick={() => setProfileOpen(false)}
             className="absolute top-3 right-3 text-white/50 hover:text-white p-1"
@@ -229,31 +229,10 @@ export default function Profile() {
               </div>
             </button>
 
-            {/* AI Assistance — Unique highlighted button */}
-            <button
-              onClick={() => navigateTo('/support')}
-              className="w-full flex items-center px-2 py-1.5 rounded-xl bg-gradient-to-r from-violet-600/10 via-purple-600/15 to-indigo-600/10 border border-violet-200 dark:border-violet-700/50 hover:from-violet-600/20 hover:to-indigo-600/20 transition-all active:scale-[0.98] text-left shadow-2xs group my-0.5"
-            >
-              <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-violet-600 to-indigo-600 text-white flex items-center justify-center mr-2 shrink-0 shadow-xs">
-                <Bot size={13} />
-              </div>
-              <div className="flex-1 min-w-0 pr-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-black text-violet-900 dark:text-violet-200 text-[10px] truncate">
-                    {t[language].profile.aiAssistance || 'AI Assistance'}
-                  </span>
-                  <span className="text-[7px] bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-1.5 py-0.2 rounded-full font-black tracking-wider uppercase shrink-0">
-                    AI
-                  </span>
-                </div>
-                <p className="text-[8px] text-violet-600/80 dark:text-violet-400 font-semibold truncate leading-tight">
-                  {language === 'am' ? '24/7 ፈጣን ስማርት ረዳት' : '24/7 Smart Helper'}
-                </p>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <ChevronRight size={11} className="text-violet-400 group-hover:translate-x-0.5 transition-transform" />
-              </div>
+            <button onClick={() => navigateTo('/support')} className={row}>
+              <div className={icon('bg-purple-50 text-purple-600')}><Bot size={12} /></div>
+              <span className="flex-1 font-bold text-slate-700 dark:text-slate-200 text-[10px]">{t[language].profile.aiAssistance || 'AI Assistance'}</span>
+              <ChevronRight size={11} className="text-slate-300" />
             </button>
 
             <button onClick={handleSupport} className={row}>
