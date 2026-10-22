@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   ArrowLeft, Download, Send, RefreshCw, Settings2, CheckCircle2,
   ArrowDownToLine, ArrowUpFromLine,
-  ExternalLink, Sparkles, Check, AlertCircle, Eye
+  ExternalLink, Sparkles, Check, AlertCircle, Eye,
+  Plus, Minus, Clock, RotateCcw, Trash2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
@@ -84,6 +85,13 @@ export default function AdminChannelProofs() {
   const [unpostedWithdrawals, setUnpostedWithdrawals] = useState(0);
   const [recentDeposits, setRecentDeposits] = useState<DepositItem[]>([]);
   const [recentWithdrawals, setRecentWithdrawals] = useState<WithdrawalItem[]>([]);
+  const [unpostedDepositsList, setUnpostedDepositsList] = useState<DepositItem[]>([]);
+  const [unpostedWithdrawalsList, setUnpostedWithdrawalsList] = useState<WithdrawalItem[]>([]);
+
+  // Batch size per flyer (editable from 10)
+  const [depositBatchSize, setDepositBatchSize] = useState<number>(10);
+  const [withdrawBatchSize, setWithdrawBatchSize] = useState<number>(10);
+  const [isResettingHistory, setIsResettingHistory] = useState(false);
 
   // Action status state
   const [isPosting, setIsPosting] = useState(false);
@@ -176,14 +184,23 @@ export default function AdminChannelProofs() {
         setSettings(json.settings);
         setUnpostedDeposits(json.unpostedDepositsCount || 0);
         setUnpostedWithdrawals(json.unpostedWithdrawalsCount || 0);
-        setRecentDeposits(json.recentDeposits || []);
-        setRecentWithdrawals(json.recentWithdrawals || []);
+        
+        const depList = json.unpostedDeposits || json.recentDeposits || [];
+        const withList = json.unpostedWithdrawals || json.recentWithdrawals || [];
+        setRecentDeposits(depList);
+        setRecentWithdrawals(withList);
+        setUnpostedDepositsList(depList);
+        setUnpostedWithdrawalsList(withList);
 
         setFormDepositThreshold(String(json.settings.depositThreshold || 10));
         setFormDepositEnabled(json.settings.depositEnabled !== false);
         setFormWithdrawThreshold(String(json.settings.withdrawThreshold || 10));
         setFormWithdrawEnabled(json.settings.withdrawEnabled !== false);
         setFormTargetChannel(json.settings.targetChannel || '@dmg_official_channel');
+
+        // Sync batch size with settings threshold on first load
+        setDepositBatchSize(prev => (prev === 10 && json.settings.depositThreshold) ? json.settings.depositThreshold : prev);
+        setWithdrawBatchSize(prev => (prev === 10 && json.settings.withdrawThreshold) ? json.settings.withdrawThreshold : prev);
       }
     } catch (err) {
       console.error('Error fetching channel proofs data:', err);
@@ -359,97 +376,97 @@ export default function AdminChannelProofs() {
       ctx.fillText('ሁኔታ (STATUS)', tableX + tableW - 20, tableY + headH / 2);
       ctx.textBaseline = 'alphabetic';
 
-      // Rows: display real deposits from database (fallback to cycling if < 10)
+      // Rows: display unposted approved deposits from database
       const rowH = 50;
       let batchSum = 0;
-      const sourceList = recentDeposits.length > 0 ? recentDeposits : [];
+      const currentBatch = Math.max(1, depositBatchSize);
+      const sourceList = (unpostedDepositsList.length > 0 ? unpostedDepositsList : recentDeposits).slice(0, currentBatch);
+      const rowCount = Math.min(10, sourceList.length);
 
-      for (let i = 0; i < 10; i++) {
-        const item = sourceList.length > 0 ? (sourceList[i] || sourceList[i % sourceList.length]) : null;
-        const rowY = tableY + headH + i * rowH;
-
-        if (i % 2 === 1) {
-          ctx.fillStyle = '#fdfbf7';
-          ctx.fillRect(tableX + 1, rowY, tableW - 2, rowH);
-        }
-
-        if (i < 9) {
-          ctx.strokeStyle = '#f1e7d0';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(tableX + 10, rowY + rowH);
-          ctx.lineTo(tableX + tableW - 10, rowY + rowH);
-          ctx.stroke();
-        }
-
-        const midRowY = rowY + rowH / 2;
-        ctx.textBaseline = 'middle';
-
-        // Index pill in green
-        ctx.fillStyle = '#dcfce7';
-        ctx.beginPath();
-        ctx.arc(tableX + 24, midRowY, 12, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Index number in SOLID BLACK
-        ctx.fillStyle = '#000000';
-        ctx.font = '900 12px sans-serif';
+      if (sourceList.length === 0) {
+        ctx.fillStyle = '#1e293b';
+        ctx.font = 'bold 16px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(String(i + 1), tableX + 24, midRowY);
+        ctx.fillText('✨ ሁሉም የተረጋገጡ ዲፖዚቶች ተለጥፈዋል!', width / 2, tableY + 280);
+        ctx.fillStyle = '#64748b';
+        ctx.font = 'bold 13px sans-serif';
+        ctx.fillText('አዳዲስ ዲፖዚቶች ሲረጋገጡ እዚህ በራስ-ሰር ይደረደራሉ', width / 2, tableY + 310);
+      } else {
+        for (let i = 0; i < rowCount; i++) {
+          const item = sourceList[i];
+          const rowY = tableY + headH + i * rowH;
 
-        if (item) {
-          const amt = Number(item.amount || 0);
-          batchSum += amt;
-          const playerName = getExactPlayerName(item.users);
-          const method = formatMethodName(item.deposit_methods?.type, item.deposit_methods?.name);
+          if (i % 2 === 1) {
+            ctx.fillStyle = '#fdfbf7';
+            ctx.fillRect(tableX + 1, rowY, tableW - 2, rowH);
+          }
 
-          // Player Name in SOLID BLACK (crisp, bold, ultra-readable)
-          ctx.textAlign = 'left';
-          ctx.fillStyle = '#000000';
-          ctx.font = '900 14px sans-serif';
-          ctx.fillText(playerName.substring(0, 16), tableX + 46, midRowY);
+          if (i < rowCount - 1) {
+            ctx.strokeStyle = '#f1e7d0';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(tableX + 10, rowY + rowH);
+            ctx.lineTo(tableX + tableW - 10, rowY + rowH);
+            ctx.stroke();
+          }
 
-          // Method Badge with SOLID BLACK text
-          const isTelebirr = method.toLowerCase().includes('tele');
-          const isCbe = method.toLowerCase().includes('cbe');
-          const badgeBg = isTelebirr ? '#fff7ed' : isCbe ? '#faf5ff' : '#f0fdf4';
-          const badgeBorder = isTelebirr ? '#fb923c' : isCbe ? '#c084fc' : '#86efac';
+          const midRowY = rowY + rowH / 2;
+          ctx.textBaseline = 'middle';
 
-          ctx.fillStyle = badgeBg;
+          // Index pill in green
+          ctx.fillStyle = '#dcfce7';
           ctx.beginPath();
-          ctx.roundRect(tableX + 225, midRowY - 12, 100, 25, 6);
+          ctx.arc(tableX + 24, midRowY, 12, 0, Math.PI * 2);
           ctx.fill();
-          ctx.strokeStyle = badgeBorder;
-          ctx.lineWidth = 1.2;
-          ctx.stroke();
 
-          ctx.fillStyle = '#000000'; // SOLID BLACK method text
-          ctx.font = 'bold 11.5px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.fillText(method.substring(0, 12), tableX + 275, midRowY);
-
-          // Amount in Bold Deep Green
-          ctx.textAlign = 'right';
-          ctx.fillStyle = '#15803d';
-          ctx.font = '900 15px sans-serif';
-          ctx.fillText(`+${amt.toLocaleString()} ETB`, tableX + 480, midRowY);
-
-          // Status Badge in Amharic
-          ctx.fillStyle = '#15803d';
-          ctx.font = '900 12px sans-serif';
-          ctx.fillText('✅ ገቢ ተደርጓል', tableX + tableW - 20, midRowY);
-        } else {
-          // Placeholder only if database is completely empty
-          ctx.textAlign = 'left';
+          // Index number in SOLID BLACK
           ctx.fillStyle = '#000000';
-          ctx.font = 'bold 13px sans-serif';
-          ctx.fillText('ተጫዋች', tableX + 46, midRowY);
+          ctx.font = '900 12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(String(i + 1), tableX + 24, midRowY);
 
-          ctx.textAlign = 'right';
-          ctx.fillStyle = '#15803d';
-          ctx.font = '900 14px sans-serif';
-          ctx.fillText('+100 ETB', tableX + 480, midRowY);
-          ctx.fillText('✅ ገቢ ተደርጓል', tableX + tableW - 20, midRowY);
+          if (item) {
+            const amt = Number(item.amount || 0);
+            batchSum += amt;
+            const playerName = getExactPlayerName(item.users);
+            const method = formatMethodName(item.deposit_methods?.type, item.deposit_methods?.name);
+
+            // Player Name in SOLID BLACK (crisp, bold, ultra-readable)
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#000000';
+            ctx.font = '900 14px sans-serif';
+            ctx.fillText(playerName.substring(0, 16), tableX + 46, midRowY);
+
+            // Method Badge with SOLID BLACK text
+            const isTelebirr = method.toLowerCase().includes('tele');
+            const isCbe = method.toLowerCase().includes('cbe');
+            const badgeBg = isTelebirr ? '#fff7ed' : isCbe ? '#faf5ff' : '#f0fdf4';
+            const badgeBorder = isTelebirr ? '#fb923c' : isCbe ? '#c084fc' : '#86efac';
+
+            ctx.fillStyle = badgeBg;
+            ctx.beginPath();
+            ctx.roundRect(tableX + 225, midRowY - 12, 100, 25, 6);
+            ctx.fill();
+            ctx.strokeStyle = badgeBorder;
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+
+            ctx.fillStyle = '#000000'; // SOLID BLACK method text
+            ctx.font = 'bold 11.5px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(method.substring(0, 12), tableX + 275, midRowY);
+
+            // Amount in Bold Deep Green
+            ctx.textAlign = 'right';
+            ctx.fillStyle = '#15803d';
+            ctx.font = '900 15px sans-serif';
+            ctx.fillText(`+${amt.toLocaleString()} ETB`, tableX + 480, midRowY);
+
+            // Status Badge in Amharic
+            ctx.fillStyle = '#15803d';
+            ctx.font = '900 12px sans-serif';
+            ctx.fillText('✅ ገቢ ተደርጓል', tableX + tableW - 20, midRowY);
+          }
         }
       }
 
@@ -550,7 +567,7 @@ export default function AdminChannelProofs() {
       console.error('Error generating deposit proof canvas:', e);
       return null;
     }
-  }, [recentDeposits, botUsername]);
+  }, [unpostedDepositsList, recentDeposits, depositBatchSize, botUsername]);
 
   // ── 2. GENERATE APPROVED WITHDRAWALS CANVAS (Ivory + Ruby RED Line & Accents + Amharic) ──
   const generateWithdrawalCanvas = useCallback((): string | null => {
@@ -715,91 +732,92 @@ export default function AdminChannelProofs() {
       ctx.fillText('ሁኔታ (STATUS)', tableX + tableW - 20, tableY + headH / 2);
       ctx.textBaseline = 'alphabetic';
 
-      // Rows: display real withdrawals from database
+      // Rows: display unposted approved withdrawals from database
       const rowH = 50;
       let batchSum = 0;
-      const sourceList = recentWithdrawals.length > 0 ? recentWithdrawals : [];
+      const currentBatch = Math.max(1, withdrawBatchSize);
+      const sourceList = (unpostedWithdrawalsList.length > 0 ? unpostedWithdrawalsList : recentWithdrawals).slice(0, currentBatch);
+      const rowCount = Math.min(10, sourceList.length);
 
-      for (let i = 0; i < 10; i++) {
-        const item = sourceList.length > 0 ? (sourceList[i] || sourceList[i % sourceList.length]) : null;
-        const rowY = tableY + headH + i * rowH;
-
-        if (i % 2 === 1) {
-          ctx.fillStyle = '#fff9f9';
-          ctx.fillRect(tableX + 1, rowY, tableW - 2, rowH);
-        }
-
-        if (i < 9) {
-          ctx.strokeStyle = '#fee2e2'; // Light red row separator
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(tableX + 10, rowY + rowH);
-          ctx.lineTo(tableX + tableW - 10, rowY + rowH);
-          ctx.stroke();
-        }
-
-        const midRowY = rowY + rowH / 2;
-        ctx.textBaseline = 'middle';
-
-        // Index pill in rose red
-        ctx.fillStyle = '#fee2e2';
-        ctx.beginPath();
-        ctx.arc(tableX + 24, midRowY, 12, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Index number in SOLID BLACK
-        ctx.fillStyle = '#000000';
-        ctx.font = '900 12px sans-serif';
+      if (sourceList.length === 0) {
+        ctx.fillStyle = '#1e293b';
+        ctx.font = 'bold 16px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(String(i + 1), tableX + 24, midRowY);
+        ctx.fillText('✨ ሁሉም የተረጋገጡ ክፍያዎች ተለጥፈዋል!', width / 2, tableY + 280);
+        ctx.fillStyle = '#64748b';
+        ctx.font = 'bold 13px sans-serif';
+        ctx.fillText('አዳዲስ ክፍያዎች ሲረጋገጡ እዚህ በራስ-ሰር ይደረደራሉ', width / 2, tableY + 310);
+      } else {
+        for (let i = 0; i < rowCount; i++) {
+          const item = sourceList[i];
+          const rowY = tableY + headH + i * rowH;
 
-        if (item) {
-          const net = Number(item.net_amount || item.amount || 0);
-          batchSum += net;
-          const winnerName = getExactWinnerName(item);
-          const method = formatMethodName(item.withdrawal_methods?.type);
+          if (i % 2 === 1) {
+            ctx.fillStyle = '#fff9f9';
+            ctx.fillRect(tableX + 1, rowY, tableW - 2, rowH);
+          }
 
-          // Winner Name in SOLID BLACK (crisp, bold, ultra-readable)
-          ctx.textAlign = 'left';
-          ctx.fillStyle = '#000000';
-          ctx.font = '900 14px sans-serif';
-          ctx.fillText(winnerName.substring(0, 16), tableX + 46, midRowY);
+          if (i < rowCount - 1) {
+            ctx.strokeStyle = '#fee2e2'; // Light red row separator
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(tableX + 10, rowY + rowH);
+            ctx.lineTo(tableX + tableW - 10, rowY + rowH);
+            ctx.stroke();
+          }
 
-          // Method Badge with SOLID BLACK text
-          ctx.fillStyle = '#fff1f2';
+          const midRowY = rowY + rowH / 2;
+          ctx.textBaseline = 'middle';
+
+          // Index pill in rose red
+          ctx.fillStyle = '#fee2e2';
           ctx.beginPath();
-          ctx.roundRect(tableX + 225, midRowY - 12, 100, 25, 6);
+          ctx.arc(tableX + 24, midRowY, 12, 0, Math.PI * 2);
           ctx.fill();
-          ctx.strokeStyle = '#f43f5e';
-          ctx.lineWidth = 1.2;
-          ctx.stroke();
 
-          ctx.fillStyle = '#000000'; // SOLID BLACK method text
-          ctx.font = 'bold 11.5px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.fillText(method.substring(0, 12), tableX + 275, midRowY);
-
-          // Net Payout in BOLD RUBY RED
-          ctx.textAlign = 'right';
-          ctx.fillStyle = '#dc2626';
-          ctx.font = '900 15px sans-serif';
-          ctx.fillText(`+${net.toLocaleString()} ETB`, tableX + 480, midRowY);
-
-          // Status Badge in Amharic
-          ctx.fillStyle = '#15803d';
-          ctx.font = '900 12px sans-serif';
-          ctx.fillText('✅ ተከፍሏል', tableX + tableW - 20, midRowY);
-        } else {
-          ctx.textAlign = 'left';
+          // Index number in SOLID BLACK
           ctx.fillStyle = '#000000';
-          ctx.font = 'bold 13px sans-serif';
-          ctx.fillText('አሸናፊ', tableX + 46, midRowY);
+          ctx.font = '900 12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(String(i + 1), tableX + 24, midRowY);
 
-          ctx.textAlign = 'right';
-          ctx.fillStyle = '#dc2626';
-          ctx.font = '900 14px sans-serif';
-          ctx.fillText('+500 ETB', tableX + 480, midRowY);
-          ctx.fillText('✅ ተከፍሏል', tableX + tableW - 20, midRowY);
+          if (item) {
+            const net = Number(item.net_amount || item.amount || 0);
+            batchSum += net;
+            const winnerName = getExactWinnerName(item);
+            const method = formatMethodName(item.withdrawal_methods?.type, item.account_name);
+
+            // Winner Name in SOLID BLACK (crisp, bold, ultra-readable)
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#000000';
+            ctx.font = '900 14px sans-serif';
+            ctx.fillText(winnerName.substring(0, 16), tableX + 46, midRowY);
+
+            // Method Badge with SOLID BLACK text
+            ctx.fillStyle = '#fff1f2';
+            ctx.beginPath();
+            ctx.roundRect(tableX + 225, midRowY - 12, 100, 25, 6);
+            ctx.fill();
+            ctx.strokeStyle = '#f43f5e';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+
+            ctx.fillStyle = '#000000'; // SOLID BLACK method text
+            ctx.font = 'bold 11.5px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(method.substring(0, 12), tableX + 275, midRowY);
+
+            // Net Payout in BOLD RUBY RED
+            ctx.textAlign = 'right';
+            ctx.fillStyle = '#dc2626';
+            ctx.font = '900 15px sans-serif';
+            ctx.fillText(`+${net.toLocaleString()} ETB`, tableX + 480, midRowY);
+
+            // Status Badge in Amharic
+            ctx.fillStyle = '#15803d';
+            ctx.font = '900 12px sans-serif';
+            ctx.fillText('✅ ተከፍሏል', tableX + tableW - 20, midRowY);
+          }
         }
       }
 
@@ -826,7 +844,7 @@ export default function AdminChannelProofs() {
       ctx.textAlign = 'right';
       ctx.fillStyle = '#dc2626'; // Bold Red amount
       ctx.font = '900 19px sans-serif';
-      const displaySum = batchSum > 0 ? batchSum : 8636;
+      const displaySum = batchSum > 0 ? batchSum : 0;
       ctx.fillText(`${displaySum.toLocaleString()} ETB`, tableX + tableW - 28, midSumY);
 
       // 7. Trust Badges row in Amharic & English
@@ -901,7 +919,7 @@ export default function AdminChannelProofs() {
       console.error('Error generating withdrawal proof canvas:', e);
       return null;
     }
-  }, [recentWithdrawals, botUsername]);
+  }, [unpostedWithdrawalsList, recentWithdrawals, withdrawBatchSize, botUsername]);
 
   // Update previews whenever data or active tab changes
   useEffect(() => {
@@ -916,7 +934,7 @@ export default function AdminChannelProofs() {
     }, 120);
 
     return () => clearTimeout(timer);
-  }, [loading, generateDepositCanvas, generateWithdrawalCanvas, recentDeposits, recentWithdrawals]);
+  }, [loading, generateDepositCanvas, generateWithdrawalCanvas, unpostedDepositsList, unpostedWithdrawalsList, depositBatchSize, withdrawBatchSize]);
 
   // Automatic background cache sync so R2 ALWAYS has fresh high-res canvas images with real data
   useEffect(() => {
@@ -1015,6 +1033,15 @@ export default function AdminChannelProofs() {
   // ── Post Now to Official Channel ─────────────────────────────────────────────
   const handlePostToChannel = async () => {
     triggerHaptic('heavy');
+    const flyerItems = activeTab === 'deposit'
+      ? unpostedDepositsList.slice(0, depositBatchSize)
+      : unpostedWithdrawalsList.slice(0, withdrawBatchSize);
+
+    if (flyerItems.length === 0) {
+      setPostErrorMsg(`የሚለጠፍ ያልተለጠፈ የ${activeTab === 'deposit' ? 'ዲፖዚት' : 'ክፍያ'} መረጃ የለም! (No unposted items pending)`);
+      return;
+    }
+
     const dataUrl = activeDataUrl || (activeTab === 'deposit' ? generateDepositCanvas() : generateWithdrawalCanvas());
     if (!dataUrl) {
       setPostErrorMsg('ምስሉ በመዘጋጀት ላይ ነው፣ እባክዎ ጥቂት ሰከንዶች ይጠብቁ... (Canvas is rendering, please wait)');
@@ -1037,13 +1064,14 @@ export default function AdminChannelProofs() {
           type: activeTab,
           image_base64: dataUrl,
           custom_channel: settings.targetChannel,
+          posted_ids: flyerItems.map(i => i.id),
         }),
       });
 
       const json = await res.json();
       if (res.ok && json.success) {
         triggerSuccessHaptic();
-        setPostSuccessMsg(`ትክክለኛው የ${activeTab === 'deposit' ? 'ዲፖዚት' : 'ክፍያ'} ምስል በተሳካ ሁኔታ ወደ ${json.channelId || settings.targetChannel} ተልኳል! 🎉`);
+        setPostSuccessMsg(`ትክክለኛው የ${flyerItems.length} ተጫዋቾች የ${activeTab === 'deposit' ? 'ዲፖዚት' : 'ክፍያ'} ምስል በተሳካ ሁኔታ ተለጥፏል! እነኚህ ${flyerItems.length} መረጃዎች ከዝርዝሩ ወጥተዋል። 🎉`);
         fetchData();
         setTimeout(() => setPostSuccessMsg(null), 5000);
       } else {
@@ -1053,6 +1081,57 @@ export default function AdminChannelProofs() {
       setPostErrorMsg(e.message || 'Network error while posting to channel');
     } finally {
       setIsPosting(false);
+    }
+  };
+
+  // ── Reset Post History ───────────────────────────────────────────────────────
+  const handleResetHistory = async () => {
+    if (!window.confirm(`ሁሉንም የተረጋገጡ የ${activeTab === 'deposit' ? 'ዲፖዚት' : 'ክፍያ'} መረጃዎች እንደገና ያልተለጠፉ እንዲሆኑ ማድረግ ይፈልጋሉ?`)) {
+      return;
+    }
+    triggerHaptic('medium');
+    setIsResettingHistory(true);
+    try {
+      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+      const res = await fetch(`${API_URL}/channel-proofs/reset-history`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-init-data': initData,
+        },
+        body: JSON.stringify({ type: activeTab }),
+      });
+      if (res.ok) {
+        triggerSuccessHaptic();
+        setPostSuccessMsg('የፖስት ታሪክ ዳግም ተጀምሯል! ሁሉም መረጃዎች ተመልሰዋል።');
+        fetchData();
+        setTimeout(() => setPostSuccessMsg(null), 4000);
+      }
+    } catch (e: any) {
+      setPostErrorMsg(e.message || 'Failed to reset history');
+    } finally {
+      setIsResettingHistory(false);
+    }
+  };
+
+  // ── Toggle Individual Item Posted ────────────────────────────────────────────
+  const handleToggleItemPosted = async (id: string, action: 'post' | 'unpost') => {
+    triggerHaptic('light');
+    try {
+      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+      const res = await fetch(`${API_URL}/channel-proofs/mark-item`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-init-data': initData,
+        },
+        body: JSON.stringify({ type: activeTab, id, action }),
+      });
+      if (res.ok) {
+        fetchData();
+      }
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -1455,6 +1534,253 @@ export default function AdminChannelProofs() {
             <span>Target: {settings.targetChannel}</span>
             <ExternalLink size={12} />
           </a>
+        </div>
+      </div>
+
+      {/* ── NOT POSTED APPROVED TRANSACTIONS SECTION ── */}
+      <div className="px-4 mt-6 mb-8 space-y-3">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+          {/* Section Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className={`w-2.5 h-2.5 rounded-full ${activeTab === 'deposit' ? 'bg-emerald-500' : 'bg-rose-500'} animate-pulse`} />
+                <h3 className="font-black text-sm text-slate-900">
+                  {activeTab === 'deposit' ? 'ያልተለጠፉ የተረጋገጡ ዲፖዚቶች' : 'ያልተለጠፉ የተረጋገጡ ክፍያዎች'}
+                </h3>
+                <span className={`text-[11px] font-black px-2 py-0.5 rounded-full ${
+                  activeTab === 'deposit' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                }`}>
+                  {activeTab === 'deposit' ? unpostedDepositsList.length : unpostedWithdrawalsList.length} ያልተለጠፉ
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                እነዚህ መረጃዎች ወደ ቻናሉ ለመለጠፍ የተዘጋጁ ናቸው (ከተለጠፉ በኋላ ከዚህ ክፍል ይወገዳሉ)
+              </p>
+            </div>
+
+            <button
+              onClick={handleResetHistory}
+              disabled={isResettingHistory}
+              className="self-start sm:self-auto text-[11px] font-bold text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-lg flex items-center gap-1 active:scale-95 transition-all"
+              title="ሁሉንም እንደገና ያልተለጠፉ አድርግ"
+            >
+              <RotateCcw size={12} className={isResettingHistory ? 'animate-spin' : ''} />
+              <span>ዳግም ጀምር (Reset All)</span>
+            </button>
+          </div>
+
+          {/* Batch Size Quick Adjuster (Increase / Decrease from 10) */}
+          <div className="py-3 px-3 bg-slate-50 rounded-xl mt-3 border border-slate-100 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-700">በፖስተር የሚካተት ብዛት (Flyer Batch Size):</span>
+              <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic('light');
+                    if (activeTab === 'deposit') setDepositBatchSize(Math.max(1, depositBatchSize - 1));
+                    else setWithdrawBatchSize(Math.max(1, withdrawBatchSize - 1));
+                  }}
+                  className="w-7 h-7 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded active:scale-90"
+                >
+                  <Minus size={14} />
+                </button>
+                <span className="w-9 text-center font-black text-xs text-slate-900">
+                  {activeTab === 'deposit' ? depositBatchSize : withdrawBatchSize}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic('light');
+                    if (activeTab === 'deposit') setDepositBatchSize(Math.min(50, depositBatchSize + 1));
+                    else setWithdrawBatchSize(Math.min(50, withdrawBatchSize + 1));
+                  }}
+                  className="w-7 h-7 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded active:scale-90"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Preset Pills */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-slate-400 font-semibold">ፈጣን:</span>
+              {[5, 8, 10, 15, 20].map((preset) => {
+                const currentBatch = activeTab === 'deposit' ? depositBatchSize : withdrawBatchSize;
+                const isSelected = currentBatch === preset;
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic('light');
+                      if (activeTab === 'deposit') setDepositBatchSize(preset);
+                      else setWithdrawBatchSize(preset);
+                    }}
+                    className={`px-2 py-0.8 text-xs font-black rounded-md transition-all ${
+                      isSelected
+                        ? activeTab === 'deposit'
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'bg-rose-600 text-white shadow-sm'
+                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Transaction Cards List */}
+          <div className="mt-3 space-y-2">
+            {activeTab === 'deposit' ? (
+              unpostedDepositsList.length === 0 ? (
+                <div className="p-8 text-center bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
+                  <CheckCircle2 size={32} className="mx-auto text-emerald-500 mb-2" />
+                  <p className="text-xs font-black text-slate-700">ሁሉም የተረጋገጡ ዲፖዚቶች ተለጥፈዋል!</p>
+                  <p className="text-[11px] text-slate-400 mt-1">አዲስ ዲፖዚት ሲረጋገጥ እዚህ በራስ-ሰር ይደረደራል።</p>
+                </div>
+              ) : (
+                unpostedDepositsList.map((item, index) => {
+                  const isInFlyer = index < depositBatchSize;
+                  const amt = Number(item.amount || 0);
+                  const playerName = getExactPlayerName(item.users);
+                  const method = formatMethodName(item.deposit_methods?.type, item.deposit_methods?.name);
+                  const timeFormatted = item.updated_at ? new Date(item.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                  const dateFormatted = item.updated_at ? new Date(item.updated_at).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={`p-3 rounded-xl border transition-all ${
+                        isInFlyer
+                          ? 'bg-emerald-50/70 border-emerald-300 shadow-sm ring-1 ring-emerald-300/50'
+                          : 'bg-white border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
+                            isInFlyer ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {index + 1}
+                          </span>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-black text-slate-900">{playerName}</span>
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                                {method}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                              <Clock size={10} />
+                              <span>{dateFormatted} {timeFormatted}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <span className="text-xs font-black text-emerald-700 block">
+                              +{amt.toLocaleString()} ETB
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                              isInFlyer ? 'bg-emerald-200 text-emerald-900' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              {isInFlyer ? '🟢 በፖስተሩ ላይ' : '⏳ ለቀጣይ ፖስተር'}
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleToggleItemPosted(item.id, 'post')}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg active:scale-90"
+                            title="አስወግድ (እንደተለጠፈ ቁጠር)"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )
+            ) : (
+              unpostedWithdrawalsList.length === 0 ? (
+                <div className="p-8 text-center bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
+                  <CheckCircle2 size={32} className="mx-auto text-rose-500 mb-2" />
+                  <p className="text-xs font-black text-slate-700">ሁሉም የተረጋገጡ ክፍያዎች ተለጥፈዋል!</p>
+                  <p className="text-[11px] text-slate-400 mt-1">አዲስ ክፍያ ሲረጋገጥ እዚህ በራስ-ሰር ይደረደራል።</p>
+                </div>
+              ) : (
+                unpostedWithdrawalsList.map((item, index) => {
+                  const isInFlyer = index < withdrawBatchSize;
+                  const amt = Number(item.net_amount || item.amount || 0);
+                  const winnerName = getExactWinnerName(item);
+                  const method = formatMethodName(item.withdrawal_methods?.type, item.account_name);
+                  const timeFormatted = item.updated_at ? new Date(item.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                  const dateFormatted = item.updated_at ? new Date(item.updated_at).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={`p-3 rounded-xl border transition-all ${
+                        isInFlyer
+                          ? 'bg-rose-50/70 border-rose-300 shadow-sm ring-1 ring-rose-300/50'
+                          : 'bg-white border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
+                            isInFlyer ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {index + 1}
+                          </span>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-black text-slate-900">{winnerName}</span>
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                                {method}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                              <Clock size={10} />
+                              <span>{dateFormatted} {timeFormatted}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <span className="text-xs font-black text-rose-700 block">
+                              {amt.toLocaleString()} ETB
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                              isInFlyer ? 'bg-rose-200 text-rose-900' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              {isInFlyer ? '🔴 በፖስተሩ ላይ' : '⏳ ለቀጣይ ፖስተር'}
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleToggleItemPosted(item.id, 'post')}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg active:scale-90"
+                            title="አስወግድ (እንደተለጠፈ ቁጠር)"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )
+            )}
+          </div>
         </div>
       </div>
     </div>

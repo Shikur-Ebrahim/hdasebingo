@@ -91,7 +91,9 @@ router.get('/data', validateTelegramAuth, requireAdminOrWorker, async (req: Auth
         'last_channel_post_deposit_at',
         'last_channel_post_withdraw_at',
         'last_channel_post_deposit_image',
-        'last_channel_post_withdraw_image'
+        'last_channel_post_withdraw_image',
+        'posted_deposit_ids',
+        'posted_withdraw_ids'
       ]);
 
     const sMap = Object.fromEntries((settingsRows || []).map(r => [r.key, r.value]));
@@ -103,21 +105,37 @@ router.get('/data', validateTelegramAuth, requireAdminOrWorker, async (req: Auth
     const lastDepositPostAt = sMap.last_channel_post_deposit_at || null;
     const lastWithdrawPostAt = sMap.last_channel_post_withdraw_at || null;
 
-    // 2. Fetch recent approved deposits (limit 20 for preview / selection)
+    let postedDepositIds: string[] = [];
+    try {
+      postedDepositIds = JSON.parse(sMap.posted_deposit_ids || '[]');
+      if (!Array.isArray(postedDepositIds)) postedDepositIds = [];
+    } catch {
+      postedDepositIds = [];
+    }
+
+    let postedWithdrawIds: string[] = [];
+    try {
+      postedWithdrawIds = JSON.parse(sMap.posted_withdraw_ids || '[]');
+      if (!Array.isArray(postedWithdrawIds)) postedWithdrawIds = [];
+    } catch {
+      postedWithdrawIds = [];
+    }
+
+    // 2. Fetch approved deposits (up to 100 for batching and queue management)
     const { data: depositsRaw } = await supabase
       .from('deposits')
       .select('id, telegram_id, amount, status, created_at, updated_at, deposit_methods(id, name, type), users!deposits_telegram_id_fkey(first_name, username)')
       .eq('status', 'approved')
       .order('updated_at', { ascending: false })
-      .limit(20);
+      .limit(100);
 
-    // 3. Fetch recent approved withdrawals (limit 20 for preview / selection)
+    // 3. Fetch approved withdrawals (up to 100 for batching and queue management)
     const { data: withdrawalsRaw } = await supabase
       .from('withdrawals')
       .select('id, telegram_id, method_id, amount, net_amount, fee_amount, account_name, account_number, status, created_at, updated_at, withdrawal_methods(id, type)')
       .eq('status', 'approved')
       .order('updated_at', { ascending: false })
-      .limit(20);
+      .limit(100);
 
     // Enrich withdrawals with user names
     let enrichedWithdrawals: any[] = withdrawalsRaw || [];
@@ -135,27 +153,9 @@ router.get('/data', validateTelegramAuth, requireAdminOrWorker, async (req: Auth
       }));
     }
 
-    // 4. Count unposted deposits since lastDepositPostAt
-    let unpostedDepositQuery = supabase
-      .from('deposits')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'approved');
-
-    if (lastDepositPostAt) {
-      unpostedDepositQuery = unpostedDepositQuery.gt('updated_at', lastDepositPostAt);
-    }
-    const { count: unpostedDepositsCount } = await unpostedDepositQuery;
-
-    // 5. Count unposted withdrawals since lastWithdrawPostAt
-    let unpostedWithdrawQuery = supabase
-      .from('withdrawals')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'approved');
-
-    if (lastWithdrawPostAt) {
-      unpostedWithdrawQuery = unpostedWithdrawQuery.gt('updated_at', lastWithdrawPostAt);
-    }
-    const { count: unpostedWithdrawalsCount } = await unpostedWithdrawQuery;
+    // 4. Filter unposted (NOT yet posted) approved transactions
+    const unpostedDeposits = (depositsRaw || []).filter(d => !postedDepositIds.includes(d.id));
+    const unpostedWithdrawals = enrichedWithdrawals.filter(w => !postedWithdrawIds.includes(w.id));
 
     res.json({
       settings: {
@@ -169,10 +169,14 @@ router.get('/data', validateTelegramAuth, requireAdminOrWorker, async (req: Auth
         lastDepositImage: sMap.last_channel_post_deposit_image || null,
         lastWithdrawImage: sMap.last_channel_post_withdraw_image || null,
       },
-      unpostedDepositsCount: unpostedDepositsCount ?? 0,
-      unpostedWithdrawalsCount: unpostedWithdrawalsCount ?? 0,
-      recentDeposits: depositsRaw || [],
-      recentWithdrawals: enrichedWithdrawals || [],
+      unpostedDepositsCount: unpostedDeposits.length,
+      unpostedWithdrawalsCount: unpostedWithdrawals.length,
+      unpostedDeposits,
+      unpostedWithdrawals,
+      recentDeposits: unpostedDeposits,
+      recentWithdrawals: unpostedWithdrawals,
+      postedDepositIdsCount: postedDepositIds.length,
+      postedWithdrawIdsCount: postedWithdrawIds.length,
     });
   } catch (err: any) {
     console.error('Error fetching channel proofs data:', err);
@@ -213,7 +217,7 @@ router.post('/sync-cache', validateTelegramAuth, requireAdminOrWorker, async (re
 // ── POST /api/channel-proofs/post (Manual or Triggered 1-click Post to Channel) ──
 router.post('/post', validateTelegramAuth, requireAdminOrWorker, async (req: AuthRequest, res) => {
   try {
-    const { type, image_base64, custom_channel, caption } = req.body;
+    const { type, image_base64, custom_channel, caption, posted_ids } = req.body;
 
     if (!type || (type !== 'deposit' && type !== 'withdrawal')) {
       res.status(400).json({ error: 'type must be deposit or withdrawal' });
@@ -302,18 +306,56 @@ router.post('/post', validateTelegramAuth, requireAdminOrWorker, async (req: Aut
       return;
     }
 
-    // 5. Update settings with last post timestamp and cached image URL
+    // 5. Update settings with last post timestamp, cached image URL, AND mark IDs as posted
     const nowIso = new Date().toISOString();
+    const postedKey = type === 'deposit' ? 'posted_deposit_ids' : 'posted_withdraw_ids';
+
+    const { data: currentPostedRow } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', postedKey)
+      .single();
+
+    let existingPostedIds: string[] = [];
+    try {
+      existingPostedIds = JSON.parse(currentPostedRow?.value || '[]');
+      if (!Array.isArray(existingPostedIds)) existingPostedIds = [];
+    } catch {
+      existingPostedIds = [];
+    }
+
+    let idsToRecord: string[] = [];
+    if (Array.isArray(posted_ids) && posted_ids.length > 0) {
+      idsToRecord = posted_ids.map(String);
+    } else {
+      const table = type === 'deposit' ? 'deposits' : 'withdrawals';
+      const { data: unpostedRows } = await supabase
+        .from(table)
+        .select('id')
+        .eq('status', 'approved')
+        .order('updated_at', { ascending: false })
+        .limit(20);
+
+      idsToRecord = (unpostedRows || [])
+        .map(r => r.id)
+        .filter(id => !existingPostedIds.includes(id))
+        .slice(0, 10);
+    }
+
+    const updatedPostedIds = Array.from(new Set([...existingPostedIds, ...idsToRecord]));
+
     const settingsToUpdate = type === 'deposit'
       ? [
           { key: 'last_channel_post_deposit_at', value: nowIso },
           { key: 'last_channel_post_deposit_image', value: publicImageUrl },
-          { key: 'last_channel_post_deposit_image_at', value: nowIso }
+          { key: 'last_channel_post_deposit_image_at', value: nowIso },
+          { key: 'posted_deposit_ids', value: JSON.stringify(updatedPostedIds) }
         ]
       : [
           { key: 'last_channel_post_withdraw_at', value: nowIso },
           { key: 'last_channel_post_withdraw_image', value: publicImageUrl },
-          { key: 'last_channel_post_withdraw_image_at', value: nowIso }
+          { key: 'last_channel_post_withdraw_image_at', value: nowIso },
+          { key: 'posted_withdraw_ids', value: JSON.stringify(updatedPostedIds) }
         ];
 
     await supabase.from('settings').upsert(settingsToUpdate, { onConflict: 'key' });
@@ -324,10 +366,56 @@ router.post('/post', validateTelegramAuth, requireAdminOrWorker, async (req: Aut
       publicImageUrl,
       messageId: tgData.result?.message_id,
       postedAt: nowIso,
+      postedCount: idsToRecord.length,
+      totalPostedCount: updatedPostedIds.length,
     });
   } catch (err: any) {
     console.error('Error posting proof to channel:', err);
     res.status(500).json({ error: err.message || 'Internal server error' });
+  }
+});
+
+// ── POST /api/channel-proofs/reset-history (Reset posted history to show all approved again) ──
+router.post('/reset-history', validateTelegramAuth, requireAdminOrWorker, async (req: AuthRequest, res) => {
+  try {
+    const { type } = req.body; // 'deposit' | 'withdrawal' | 'all'
+    const updates: { key: string; value: string }[] = [];
+    if (!type || type === 'deposit' || type === 'all') {
+      updates.push({ key: 'posted_deposit_ids', value: '[]' });
+    }
+    if (!type || type === 'withdrawal' || type === 'all') {
+      updates.push({ key: 'posted_withdraw_ids', value: '[]' });
+    }
+    await supabase.from('settings').upsert(updates, { onConflict: 'key' });
+    res.json({ success: true, message: 'Proof post history reset successfully' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to reset history' });
+  }
+});
+
+// ── POST /api/channel-proofs/mark-item (Manually toggle item posted / unposted) ──
+router.post('/mark-item', validateTelegramAuth, requireAdminOrWorker, async (req: AuthRequest, res) => {
+  try {
+    const { type, id, action } = req.body;
+    if (!type || !id || !action) {
+      res.status(400).json({ error: 'type, id, and action are required' });
+      return;
+    }
+    const key = type === 'deposit' ? 'posted_deposit_ids' : 'posted_withdraw_ids';
+    const { data: row } = await supabase.from('settings').select('value').eq('key', key).single();
+    let list: string[] = [];
+    try { list = JSON.parse(row?.value || '[]'); } catch { list = []; }
+
+    if (action === 'post') {
+      if (!list.includes(id)) list.push(id);
+    } else {
+      list = list.filter(item => item !== id);
+    }
+
+    await supabase.from('settings').upsert([{ key, value: JSON.stringify(list) }], { onConflict: 'key' });
+    res.json({ success: true, list });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to update item state' });
   }
 });
 
@@ -466,21 +554,28 @@ export async function checkAndAutoPostProofs(type: 'deposit' | 'withdrawal'): Pr
 
     const lastPostAt = isDeposit ? sMap.last_channel_post_deposit_at : sMap.last_channel_post_withdraw_at;
     const table = isDeposit ? 'deposits' : 'withdrawals';
+    const postedKey = isDeposit ? 'posted_deposit_ids' : 'posted_withdraw_ids';
 
-    // Count unposted approved records
-    let q = supabase
-      .from(table)
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'approved');
-
-    if (lastPostAt) {
-      q = q.gt('updated_at', lastPostAt);
+    let postedIds: string[] = [];
+    try {
+      postedIds = JSON.parse(sMap[postedKey] || '[]');
+      if (!Array.isArray(postedIds)) postedIds = [];
+    } catch {
+      postedIds = [];
     }
 
-    const { count } = await q;
-    const unposted = count ?? 0;
+    // Fetch approved records to count unposted items
+    const { data: allApproved } = await supabase
+      .from(table)
+      .select('id')
+      .eq('status', 'approved')
+      .order('updated_at', { ascending: false })
+      .limit(100);
 
-    if (unposted < threshold) {
+    const unposted = (allApproved || []).filter(r => !postedIds.includes(r.id));
+    const unpostedCount = unposted.length;
+
+    if (unpostedCount < threshold) {
       // Threshold not yet reached
       return;
     }
@@ -492,7 +587,7 @@ export async function checkAndAutoPostProofs(type: 'deposit' | 'withdrawal'): Pr
     // NEVER send a plain text message, and NEVER send an outdated flyer from a past batch!
     const imageUpdatedAt = sMap[`last_channel_post_${type}_image_at`];
     if (!cachedImage || !imageUpdatedAt) {
-      console.log(`Auto-post for ${type} reached milestone (${unposted}/${threshold}), but awaiting fresh canvas flyer render from admin. Plain text fallback skipped.`);
+      console.log(`Auto-post for ${type} reached milestone (${unpostedCount}/${threshold}), but awaiting fresh canvas flyer render from admin. Plain text fallback skipped.`);
       return;
     }
 
@@ -545,10 +640,14 @@ export async function checkAndAutoPostProofs(type: 'deposit' | 'withdrawal'): Pr
       return;
     }
 
-    // Update last post timestamp
+    // Update last post timestamp and record posted IDs
+    const postedBatchIds = unposted.slice(0, threshold).map(r => r.id);
+    const updatedPosted = Array.from(new Set([...postedIds, ...postedBatchIds]));
     const nowIso = new Date().toISOString();
+
     await supabase.from('settings').upsert([
-      { key: isDeposit ? 'last_channel_post_deposit_at' : 'last_channel_post_withdraw_at', value: nowIso }
+      { key: isDeposit ? 'last_channel_post_deposit_at' : 'last_channel_post_withdraw_at', value: nowIso },
+      { key: postedKey, value: JSON.stringify(updatedPosted) }
     ], { onConflict: 'key' });
 
     console.log(`Auto-posted ${type} exact canvas proof to ${channelId} (${threshold} items milestone).`);
