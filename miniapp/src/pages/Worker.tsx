@@ -1,15 +1,34 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { Navigate, Link } from 'react-router-dom';
 import { 
   ArrowDownToLine, ArrowUpFromLine, TrendingUp, Calendar, RefreshCw, 
   Search, Fingerprint, X, Minus, ChevronDown, ChevronUp, ChevronRight, 
   Send, Copy, Check, UploadCloud, ArrowLeft, Building2, Eye, Clock, CheckCircle2, XCircle,
-  Landmark, Smartphone
+  Landmark, Smartphone, BarChart3, Activity, ArrowUpRight, ArrowDownRight, Wallet, Table, Layers
 } from 'lucide-react';
 import WebApp from '@twa-dev/sdk';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+
+interface ChartDay {
+  date: string;
+  label: string;
+  deposits: number;
+  withdrawals: number;
+  net_profit: number;
+  deposit_count: number;
+  withdrawal_count: number;
+}
+
+interface WorkerProfitStats {
+  totalDeposits: number;
+  totalWithdrawals: number;
+  totalFees: number;
+  netProfit: number;
+  depositCount?: number;
+  withdrawalCount?: number;
+}
 
 interface ManagerAccount {
   id: string;
@@ -66,7 +85,11 @@ function toDateStr(d: Date) {
 export default function Worker() {
   const { user } = useGameStore();
   const [activePreset, setActivePreset] = useState('Today');
-  const [stats, setStats] = useState({ totalDeposits: 0, totalWithdrawals: 0, totalFees: 0, netProfit: 0 });
+  const [stats, setStats] = useState<WorkerProfitStats>({ totalDeposits: 0, totalWithdrawals: 0, totalFees: 0, netProfit: 0 });
+  const [chartData, setChartData] = useState<ChartDay[]>([]);
+  const [chartMetric, setChartMetric] = useState<'profit' | 'deposits' | 'withdrawals'>('profit');
+  const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null);
+  const [showTableView, setShowTableView] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pendingDeposits, setPendingDeposits] = useState(0);
   const [pendingWithdrawals, setPendingWithdrawals] = useState(0);
@@ -110,6 +133,24 @@ export default function Worker() {
     return copy.toISOString();
   };
 
+  const haptic = (style: 'light' | 'medium' | 'heavy' = 'light') => {
+    if (typeof WebApp !== 'undefined' && WebApp.HapticFeedback) {
+      WebApp.HapticFeedback.impactOccurred(style);
+    }
+  };
+
+  const fmtAmt = (val: number | undefined | null) => {
+    if (val === undefined || val === null || isNaN(Number(val))) return '0';
+    return Number(val).toLocaleString('en-US');
+  };
+
+  const fmtCompact = (n: number) => {
+    const abs = Math.abs(n);
+    if (abs >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+    if (abs >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+    return n.toFixed(0);
+  };
+
   const fetchReport = useCallback(async (fromIso: string, toIso: string) => {
     setLoading(true);
     try {
@@ -122,7 +163,10 @@ export default function Worker() {
         headers: { 'x-telegram-init-data': initData }
       });
       if (res.ok) {
-        setStats(await res.json());
+        const data = await res.json();
+        setStats(data);
+        setChartData(data.chart_data || []);
+        setSelectedDayIdx(null);
       } else if (res.status === 404) {
         alert("Backend update required! Please run 'git pull' and 'docker compose up -d --build' on your VPS.");
       }
@@ -132,6 +176,31 @@ export default function Worker() {
       setLoading(false);
     }
   }, []);
+
+  const maxChartValue = useMemo(() => {
+    if (!chartData || chartData.length === 0) return 10;
+    const values = chartData.map(d => {
+      if (chartMetric === 'deposits') return d.deposits;
+      if (chartMetric === 'withdrawals') return d.withdrawals;
+      return Math.abs(d.net_profit);
+    });
+    const max = Math.max(...values, 0);
+    return max === 0 ? 10 : max;
+  }, [chartData, chartMetric]);
+
+  const selectedDay = useMemo(() => {
+    if (selectedDayIdx !== null && chartData[selectedDayIdx]) {
+      return chartData[selectedDayIdx];
+    }
+    return chartData[chartData.length - 1] || null;
+  }, [selectedDayIdx, chartData]);
+
+  const depositVolume = stats.totalDeposits || 0;
+  const withdrawalVolume = stats.totalWithdrawals || 0;
+  const totalVolume = depositVolume + withdrawalVolume;
+  const depositPct = totalVolume > 0 ? Math.round((depositVolume / totalVolume) * 100) : 50;
+  const withdrawalPct = totalVolume > 0 ? 100 - depositPct : 50;
+  const profitMargin = depositVolume > 0 ? Math.round(((stats.netProfit || 0) / depositVolume) * 1000) / 10 : 0;
 
   const applyPreset = (preset: string) => {
     setActivePreset(preset);
@@ -468,40 +537,364 @@ export default function Worker() {
           ))}
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 gap-3 mb-6">
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center space-x-3">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-              <ArrowDownToLine size={24} />
-            </div>
-            <div>
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Deposits</p>
-              <p className="text-xl font-black text-slate-800">{stats.totalDeposits.toLocaleString()} ETB</p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center space-x-3">
-            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-              <ArrowUpFromLine size={24} />
-            </div>
-            <div className="flex-1">
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Withdrawals</p>
-              <p className="text-xl font-black text-slate-800">{stats.totalWithdrawals.toLocaleString()} ETB</p>
-            </div>
-          </div>
-
-          <div className={`rounded-2xl p-5 shadow-sm flex items-center justify-between ${
+        {/* ── REDESIGNED FINANCIAL ANALYTICS & PROFIT REPORT ── */}
+        <div className="space-y-4 mb-6">
+          {/* 1. Hero Net Profit Spotlight Card */}
+          <div className={`rounded-3xl p-5 text-white shadow-md transition-all relative overflow-hidden ${
             stats.netProfit >= 0
-              ? 'bg-gradient-to-r from-orange-500 to-amber-500'
-              : 'bg-gradient-to-r from-rose-500 to-red-500'
+              ? 'bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 shadow-emerald-500/20'
+              : 'bg-gradient-to-br from-rose-600 via-red-600 to-rose-700 shadow-rose-500/20'
           }`}>
-            <div>
-              <p className="text-white/80 text-xs font-bold uppercase tracking-wider mb-1">Net Profit</p>
-              <p className="text-3xl font-black text-white">
-                {stats.netProfit > 0 ? '+' : ''}{stats.netProfit.toLocaleString()} ETB
-              </p>
+            <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+
+            <div className="flex items-center justify-between relative z-10">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-xs">
+                  <TrendingUp size={18} className="text-white" />
+                </div>
+                <span className="text-xs font-black uppercase tracking-wider text-white/90">
+                  Net Period Profit
+                </span>
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-wider bg-white/20 px-2.5 py-1 rounded-full text-white backdrop-blur-xs">
+                {stats.netProfit >= 0 ? 'Profitable' : 'Deficit'}
+              </span>
             </div>
-            <TrendingUp size={40} className="text-white/20" />
+
+            <div className="pt-2 relative z-10">
+              <p className="text-3xl font-black tracking-tight leading-none">
+                {stats.netProfit >= 0 ? '+' : ''}{fmtAmt(stats.netProfit)}{' '}
+                <span className="text-base font-bold text-white/80">ETB</span>
+              </p>
+              <div className="flex items-center gap-1.5 text-xs text-white/90 font-bold mt-2">
+                {profitMargin >= 0 ? (
+                  <span className="flex items-center gap-0.5 bg-white/20 px-2 py-0.5 rounded-lg text-[11px] font-black">
+                    <ArrowUpRight size={13} /> {profitMargin}%
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-0.5 bg-white/20 px-2 py-0.5 rounded-lg text-[11px] font-black">
+                    <ArrowDownRight size={13} /> {profitMargin}%
+                  </span>
+                )}
+                <span className="text-white/75 text-[11px]">net margin of gross deposits</span>
+              </div>
+            </div>
+
+            {/* Inflow vs Outflow Cash Ratio Progress Bar */}
+            <div className="pt-3.5 mt-3 border-t border-white/20 space-y-1.5 relative z-10">
+              <div className="flex justify-between items-center text-[10px] font-black text-white/90 uppercase tracking-wider">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-300" />
+                  Inflow: {depositPct}%
+                </span>
+                <span className="flex items-center gap-1">
+                  Outflow: {withdrawalPct}%
+                  <span className="w-2 h-2 rounded-full bg-rose-300" />
+                </span>
+              </div>
+              <div className="h-2 w-full bg-black/25 rounded-full overflow-hidden flex p-0.5">
+                <div style={{ width: `${depositPct}%` }} className="bg-emerald-300 h-full rounded-l-full transition-all duration-500" />
+                <div style={{ width: `${withdrawalPct}%` }} className="bg-rose-300 h-full rounded-r-full transition-all duration-500" />
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Dual Inflow (Deposits) & Outflow (Withdrawals) Cards */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Total Deposits Card */}
+            <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                  <ArrowDownToLine size={20} />
+                </div>
+                <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                  Inflow
+                </span>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Deposits</p>
+                <p className="text-lg font-black text-slate-900 leading-tight mt-0.5">
+                  {fmtAmt(stats.totalDeposits)} <span className="text-[10px] font-bold text-slate-400">ETB</span>
+                </p>
+                <p className="text-[10px] text-slate-400 font-semibold mt-1">
+                  {stats.depositCount !== undefined ? `${stats.depositCount} txs approved` : 'All approved txs'}
+                </p>
+              </div>
+            </div>
+
+            {/* Total Withdrawals Card */}
+            <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center">
+                  <ArrowUpFromLine size={20} />
+                </div>
+                <span className="text-[10px] font-black text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">
+                  Outflow
+                </span>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Withdrawals</p>
+                <p className="text-lg font-black text-slate-900 leading-tight mt-0.5">
+                  {fmtAmt(stats.totalWithdrawals)} <span className="text-[10px] font-bold text-slate-400">ETB</span>
+                </p>
+                <p className="text-[10px] text-slate-400 font-semibold mt-1">
+                  {stats.withdrawalCount !== undefined ? `${stats.withdrawalCount} txs paid` : 'All approved payouts'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Interactive Analytical Bar & Trend Chart */}
+          <div className="bg-white rounded-3xl p-4.5 border border-slate-100 shadow-sm space-y-3.5">
+            {/* Chart Header */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <div className="flex items-center space-x-1.5 text-slate-800">
+                  <Activity size={16} className="text-orange-500" />
+                  <h3 className="text-xs font-black uppercase tracking-wider">
+                    Financial Flow Trends
+                  </h3>
+                </div>
+                <p className="text-[10px] text-slate-400 font-medium">Daily Inflow, Outflow & Profit Activity</p>
+              </div>
+
+              {chartData.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptic('light');
+                    setShowTableView(!showTableView);
+                  }}
+                  className={`flex items-center space-x-1 text-[10px] font-black px-2.5 py-1 rounded-xl border transition-all ${
+                    showTableView
+                      ? 'bg-orange-50 text-orange-600 border-orange-200'
+                      : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <Table size={12} />
+                  <span>{showTableView ? 'Chart' : 'Table'}</span>
+                </button>
+              )}
+            </div>
+
+            {/* Metric Selector 3-pill toggle */}
+            <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-2xl text-[10px] font-black">
+              <button
+                type="button"
+                onClick={() => {
+                  haptic('light');
+                  setChartMetric('profit');
+                }}
+                className={`py-2 rounded-xl transition-all flex items-center justify-center space-x-1 ${
+                  chartMetric === 'profit'
+                    ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <TrendingUp size={12} />
+                <span>Net Profit</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  haptic('light');
+                  setChartMetric('deposits');
+                }}
+                className={`py-2 rounded-xl transition-all flex items-center justify-center space-x-1 ${
+                  chartMetric === 'deposits'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <ArrowDownToLine size={12} />
+                <span>Deposits</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  haptic('light');
+                  setChartMetric('withdrawals');
+                }}
+                className={`py-2 rounded-xl transition-all flex items-center justify-center space-x-1 ${
+                  chartMetric === 'withdrawals'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <ArrowUpFromLine size={12} />
+                <span>Withdrawals</span>
+              </button>
+            </div>
+
+            {!showTableView ? (
+              <>
+                {/* Bars Container */}
+                <div className="pt-2">
+                  <div className="h-36 flex items-end justify-between space-x-1.5 px-0.5">
+                    {chartData.length === 0 ? (
+                      <div className="w-full h-full flex items-center justify-center text-xs font-bold text-slate-400">
+                        No financial records for this period
+                      </div>
+                    ) : (
+                      chartData.map((d, idx) => {
+                        const val =
+                          chartMetric === 'deposits'
+                            ? d.deposits
+                            : chartMetric === 'withdrawals'
+                            ? d.withdrawals
+                            : d.net_profit;
+
+                        const isPositive = val >= 0;
+                        const absVal = Math.abs(val);
+                        const heightPercent = maxChartValue > 0 ? Math.max(10, Math.round((absVal / maxChartValue) * 100)) : 10;
+                        const isSelected = selectedDayIdx === idx;
+
+                        return (
+                          <div
+                            key={d.date}
+                            onClick={() => {
+                              haptic('light');
+                              setSelectedDayIdx(idx);
+                            }}
+                            className="flex-1 flex flex-col items-center h-full justify-end cursor-pointer group"
+                          >
+                            {/* Tooltip Value */}
+                            <span
+                              className={`text-[8px] font-black mb-1 transition-all ${
+                                isSelected
+                                  ? 'text-slate-900 scale-110'
+                                  : 'text-slate-400 opacity-70 group-hover:opacity-100'
+                              }`}
+                            >
+                              {val === 0 ? '0' : (chartMetric === 'profit' ? (isPositive ? `+${fmtCompact(val)}` : `-${fmtCompact(absVal)}`) : fmtCompact(val))}
+                            </span>
+
+                            {/* Bar Pillar */}
+                            <div className="w-full max-w-[28px] bg-slate-100 rounded-xl overflow-hidden flex flex-col justify-end h-[100px] p-0.5">
+                              <div
+                                style={{ height: `${heightPercent}%` }}
+                                className={`w-full rounded-lg transition-all duration-300 ${
+                                  chartMetric === 'deposits'
+                                    ? isSelected
+                                      ? 'bg-gradient-to-t from-emerald-600 to-teal-400 shadow-xs'
+                                      : 'bg-gradient-to-t from-emerald-400 to-teal-300 group-hover:from-emerald-500 group-hover:to-teal-400'
+                                    : chartMetric === 'withdrawals'
+                                    ? isSelected
+                                      ? 'bg-gradient-to-t from-rose-600 to-red-400 shadow-xs'
+                                      : 'bg-gradient-to-t from-rose-400 to-red-300 group-hover:from-rose-500 group-hover:to-red-400'
+                                    : isPositive
+                                    ? isSelected
+                                      ? 'bg-gradient-to-t from-emerald-600 to-teal-400 shadow-xs'
+                                      : 'bg-gradient-to-t from-emerald-400 to-teal-300 group-hover:from-emerald-500 group-hover:to-teal-400'
+                                    : isSelected
+                                    ? 'bg-gradient-to-t from-rose-600 to-red-400 shadow-xs'
+                                    : 'bg-gradient-to-t from-rose-400 to-red-300 group-hover:from-rose-500 group-hover:to-red-400'
+                                }`}
+                              />
+                            </div>
+
+                            {/* Day Label on X Axis */}
+                            <span
+                              className={`text-[9px] mt-1.5 font-black uppercase transition-colors ${
+                                isSelected ? 'text-orange-600' : 'text-slate-400'
+                              }`}
+                            >
+                              {d.label}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* Selected Day Details Strip */}
+                {selectedDay && (
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 flex items-center justify-between text-xs animate-in fade-in">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-9 h-9 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center font-black text-xs">
+                        {selectedDay.label}
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 leading-none">
+                          {selectedDay.date}
+                        </p>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <span className="text-[10px] font-bold text-emerald-600">
+                            +{fmtAmt(selectedDay.deposits)} ETB
+                          </span>
+                          <span className="text-[10px] text-slate-300">•</span>
+                          <span className="text-[10px] font-bold text-rose-600">
+                            -{fmtAmt(selectedDay.withdrawals)} ETB
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase leading-none">Day Profit</p>
+                      <p className={`text-xs font-black mt-0.5 ${
+                        selectedDay.net_profit >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                      }`}>
+                        {selectedDay.net_profit >= 0 ? '+' : ''}{fmtAmt(selectedDay.net_profit)} ETB
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              /* Tabular View */
+              <div className="overflow-x-auto pt-1">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100">
+                      <th className="px-2.5 py-2 text-left text-[10px] font-bold text-slate-500 whitespace-nowrap">Date</th>
+                      <th className="px-2.5 py-2 text-right text-[10px] font-bold text-emerald-600 whitespace-nowrap">Deposits</th>
+                      <th className="px-2.5 py-2 text-right text-[10px] font-bold text-rose-600 whitespace-nowrap">Withdrawals</th>
+                      <th className="px-2.5 py-2 text-right text-[10px] font-bold text-slate-700 whitespace-nowrap">Net Profit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {chartData.map((d, i) => (
+                      <tr key={d.date} className={`border-b border-slate-50 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
+                        <td className="px-2.5 py-2 font-bold text-slate-700 whitespace-nowrap">
+                          {d.date} <span className="text-[9px] text-slate-400 font-semibold">({d.label})</span>
+                        </td>
+                        <td className="px-2.5 py-2 text-right font-bold text-emerald-600 whitespace-nowrap">
+                          +{fmtAmt(d.deposits)}
+                        </td>
+                        <td className="px-2.5 py-2 text-right font-bold text-rose-600 whitespace-nowrap">
+                          -{fmtAmt(d.withdrawals)}
+                        </td>
+                        <td className={`px-2.5 py-2 text-right font-black whitespace-nowrap ${
+                          d.net_profit >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                        }`}>
+                          {d.net_profit >= 0 ? '+' : ''}{fmtAmt(d.net_profit)} ETB
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Period Summary Strip */}
+            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 text-center">
+              <div className="bg-slate-50/80 p-2.5 rounded-xl">
+                <span className="text-[9px] text-slate-400 font-bold uppercase">Avg Daily Inflow:</span>{' '}
+                <span className="text-xs font-black text-emerald-600">
+                  +{fmtAmt(chartData.length > 0 ? Math.round(depositVolume / chartData.length) : 0)} ETB
+                </span>
+              </div>
+              <div className="bg-slate-50/80 p-2.5 rounded-xl">
+                <span className="text-[9px] text-slate-400 font-bold uppercase">Period Net Flow:</span>{' '}
+                <span className={`text-xs font-black ${
+                  stats.netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                }`}>
+                  {stats.netProfit >= 0 ? '+' : ''}{fmtAmt(stats.netProfit)} ETB
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 

@@ -592,18 +592,18 @@ router.delete('/withdrawals/:id/reject', async (req, res) => {
 // ─── PROFIT REPORT ────────────────────────────────────────────────────────────
 router.get('/profit-report', validateTelegramAuth, requireAdmin, async (req, res) => {
   const { from, to } = req.query;
-  
-  let dQuery = supabase.from('deposits').select('amount').eq('status', 'approved');
+
+  let dQuery = supabase.from('deposits').select('amount, created_at').eq('status', 'approved');
   // Select net_amount so we can show actual payout (after fee) for withdrawals
-  let wQuery = supabase.from('withdrawals').select('amount, net_amount, fee_amount').eq('status', 'approved');
+  let wQuery = supabase.from('withdrawals').select('amount, net_amount, fee_amount, created_at').eq('status', 'approved');
 
   if (from) {
-    dQuery = dQuery.gte('created_at', from);
-    wQuery = wQuery.gte('created_at', from);
+    dQuery = dQuery.gte('created_at', from as string);
+    wQuery = wQuery.gte('created_at', from as string);
   }
   if (to) {
-    dQuery = dQuery.lte('created_at', to);
-    wQuery = wQuery.lte('created_at', to);
+    dQuery = dQuery.lte('created_at', to as string);
+    wQuery = wQuery.lte('created_at', to as string);
   }
 
   const [dRes, wRes] = await Promise.all([dQuery, wQuery]);
@@ -611,18 +611,94 @@ router.get('/profit-report', validateTelegramAuth, requireAdmin, async (req, res
   if (dRes.error) return res.status(500).json({ error: dRes.error.message });
   if (wRes.error) return res.status(500).json({ error: wRes.error.message });
 
-  const totalDeposits = (dRes.data || []).reduce((sum, d) => sum + Number(d.amount), 0);
-  // Use net_amount (actual payout to user after fee deduction) if available; fallback to amount
-  const totalWithdrawals = (wRes.data || []).reduce((sum, w) => {
+  const deposits = dRes.data || [];
+  const withdrawals = wRes.data || [];
+
+  const totalDeposits = deposits.reduce((sum: number, d: any) => sum + Number(d.amount || 0), 0);
+  const totalWithdrawals = withdrawals.reduce((sum: number, w: any) => {
     const netAmt = Number((w as any).net_amount);
-    const amt = Number(w.amount);
-    // net_amount > 0 means fee was applied; use it as the actual payout the worker sends
+    const amt = Number(w.amount || 0);
     return sum + (netAmt > 0 ? netAmt : amt);
   }, 0);
-  const totalFees = (wRes.data || []).reduce((sum, w) => sum + Number((w as any).fee_amount || 0), 0);
+  const totalFees = withdrawals.reduce((sum: number, w: any) => sum + Number((w as any).fee_amount || 0), 0);
   const netProfit = totalDeposits - totalWithdrawals;
 
-  res.json({ totalDeposits, totalWithdrawals, totalFees, netProfit });
+  // Build daily buckets for chart
+  const now = new Date();
+  const DAY_MS = 86400000;
+  let numDays = 7;
+  let endDate = now;
+
+  if (to) {
+    const pt = new Date(to as string);
+    if (!isNaN(pt.getTime())) endDate = pt;
+  }
+
+  if (from && to) {
+    const start = new Date(from as string);
+    const end = new Date(to as string);
+    const diffDays = Math.round((end.getTime() - start.getTime()) / DAY_MS);
+    if (diffDays <= 1) {
+      numDays = 7;
+    } else {
+      numDays = Math.min(30, Math.max(7, diffDays + 1));
+    }
+  } else {
+    numDays = 14;
+  }
+
+  const chartBuckets: Record<string, { deposits: number; withdrawals: number; net_profit: number; deposit_count: number; withdrawal_count: number }> = {};
+  for (let i = numDays - 1; i >= 0; i--) {
+    const d = new Date(endDate.getTime() - i * DAY_MS);
+    const key = d.toISOString().slice(0, 10);
+    chartBuckets[key] = { deposits: 0, withdrawals: 0, net_profit: 0, deposit_count: 0, withdrawal_count: 0 };
+  }
+
+  deposits.forEach((d: any) => {
+    const key = d.created_at?.slice(0, 10);
+    if (key && chartBuckets[key]) {
+      const amt = Number(d.amount || 0);
+      chartBuckets[key].deposits += amt;
+      chartBuckets[key].net_profit += amt;
+      chartBuckets[key].deposit_count++;
+    }
+  });
+
+  withdrawals.forEach((w: any) => {
+    const key = w.created_at?.slice(0, 10);
+    if (key && chartBuckets[key]) {
+      const netAmt = Number((w as any).net_amount);
+      const amt = Number(w.amount || 0);
+      const payout = netAmt > 0 ? netAmt : amt;
+      chartBuckets[key].withdrawals += payout;
+      chartBuckets[key].net_profit -= payout;
+      chartBuckets[key].withdrawal_count++;
+    }
+  });
+
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const chart_data = Object.entries(chartBuckets).map(([date, vals]) => {
+    const d = new Date(date);
+    return {
+      date,
+      label: DAYS[d.getDay()],
+      deposits: Math.round(vals.deposits * 100) / 100,
+      withdrawals: Math.round(vals.withdrawals * 100) / 100,
+      net_profit: Math.round(vals.net_profit * 100) / 100,
+      deposit_count: vals.deposit_count,
+      withdrawal_count: vals.withdrawal_count,
+    };
+  });
+
+  res.json({
+    totalDeposits,
+    totalWithdrawals,
+    totalFees,
+    netProfit,
+    depositCount: deposits.length,
+    withdrawalCount: withdrawals.length,
+    chart_data,
+  });
 });
 
 // ─── TRANSACTION REPORT ────────────────────────────────────────────────────────
