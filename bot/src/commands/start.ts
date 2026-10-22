@@ -4,6 +4,7 @@ import { upsertUser } from '../services/game';
 import { supabase } from '../services/supabase';
 import { getDynamicBotSettings } from '../services/settings';
 import path from 'path';
+import fs from 'fs';
 
 // Cache the file_id after first upload so we don't re-upload every time
 let bannerFileId: string | null = null;
@@ -110,8 +111,10 @@ export async function startCommand(ctx: Context) {
         reply_markup: { inline_keyboard: keyboard.inline_keyboard },
       });
     } else {
-      // First time: upload from local file
-      const bannerPath = path.join(__dirname, '../../assets/banner.jpg');
+      // First time: upload from local file (check banner.png or banner.jpg)
+      const bannerPng = path.join(__dirname, '../../assets/banner.png');
+      const bannerJpg = path.join(__dirname, '../../assets/banner.jpg');
+      const bannerPath = fs.existsSync(bannerPng) ? bannerPng : bannerJpg;
       msg = await ctx.replyWithPhoto(new InputFile(bannerPath), {
         caption,
         parse_mode: 'HTML',
