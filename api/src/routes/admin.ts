@@ -706,8 +706,8 @@ router.get('/tx-report', validateTelegramAuth, requireAdmin, async (req, res) =>
   const { from, to } = req.query;
   
   // Use explicit FK for deposits. Withdrawals might lack FK, so no join there.
-  let dQuery = supabase.from('deposits').select('*, users!deposits_telegram_id_fkey(username, inviter_id)');
-  let wQuery = supabase.from('withdrawals').select('*');
+  let dQuery = supabase.from('deposits').select('*, users!deposits_telegram_id_fkey(username, inviter_id)').limit(50000);
+  let wQuery = supabase.from('withdrawals').select('*').limit(50000);
 
   if (from) {
     dQuery = dQuery.gte('created_at', from);
@@ -726,7 +726,7 @@ router.get('/tx-report', validateTelegramAuth, requireAdmin, async (req, res) =>
   let wTelegramIds = [...new Set(withdrawals.map((w: any) => w.telegram_id))];
   let wUsersMap: Record<string, string> = {};
   if (wTelegramIds.length > 0) {
-    const { data: wUsers } = await supabase.from('users').select('telegram_id, username').in('telegram_id', wTelegramIds);
+    const { data: wUsers } = await supabase.from('users').select('telegram_id, username').in('telegram_id', wTelegramIds).limit(50000);
     (wUsers || []).forEach(u => wUsersMap[u.telegram_id] = u.username);
   }
 
@@ -734,7 +734,8 @@ router.get('/tx-report', validateTelegramAuth, requireAdmin, async (req, res) =>
     .from('deposits')
     .select('id, telegram_id, created_at')
     .eq('status', 'approved')
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: true })
+    .limit(50000);
 
   const firstDepositIds = new Set();
   const secondDepositIds = new Set();
@@ -763,7 +764,9 @@ router.get('/tx-report', validateTelegramAuth, requireAdmin, async (req, res) =>
   const invPct = parseFloat(getSetting('invitation_reward_pct', '10')) / 100;
 
   let totalDeposits = 0;
-  let totalWithdrawals = 0;
+  let totalWithdrawals = 0; // Actual net payout sent to users
+  let totalWithdrawalGross = 0; // Total requested amount
+  let totalWithdrawalFees = 0; // Platform withdrawal fees collected
   let totalDepBonus = 0;
   let totalSecondDepBonus = 0;
   let totalInvBonus = 0;
@@ -805,9 +808,44 @@ router.get('/tx-report', validateTelegramAuth, requireAdmin, async (req, res) =>
   });
 
   withdrawals.forEach((w: any) => {
-    if (w.status === 'approved') totalWithdrawals += Number(w.amount);
+    const grossAmt = Number(w.amount || 0);
+    const feeAmt = Number(w.fee_amount || 0);
+    const netAmt = Number(w.net_amount || 0);
+    // Actual payout amount sent to user
+    const actualPayout = netAmt > 0 ? netAmt : Math.max(0, grossAmt - feeAmt);
+
+    if (w.status === 'approved') {
+      totalWithdrawals += actualPayout;
+      totalWithdrawalGross += grossAmt;
+      totalWithdrawalFees += feeAmt;
+    }
+
     const username = wUsersMap[w.telegram_id] || 'Unknown';
-    txList.push({ id: w.id, type: 'withdrawal', amount: Number(w.amount), status: w.status, created_at: w.created_at, username, telegram_id: w.telegram_id });
+    txList.push({
+      id: w.id,
+      type: 'withdrawal',
+      amount: actualPayout, // actual payout amount
+      gross_amount: grossAmt,
+      fee_amount: feeAmt,
+      status: w.status,
+      created_at: w.created_at,
+      username,
+      telegram_id: w.telegram_id,
+    });
+
+    // Also record fee if approved and fee > 0
+    if (w.status === 'approved' && feeAmt > 0) {
+      txList.push({
+        id: w.id + '_fee',
+        type: 'withdrawal_fee',
+        amount: feeAmt,
+        gross_amount: grossAmt,
+        status: 'approved',
+        created_at: w.created_at,
+        username,
+        telegram_id: w.telegram_id,
+      });
+    }
   });
 
   // ─── Bingo jackpot wins (8-call and 10-call) ────────────────────────────────
@@ -815,7 +853,8 @@ router.get('/tx-report', validateTelegramAuth, requireAdmin, async (req, res) =>
     .from('bingo_games')
     .select('id, stake, winner_prize, winner_telegram_id, winner_first_name, win_type, finished_at')
     .in('win_type', ['jackpot_8', 'jackpot_10'])
-    .eq('status', 'finished');
+    .eq('status', 'finished')
+    .limit(50000);
   if (from) bingoQuery = bingoQuery.gte('finished_at', from);
   if (to)   bingoQuery = bingoQuery.lte('finished_at', to);
   const { data: jackpotGames } = await bingoQuery;
@@ -824,7 +863,7 @@ router.get('/tx-report', validateTelegramAuth, requireAdmin, async (req, res) =>
   const winnerIds = [...new Set((jackpotGames || []).map((g: any) => g.winner_telegram_id).filter(Boolean))];
   let winnerUsernameMap: Record<string, string> = {};
   if (winnerIds.length > 0) {
-    const { data: wu } = await supabase.from('users').select('telegram_id, username').in('telegram_id', winnerIds);
+    const { data: wu } = await supabase.from('users').select('telegram_id, username').in('telegram_id', winnerIds).limit(50000);
     (wu || []).forEach((u: any) => { winnerUsernameMap[u.telegram_id] = u.username || 'Unknown'; });
   }
 
@@ -845,7 +884,8 @@ router.get('/tx-report', validateTelegramAuth, requireAdmin, async (req, res) =>
   const welcomeBonusAmount = parseFloat(getSetting('welcome_bonus_amount', '10'));
   let usersQuery = supabase
     .from('users')
-    .select('id, telegram_id, username, first_name, created_at');
+    .select('id, telegram_id, username, first_name, created_at')
+    .limit(50000);
   if (from) usersQuery = usersQuery.gte('created_at', from);
   if (to)   usersQuery = usersQuery.lte('created_at', to);
   const { data: registeredUsers } = await usersQuery;
@@ -866,10 +906,61 @@ router.get('/tx-report', validateTelegramAuth, requireAdmin, async (req, res) =>
     });
   }
 
+  // ─── Match activity & Platform game commission in period ─────────────────────
+  let gameQuery = supabase
+    .from('bingo_games')
+    .select('id, stake, status, winner_prize, winner_first_name, created_at, finished_at, room_id')
+    .eq('status', 'finished')
+    .limit(50000);
+  if (from) gameQuery = gameQuery.gte('created_at', from);
+  if (to)   gameQuery = gameQuery.lte('created_at', to);
+  const { data: periodGames } = await gameQuery;
+
+  let totalMatches = 0;
+  let totalGameProfit = 0;
+  if (periodGames && periodGames.length > 0) {
+    totalMatches = periodGames.length;
+    const { data: rooms } = await supabase.from('rooms').select('id, commission_rate, promoter_commission_rate');
+    const rMap: Record<string, any> = {};
+    (rooms || []).forEach((r: any) => { rMap[r.id] = r; });
+
+    const gIds = periodGames.map((g: any) => g.id);
+    const { data: players } = await supabase.from('bingo_players').select('game_id').in('game_id', gIds).limit(50000);
+    const pCounts: Record<string, number> = {};
+    (players || []).forEach((p: any) => { pCounts[p.game_id] = (pCounts[p.game_id] || 0) + 1; });
+
+    for (const g of periodGames) {
+      const pCount = pCounts[g.id] || 0;
+      const pot = pCount * Number(g.stake || 0);
+      const prize = Number(g.winner_prize || 0);
+      const room = rMap[g.room_id];
+      const commRate = Number(room?.commission_rate ?? 8);
+      const promoRate = Number(room?.promoter_commission_rate ?? 3);
+      const roomComm = pot * commRate / 100;
+      const promoComm = pot * promoRate / 100;
+      const platComm = Math.max(0, pot - prize - roomComm - promoComm);
+      totalGameProfit += platComm;
+    }
+    totalGameProfit = Math.round(totalGameProfit * 100) / 100;
+  }
+
   txList.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   res.json({
-    stats: { totalDeposits, totalWithdrawals, totalDepBonus, totalSecondDepBonus, totalInvBonus, totalJackpot8, totalJackpot10, totalWelcomeBonus },
+    stats: {
+      totalDeposits,
+      totalWithdrawals,
+      totalWithdrawalGross,
+      totalWithdrawalFees,
+      totalDepBonus,
+      totalSecondDepBonus,
+      totalInvBonus,
+      totalJackpot8,
+      totalJackpot10,
+      totalWelcomeBonus,
+      totalMatches,
+      totalGameProfit,
+    },
     transactions: txList
   });
 });
