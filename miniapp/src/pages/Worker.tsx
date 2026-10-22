@@ -486,10 +486,10 @@ export default function Worker() {
         {/* Custom Date Range Picker */}
         {showCustom && (
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 mb-4">
-            <p className="text-xs font-black text-slate-500 uppercase tracking-wider mb-3">Select Date Range</p>
+            <p className="text-xs font-bold text-slate-600 mb-3">Select Date Range</p>
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">From</label>
+                <label className="text-[10px] font-semibold text-slate-400 mb-1 block">From</label>
                 <input
                   type="date"
                   value={customFrom}
@@ -499,7 +499,7 @@ export default function Worker() {
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">To</label>
+                <label className="text-[10px] font-semibold text-slate-400 mb-1 block">To</label>
                 <input
                   type="date"
                   value={customTo}
@@ -526,7 +526,7 @@ export default function Worker() {
             <button
               key={preset}
               onClick={() => applyPreset(preset)}
-              className={`snap-start whitespace-nowrap px-4 py-2 rounded-full text-[11px] font-black transition-all ${
+              className={`snap-start whitespace-nowrap px-4 py-2 rounded-full text-[11px] font-bold transition-all ${
                 activePreset === preset
                   ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20'
                   : 'bg-white text-slate-500 border border-slate-200'
@@ -552,11 +552,11 @@ export default function Worker() {
                 <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-xs">
                   <TrendingUp size={18} className="text-white" />
                 </div>
-                <span className="text-xs font-black uppercase tracking-wider text-white/90">
+                <span className="text-xs font-bold text-white/90">
                   Net Period Profit
                 </span>
               </div>
-              <span className="text-[10px] font-black uppercase tracking-wider bg-white/20 px-2.5 py-1 rounded-full text-white backdrop-blur-xs">
+              <span className="text-[10px] font-bold bg-white/20 px-2.5 py-1 rounded-full text-white backdrop-blur-xs">
                 {stats.netProfit >= 0 ? 'Profitable' : 'Deficit'}
               </span>
             </div>
@@ -568,11 +568,11 @@ export default function Worker() {
               </p>
               <div className="flex items-center gap-1.5 text-xs text-white/90 font-bold mt-2">
                 {profitMargin >= 0 ? (
-                  <span className="flex items-center gap-0.5 bg-white/20 px-2 py-0.5 rounded-lg text-[11px] font-black">
+                  <span className="flex items-center gap-0.5 bg-white/20 px-2 py-0.5 rounded-lg text-[11px] font-bold">
                     <ArrowUpRight size={13} /> {profitMargin}%
                   </span>
                 ) : (
-                  <span className="flex items-center gap-0.5 bg-white/20 px-2 py-0.5 rounded-lg text-[11px] font-black">
+                  <span className="flex items-center gap-0.5 bg-white/20 px-2 py-0.5 rounded-lg text-[11px] font-bold">
                     <ArrowDownRight size={13} /> {profitMargin}%
                   </span>
                 )}
@@ -582,7 +582,7 @@ export default function Worker() {
 
             {/* Inflow vs Outflow Cash Ratio Progress Bar */}
             <div className="pt-3.5 mt-3 border-t border-white/20 space-y-1.5 relative z-10">
-              <div className="flex justify-between items-center text-[10px] font-black text-white/90 uppercase tracking-wider">
+              <div className="flex justify-between items-center text-[10px] font-semibold text-white/90">
                 <span className="flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-emerald-300" />
                   Inflow: {depositPct}%
@@ -607,12 +607,12 @@ export default function Worker() {
                 <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
                   <ArrowDownToLine size={20} />
                 </div>
-                <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
                   Inflow
                 </span>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Deposits</p>
+                <p className="text-[10px] font-semibold text-slate-400">Total Deposits</p>
                 <p className="text-lg font-black text-slate-900 leading-tight mt-0.5">
                   {fmtAmt(stats.totalDeposits)} <span className="text-[10px] font-bold text-slate-400">ETB</span>
                 </p>
@@ -628,12 +628,12 @@ export default function Worker() {
                 <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center">
                   <ArrowUpFromLine size={20} />
                 </div>
-                <span className="text-[10px] font-black text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">
+                <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">
                   Outflow
                 </span>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Withdrawals</p>
+                <p className="text-[10px] font-semibold text-slate-400">Total Withdrawals</p>
                 <p className="text-lg font-black text-slate-900 leading-tight mt-0.5">
                   {fmtAmt(stats.totalWithdrawals)} <span className="text-[10px] font-bold text-slate-400">ETB</span>
                 </p>
@@ -651,7 +651,7 @@ export default function Worker() {
               <div className="space-y-0.5">
                 <div className="flex items-center space-x-1.5 text-slate-800">
                   <Activity size={16} className="text-orange-500" />
-                  <h3 className="text-xs font-black uppercase tracking-wider">
+                  <h3 className="text-xs font-bold text-slate-800">
                     Financial Flow Trends
                   </h3>
                 </div>
@@ -665,7 +665,7 @@ export default function Worker() {
                     haptic('light');
                     setShowTableView(!showTableView);
                   }}
-                  className={`flex items-center space-x-1 text-[10px] font-black px-2.5 py-1 rounded-xl border transition-all ${
+                  className={`flex items-center space-x-1 text-[10px] font-bold px-2.5 py-1 rounded-xl border transition-all ${
                     showTableView
                       ? 'bg-orange-50 text-orange-600 border-orange-200'
                       : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
@@ -678,7 +678,7 @@ export default function Worker() {
             </div>
 
             {/* Metric Selector 3-pill toggle */}
-            <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-2xl text-[10px] font-black">
+            <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-2xl text-[10px] font-bold">
               <button
                 type="button"
                 onClick={() => {
@@ -760,7 +760,7 @@ export default function Worker() {
                           >
                             {/* Tooltip Value */}
                             <span
-                              className={`text-[8px] font-black mb-1 transition-all ${
+                              className={`text-[8px] font-bold mb-1 transition-all ${
                                 isSelected
                                   ? 'text-slate-900 scale-110'
                                   : 'text-slate-400 opacity-70 group-hover:opacity-100'
@@ -795,7 +795,7 @@ export default function Worker() {
 
                             {/* Day Label on X Axis */}
                             <span
-                              className={`text-[9px] mt-1.5 font-black uppercase transition-colors ${
+                              className={`text-[9px] mt-1.5 font-bold transition-colors ${
                                 isSelected ? 'text-orange-600' : 'text-slate-400'
                               }`}
                             >
@@ -812,7 +812,7 @@ export default function Worker() {
                 {selectedDay && (
                   <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 flex items-center justify-between text-xs animate-in fade-in">
                     <div className="flex items-center space-x-2">
-                      <div className="w-9 h-9 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center font-black text-xs">
+                      <div className="w-9 h-9 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center font-bold text-xs">
                         {selectedDay.label}
                       </div>
                       <div>
@@ -832,7 +832,7 @@ export default function Worker() {
                     </div>
 
                     <div className="text-right">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase leading-none">Day Profit</p>
+                      <p className="text-[10px] font-semibold text-slate-400 leading-none">Day Profit</p>
                       <p className={`text-xs font-black mt-0.5 ${
                         selectedDay.net_profit >= 0 ? 'text-emerald-600' : 'text-rose-600'
                       }`}>
@@ -881,13 +881,13 @@ export default function Worker() {
             {/* Period Summary Strip */}
             <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 text-center">
               <div className="bg-slate-50/80 p-2.5 rounded-xl">
-                <span className="text-[9px] text-slate-400 font-bold uppercase">Avg Daily Inflow:</span>{' '}
+                <span className="text-[9px] text-slate-400 font-semibold">Avg Daily Inflow:</span>{' '}
                 <span className="text-xs font-black text-emerald-600">
                   +{fmtAmt(chartData.length > 0 ? Math.round(depositVolume / chartData.length) : 0)} ETB
                 </span>
               </div>
               <div className="bg-slate-50/80 p-2.5 rounded-xl">
-                <span className="text-[9px] text-slate-400 font-bold uppercase">Period Net Flow:</span>{' '}
+                <span className="text-[9px] text-slate-400 font-semibold">Period Net Flow:</span>{' '}
                 <span className={`text-xs font-black ${
                   stats.netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'
                 }`}>
@@ -976,7 +976,7 @@ export default function Worker() {
 
                     {/* Select Manager Account */}
                     <div>
-                      <label className="text-[11px] font-black uppercase text-slate-500 block mb-1.5">
+                      <label className="text-[11px] font-bold text-slate-500 block mb-1.5">
                         Select Manager Account
                       </label>
                       {managerAccounts.length === 0 ? (
@@ -1000,13 +1000,13 @@ export default function Worker() {
                               }`}>
                                 {selectedAccount?.bank_type === 'telebirr' ? 'TB' :
                                  selectedAccount?.bank_type === 'cbe' ? 'CBE' :
-                                 selectedAccount?.bank_type === 'boa' ? 'BOA' : 'BANK'}
+                                 selectedAccount?.bank_type === 'boa' ? 'BOA' : 'Bank'}
                               </div>
                               <div>
-                                <span className="font-black text-sm text-slate-900 block leading-tight">
-                                  {selectedAccount ? (BANK_NAMES[selectedAccount.bank_type] || selectedAccount.bank_type.toUpperCase()) : 'Select Payment Method'}
+                                <span className="font-bold text-sm text-slate-900 block leading-tight">
+                                  {selectedAccount ? (BANK_NAMES[selectedAccount.bank_type] || selectedAccount.bank_type) : 'Select Payment Method'}
                                 </span>
-                                <span className="text-[10px] text-slate-400 font-bold">
+                                <span className="text-[10px] text-slate-400 font-medium">
                                   Tap to choose payment method
                                 </span>
                               </div>
@@ -1050,7 +1050,7 @@ export default function Worker() {
                       <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs space-y-1">
                         <div className="flex items-center justify-between text-amber-800 font-bold">
                           <span>{selectedAccount.account_name}</span>
-                          <span className="text-[10px] uppercase px-2 py-0.5 rounded-full bg-amber-200 font-black">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200 font-bold">
                             {selectedAccount.bank_type.toUpperCase()}
                           </span>
                         </div>
@@ -1071,7 +1071,7 @@ export default function Worker() {
                     {/* Amount Input */}
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="text-[11px] font-black uppercase text-slate-500">Transfer Amount (ETB)</label>
+                        <label className="text-[11px] font-bold text-slate-500">Transfer Amount (ETB)</label>
                         <button
                           type="button"
                           onClick={() => setTransferAmount(String(Math.max(0, balanceData.netRemaining)))}
@@ -1095,7 +1095,7 @@ export default function Worker() {
 
                     {/* Screenshot Upload */}
                     <div>
-                      <label className="text-[11px] font-black uppercase text-slate-500 block mb-1">
+                      <label className="text-[11px] font-bold text-slate-500 block mb-1">
                         Payment Screenshot / Receipt
                       </label>
                       <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer hover:bg-slate-50 active:scale-98 transition-all">
@@ -1117,7 +1117,7 @@ export default function Worker() {
 
                     {/* Optional Note */}
                     <div>
-                      <label className="text-[11px] font-black uppercase text-slate-500 block mb-1">Note (Optional)</label>
+                      <label className="text-[11px] font-bold text-slate-500 block mb-1">Note (Optional)</label>
                       <input
                         type="text"
                         value={transferNote}
@@ -1147,7 +1147,7 @@ export default function Worker() {
                       <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-inner">
                         <Fingerprint size={32} />
                       </div>
-                      <p className="text-slate-400 text-[11px] font-black uppercase tracking-wider mb-1">Live Net Remaining Balance</p>
+                      <p className="text-slate-400 text-[11px] font-bold mb-1">Live Net Remaining Balance</p>
                       <p className="text-4xl font-black text-white tracking-tight">
                         {balanceData.netRemaining >= 0 ? '+' : ''}
                         {balanceData.netRemaining.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1188,7 +1188,7 @@ export default function Worker() {
                       <div className="space-y-2">
                         {totalHistoryCount === 0 ? (
                           <div className="py-8 text-center text-slate-400 bg-slate-50 rounded-2xl border">
-                            <p className="text-xs font-bold uppercase tracking-wider">No Transfer History</p>
+                            <p className="text-xs font-bold text-slate-600">No Transfer History</p>
                             <p className="text-[11px] text-slate-400 mt-0.5">Use "Transfer to Manager" above to payout balance.</p>
                           </div>
                         ) : (
@@ -1198,7 +1198,7 @@ export default function Worker() {
                               <div key={tr.id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center space-x-2">
-                                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-200 text-slate-800 uppercase">
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-800">
                                       {tr.bank_type}
                                     </span>
                                     <span className="text-xs font-bold text-slate-800">{tr.account_name}</span>
