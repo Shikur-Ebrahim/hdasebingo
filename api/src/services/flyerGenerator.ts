@@ -332,7 +332,11 @@ export async function generateFlyerPng(
   const svg = buildSVG(type, items, botUsername);
   const resvg = new Resvg(svg, {
     fitTo: { mode: 'width', value: W },
-    font: { loadSystemFonts: false },
+    font: {
+      // Use system fonts installed in Docker (Noto fonts for Amharic / Ethiopic script)
+      loadSystemFonts: true,
+      defaultFontFamily: 'Noto Sans',
+    },
   });
   const pngData = resvg.render();
   return Buffer.from(pngData.asPng());

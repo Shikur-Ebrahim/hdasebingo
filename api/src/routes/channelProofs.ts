@@ -309,11 +309,12 @@ router.post('/sync-cache', validateTelegramAuth, requireAdminOrWorker, async (re
   }
 });
 
-// ── POST /api/channel-proofs/post (Manual "Post to Channel" button) ───────────
-// Generates flyer SERVER-SIDE from the latest NEW batch — no browser canvas needed
+// ── POST /api/channel-proofs/post (Manual "Post to Channel" button) ──────────
+// If the browser sends image_base64 → use THAT exact canvas image (pixel-perfect match)
+// If no image_base64 → generate server-side from DB (used as fallback / auto-post path)
 router.post('/post', validateTelegramAuth, requireAdminOrWorker, async (req: AuthRequest, res) => {
   try {
-    const { type, custom_channel } = req.body;
+    const { type, custom_channel, image_base64 } = req.body;
 
     if (!type || (type !== 'deposit' && type !== 'withdrawal')) {
       res.status(400).json({ error: 'type must be deposit or withdrawal' });
@@ -400,15 +401,43 @@ router.post('/post', validateTelegramAuth, requireAdminOrWorker, async (req: Aut
       }
     }
 
-    // Generate & post
-    const { publicImageUrl, messageId } = await generateAndPostFlyer(
-      type,
-      items as (DepositRow | WithdrawalRow)[],
-      channelId,
-      botToken,
-      botUsername,
-      threshold
-    );
+    // ── STRATEGY: Use browser canvas if provided (pixel-perfect match with admin view)
+    //             Otherwise generate server-side (for auto-post / fallback)
+    let publicImageUrl = '';
+    let messageId: number | undefined;
+
+    if (image_base64) {
+      // Browser sent the exact rendered canvas — use it directly (guaranteed to match admin view)
+      const base64Data = image_base64.replace(/^data:image\/\w+;base64,/, '');
+      const pngBuffer = Buffer.from(base64Data, 'base64');
+      const filename = `channel-proofs/${type}/${Date.now()}_proof.png`;
+      publicImageUrl = await uploadToR2(filename, pngBuffer, 'image/png');
+
+      const caption = buildCaption(type, threshold, botUsername);
+      const replyMarkup = {
+        inline_keyboard: [[
+          { text: '🎮 አሁኑኑ ይጫወቱ • PLAY NOW', url: `https://t.me/${botUsername}` }
+        ]]
+      };
+      const tgData = await sendPhotoToTelegram(botToken, channelId, pngBuffer, caption, replyMarkup);
+      if (!tgData.ok) {
+        res.status(502).json({ error: `Telegram error: ${tgData.description || 'Failed to post'}`, channelId, tgData });
+        return;
+      }
+      messageId = tgData.result?.message_id;
+    } else {
+      // No browser canvas — generate server-side from DB
+      const result = await generateAndPostFlyer(
+        type,
+        items as (DepositRow | WithdrawalRow)[],
+        channelId,
+        botToken,
+        botUsername,
+        threshold
+      );
+      publicImageUrl = result.publicImageUrl;
+      messageId = result.messageId;
+    }
 
     // Update settings: lastPostAt + cached image
     const nowIso = new Date().toISOString();
@@ -513,6 +542,9 @@ router.put('/settings', validateTelegramAuth, requireAdminOrWorker, async (req: 
 });
 
 // ── Auto-post: called after every deposit/withdrawal approval ─────────────────
+// Primary auto-post: the frontend page auto-posts via browser canvas (exact match).
+// This server-side fallback fires ONLY when the admin page is closed —
+// it uses the last canvas image cached in R2 by the frontend's sync-cache call.
 export async function checkAndAutoPostProofs(type: 'deposit' | 'withdrawal'): Promise<void> {
   try {
     const botToken = process.env.BOT_TOKEN;
@@ -533,6 +565,8 @@ export async function checkAndAutoPostProofs(type: 'deposit' | 'withdrawal'): Pr
         'channel_link',
         'last_channel_post_deposit_at',
         'last_channel_post_withdraw_at',
+        'last_channel_post_deposit_image',
+        'last_channel_post_withdraw_image',
       ]);
 
     const sMap = Object.fromEntries((sRows || []).map(r => [r.key, r.value]));
@@ -550,95 +584,61 @@ export async function checkAndAutoPostProofs(type: 'deposit' | 'withdrawal'): Pr
     ) || 10;
 
     const lastPostAt = isDeposit ? sMap.last_channel_post_deposit_at : sMap.last_channel_post_withdraw_at;
-    const table = isDeposit ? 'deposits' : 'withdrawals';
 
     // Count approved records since last post
     let countQ = supabase
-      .from(table)
+      .from(isDeposit ? 'deposits' : 'withdrawals')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'approved');
     if (lastPostAt) countQ = countQ.gt('updated_at', lastPostAt);
     const { count } = await countQ;
     const unposted = count ?? 0;
 
-    if (unposted < threshold) {
-      // Not yet reached threshold — nothing to do
+    if (unposted < threshold) return; // Not yet reached
+
+    // Use the cached canvas image that the frontend synced to R2
+    const cachedImage = isDeposit
+      ? sMap.last_channel_post_deposit_image
+      : sMap.last_channel_post_withdraw_image;
+
+    if (!cachedImage) {
+      console.log(`[AutoPost-Server] ${type} threshold reached (${unposted}/${threshold}) but no cached canvas image yet. Open the admin Channel Proofs page to render the canvas.`);
       return;
     }
 
-    console.log(`Auto-post threshold reached for ${type}: ${unposted}/${threshold}. Generating flyer server-side...`);
-
     const channelId = normalizeTelegramChannel(sMap.channel_post_target || sMap.channel_link || DEFAULT_PROOF_CHANNEL);
+    const caption = buildCaption(type, threshold, botUsername);
+    const replyMarkup = {
+      inline_keyboard: [[
+        { text: '🎮 አሁኑኑ ይጫወቱ • PLAY NOW', url: `https://t.me/${botUsername}` }
+      ]]
+    };
 
-    // Fetch the NEW batch (since lastPostAt), up to 10 rows for the canvas
-    let items: any[] = [];
-    if (isDeposit) {
-      let q = supabase
-        .from('deposits')
-        .select('id, telegram_id, amount, status, updated_at, deposit_methods(id, name, type), users!deposits_telegram_id_fkey(first_name, username)')
-        .eq('status', 'approved')
-        .order('updated_at', { ascending: false })
-        .limit(10);
-      if (lastPostAt) q = q.gt('updated_at', lastPostAt);
-      const { data } = await q;
-      items = data || [];
-      // Pad with older rows if batch < 10
-      if (items.length < 10) {
-        const extra = await supabase
-          .from('deposits')
-          .select('id, telegram_id, amount, status, updated_at, deposit_methods(id, name, type), users!deposits_telegram_id_fkey(first_name, username)')
-          .eq('status', 'approved')
-          .order('updated_at', { ascending: false })
-          .limit(10 - items.length);
-        if (extra.data) {
-          const existingIds = new Set(items.map((x: any) => x.id));
-          items = [...items, ...extra.data.filter((x: any) => !existingIds.has(x.id))];
-        }
-      }
-    } else {
-      let q = supabase
-        .from('withdrawals')
-        .select('id, telegram_id, method_id, amount, net_amount, fee_amount, account_name, account_number, status, updated_at, withdrawal_methods(id, type)')
-        .eq('status', 'approved')
-        .order('updated_at', { ascending: false })
-        .limit(10);
-      if (lastPostAt) q = q.gt('updated_at', lastPostAt);
-      const { data } = await q;
-      items = await enrichWithdrawals(data || []);
-      if (items.length < 10) {
-        const extra = await supabase
-          .from('withdrawals')
-          .select('id, telegram_id, method_id, amount, net_amount, fee_amount, account_name, account_number, status, updated_at, withdrawal_methods(id, type)')
-          .eq('status', 'approved')
-          .order('updated_at', { ascending: false })
-          .limit(10 - items.length);
-        if (extra.data) {
-          const enrichedExtra = await enrichWithdrawals(extra.data);
-          const existingIds = new Set(items.map((x: any) => x.id));
-          items = [...items, ...enrichedExtra.filter((x: any) => !existingIds.has(x.id))];
-        }
-      }
+    // Post the cached canvas image (the exact same PNG the admin page rendered)
+    const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: channelId,
+        photo: cachedImage,
+        caption,
+        parse_mode: 'HTML',
+        reply_markup: replyMarkup,
+      }),
+    });
+
+    const tgData = (await tgRes.json()) as any;
+    if (!tgRes.ok || !tgData.ok) {
+      console.error('[AutoPost-Server] Failed to post to channel:', tgData);
+      return;
     }
 
-    // Generate flyer server-side and post to channel
-    const { publicImageUrl } = await generateAndPostFlyer(
-      type,
-      items as (DepositRow | WithdrawalRow)[],
-      channelId,
-      botToken,
-      botUsername,
-      threshold
-    );
-
-    // Update last post timestamp and cached image URL
     const nowIso = new Date().toISOString();
     await supabase.from('settings').upsert([
       { key: isDeposit ? 'last_channel_post_deposit_at' : 'last_channel_post_withdraw_at', value: nowIso },
-      { key: isDeposit ? 'last_channel_post_deposit_image' : 'last_channel_post_withdraw_image', value: publicImageUrl },
-      { key: isDeposit ? 'last_channel_post_deposit_image_at' : 'last_channel_post_withdraw_image_at', value: nowIso },
     ], { onConflict: 'key' });
 
-    console.log(`✅ Auto-posted ${type} proof flyer to ${channelId} (${unposted}/${threshold} milestone). URL: ${publicImageUrl}`);
+    console.log(`✅ [AutoPost-Server] Posted ${type} canvas proof to ${channelId} (${unposted}/${threshold} milestone).`);
   } catch (autoErr) {
     console.error('Error during checkAndAutoPostProofs:', autoErr);
   }
