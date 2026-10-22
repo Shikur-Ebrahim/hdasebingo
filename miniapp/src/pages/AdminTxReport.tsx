@@ -256,10 +256,11 @@ export default function AdminTxReport() {
   const filtered = filter === 'all' ? transactions : transactions.filter((t) => t.type === filter);
   const visibleTxs = filtered.slice(0, visibleCount);
 
-  // Net Profit formula: Deposits - Withdrawals (Actual) - Bonuses - Jackpots
+  // Net Profit formula: Deposits - Withdrawals (Actual payout) + Match Commission (Remain Commission) - Bonuses - Jackpots
   const netProfit =
     (stats.totalDeposits || 0) -
-    (stats.totalWithdrawals || 0) -
+    (stats.totalWithdrawals || 0) +
+    (stats.totalGameProfit || 0) -
     (stats.totalWelcomeBonus || 0) -
     (stats.totalDepBonus || 0) -
     (stats.totalSecondDepBonus || 0) -
@@ -287,7 +288,7 @@ export default function AdminTxReport() {
     {
       label: 'Match Commission',
       value: stats.totalGameProfit || 0,
-      sub: `${stats.totalMatches || 0} Matches Played`,
+      sub: `${stats.totalMatches || 0} Matches (Remain Comm)`,
       icon: <Gamepad2 size={16} />,
       color: 'text-indigo-600',
       bg: 'bg-indigo-50',
@@ -521,13 +522,13 @@ export default function AdminTxReport() {
                 </span>
               </div>
 
-              {/* Game Match Platform Commission */}
+              {/* Game Match Platform Commission (Remain Commission after team & promoter comm) */}
               {(stats.totalGameProfit || 0) > 0 && (
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
                     <span className="text-indigo-300 text-[11px] font-medium">
-                      Match Platform Profit ({stats.totalMatches || 0} matches)
+                      Match Remain Commission ({stats.totalMatches || 0} matches)
                     </span>
                   </div>
                   <span className="text-indigo-300 font-bold text-[12px]">

@@ -809,8 +809,8 @@ router.get('/tx-report', validateTelegramAuth, requireAdmin, async (req, res) =>
     const grossAmt = Number(w.amount || 0);
     const feeAmt = Number(w.fee_amount || 0);
     const netAmt = Number(w.net_amount || 0);
-    // Actual payout amount sent to user
-    const actualPayout = netAmt > 0 ? netAmt : Math.max(0, grossAmt - feeAmt);
+    // Actual payout amount sent to user (e.g. 97 ETB instead of 100 ETB)
+    const actualPayout = netAmt > 0 ? netAmt : (feeAmt > 0 ? Math.max(0, grossAmt - feeAmt) : grossAmt);
 
     if (w.status === 'approved') {
       totalWithdrawals += actualPayout;
