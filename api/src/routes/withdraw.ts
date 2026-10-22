@@ -17,6 +17,19 @@ router.get('/fee-settings', async (req: AuthRequest, res) => {
     ]);
     res.json({
       settings: feeSettings,
+      // Flattened properties for easy and backwards-compatible consumption
+      enabled: feeSettings.is_enabled,
+      is_enabled: feeSettings.is_enabled,
+      tier1_max: feeSettings.tier1_max_amount,
+      tier1_max_amount: feeSettings.tier1_max_amount,
+      tier1_fee: feeSettings.tier1_fee_percent,
+      tier1_fee_percent: feeSettings.tier1_fee_percent,
+      tier2_max: feeSettings.tier2_max_amount,
+      tier2_max_amount: feeSettings.tier2_max_amount,
+      tier2_fee: feeSettings.tier2_fee_percent,
+      tier2_fee_percent: feeSettings.tier2_fee_percent,
+      tier3_fee: feeSettings.tier3_fee_percent,
+      tier3_fee_percent: feeSettings.tier3_fee_percent,
       user_role: user?.role || 'user',
       is_exempt: user?.role === 'agent' || user?.role === 'promoter',
     });
@@ -44,6 +57,12 @@ router.post('/request', async (req: AuthRequest, res) => {
 
   if (!method_id || !amount || !account_name || !account_number) {
     res.status(400).json({ error: 'All fields are required' });
+    return;
+  }
+
+  const cleanAccountNumber = String(account_number || '').trim().replace(/\D/g, '');
+  if (!cleanAccountNumber) {
+    res.status(400).json({ error: 'Account number must contain digits only' });
     return;
   }
 
@@ -119,8 +138,8 @@ router.post('/request', async (req: AuthRequest, res) => {
     fee_percent,
     fee_amount,
     net_amount,
-    account_name,
-    account_number,
+    account_name: String(account_name).trim(),
+    account_number: cleanAccountNumber,
     status: 'pending',
   };
 
