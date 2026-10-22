@@ -8,7 +8,13 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 export default function Admin() {
   const { user } = useGameStore();
-  const [stats, setStats] = useState({ pendingDeposits: 0, pendingWithdrawals: 0, pendingTransfers: 0 });
+  const [stats, setStats] = useState({ 
+    pendingDeposits: 0, 
+    pendingWithdrawals: 0, 
+    pendingTransfers: 0,
+    unpostedProofDeposits: 0,
+    unpostedProofWithdrawals: 0
+  });
   const [pendingAgentWithdrawals, setPendingAgentWithdrawals] = useState(0);
 
   useEffect(() => {
@@ -159,6 +165,52 @@ export default function Admin() {
                       {pendingAgentWithdrawals}
                     </span>
                   )}
+                </div>
+              </Link>
+            );
+          }
+
+          if (mod.id === 'channel_proofs') {
+            const unpostedDep = stats.unpostedProofDeposits ?? 0;
+            const unpostedWith = stats.unpostedProofWithdrawals ?? 0;
+
+            return (
+              <Link
+                key={mod.id}
+                to="/admin/channel-proofs"
+                className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center space-y-2.5 transition-all hover:shadow-md active:scale-95"
+              >
+                <div className={`w-12 h-12 rounded-2xl ${mod.bg} ${mod.color} flex items-center justify-center shadow-inner`}>
+                  <Icon size={24} strokeWidth={2.5} />
+                </div>
+                <div className="flex flex-col items-center justify-center space-y-1">
+                  <span className="font-bold text-sm text-slate-700 text-center">{mod.title}</span>
+                  {/* Real tracked counts: Green for unposted deposits, Red for unposted withdrawals */}
+                  <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                    <span
+                      className={`text-[10px] font-black px-1.5 py-0.5 rounded-md shadow-sm flex items-center gap-0.5 ${
+                        unpostedDep > 0
+                          ? 'bg-emerald-500 text-white animate-pulse'
+                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      }`}
+                      title="Unposted Approved Deposits"
+                    >
+                      <span>↓</span>
+                      <span>{unpostedDep}</span>
+                    </span>
+
+                    <span
+                      className={`text-[10px] font-black px-1.5 py-0.5 rounded-md shadow-sm flex items-center gap-0.5 ${
+                        unpostedWith > 0
+                          ? 'bg-rose-500 text-white animate-pulse'
+                          : 'bg-rose-50 text-rose-700 border border-rose-200'
+                      }`}
+                      title="Unposted Approved Withdrawals"
+                    >
+                      <span>↑</span>
+                      <span>{unpostedWith}</span>
+                    </span>
+                  </div>
                 </div>
               </Link>
             );

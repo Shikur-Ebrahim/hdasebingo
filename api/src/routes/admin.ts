@@ -399,17 +399,46 @@ router.delete('/deposits/:id/reject', async (req, res) => {
 
 // Get admin stats (pending counts)
 router.get('/stats', async (req, res) => {
-  const [depRes, withRes, trRes] = await Promise.all([
-    supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-    supabase.from('withdrawals').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-    supabase.from('worker_transfers').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-  ]);
-    
-  res.json({ 
-    pendingDeposits: depRes.count || 0,
-    pendingWithdrawals: withRes.count || 0,
-    pendingTransfers: trRes.count || 0,
-  });
+  try {
+    const [depRes, withRes, trRes, postedDepRow, postedWithRow, appDepsRes, appWithsRes] = await Promise.all([
+      supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('withdrawals').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('worker_transfers').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('settings').select('value').eq('key', 'posted_deposit_ids').single(),
+      supabase.from('settings').select('value').eq('key', 'posted_withdraw_ids').single(),
+      supabase.from('deposits').select('id').eq('status', 'approved').limit(100),
+      supabase.from('withdrawals').select('id').eq('status', 'approved').limit(100),
+    ]);
+
+    let postedDepIds: string[] = [];
+    try {
+      postedDepIds = JSON.parse(postedDepRow.data?.value || '[]');
+      if (!Array.isArray(postedDepIds)) postedDepIds = [];
+    } catch {
+      postedDepIds = [];
+    }
+
+    let postedWithIds: string[] = [];
+    try {
+      postedWithIds = JSON.parse(postedWithRow.data?.value || '[]');
+      if (!Array.isArray(postedWithIds)) postedWithIds = [];
+    } catch {
+      postedWithIds = [];
+    }
+
+    const unpostedProofDeposits = (appDepsRes.data || []).filter(d => !postedDepIds.includes(d.id)).length;
+    const unpostedProofWithdrawals = (appWithsRes.data || []).filter(w => !postedWithIds.includes(w.id)).length;
+      
+    res.json({ 
+      pendingDeposits: depRes.count || 0,
+      pendingWithdrawals: withRes.count || 0,
+      pendingTransfers: trRes.count || 0,
+      unpostedProofDeposits,
+      unpostedProofWithdrawals,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Error fetching stats' });
+  }
 });
 
 // ─── WITHDRAWAL MANAGEMENT ───────────────────────────────────────────────────
