@@ -110,6 +110,31 @@ async function sendTelegramRequest(
       const errJson = (await r.json().catch(() => null)) as any;
       const desc = errJson?.description || r.statusText;
 
+      // If WebApp button failed (e.g. not allowed in channels or older client), retry with standard url button
+      if (
+        payload.reply_markup &&
+        (desc.includes('BUTTON_') || desc.includes('button') || desc.includes('WebApp') || desc.includes('web_app'))
+      ) {
+        const urlPayload = { ...payload };
+        const botUsername = process.env.BOT_USERNAME || 'Hdasebingo_bot';
+        urlPayload.reply_markup = {
+          inline_keyboard: [
+            [
+              {
+                text: '🎮 አሁኑኑ ይጫወቱ • PLAY NOW',
+                url: `https://t.me/${botUsername}?start=play`,
+              },
+            ],
+          ],
+        };
+        const retryBtn = await fetch(`${base}/${endpoint}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(urlPayload),
+        });
+        if (retryBtn.ok) return { ok: true };
+      }
+
       // If Markdown parse failed (bad entity / formatting), retry without Markdown
       if (
         payload.parse_mode &&
@@ -142,7 +167,8 @@ async function sendTelegramMessage(
   chatId: string,
   body: string,
   mediaUrl?: string | null,
-  mediaType?: string | null
+  mediaType?: string | null,
+  replyMarkup?: any
 ): Promise<{ ok: boolean; error?: string }> {
   const base = `https://api.telegram.org/bot${botToken}`;
 
@@ -159,6 +185,7 @@ async function sendTelegramMessage(
       caption: caption || undefined,
       parse_mode: 'Markdown',
       supports_streaming: true,
+      reply_markup: replyMarkup || undefined,
     });
   } else if (mediaUrl && mediaType === 'image') {
     result = await sendTelegramRequest(base, 'sendPhoto', {
@@ -166,12 +193,14 @@ async function sendTelegramMessage(
       photo: mediaUrl,
       caption: caption || undefined,
       parse_mode: 'Markdown',
+      reply_markup: replyMarkup || undefined,
     });
   } else {
     result = await sendTelegramRequest(base, 'sendMessage', {
       chat_id: chatId,
       text: body,
       parse_mode: 'Markdown',
+      reply_markup: replyMarkup || undefined,
     });
   }
 
@@ -181,6 +210,7 @@ async function sendTelegramMessage(
       chat_id: chatId,
       text: body,
       parse_mode: 'Markdown',
+      reply_markup: replyMarkup || undefined,
     });
   }
 
@@ -221,6 +251,37 @@ async function executeBroadcast(postId: string): Promise<void> {
   const mediaUrl = post.media_url || null;
   const mediaType = post.media_type || null;
 
+  const botUsername = process.env.BOT_USERNAME || 'Hdasebingo_bot';
+  const miniAppUrl = process.env.MINI_APP_URL || 'https://hdasebingo-44kc.vercel.app';
+
+  // 1. Channel button: Must use URL deep link (Telegram forbids web_app in channels)
+  // When clicked, it opens the bot:
+  // - If user hasn't started bot: Telegram prompts "START"
+  // - When they click START: bot runs /start play and launches Mini App!
+  // - If user has already started bot: opens the bot with the Mini App ready!
+  const channelKeyboard = {
+    inline_keyboard: [
+      [
+        {
+          text: '🎮 አሁኑኑ ይጫወቱ • PLAY NOW',
+          url: `https://t.me/${botUsername}?start=play`,
+        },
+      ],
+    ],
+  };
+
+  // 2. Direct Bot User button: Opens Mini App directly in Telegram!
+  const botUserKeyboard = {
+    inline_keyboard: [
+      [
+        {
+          text: '🎮 አሁኑኑ ይጫወቱ • PLAY NOW',
+          web_app: { url: miniAppUrl },
+        },
+      ],
+    ],
+  };
+
   // Format message text: combine title + body
   const messageText = post.title && post.title.trim()
     ? `*${post.title.trim()}*\n\n${post.body.trim()}`
@@ -231,7 +292,7 @@ async function executeBroadcast(postId: string): Promise<void> {
   if (sendToChannel) {
     const channelId = await resolveChannelId(post.channel_id);
     console.log(`[Broadcast] Sending to Telegram channel: ${channelId} (post.id: ${postId})`);
-    const res = await sendTelegramMessage(botToken, channelId, messageText, mediaUrl, mediaType);
+    const res = await sendTelegramMessage(botToken, channelId, messageText, mediaUrl, mediaType, channelKeyboard);
     if (res.ok) {
       sentCount++;
       console.log(`[Broadcast] ✅ Successfully posted to channel ${channelId}`);
@@ -281,7 +342,7 @@ async function executeBroadcast(postId: string): Promise<void> {
 
       for (const u of eligible) {
         await new Promise(r => setTimeout(r, 35)); // ~28 msg/sec Telegram rate limit
-        const res = await sendTelegramMessage(botToken, u.telegram_id, messageText, mediaUrl, mediaType);
+        const res = await sendTelegramMessage(botToken, u.telegram_id, messageText, mediaUrl, mediaType, botUserKeyboard);
         if (res.ok) {
           sentCount++;
         } else {

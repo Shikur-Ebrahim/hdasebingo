@@ -462,6 +462,41 @@ export default function AdminBroadcast() {
             )}
           </div>
 
+          {/* Action Button Attachment */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-bold text-slate-700 flex items-center space-x-1.5">
+                <span className="text-base">🎮</span>
+                <span className="font-black text-slate-900">Interactive "PLAY NOW" Button</span>
+              </label>
+              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full border border-emerald-200">
+                AUTO-ATTACHED
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+              Every broadcast post automatically includes an attractive high-converting Telegram button:
+            </p>
+
+            {/* Telegram-style button preview */}
+            <div className="p-3 bg-slate-900/5 rounded-xl border border-slate-200/60 mb-3 flex flex-col items-center">
+              <div className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-green-600 text-white font-black text-xs rounded-xl shadow text-center flex items-center justify-center space-x-1.5">
+                <span>🎮 አሁኑኑ ይጫወቱ • PLAY NOW</span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 text-[11px] text-slate-500 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+              <div className="flex items-start gap-1.5">
+                <span className="font-bold text-slate-700 shrink-0">📢 ቻናል (Channel):</span>
+                <span>ቦቱን ያላስጀመሩት ተጠቃሚዎች ቦቱን ከፍተው START እንዲጫኑ ያደርጋል፤ ያስጀመሩትን ደግሞ በቀጥታ ጨዋታውን ይከፍትላቸዋል።</span>
+              </div>
+              <div className="flex items-start gap-1.5">
+                <span className="font-bold text-slate-700 shrink-0">🤖 ተጫዋቾች (Bot Users):</span>
+                <span>በቀጥታ ሚኒ አፑን ሙሉ ስክሪን ይከፍትላቸዋል።</span>
+              </div>
+            </div>
+          </div>
+
           {/* Schedule */}
           <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
             <div className="flex items-center justify-between mb-3">
@@ -602,12 +637,15 @@ export default function AdminBroadcast() {
                     </span>
                   </div>
 
-                  {/* Target audience badge */}
+                  {/* Target audience badge & Play button indicator */}
                   <div className="flex flex-wrap gap-1.5 text-[11px] mb-2">
                     <span className="bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-md">
                       {post.send_to === 'bot' && '🤖 Bot (All Players)'}
                       {post.send_to === 'channel' && `📢 Channel (${targetChannelName})`}
                       {post.send_to === 'both' && `📡 Bot + Channel (${targetChannelName})`}
+                    </span>
+                    <span className="bg-emerald-50 text-emerald-800 font-bold px-2 py-0.5 rounded-md border border-emerald-200">
+                      🎮 PLAY NOW Button Attached
                     </span>
                     {post.scheduled_at && post.status === 'scheduled' && (
                       <span className="bg-blue-50 text-blue-700 font-medium px-2 py-0.5 rounded-md">
