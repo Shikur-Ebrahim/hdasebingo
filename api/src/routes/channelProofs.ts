@@ -191,11 +191,17 @@ router.post('/sync-cache', validateTelegramAuth, requireAdminOrWorker, async (re
 
     const base64Data = image_base64.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(base64Data, 'base64');
-    const filename = `channel-proofs/${type}/cached_flyer.png`;
+    const filename = `channel-proofs/${type}/${Date.now()}_flyer.png`;
     const publicUrl = await uploadToR2(filename, buffer, 'image/png');
 
+    const nowIso = new Date().toISOString();
     const settingKey = type === 'deposit' ? 'last_channel_post_deposit_image' : 'last_channel_post_withdraw_image';
-    await supabase.from('settings').upsert([{ key: settingKey, value: publicUrl }], { onConflict: 'key' });
+    const timeKey = type === 'deposit' ? 'last_channel_post_deposit_image_at' : 'last_channel_post_withdraw_image_at';
+
+    await supabase.from('settings').upsert([
+      { key: settingKey, value: publicUrl },
+      { key: timeKey, value: nowIso }
+    ], { onConflict: 'key' });
 
     res.json({ success: true, publicUrl });
   } catch (err: any) {
@@ -301,11 +307,13 @@ router.post('/post', validateTelegramAuth, requireAdminOrWorker, async (req: Aut
     const settingsToUpdate = type === 'deposit'
       ? [
           { key: 'last_channel_post_deposit_at', value: nowIso },
-          { key: 'last_channel_post_deposit_image', value: publicImageUrl }
+          { key: 'last_channel_post_deposit_image', value: publicImageUrl },
+          { key: 'last_channel_post_deposit_image_at', value: nowIso }
         ]
       : [
           { key: 'last_channel_post_withdraw_at', value: nowIso },
-          { key: 'last_channel_post_withdraw_image', value: publicImageUrl }
+          { key: 'last_channel_post_withdraw_image', value: publicImageUrl },
+          { key: 'last_channel_post_withdraw_image_at', value: nowIso }
         ];
 
     await supabase.from('settings').upsert(settingsToUpdate, { onConflict: 'key' });
@@ -480,10 +488,16 @@ export async function checkAndAutoPostProofs(type: 'deposit' | 'withdrawal'): Pr
     const channelId = normalizeTelegramChannel(sMap.channel_post_target || sMap.channel_link || DEFAULT_PROOF_CHANNEL);
     const cachedImage = isDeposit ? sMap.last_channel_post_deposit_image : sMap.last_channel_post_withdraw_image;
 
-    // CRITICAL: ONLY post if the exact canvas image is cached on R2!
-    // NEVER send a plain text message to the channel!
-    if (!cachedImage) {
-      console.log(`Auto-post for ${type} reached milestone (${unposted}/${threshold}), but awaiting canvas flyer sync. Plain text fallback skipped.`);
+    // CRITICAL: ONLY post if the exact canvas image is cached on R2 and is fresh!
+    // NEVER send a plain text message, and NEVER send an outdated flyer from a past batch!
+    const imageUpdatedAt = sMap[`last_channel_post_${type}_image_at`];
+    if (!cachedImage || !imageUpdatedAt) {
+      console.log(`Auto-post for ${type} reached milestone (${unposted}/${threshold}), but awaiting fresh canvas flyer render from admin. Plain text fallback skipped.`);
+      return;
+    }
+
+    if (lastPostAt && new Date(imageUpdatedAt) <= new Date(lastPostAt)) {
+      console.log(`Auto-post for ${type}: cached flyer is from previous batch. Waiting for admin to render fresh flyer.`);
       return;
     }
 

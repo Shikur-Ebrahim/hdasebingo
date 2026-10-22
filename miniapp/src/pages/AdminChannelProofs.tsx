@@ -959,7 +959,7 @@ export default function AdminChannelProofs() {
   // ── Download Poster to Device ────────────────────────────────────────────────
   const handleDownloadPoster = () => {
     triggerHaptic('medium');
-    const dataUrl = activeTab === 'deposit' ? generateDepositCanvas() : generateWithdrawalCanvas();
+    const dataUrl = activeDataUrl || (activeTab === 'deposit' ? generateDepositCanvas() : generateWithdrawalCanvas());
     if (!dataUrl) return;
 
     const a = document.createElement('a');
@@ -977,7 +977,7 @@ export default function AdminChannelProofs() {
   // ── Send to Admin's Private Telegram Chat ────────────────────────────────────
   const handleSendToMyTelegram = async () => {
     triggerHaptic('heavy');
-    const dataUrl = activeTab === 'deposit' ? generateDepositCanvas() : generateWithdrawalCanvas();
+    const dataUrl = activeDataUrl || (activeTab === 'deposit' ? generateDepositCanvas() : generateWithdrawalCanvas());
     if (!dataUrl) return;
 
     setIsSendingToTg(true);
@@ -1015,8 +1015,11 @@ export default function AdminChannelProofs() {
   // ── Post Now to Official Channel ─────────────────────────────────────────────
   const handlePostToChannel = async () => {
     triggerHaptic('heavy');
-    const dataUrl = activeTab === 'deposit' ? generateDepositCanvas() : generateWithdrawalCanvas();
-    if (!dataUrl) return;
+    const dataUrl = activeDataUrl || (activeTab === 'deposit' ? generateDepositCanvas() : generateWithdrawalCanvas());
+    if (!dataUrl) {
+      setPostErrorMsg('ምስሉ በመዘጋጀት ላይ ነው፣ እባክዎ ጥቂት ሰከንዶች ይጠብቁ... (Canvas is rendering, please wait)');
+      return;
+    }
 
     setIsPosting(true);
     setPostErrorMsg(null);
@@ -1040,7 +1043,7 @@ export default function AdminChannelProofs() {
       const json = await res.json();
       if (res.ok && json.success) {
         triggerSuccessHaptic();
-        setPostSuccessMsg(`Successfully posted ${activeTab} proof flyer to ${json.channelId || settings.targetChannel}! 🎉`);
+        setPostSuccessMsg(`ትክክለኛው የ${activeTab === 'deposit' ? 'ዲፖዚት' : 'ክፍያ'} ምስል በተሳካ ሁኔታ ወደ ${json.channelId || settings.targetChannel} ተልኳል! 🎉`);
         fetchData();
         setTimeout(() => setPostSuccessMsg(null), 5000);
       } else {
