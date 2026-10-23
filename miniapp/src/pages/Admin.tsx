@@ -46,14 +46,20 @@ export default function Admin() {
   const isAdmin = user.role === 'admin';
 
   let adminModules = [
+    // ── TOP PRIORITY BUTTONS ─────────────────────────────────────────────────
+    { id: 'channel_proofs', title: 'Channel Proofs', icon: Sparkles, color: 'text-emerald-600', bg: 'bg-emerald-100', show: isAdmin },
+    { id: 'broadcast', title: 'Broadcast', icon: Radio, color: 'text-pink-600', bg: 'bg-pink-100', show: isAdmin },
+    { id: 'agent_withdrawals', title: 'Agent & Promoter Withdrawals', icon: BadgeDollarSign, color: 'text-amber-600', bg: 'bg-amber-100', show: isAdmin },
+    { id: 'game_report', title: 'Game Report', icon: BarChart3, color: 'text-indigo-600', bg: 'bg-indigo-100', show: isAdmin },
+    { id: 'tx_report', title: 'Transaction Report', icon: Receipt, color: 'text-teal-600', bg: 'bg-teal-100', show: isAdmin || perms.reports },
+    { id: 'financial_audit', title: 'Financial Audit', icon: ShieldCheck, color: 'text-indigo-600', bg: 'bg-indigo-100', show: isAdmin },
+    { id: 'deposits', title: 'Deposits', icon: ArrowDownToLine, color: 'text-emerald-600', bg: 'bg-emerald-100', show: isAdmin || perms.deposits },
+    { id: 'withdrawals', title: 'Withdrawals', icon: ArrowUpFromLine, color: 'text-rose-600', bg: 'bg-rose-100', show: isAdmin || perms.withdrawals },
+    // ── OTHER BUTTONS ────────────────────────────────────────────────────────
     { id: 'dep_methods', title: 'Deposit Methods', icon: Landmark, color: 'text-blue-600', bg: 'bg-blue-100', show: isAdmin },
     { id: 'with_methods', title: 'Withdraw Methods', icon: CreditCard, color: 'text-purple-600', bg: 'bg-purple-100', show: isAdmin },
     { id: 'user_withdrawal_fee', title: 'User Withdrawal Fee', icon: Percent, color: 'text-amber-600', bg: 'bg-amber-100', show: isAdmin },
     { id: 'agency_withdrawal_fee', title: 'Agency & Promoter Fee', icon: Coins, color: 'text-purple-600', bg: 'bg-purple-100', show: isAdmin },
-    { id: 'financial_audit', title: 'Financial Audit', icon: ShieldCheck, color: 'text-indigo-600', bg: 'bg-indigo-100', show: isAdmin },
-    { id: 'deposits', title: 'Deposits', icon: ArrowDownToLine, color: 'text-emerald-600', bg: 'bg-emerald-100', show: isAdmin || perms.deposits },
-    { id: 'withdrawals', title: 'Withdrawals', icon: ArrowUpFromLine, color: 'text-rose-600', bg: 'bg-rose-100', show: isAdmin || perms.withdrawals },
-    { id: 'agent_withdrawals', title: 'Agent & Promoter Withdrawals', icon: BadgeDollarSign, color: 'text-amber-600', bg: 'bg-amber-100', show: isAdmin },
     { id: 'agent_banks', title: 'Agent & Promoter Banks', icon: Landmark, color: 'text-emerald-600', bg: 'bg-emerald-100', show: isAdmin },
     { id: 'users', title: 'Users', icon: Users, color: 'text-indigo-600', bg: 'bg-indigo-100', show: isAdmin || perms.users },
     { id: 'workers', title: 'Workers', icon: UserCog, color: 'text-orange-600', bg: 'bg-orange-100', show: isAdmin },
@@ -61,13 +67,9 @@ export default function Admin() {
     { id: 'promoters', title: 'Promoters', icon: Megaphone, color: 'text-violet-600', bg: 'bg-violet-100', show: isAdmin },
     { id: 'bingo_games', title: 'Bingo Games', icon: Gamepad2, color: 'text-yellow-600', bg: 'bg-yellow-100', show: isAdmin || perms.games },
     { id: 'user_audit', title: 'User Audit', icon: Search, color: 'text-cyan-600', bg: 'bg-cyan-100', show: isAdmin || perms.reports },
-    { id: 'tx_report', title: 'Transaction Report', icon: Receipt, color: 'text-teal-600', bg: 'bg-teal-100', show: isAdmin || perms.reports },
-    { id: 'game_report', title: 'Game Report', icon: BarChart3, color: 'text-indigo-600', bg: 'bg-indigo-100', show: isAdmin },
     { id: 'settings', title: 'Settings', icon: Settings2, color: 'text-slate-600', bg: 'bg-slate-100', show: isAdmin || perms.settings },
-    { id: 'broadcast', title: 'Broadcast', icon: Radio, color: 'text-pink-600', bg: 'bg-pink-100', show: isAdmin },
     { id: 'support_videos', title: 'Support Videos', icon: Video, color: 'text-violet-600', bg: 'bg-violet-100', show: isAdmin },
     { id: 'hdase_qr', title: 'HDASE QR Code', icon: QrCode, color: 'text-amber-600', bg: 'bg-amber-100', show: isAdmin },
-    { id: 'channel_proofs', title: 'Channel Proofs', icon: Sparkles, color: 'text-emerald-600', bg: 'bg-emerald-100', show: isAdmin },
   ].filter(m => m.show);
 
   return (
