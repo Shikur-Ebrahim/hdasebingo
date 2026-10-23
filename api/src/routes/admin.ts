@@ -1223,6 +1223,160 @@ router.get('/bingo-report', validateTelegramAuth, requireAdmin, async (req, res)
   });
 });
 
+// GET /admin/room-ranking — advanced room analytics ranked by commission, games, players
+router.get('/room-ranking', validateTelegramAuth, requireAdmin, async (req, res) => {
+  const period = (req.query.period as string) || 'week';
+
+  let startDate = new Date();
+  startDate.setHours(0, 0, 0, 0);
+  let endDate = new Date();
+  endDate.setHours(23, 59, 59, 999);
+  const now = new Date();
+
+  switch (period) {
+    case 'today': break;
+    case 'week':
+      startDate.setDate(now.getDate() - 7);
+      endDate = now;
+      break;
+    case 'month':
+      startDate.setMonth(now.getMonth() - 1);
+      endDate = now;
+      break;
+    case 'all':
+      startDate = new Date(0);
+      endDate = now;
+      break;
+    default: break;
+  }
+
+  try {
+    // 1. Fetch all rooms
+    const { data: rooms } = await supabase
+      .from('rooms')
+      .select('id, room_name, status, commission_rate, promoter_commission_rate, agent_name, total_games, created_at, is_pinned');
+
+    // 2. Fetch finished games in period
+    const { data: periodGames } = await supabase
+      .from('bingo_games')
+      .select('id, room_id, stake, winner_prize, total_players, created_at, finished_at')
+      .eq('status', 'finished')
+      .gte('created_at', startDate.toISOString())
+      .lte('created_at', endDate.toISOString())
+      .limit(50000);
+
+    // 3. Fetch active players per room right now
+    const { data: activeGames } = await supabase
+      .from('bingo_games')
+      .select('room_id, total_players')
+      .in('status', ['waiting', 'calling']);
+
+    const activePlayers: Record<string, number> = {};
+    (activeGames || []).forEach((g: any) => {
+      if (g.room_id) activePlayers[g.room_id] = (activePlayers[g.room_id] || 0) + Number(g.total_players || 0);
+    });
+
+    // 4. Fetch player counts for period games
+    const periodGameIds = (periodGames || []).map((g: any) => g.id);
+    let playerCountMap: Record<string, number> = {};
+    if (periodGameIds.length > 0) {
+      const { data: bplayers } = await supabase
+        .from('bingo_players')
+        .select('game_id')
+        .in('game_id', periodGameIds)
+        .limit(100000);
+      (bplayers || []).forEach((p: any) => {
+        playerCountMap[p.game_id] = (playerCountMap[p.game_id] || 0) + 1;
+      });
+    }
+
+    // 5. Build per-room stats
+    const roomMap: Record<string, any> = {};
+    (rooms || []).forEach((r: any) => {
+      roomMap[r.id] = {
+        id: r.id,
+        room_name: r.room_name,
+        status: r.status,
+        agent_name: r.agent_name || null,
+        commission_rate: Number(r.commission_rate ?? 8),
+        promoter_commission_rate: Number(r.promoter_commission_rate ?? 3),
+        total_games_all_time: Number(r.total_games || 0),
+        is_pinned: Boolean(r.is_pinned),
+        created_at: r.created_at,
+        // period stats
+        period_games: 0,
+        period_pot: 0,
+        period_room_commission: 0,
+        period_promoter_commission: 0,
+        period_platform_commission: 0,
+        period_winner_prizes: 0,
+        active_players: activePlayers[r.id] || 0,
+      };
+    });
+
+    // 6. Accumulate period stats per room
+    (periodGames || []).forEach((g: any) => {
+      const room = roomMap[g.room_id];
+      if (!room) return;
+      const pCount = playerCountMap[g.id] || Number(g.total_players || 0);
+      const stake = Number(g.stake || 0);
+      const pot = pCount * stake;
+      const prize = Number(g.winner_prize || 0);
+      const commRate = room.commission_rate;
+      const promoRate = room.promoter_commission_rate;
+      const roomComm = pot * commRate / 100;
+      const promoComm = pot * promoRate / 100;
+      const platComm = Math.max(0, pot - prize - roomComm - promoComm);
+
+      room.period_games += 1;
+      room.period_pot += pot;
+      room.period_room_commission += roomComm;
+      room.period_promoter_commission += promoComm;
+      room.period_platform_commission += platComm;
+      room.period_winner_prizes += prize;
+    });
+
+    // 7. Round and rank
+    const rankedRooms = Object.values(roomMap).map((r: any) => ({
+      ...r,
+      period_pot: Math.round(r.period_pot * 100) / 100,
+      period_room_commission: Math.round(r.period_room_commission * 100) / 100,
+      period_promoter_commission: Math.round(r.period_promoter_commission * 100) / 100,
+      period_platform_commission: Math.round(r.period_platform_commission * 100) / 100,
+      period_winner_prizes: Math.round(r.period_winner_prizes * 100) / 100,
+    })).sort((a, b) => {
+      // Rank by: period_room_commission DESC → active_players DESC → total_games DESC
+      const commDiff = b.period_room_commission - a.period_room_commission;
+      if (Math.abs(commDiff) > 0.001) return commDiff;
+      const playerDiff = b.active_players - a.active_players;
+      if (playerDiff !== 0) return playerDiff;
+      return b.total_games_all_time - a.total_games_all_time;
+    });
+
+    // 8. Grand totals
+    const totals = rankedRooms.reduce((acc, r) => ({
+      total_games: acc.total_games + r.period_games,
+      total_pot: acc.total_pot + r.period_pot,
+      total_room_commission: acc.total_room_commission + r.period_room_commission,
+      total_promoter_commission: acc.total_promoter_commission + r.period_promoter_commission,
+      total_platform_commission: acc.total_platform_commission + r.period_platform_commission,
+    }), { total_games: 0, total_pot: 0, total_room_commission: 0, total_promoter_commission: 0, total_platform_commission: 0 });
+
+    res.json({
+      rooms: rankedRooms,
+      totals: {
+        total_games: totals.total_games,
+        total_pot: Math.round(totals.total_pot * 100) / 100,
+        total_room_commission: Math.round(totals.total_room_commission * 100) / 100,
+        total_promoter_commission: Math.round(totals.total_promoter_commission * 100) / 100,
+        total_platform_commission: Math.round(totals.total_platform_commission * 100) / 100,
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /admin/game-report — per-game commission breakdown report
 router.get('/game-report', validateTelegramAuth, requireAdmin, async (req, res) => {
   const period = (req.query.period as string) || 'week';

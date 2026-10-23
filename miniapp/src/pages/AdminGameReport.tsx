@@ -148,13 +148,21 @@ export default function AdminGameReport() {
           <BarChart3 size={17} className="text-indigo-600" />
           <span className="font-bold text-slate-800 text-sm">Game Report</span>
         </div>
-        <button
-          onClick={() => fetchData(period)}
-          disabled={loading}
-          className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 text-slate-600 disabled:opacity-40"
-        >
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/admin/room-ranking')}
+            className="px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 text-xs font-semibold border border-indigo-200"
+          >
+            🏠 Rooms
+          </button>
+          <button
+            onClick={() => fetchData(period)}
+            disabled={loading}
+            className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 text-slate-600 disabled:opacity-40"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
 
       <div className="p-4 space-y-4">

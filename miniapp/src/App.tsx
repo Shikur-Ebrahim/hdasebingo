@@ -158,6 +158,7 @@ import AdminAgentWithdrawals from './pages/AdminAgentWithdrawals';
 import AdminAgentBanks from './pages/AdminAgentBanks';
 import AdminSettings from './pages/AdminSettings';
 import AdminTxReport from './pages/AdminTxReport';
+import AdminRoomRanking from './pages/AdminRoomRanking';
 import AdminUsers from './pages/AdminUsers';
 import AdminWorkers from './pages/AdminWorkers';
 import AdminBroadcast from './pages/AdminBroadcast';
@@ -422,6 +423,7 @@ function App() {
           <Route path="/admin/hdase-qr" element={<AdminHdaseQr />} />
           <Route path="/admin/channel-proofs" element={<AdminChannelProofs />} />
           <Route path="/admin/game-report" element={<AdminGameReport />} />
+          <Route path="/admin/room-ranking" element={<AdminRoomRanking />} />
           <Route path="/help-videos" element={<SupportVideos />} />
           <Route path="/worker" element={<Worker />} />
           <Route path="/agent" element={<Agent />} />
