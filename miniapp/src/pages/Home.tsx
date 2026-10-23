@@ -46,6 +46,7 @@ export default function Home() {
   const [showHomeSearchBar, setShowHomeSearchBar] = useState(false);
   const [supportPhoneUsa, setSupportPhoneUsa] = useState('+1 (984) 378-9510');
   const [supportPhoneEth, setSupportPhoneEth] = useState('+251999992524');
+  const [supportUsername, setSupportUsername] = useState('Mosque_Dona');
 
   const formatEthPhone = (phone: string) => {
     if (!phone) return '+251999992524';
@@ -145,6 +146,7 @@ export default function Home() {
         // Phone numbers from DB
         if (data?.support_phone_usa) setSupportPhoneUsa(data.support_phone_usa);
         if (data?.support_phone_eth) setSupportPhoneEth(data.support_phone_eth);
+        if (data?.username) setSupportUsername(data.username);
 
         if (announcementShownRef.current) return;
         const msg = data?.announcement_message || '';
@@ -349,7 +351,13 @@ export default function Home() {
                 e.preventDefault();
                 e.stopPropagation();
                 if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
-                navigate('/support');
+                const target = (supportUsername || 'Mosque_Dona').replace('@', '').trim();
+                const tgUrl = `https://t.me/${target}`;
+                if (typeof WebApp !== 'undefined' && WebApp.openTelegramLink) {
+                  WebApp.openTelegramLink(tgUrl);
+                } else {
+                  window.open(tgUrl, '_blank');
+                }
               }}
               className="pointer-events-auto flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-cyan-400 via-cyan-400 to-teal-400 text-slate-900 border border-cyan-200/90 shadow-sm active:scale-95 transition-all select-none"
             >
