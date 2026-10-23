@@ -889,7 +889,7 @@ router.get('/tx-report', validateTelegramAuth, requireAdmin, async (req, res) =>
   // ─── Match activity & Platform game commission in period ─────────────────────
   let gameQuery = supabase
     .from('bingo_games')
-    .select('id, stake, status, winner_prize, winner_first_name, created_at, finished_at, room_id')
+    .select('id, stake, status, winner_prize, winner_first_name, created_at, finished_at, room_id, total_players')
     .eq('status', 'finished')
     .limit(50000);
   if (from) gameQuery = gameQuery.gte('created_at', from);
@@ -905,21 +905,32 @@ router.get('/tx-report', validateTelegramAuth, requireAdmin, async (req, res) =>
     (rooms || []).forEach((r: any) => { rMap[r.id] = r; });
 
     const gIds = periodGames.map((g: any) => g.id);
-    const { data: players } = await supabase.from('bingo_players').select('game_id').in('game_id', gIds).limit(50000);
+    const { data: players } = await supabase.from('bingo_players').select('game_id, telegram_id').in('game_id', gIds).limit(100000);
     const pCounts: Record<string, number> = {};
-    (players || []).forEach((p: any) => { pCounts[p.game_id] = (pCounts[p.game_id] || 0) + 1; });
+    const uCounts: Record<string, Set<string>> = {};
+    (players || []).forEach((p: any) => {
+      pCounts[p.game_id] = (pCounts[p.game_id] || 0) + 1;
+      if (!uCounts[p.game_id]) uCounts[p.game_id] = new Set();
+      if (p.telegram_id) uCounts[p.game_id].add(p.telegram_id);
+    });
 
     for (const g of periodGames) {
-      const pCount = pCounts[g.id] || 0;
+      const pCount = pCounts[g.id] || Number(g.total_players || 0);
+      const uCount = uCounts[g.id]?.size || Number(g.total_players || 0);
       const pot = pCount * Number(g.stake || 0);
       const prize = Number(g.winner_prize || 0);
       const room = rMap[g.room_id];
       const commRate = Number(room?.commission_rate ?? 8);
       const promoRate = Number(room?.promoter_commission_rate ?? 3);
-      const roomComm = pot * commRate / 100;
-      const promoComm = pot * promoRate / 100;
-      const platComm = Math.max(0, pot - prize - roomComm - promoComm);
-      totalGameProfit += platComm;
+
+      // Commission only applies if 3 or more unique players participated
+      if (uCount >= 3) {
+        const totalCut = Math.max(0, pot - prize);
+        const roomComm = Math.min(totalCut, (pot * commRate) / 100);
+        const promoComm = Math.min(Math.max(0, totalCut - roomComm), (pot * promoRate) / 100);
+        const platComm = Math.max(0, totalCut - roomComm - promoComm);
+        totalGameProfit += platComm;
+      }
     }
     totalGameProfit = Math.round(totalGameProfit * 100) / 100;
   }
@@ -1279,14 +1290,17 @@ router.get('/room-ranking', validateTelegramAuth, requireAdmin, async (req, res)
     // 4. Fetch player counts for period games
     const periodGameIds = (periodGames || []).map((g: any) => g.id);
     let playerCountMap: Record<string, number> = {};
+    let uniquePlayerMap: Record<string, Set<string>> = {};
     if (periodGameIds.length > 0) {
       const { data: bplayers } = await supabase
         .from('bingo_players')
-        .select('game_id')
+        .select('game_id, telegram_id')
         .in('game_id', periodGameIds)
         .limit(100000);
       (bplayers || []).forEach((p: any) => {
         playerCountMap[p.game_id] = (playerCountMap[p.game_id] || 0) + 1;
+        if (!uniquePlayerMap[p.game_id]) uniquePlayerMap[p.game_id] = new Set();
+        if (p.telegram_id) uniquePlayerMap[p.game_id].add(p.telegram_id);
       });
     }
 
@@ -1318,15 +1332,27 @@ router.get('/room-ranking', validateTelegramAuth, requireAdmin, async (req, res)
     (periodGames || []).forEach((g: any) => {
       const room = roomMap[g.room_id];
       if (!room) return;
-      const pCount = playerCountMap[g.id] || Number(g.total_players || 0);
+      const cartelasCount = playerCountMap[g.id] || Number(g.total_players || 0);
+      const uniqueCount = uniquePlayerMap[g.id]?.size || Number(g.total_players || 0);
       const stake = Number(g.stake || 0);
-      const pot = pCount * stake;
+      const pot = cartelasCount * stake;
       const prize = Number(g.winner_prize || 0);
-      const commRate = room.commission_rate;
-      const promoRate = room.promoter_commission_rate;
-      const roomComm = pot * commRate / 100;
-      const promoComm = pot * promoRate / 100;
-      const platComm = Math.max(0, pot - prize - roomComm - promoComm);
+
+      let roomComm = 0;
+      let promoComm = 0;
+      let platComm = 0;
+
+      // In Bingo, commission (20% total house cut) is ONLY charged when unique players >= 3!
+      // If unique players < 3, 100% of the pot went to the winner (0% platform fee, 0% room, 0% promoter).
+      if (uniqueCount >= 3) {
+        const totalCut = Math.max(0, pot - prize);
+        const commRate = Number(room.commission_rate ?? 8);
+        const promoRate = Number(room.promoter_commission_rate ?? 3);
+        
+        roomComm = Math.min(totalCut, (pot * commRate) / 100);
+        promoComm = Math.min(Math.max(0, totalCut - roomComm), (pot * promoRate) / 100);
+        platComm = Math.max(0, totalCut - roomComm - promoComm);
+      }
 
       room.period_games += 1;
       room.period_pot += pot;
@@ -1410,7 +1436,7 @@ router.get('/game-report', validateTelegramAuth, requireAdmin, async (req, res) 
     // 1. Fetch finished bingo_games with room join
     const { data: games, error: gErr } = await supabase
       .from('bingo_games')
-      .select('id, stake, status, winner_prize, winner_first_name, winner_cartela, created_at, finished_at, room_id')
+      .select('id, stake, status, winner_prize, winner_first_name, winner_cartela, created_at, finished_at, room_id, total_players')
       .eq('status', 'finished')
       .gte('created_at', startDate.toISOString())
       .lte('created_at', endDate.toISOString())
@@ -1429,13 +1455,17 @@ router.get('/game-report', validateTelegramAuth, requireAdmin, async (req, res) 
     // 3. Fetch player counts for games in range
     const gameIds = (games || []).map((g: any) => g.id);
     let playerCounts: Record<string, number> = {};
+    let uniquePlayerMap: Record<string, Set<string>> = {};
     if (gameIds.length > 0) {
       const { data: players } = await supabase
         .from('bingo_players')
-        .select('game_id')
-        .in('game_id', gameIds);
+        .select('game_id, telegram_id')
+        .in('game_id', gameIds)
+        .limit(100000);
       (players || []).forEach((p: any) => {
         playerCounts[p.game_id] = (playerCounts[p.game_id] || 0) + 1;
+        if (!uniquePlayerMap[p.game_id]) uniquePlayerMap[p.game_id] = new Set();
+        if (p.telegram_id) uniquePlayerMap[p.game_id].add(p.telegram_id);
       });
     }
 
@@ -1448,22 +1478,32 @@ router.get('/game-report', validateTelegramAuth, requireAdmin, async (req, res) 
 
     const enrichedGames = (games || []).map((g: any) => {
       const room = roomMap[g.room_id] || null;
-      const players_count = playerCounts[g.id] || 0;
+      const cartelas_count = playerCounts[g.id] || Number(g.total_players || 0);
+      const unique_count = uniquePlayerMap[g.id]?.size || Number(g.total_players || 0);
       const stake = Number(g.stake || 0);
-      const pot = players_count * stake;
+      const pot = cartelas_count * stake;
       const winner_prize = Number(g.winner_prize || 0);
       const comm_rate = Number(room?.commission_rate ?? 8);
       const promo_rate = Number(room?.promoter_commission_rate ?? 3);
 
-      const room_commission = pot * comm_rate / 100;
-      const promoter_commission = pot * promo_rate / 100;
-      const platform_commission = pot - winner_prize - room_commission - promoter_commission;
+      let room_commission = 0;
+      let promoter_commission = 0;
+      let platform_commission = 0;
+
+      // In Bingo, commission (20% total house cut) is ONLY charged when unique players >= 3!
+      // If unique players < 3, 100% of the pot went to the winner (0% platform fee, 0% room, 0% promoter).
+      if (unique_count >= 3) {
+        const total_cut = Math.max(0, pot - winner_prize);
+        room_commission = Math.min(total_cut, (pot * comm_rate) / 100);
+        promoter_commission = Math.min(Math.max(0, total_cut - room_commission), (pot * promo_rate) / 100);
+        platform_commission = Math.max(0, total_cut - room_commission - promoter_commission);
+      }
 
       total_games++;
       total_pot += pot;
       total_room_commission += room_commission;
       total_promoter_commission += promoter_commission;
-      total_platform_commission += Math.max(0, platform_commission);
+      total_platform_commission += platform_commission;
 
       return {
         ...g,
@@ -1471,12 +1511,13 @@ router.get('/game-report', validateTelegramAuth, requireAdmin, async (req, res) 
         agent_name: room?.agent_name || null,
         commission_rate: comm_rate,
         promoter_commission_rate: promo_rate,
-        players_count,
+        players_count: cartelas_count,
+        unique_players: unique_count,
         pot,
         winner_prize,
         room_commission: Math.round(room_commission * 100) / 100,
         promoter_commission: Math.round(promoter_commission * 100) / 100,
-        platform_commission: Math.round(Math.max(0, platform_commission) * 100) / 100,
+        platform_commission: Math.round(platform_commission * 100) / 100,
       };
     });
 
