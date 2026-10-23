@@ -220,7 +220,7 @@ export default function BingoGame() {
   // User's invited/assigned room — localStorage has the LATEST scan, DB is fallback
   const userInvitedRoomId = (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null) || (user as any)?.room_id || null;
 
-  // Filter/sort rooms in BingoGame rooms page (Invited room first, then pinned, then sort filter)
+  // Filter/sort rooms in BingoGame rooms page
   const filteredRooms = [...rooms]
     .filter(r => !r.is_private || (userInvitedRoomId && r.id === userInvitedRoomId))
     .filter(r => !roomSearch.trim() || r.room_name.toLowerCase().includes(roomSearch.trim().toLowerCase()))
@@ -229,13 +229,27 @@ export default function BingoGame() {
       const aInv = Boolean(userInvitedRoomId && a.id === userInvitedRoomId);
       const bInv = Boolean(userInvitedRoomId && b.id === userInvitedRoomId);
       if (aInv !== bInv) return aInv ? -1 : 1;
+
       // 2. Pinned rooms next
-      if (Boolean(b.is_pinned) !== Boolean(a.is_pinned)) {
-        return b.is_pinned ? 1 : -1;
-      }
+      const aPinned = Boolean(a.is_pinned);
+      const bPinned = Boolean(b.is_pinned);
+      if (aPinned !== bPinned) return aPinned ? -1 : 1;
+
+      // 3. Manual filter if user picked one
       if (roomSortFilter === 'most_players') return (b.total_players || 0) - (a.total_players || 0);
       if (roomSortFilter === 'most_games') return (b.total_games || 0) - (a.total_games || 0);
-      return 0;
+      if (roomSortFilter === 'newest') return new Date((b as any).created_at || 0).getTime() - new Date((a as any).created_at || 0).getTime();
+
+      // 4. Smart auto-sort: highest 24h commission first
+      const commDiff = ((b as any).commission_24h || 0) - ((a as any).commission_24h || 0);
+      if (Math.abs(commDiff) > 0.001) return commDiff;
+
+      // 5. Then most active players
+      const playerDiff = (b.total_players || 0) - (a.total_players || 0);
+      if (playerDiff !== 0) return playerDiff;
+
+      // 6. Then most total games
+      return (b.total_games || 0) - (a.total_games || 0);
     });
 
   const BINGO_FILTER_OPTIONS = [

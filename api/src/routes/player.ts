@@ -439,21 +439,63 @@ router.get('/rooms', async (req, res) => {
       }
     });
 
+    // ── Compute room commission earned in the last 24 hours ─────────────────
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: recentGames } = await supabase
+      .from('bingo_games')
+      .select('room_id, stake, total_players, winner_prize')
+      .eq('status', 'finished')
+      .gte('created_at', since24h);
+
+    // Build a map from room_id → { commissionEarned, gamesCount }
+    const roomCommMap: Record<string, { commission: number; games: number }> = {};
+    // Also fetch rooms' commission_rate for this calculation
+    const roomCommRateMap: Record<string, number> = {};
+    visibleRooms.forEach((r: any) => {
+      roomCommRateMap[r.id] = Number(r.commission_rate ?? 8);
+    });
+
+    (recentGames || []).forEach((g: any) => {
+      if (!g.room_id) return;
+      const players = Number(g.total_players || 0);
+      if (players < 2) return; // only count games with enough players
+      const stake = Number(g.stake || 0);
+      const pot = players * stake;
+      const commRate = roomCommRateMap[g.room_id] ?? 8;
+      const roomComm = pot * commRate / 100;
+      if (!roomCommMap[g.room_id]) {
+        roomCommMap[g.room_id] = { commission: 0, games: 0 };
+      }
+      roomCommMap[g.room_id].commission += roomComm;
+      roomCommMap[g.room_id].games += 1;
+    });
+
     const enrichedRooms = visibleRooms.map((room: any) => ({
       ...room,
       is_pinned: Boolean(room.is_pinned),
       is_private: Boolean(room.is_private),
       commission_rate: room.commission_rate ?? 8,
       total_players: roomPlayersMap[room.id] || 0,
-      total_games: Number(room.total_games || 0)
+      total_games: Number(room.total_games || 0),
+      commission_24h: Math.round((roomCommMap[room.id]?.commission || 0) * 100) / 100,
+      games_24h: roomCommMap[room.id]?.games || 0,
     }));
 
-    // Pinned rooms ALWAYS come first
+    // ── Smart Sort Priority (server-side) ───────────────────────────────────
+    // 1. Pinned rooms always first
+    // 2. Within non-pinned: sort by commission_24h DESC → active_players DESC → total_games DESC
     enrichedRooms.sort((a, b) => {
-      if (Boolean(b.is_pinned) !== Boolean(a.is_pinned)) {
-        return b.is_pinned ? 1 : -1;
-      }
-      return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+      const aPinned = Boolean(a.is_pinned);
+      const bPinned = Boolean(b.is_pinned);
+      if (aPinned !== bPinned) return aPinned ? -1 : 1;
+      // Higher 24h commission first
+      const commDiff = (b.commission_24h || 0) - (a.commission_24h || 0);
+      if (Math.abs(commDiff) > 0.001) return commDiff;
+      // Then most active players
+      const playerDiff = (b.total_players || 0) - (a.total_players || 0);
+      if (playerDiff !== 0) return playerDiff;
+      // Then most total games
+      return (b.total_games || 0) - (a.total_games || 0);
     });
 
     res.json({ rooms: enrichedRooms });

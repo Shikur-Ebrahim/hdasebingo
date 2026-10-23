@@ -528,18 +528,31 @@ export default function Home() {
             .filter(r => !r.is_private || (userInvitedRoomId && r.id === userInvitedRoomId))
             .filter(r => !homeRoomSearch.trim() || r.room_name.toLowerCase().includes(homeRoomSearch.trim().toLowerCase()))
             .sort((a, b) => {
-              // 1. User's invited room gets TOP priority #1 position!
+              // 1. User's invited room gets TOP priority
               const aInv = Boolean(userInvitedRoomId && a.id === userInvitedRoomId);
               const bInv = Boolean(userInvitedRoomId && b.id === userInvitedRoomId);
               if (aInv !== bInv) return aInv ? -1 : 1;
 
               // 2. Pinned rooms next
-              if (Boolean(b.is_pinned) !== Boolean(a.is_pinned)) {
-                return b.is_pinned ? 1 : -1;
-              }
+              const aPinned = Boolean(a.is_pinned);
+              const bPinned = Boolean(b.is_pinned);
+              if (aPinned !== bPinned) return aPinned ? -1 : 1;
+
+              // 3. Manual filter overrides if user picked one
               if (homeRoomSortFilter === 'most_players') return (b.total_players || 0) - (a.total_players || 0);
               if (homeRoomSortFilter === 'most_games') return (b.total_games || 0) - (a.total_games || 0);
-              return 0;
+              if (homeRoomSortFilter === 'newest') return new Date((b as any).created_at || 0).getTime() - new Date((a as any).created_at || 0).getTime();
+
+              // 4. Smart auto-sort: highest 24h commission first
+              const commDiff = ((b as any).commission_24h || 0) - ((a as any).commission_24h || 0);
+              if (Math.abs(commDiff) > 0.001) return commDiff;
+
+              // 5. Then most active players
+              const playerDiff = (b.total_players || 0) - (a.total_players || 0);
+              if (playerDiff !== 0) return playerDiff;
+
+              // 6. Then most total games
+              return (b.total_games || 0) - (a.total_games || 0);
             });
           return filteredHomeRooms.length === 0 ? (
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 p-8 text-center space-y-2">
