@@ -1189,32 +1189,32 @@ export default function AdminChannelProofs() {
       </div>
 
       {/* Top Header */}
-      <div className="bg-white border-b border-slate-200 px-4 py-3.5 sticky top-0 z-30 shadow-sm flex items-center justify-between">
-        <div className="flex items-center space-x-3">
+      <div className="bg-white border-b border-slate-100 px-4 py-3 sticky top-0 z-30 shadow-sm flex items-center justify-between">
+        <div className="flex items-center space-x-2.5">
           <Link
             to="/admin"
-            className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700 active:scale-95 transition-all"
+            className="w-9 h-9 rounded-xl bg-slate-100 active:bg-slate-200 flex items-center justify-center text-slate-700 active:scale-95 transition-all"
           >
-            <ArrowLeft size={20} />
+            <ArrowLeft size={18} />
           </Link>
           <div>
-            <h1 className="text-lg font-black text-slate-900 leading-tight flex items-center gap-1.5">
+            <h1 className="text-base font-black text-slate-900 leading-tight flex items-center gap-1.5">
               <span>Channel Proofs</span>
-              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full border border-emerald-300">
-                AUTO & MANUAL
+              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+                Auto & Manual
               </span>
             </h1>
-            <p className="text-xs text-slate-500 font-medium">Approved Deposits & Withdrawals</p>
+            <p className="text-[11px] text-slate-500 font-medium">Approved Deposits & Withdrawals</p>
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1.5">
           <button
             onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-            className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700 active:scale-95 transition-all relative"
+            className="w-9 h-9 rounded-xl bg-slate-100 active:bg-slate-200 flex items-center justify-center text-slate-700 active:scale-95 transition-all relative"
             title="Auto-post Settings"
           >
-            <Settings2 size={20} />
+            <Settings2 size={18} />
           </button>
           <button
             onClick={() => {
@@ -1222,10 +1222,10 @@ export default function AdminChannelProofs() {
               fetchData();
             }}
             disabled={loading}
-            className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-700 active:scale-95 transition-all"
+            className="w-9 h-9 rounded-xl bg-slate-100 active:bg-slate-200 flex items-center justify-center text-slate-700 active:scale-95 transition-all"
             title="Refresh"
           >
-            <RefreshCw size={18} className={loading ? 'animate-spin text-emerald-600' : ''} />
+            <RefreshCw size={16} className={loading ? 'animate-spin text-emerald-600' : ''} />
           </button>
         </div>
       </div>
@@ -1342,7 +1342,7 @@ export default function AdminChannelProofs() {
             <button
               type="submit"
               disabled={isSavingSettings}
-              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs shadow active:scale-95 transition-all flex items-center justify-center gap-1.5"
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white rounded-xl font-bold text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5"
             >
               {isSavingSettings ? <RefreshCw size={14} className="animate-spin" /> : <Check size={14} />}
               <span>Save Configurations</span>
@@ -1352,21 +1352,21 @@ export default function AdminChannelProofs() {
       )}
 
       {/* Main Tabs */}
-      <div className="p-4 pt-3 pb-2">
-        <div className="bg-white p-1 rounded-2xl border border-slate-200 shadow-sm flex items-center">
+      <div className="p-3.5 pt-3 pb-2 max-w-lg mx-auto w-full">
+        <div className="bg-white p-1 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-1">
           <button
             onClick={() => {
               triggerHaptic('light');
               setActiveTab('deposit');
             }}
-            className={`flex-1 py-2.5 rounded-xl font-black text-xs flex items-center justify-center space-x-1.5 transition-all ${
+            className={`flex-1 py-2.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 transition-all active:scale-[0.98] ${
               activeTab === 'deposit'
-                ? 'bg-emerald-600 text-white shadow-md'
+                ? 'bg-emerald-600 text-white shadow-sm'
                 : 'text-slate-600 hover:bg-slate-50'
             }`}
           >
-            <ArrowDownToLine size={16} />
-            <span>Approved Deposits</span>
+            <ArrowDownToLine size={15} />
+            <span>Deposits</span>
             {unpostedDeposits > 0 && (
               <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
                 activeTab === 'deposit' ? 'bg-white text-emerald-700' : 'bg-emerald-100 text-emerald-800'
@@ -1381,14 +1381,14 @@ export default function AdminChannelProofs() {
               triggerHaptic('light');
               setActiveTab('withdrawal');
             }}
-            className={`flex-1 py-2.5 rounded-xl font-black text-xs flex items-center justify-center space-x-1.5 transition-all ${
+            className={`flex-1 py-2.5 px-2 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 transition-all active:scale-[0.98] ${
               activeTab === 'withdrawal'
-                ? 'bg-rose-600 text-white shadow-md'
+                ? 'bg-rose-600 text-white shadow-sm'
                 : 'text-slate-600 hover:bg-slate-50'
             }`}
           >
-            <ArrowUpFromLine size={16} />
-            <span>Approved Withdrawals</span>
+            <ArrowUpFromLine size={15} />
+            <span>Withdrawals</span>
             {unpostedWithdrawals > 0 && (
               <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
                 activeTab === 'withdrawal' ? 'bg-white text-rose-700' : 'bg-rose-100 text-rose-800'
@@ -1474,65 +1474,65 @@ export default function AdminChannelProofs() {
       </div>
 
       {/* Action Buttons Toolbar */}
-      <div className="px-4 space-y-2.5">
+      <div className="px-3.5 space-y-2 max-w-lg mx-auto w-full">
         {/* Main 1-Click Post to Channel */}
         <button
           onClick={handlePostToChannel}
           disabled={isPosting || !activeDataUrl}
-          className={`w-full py-3.5 rounded-2xl font-black text-sm flex items-center justify-center space-x-2 shadow-lg active:scale-95 transition-all ${
+          className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 shadow-md active:scale-[0.98] transition-all ${
             activeTab === 'deposit'
-              ? 'bg-gradient-to-r from-emerald-600 to-green-700 text-white shadow-emerald-600/25'
-              : 'bg-gradient-to-r from-rose-600 to-red-700 text-white shadow-rose-600/25'
+              ? 'bg-gradient-to-r from-emerald-600 to-green-600 text-white shadow-emerald-600/25'
+              : 'bg-gradient-to-r from-rose-600 to-red-600 text-white shadow-rose-600/25'
           } ${isPosting ? 'opacity-70 cursor-wait' : ''}`}
         >
           {isPosting ? (
             <>
-              <RefreshCw size={18} className="animate-spin" />
+              <RefreshCw size={16} className="animate-spin" />
               <span>Publishing to Channel...</span>
             </>
           ) : (
             <>
-              <Send size={18} />
+              <Send size={16} />
               <span>Post {activeTab === 'deposit' ? 'Deposits' : 'Withdrawals'} to Channel</span>
             </>
           )}
         </button>
 
         {/* Secondary Download and Telegram Delivery Buttons */}
-        <div className="grid grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-2 gap-2">
           <button
             onClick={handleDownloadPoster}
             disabled={!activeDataUrl}
-            className="py-3 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm active:scale-95 transition-all"
+            className="py-2.5 px-3 bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm active:scale-[0.98] transition-all"
           >
-            <Download size={15} />
+            <Download size={14} />
             <span>Download PNG</span>
           </button>
 
           <button
             onClick={handleSendToMyTelegram}
             disabled={isSendingToTg || !activeDataUrl}
-            className="py-3 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm active:scale-95 transition-all"
+            className="py-2.5 px-3 bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 shadow-sm active:scale-[0.98] transition-all"
           >
             {isSendingToTg ? (
-              <RefreshCw size={15} className="animate-spin text-emerald-600" />
+              <RefreshCw size={14} className="animate-spin text-emerald-600" />
             ) : (
-              <Sparkles size={15} className="text-amber-500" />
+              <Sparkles size={14} className="text-amber-500" />
             )}
             <span>Send to My TG</span>
           </button>
         </div>
 
         {/* Channel Link Info */}
-        <div className="pt-2 text-center">
+        <div className="pt-1 text-center">
           <a
             href={`https://t.me/${settings.targetChannel.replace('@', '')}`}
             target="_blank"
             rel="noreferrer"
-            className="text-xs font-bold text-slate-600 hover:text-slate-800 inline-flex items-center gap-1"
+            className="text-xs font-semibold text-slate-500 hover:text-slate-700 inline-flex items-center gap-1"
           >
             <span>Target: {settings.targetChannel}</span>
-            <ExternalLink size={12} />
+            <ExternalLink size={11} />
           </a>
         </div>
       </div>
@@ -1562,7 +1562,7 @@ export default function AdminChannelProofs() {
             <button
               onClick={handleResetHistory}
               disabled={isResettingHistory}
-              className="self-start sm:self-auto text-[11px] font-bold text-slate-500 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-lg flex items-center gap-1 active:scale-95 transition-all"
+              className="text-xs font-bold text-slate-600 hover:text-slate-800 bg-slate-100 active:bg-slate-200 px-3 py-1.5 rounded-xl flex items-center gap-1.5 active:scale-95 transition-all"
               title="ሁሉንም እንደገና ያልተለጠፉ አድርግ"
             >
               <RotateCcw size={12} className={isResettingHistory ? 'animate-spin' : ''} />
@@ -1570,10 +1570,10 @@ export default function AdminChannelProofs() {
             </button>
           </div>
 
-          {/* Batch Size Quick Adjuster (Increase / Decrease from 10) */}
-          <div className="py-3 px-3 bg-slate-50 rounded-xl mt-3 border border-slate-100 flex flex-wrap items-center justify-between gap-3">
+          {/* Batch Size Quick Adjuster */}
+          <div className="py-2.5 px-3 bg-slate-50 rounded-xl mt-3 border border-slate-100 flex flex-wrap items-center justify-between gap-2.5">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-700">በፖስተር የሚካተት ብዛት (Flyer Batch Size):</span>
+              <span className="text-xs font-bold text-slate-700">በፖስተር የሚካተት ብዛት:</span>
               <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-sm">
                 <button
                   type="button"
@@ -1582,11 +1582,11 @@ export default function AdminChannelProofs() {
                     if (activeTab === 'deposit') setDepositBatchSize(Math.max(1, depositBatchSize - 1));
                     else setWithdrawBatchSize(Math.max(1, withdrawBatchSize - 1));
                   }}
-                  className="w-7 h-7 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded active:scale-90"
+                  className="w-8 h-8 flex items-center justify-center text-slate-600 active:bg-slate-100 rounded active:scale-90 font-bold transition-all"
                 >
                   <Minus size={14} />
                 </button>
-                <span className="w-9 text-center font-black text-xs text-slate-900">
+                <span className="w-8 text-center font-black text-xs text-slate-900">
                   {activeTab === 'deposit' ? depositBatchSize : withdrawBatchSize}
                 </span>
                 <button
@@ -1596,7 +1596,7 @@ export default function AdminChannelProofs() {
                     if (activeTab === 'deposit') setDepositBatchSize(Math.min(50, depositBatchSize + 1));
                     else setWithdrawBatchSize(Math.min(50, withdrawBatchSize + 1));
                   }}
-                  className="w-7 h-7 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded active:scale-90"
+                  className="w-8 h-8 flex items-center justify-center text-slate-600 active:bg-slate-100 rounded active:scale-90 font-bold transition-all"
                 >
                   <Plus size={14} />
                 </button>
@@ -1604,8 +1604,8 @@ export default function AdminChannelProofs() {
             </div>
 
             {/* Quick Preset Pills */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-slate-400 font-semibold">ፈጣን:</span>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-slate-400 font-bold">ፈጣን:</span>
               {[5, 8, 10, 15, 20].map((preset) => {
                 const currentBatch = activeTab === 'deposit' ? depositBatchSize : withdrawBatchSize;
                 const isSelected = currentBatch === preset;
@@ -1618,7 +1618,7 @@ export default function AdminChannelProofs() {
                       if (activeTab === 'deposit') setDepositBatchSize(preset);
                       else setWithdrawBatchSize(preset);
                     }}
-                    className={`px-2 py-0.8 text-xs font-black rounded-md transition-all ${
+                    className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all active:scale-95 ${
                       isSelected
                         ? activeTab === 'deposit'
                           ? 'bg-emerald-600 text-white shadow-sm'
@@ -1696,10 +1696,10 @@ export default function AdminChannelProofs() {
                           <button
                             type="button"
                             onClick={() => handleToggleItemPosted(item.id, 'post')}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg active:scale-90"
+                            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-rose-600 active:bg-rose-50 rounded-xl active:scale-90 transition-all"
                             title="አስወግድ (እንደተለጠፈ ቁጠር)"
                           >
-                            <Trash2 size={14} />
+                            <Trash2 size={15} />
                           </button>
                         </div>
                       </div>
@@ -1768,10 +1768,10 @@ export default function AdminChannelProofs() {
                           <button
                             type="button"
                             onClick={() => handleToggleItemPosted(item.id, 'post')}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg active:scale-90"
+                            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-rose-600 active:bg-rose-50 rounded-xl active:scale-90 transition-all"
                             title="አስወግድ (እንደተለጠፈ ቁጠር)"
                           >
-                            <Trash2 size={14} />
+                            <Trash2 size={15} />
                           </button>
                         </div>
                       </div>
