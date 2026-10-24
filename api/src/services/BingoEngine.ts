@@ -278,7 +278,7 @@ class BingoEngine {
 
     // Allow at least 3.5s for frontend game_start sound to complete before first call
     const calledCount = (game.called_numbers || []).length;
-    const minDelayMs = calledCount === 0 ? Math.max(4000, intervalMs) : intervalMs;
+    const minDelayMs = calledCount === 0 ? Math.max(3500, intervalMs) : intervalMs;
     if (Date.now() - lastUpdate < minDelayMs) return;
 
     const called: number[] = (game.called_numbers || []).map(Number);
@@ -300,13 +300,10 @@ class BingoEngine {
     const num = pool[Math.floor(Math.random() * pool.length)];
     const newCalled = [...called, num];
 
-    const { data: updated, error: updateErr } = await supabase.from('bingo_games').update({
+    await supabase.from('bingo_games').update({
       called_numbers: newCalled,
       updated_at: new Date().toISOString(),
-    }).eq('id', game.id).eq('updated_at', game.updated_at).select('id');
-
-    // Prevent duplicate calls: if another process/tick updated first, ignore
-    if (updateErr || !updated || updated.length === 0) return;
+    }).eq('id', game.id);
 
     await this.checkWinners(game.id, newCalled, game.prize_pool, game.stake, game.room_id);
   }
