@@ -278,7 +278,7 @@ class BingoEngine {
 
     // Allow at least 3.5s for frontend game_start sound to complete before first call
     const calledCount = (game.called_numbers || []).length;
-    const minDelayMs = calledCount === 0 ? Math.max(3500, intervalMs) : intervalMs;
+    const minDelayMs = calledCount === 0 ? Math.max(4000, intervalMs) : intervalMs;
     if (Date.now() - lastUpdate < minDelayMs) return;
 
     const called: number[] = (game.called_numbers || []).map(Number);
