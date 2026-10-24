@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ChevronDown, Gift, RefreshCw, Users, Clock, Trophy, Volume2, VolumeX, RotateCcw, LayoutGrid, Wand2, Hand, DoorOpen, Gamepad2, Flame } from "lucide-react";
 import WebApp from "@twa-dev/sdk";
@@ -144,9 +144,9 @@ const getWinningPatternTitle = (matrix: number[][], called: number[]): string =>
   const isCol = [0, 1, 2, 3, 4].some(c => [0, 1, 2, 3, 4].every(r => m(r, c)));
   const isDiag = [0, 1, 2, 3, 4].every(i => m(i, i)) || [0, 1, 2, 3, 4].every(i => m(i, 4 - i));
 
-  if (isInnerCorners && !isRow && !isCol && !isDiag) return 'ðŸŽ¯ 2ND CORNER BINGO!';
-  if (isOuterCorners && !isRow && !isCol && !isDiag) return 'ðŸŽ¯ 4 CORNERS BINGO!';
-  if (isInnerCorners || isOuterCorners) return 'ðŸŽ¯ CORNER BINGO!';
+  if (isInnerCorners && !isRow && !isCol && !isDiag) return '🎯 2ND CORNER BINGO!';
+  if (isOuterCorners && !isRow && !isCol && !isDiag) return '🎯 4 CORNERS BINGO!';
+  if (isInnerCorners || isOuterCorners) return '🎯 CORNER BINGO!';
   return 'BINGO!';
 };
 
@@ -174,7 +174,7 @@ export default function BingoGame() {
   const [previewCartela, setPreviewCartela] = useState<{ seat: number; matrix: number[][] } | null>(null);
   const [homeGames, setHomeGames] = useState<Record<number, { pool: number; start_at?: string; status: string; players: number }>>({});
   const [homeTimeLeft, setHomeTimeLeft] = useState<Record<number, number>>({});
-  const [soundEnabled, setSoundEnabled] = useState(true); // default ON
+  const [soundEnabled, setSoundEnabled] = useState(false); // default OFF
   const [volume, setVolume] = useState(1.0);
   const [autoMark, setAutoMark] = useState(true); // default: auto-mark called numbers
   const [manuallyMarked, setManuallyMarked] = useState<Set<number>>(new Set());
@@ -217,7 +217,7 @@ export default function BingoGame() {
     });
   };
 
-  // User's invited/assigned room â€” localStorage has the LATEST scan, DB is fallback
+  // User's invited/assigned room — localStorage has the LATEST scan, DB is fallback
   const userInvitedRoomId = (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null) || (user as any)?.room_id || null;
 
   // Filter/sort rooms in BingoGame rooms page
@@ -343,61 +343,248 @@ export default function BingoGame() {
   }, [selectedStake, homeGames]);
   const [lastCallNum, setLastCallNum] = useState<number | null>(null);
   const [callAnim, setCallAnim] = useState(false);
-  // ═══════════════════════════════════════════════════════════════════════
-  // SIMPLE AUDIO ENGINE - one sound at a time, zero overlap guaranteed
-  // ═══════════════════════════════════════════════════════════════════════
-  const audioEl = useRef<HTMLAudioElement | null>(null);
-  const playingNumRef = useRef<number | null>(null);
+  const callAudioRef = useRef<HTMLAudioElement | null>(null);
+  const specialAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioBufferCache = useRef<Map<string, AudioBuffer>>(new Map());
+  const activeCallSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const activeSpecialSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
-  const stopAudio = useCallback(() => {
+  // Keep AudioContext resumed and mobile media pipeline unlocked on any touch
+  const unlockAudio = useCallback(() => {
     try {
-      if (audioEl.current) {
-        audioEl.current.pause();
-        audioEl.current.currentTime = 0;
-        audioEl.current.src = '';
-        audioEl.current = null;
+      const AC = window.AudioContext || (window as any).webkitAudioContext;
+      if (!audioCtxRef.current && AC) {
+        audioCtxRef.current = new AC();
       }
-      playingNumRef.current = null;
-    } catch {}
+      const ctx = audioCtxRef.current;
+      if (ctx) {
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
+        }
+        // Play silent 1-sample buffer to permanently unlock audio on Android/iOS
+        if (ctx.state === 'running') {
+          const buffer = ctx.createBuffer(1, 1, 22050);
+          const source = ctx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(ctx.destination);
+          source.start(0);
+        }
+      }
+    } catch(e) {}
   }, []);
 
-  const playAudioFile = useCallback((src: string, vol = 1.0): Promise<void> => {
-    return new Promise((resolve) => {
-      try {
-        stopAudio();
-        const a = new Audio(src);
-        a.volume = Math.min(1.0, Math.max(0.0, vol));
-        audioEl.current = a;
-        a.onended = () => { audioEl.current = null; resolve(); };
-        a.onerror = () => { audioEl.current = null; resolve(); };
-        a.play().catch(() => { audioEl.current = null; resolve(); });
-      } catch { resolve(); }
-    });
-  }, [stopAudio]);
+  const initWebAudio = unlockAudio;
 
-  // playCallAudio: plays ball number sound (skips if sound OFF)
+  // Listen continuously on window touch/click so audio never gets suspended during game
+  useEffect(() => {
+    const handleGesture = () => unlockAudio();
+    window.addEventListener('pointerdown', handleGesture, { passive: true });
+    window.addEventListener('touchstart', handleGesture, { passive: true });
+    window.addEventListener('touchend', handleGesture, { passive: true });
+    window.addEventListener('click', handleGesture, { passive: true });
+    return () => {
+      window.removeEventListener('pointerdown', handleGesture);
+      window.removeEventListener('touchstart', handleGesture);
+      window.removeEventListener('touchend', handleGesture);
+      window.removeEventListener('click', handleGesture);
+    };
+  }, [unlockAudio]);
+
+  // ── RAW ARRAYBUFFER CACHE: fetched at startup ──────────────────
+  const rawBufferCache = useRef<Map<string, ArrayBuffer>>(new Map());
+
+  useEffect(() => {
+    let cancel = false;
+    const preload = async () => {
+      const allSrcs = [
+        ...Array.from({ length: 75 }, (_, i) => getAudioSrc(i + 1)),
+        '/audio/bingo/bingo_win.mp3',
+      ];
+      for (let i = 0; i < allSrcs.length; i += 4) {
+        if (cancel) break;
+        await Promise.all(
+          allSrcs.slice(i, i + 4).map(async (src) => {
+            if (rawBufferCache.current.has(src)) return;
+            try {
+              const res = await fetch(src);
+              if (res.ok) rawBufferCache.current.set(src, await res.arrayBuffer());
+            } catch {}
+          })
+        );
+        await new Promise(r => setTimeout(r, 40));
+      }
+    };
+    preload();
+    return () => { cancel = true; };
+  }, []);
+
+  // Cross-browser safe decodeAudioData (handles both Promise & Callback signatures)
+  const decodeAudio = useCallback((ctx: AudioContext, buffer: ArrayBuffer): Promise<AudioBuffer> => {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      try {
+        const res = ctx.decodeAudioData(
+          buffer,
+          (buf) => { if (!settled) { settled = true; resolve(buf); } },
+          (err) => { if (!settled) { settled = true; reject(err); } }
+        );
+        if (res && typeof (res as any).then === 'function') {
+          (res as any).then(
+            (buf: AudioBuffer) => { if (!settled) { settled = true; resolve(buf); } },
+            (err: any) => { if (!settled) { settled = true; reject(err); } }
+          );
+        }
+      } catch (e) {
+        if (!settled) { settled = true; reject(e); }
+      }
+    });
+  }, []);
+
+  // ── CORE WEBAUDIO PLAYER ────────────────────────
+  const playViaWebAudio = useCallback(async (src: string, customGain?: number, isSpecial: boolean = false): Promise<boolean> => {
+    try {
+      if (!audioCtxRef.current) {
+        const AC = window.AudioContext || (window as any).webkitAudioContext;
+        if (AC) audioCtxRef.current = new AC();
+      }
+      const ctx = audioCtxRef.current;
+      if (!ctx) return false;
+      if (ctx.state === 'suspended') await ctx.resume();
+
+      // If playing special (bingo_win), stop any active caller audio immediately so they NEVER overlap!
+      if (isSpecial) {
+        if (activeCallSourceRef.current) {
+          try {
+            activeCallSourceRef.current.stop();
+            activeCallSourceRef.current.disconnect();
+          } catch {}
+          activeCallSourceRef.current = null;
+        }
+      } else {
+        if (activeCallSourceRef.current) {
+          try {
+            activeCallSourceRef.current.stop();
+            activeCallSourceRef.current.disconnect();
+          } catch {}
+          activeCallSourceRef.current = null;
+        }
+      }
+
+      let audioBuf = audioBufferCache.current.get(src);
+      if (!audioBuf) {
+        let raw = rawBufferCache.current.get(src);
+        if (!raw) {
+          const res = await fetch(src);
+          if (!res.ok) return false;
+          raw = await res.arrayBuffer();
+          rawBufferCache.current.set(src, raw);
+        }
+        audioBuf = await decodeAudio(ctx, raw.slice(0));
+        audioBufferCache.current.set(src, audioBuf);
+      }
+
+      const source = ctx.createBufferSource();
+      const gainNode = ctx.createGain();
+      gainNode.gain.value = customGain !== undefined ? customGain : Math.min(2.0, volume * 1.5);
+      source.buffer = audioBuf;
+      source.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      if (isSpecial) {
+        activeSpecialSourceRef.current = source;
+      } else {
+        activeCallSourceRef.current = source;
+      }
+
+      source.onended = () => {
+        if (isSpecial && activeSpecialSourceRef.current === source) activeSpecialSourceRef.current = null;
+        if (!isSpecial && activeCallSourceRef.current === source) activeCallSourceRef.current = null;
+      };
+
+      source.start(0);
+      return true;
+    } catch(e) {
+      console.warn('WebAudio error:', e);
+      return false;
+    }
+  }, [volume, decodeAudio]);
+
+  // ── CALLER SOUND ─────────────────────────────────────────────────────────────
   const playCallAudio = useCallback((num: number) => {
     if (!soundEnabled) return;
-    const n = Number(num);
-    if (!n || isNaN(n) || n < 1 || n > 75) return;
-    if (playingNumRef.current === n) return; // deduplicate same ball
-    playingNumRef.current = n;
-    setLastCallNum(n);
+    const cleanNum = Number(num);
+    if (!cleanNum || isNaN(cleanNum) || cleanNum < 1 || cleanNum > 75) return;
+
+    setLastCallNum(cleanNum);
     setCallAnim(false);
     setTimeout(() => setCallAnim(true), 20);
-    playAudioFile(getAudioSrc(n), Math.min(1.0, volume)).then(() => {
-      if (playingNumRef.current === n) playingNumRef.current = null;
-    });
-  }, [soundEnabled, volume, playAudioFile]);
 
-  // playSpecial: plays win sound, always plays regardless of soundEnabled
-  const playSpecial = useCallback((_name = 'bingo_win') => {
-    stopAudio();
-    playAudioFile('/audio/bingo/bingo_win.mp3', 1.0);
-  }, [stopAudio, playAudioFile]);
+    const src = getAudioSrc(cleanNum);
+    unlockAudio();
 
-  const unlockAudio = useCallback(() => {}, []);
-  const initWebAudio = useCallback(() => {}, []);
+    // 1. If WebAudio context is running, use WebAudio directly (fast, zero lag, reliable on mobile)
+    if (audioCtxRef.current && audioCtxRef.current.state === 'running') {
+      playViaWebAudio(src, undefined, false);
+      return;
+    }
+
+    // 2. Otherwise play via standard HTML5 Audio with fallback to WebAudio
+    try {
+      if (callAudioRef.current) {
+        callAudioRef.current.pause();
+      }
+      const audio = new Audio(src);
+      callAudioRef.current = audio;
+      audio.volume = Math.min(1.0, Math.max(0.0, volume));
+      audio.play().catch(() => {
+        playViaWebAudio(src, undefined, false);
+      });
+    } catch {
+      playViaWebAudio(src, undefined, false);
+    }
+  }, [soundEnabled, volume, unlockAudio, playViaWebAudio]);
+
+  // ── CELEBRATION ──────────────────────────────────────────────────────────────────────────
+  // Plays ONLY the "Bingo!" announcement voice (/audio/bingo/bingo_win.mp3).
+  // Immediately stops all other sounds so Bingo! is crystal clear with zero overlap.
+  const playSpecial = useCallback((name: string = 'bingo_win') => {
+    const src = `/audio/bingo/${name}.mp3`;
+    unlockAudio();
+
+    // Stop caller voice immediately so "Bingo!" is loud, clear, and never overlaps
+    if (activeCallSourceRef.current) {
+      try {
+        activeCallSourceRef.current.stop();
+        activeCallSourceRef.current.disconnect();
+      } catch {}
+      activeCallSourceRef.current = null;
+    }
+    try {
+      if (callAudioRef.current) {
+        callAudioRef.current.pause();
+        callAudioRef.current.currentTime = 0;
+      }
+    } catch {}
+
+    // Priority 1: WebAudio
+    if (audioCtxRef.current && audioCtxRef.current.state === 'running') {
+      playViaWebAudio(src, 1.8, true);
+      return;
+    }
+
+    // Priority 2: HTML Audio
+    try {
+      const audio = new Audio(src);
+      specialAudioRef.current = audio;
+      audio.volume = 1.0;
+      audio.play().catch(() => {
+        playViaWebAudio(src, 1.8, true);
+      });
+    } catch {
+      playViaWebAudio(src, 1.8, true);
+    }
+  }, [unlockAudio, playViaWebAudio]);
 
 
 
@@ -421,15 +608,13 @@ export default function BingoGame() {
   const gameFinishedRef = useRef(false);
   const gameIdRef = useRef<string | null>(null);
   const prevCalledLenRef = useRef(0);
-  const prevStatusRef = useRef<string | null>(null);
-  const introPlayedRef = useRef<string | null>(null);
   const hadCartelasRef = useRef(false);
   const celebrationTimerRef = useRef<any>(null);
   const cartelaMatricesRef = useRef<Record<number, number[][]>>({});
   const fetchStateRef = useRef<() => void>(() => {});
   const refreshUserRef = useRef<() => void>(() => {});
 
-  // Instant celebration trigger â€” displays popup immediately in 0ms without waiting for network!
+  // Instant celebration trigger — displays popup immediately in 0ms without waiting for network!
   const triggerCelebration = useCallback((finGame: any) => {
     if (!finGame || finGame.status !== 'finished') return;
     if (celebratedGamesRef.current.has(finGame.id)) return;
@@ -450,7 +635,7 @@ export default function BingoGame() {
     // Play celebration sound
     playSpecial('bingo_win');
 
-    // Start guaranteed 2-second auto-dismiss timer that CANNOT be cancelled or reset by background fetches or re-renders!
+    // Start guaranteed 1-second auto-dismiss timer that CANNOT be cancelled or reset by background fetches or re-renders!
     if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
     celebrationTimerRef.current = setTimeout(() => {
       celebrationTimerRef.current = null;
@@ -462,7 +647,7 @@ export default function BingoGame() {
       setGame(prev => prev ? { ...prev, status: 'waiting', called_numbers: [], total_players: 0, prize_pool: 0 } : prev);
       fetchStateRef.current();
       refreshUserRef.current();
-    }, 2000);
+    }, 1000);
 
     if (finGame.winner_first_name === 'REMATCH') {
       setCelebration({
@@ -481,7 +666,7 @@ export default function BingoGame() {
     const cachedCard = finGame.winner_matrix || (finGame.winner_cartela ? cartelaMatricesRef.current[finGame.winner_cartela] : null);
     const winningMatrix = localCard || cachedCard || null;
 
-    // Render celebration popup IMMEDIATELY with full tracked cartela matrix â€” 0ms, no loading!
+    // Render celebration popup IMMEDIATELY with full tracked cartela matrix — 0ms, no loading!
     setCelebration({
       winner_name: finGame.winner_first_name || 'Player',
       winner_cartela: finGame.winner_cartela || 0,
@@ -612,22 +797,9 @@ export default function BingoGame() {
   const called = game?.called_numbers ?? [];
   const lastNum = called.length > 0 ? Number(called[called.length - 1]) : null;
 
-  // GAME START SOUND — plays once when status becomes "calling"
-  useEffect(() => {
-    const status = game?.status ?? null;
-    const gid = String(game?.id ?? '');
-    if (status === 'calling' && prevStatusRef.current !== 'calling' && soundEnabled && introPlayedRef.current !== gid) {
-      introPlayedRef.current = gid;
-      playAudioFile('/audio/bingo/game_start.mp3', 1.0);
-    }
-    prevStatusRef.current = status;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.status, game?.id, soundEnabled]);
-
-  // BALL CALL SOUND — one sound per new ball, uses dedup guard
   useEffect(() => {
     if (game?.status === 'calling' && called.length > prevCalledLenRef.current) {
-      if (lastNum) playCallAudio(lastNum);
+      if (lastNum) { playCallAudio(lastNum); }
       if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred('medium');
     }
     prevCalledLenRef.current = called.length;
@@ -679,7 +851,7 @@ export default function BingoGame() {
     if (!user || bonusBal + mainBal < game.stake) { setErrMsg(`Need ${game.stake} ETB`); return; }
 
     setErrMsg("");
-    // INSTANT 0ms OPTIMISTIC UPDATE: Turn green with âœ“ immediately!
+    // INSTANT 0ms OPTIMISTIC UPDATE: Turn green with ✓ immediately!
     const optimisticCard = { cartela_number: seat, card_matrix: matrix };
     setMyCartelas(prev => [...prev, optimisticCard]);
     setMyCard(optimisticCard);
@@ -692,7 +864,7 @@ export default function BingoGame() {
     if (nb >= stakeAmt) { nb -= stakeAmt; } else { nm -= stakeAmt - nb; nb = 0; }
     useGameStore.setState(s => ({ user: s.user ? { ...s.user, main_balance: nm, bonus_balance: nb } : s.user }));
 
-    // Optimistic pot calculation: pot = (total cartelas + 1) Ã— stake
+    // Optimistic pot calculation: pot = (total cartelas + 1) × stake
     const isFirstCartela = myCartelas.length === 0;
     const newUniquePlayers = isFirstCartela ? uniquePlayers + 1 : uniquePlayers;
     const newTotalCartelas = taken.length + 1;
@@ -780,7 +952,7 @@ export default function BingoGame() {
     </div>
   );
 
-  // â”€â”€ 1. ROOMS SELECTION SCREEN (Shown before stake is chosen) â”€â”€
+  // ── 1. ROOMS SELECTION SCREEN (Shown before stake is chosen) ──
   if (!selectedRoomId) {
     return (
       <div className="h-[calc(100dvh-80px)] w-full bg-white flex flex-col select-none overflow-hidden relative" onClick={initWebAudio}>
@@ -861,7 +1033,7 @@ export default function BingoGame() {
                   }`}
                 >
                   <span>
-                    {BINGO_FILTER_OPTIONS.find(o => o.key === roomSortFilter)?.icon ?? 'ðŸ”½'}
+                    {BINGO_FILTER_OPTIONS.find(o => o.key === roomSortFilter)?.icon ?? '🔽'}
                   </span>
                   <ChevronDown size={12} className={showFilterDropdown ? 'rotate-180 transition-transform' : 'transition-transform'} />
                 </button>
@@ -871,7 +1043,7 @@ export default function BingoGame() {
                   <div className="absolute right-0 top-full mt-1.5 z-50 bg-white rounded-2xl shadow-xl border border-slate-200/80 overflow-hidden min-w-[180px]">
                     <div className="px-3 pt-2.5 pb-1">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        {language === 'am' ? 'ክፍሎች ደርድር' : 'Sort Rooms By'}
+                        {language === 'am' ? 'ክፍሎች ተለይ' : 'Sort Rooms By'}
                       </p>
                     </div>
                     {BINGO_FILTER_OPTIONS.map(opt => (
@@ -887,7 +1059,7 @@ export default function BingoGame() {
                         <span className="text-base leading-none">{opt.icon}</span>
                         <span className="text-xs font-bold leading-tight">{opt.label}</span>
                         {roomSortFilter === opt.key && (
-                          <span className="ml-auto text-amber-500 text-xs font-black">âœ“</span>
+                          <span className="ml-auto text-amber-500 text-xs font-black">✓</span>
                         )}
                       </button>
                     ))}
@@ -923,7 +1095,7 @@ export default function BingoGame() {
                   className="flex-1 bg-transparent text-xs font-semibold text-slate-700 placeholder-slate-400 outline-none"
                 />
                 {roomSearch && (
-                  <button onClick={() => setRoomSearch('')} className="text-slate-400 hover:text-slate-600 ml-1 text-sm leading-none">Ã—</button>
+                  <button onClick={() => setRoomSearch('')} className="text-slate-400 hover:text-slate-600 ml-1 text-sm leading-none">×</button>
                 )}
               </div>
             </div>
@@ -985,7 +1157,7 @@ export default function BingoGame() {
                     onClick={handleRefreshRooms}
                     className="mt-2 px-4 py-1.5 bg-amber-500 text-white rounded-xl text-xs font-black active:scale-95 shadow-sm"
                   >
-                    {language === 'am' ? 'አድስ' : 'Refresh'}
+                    {language === 'am' ? 'አድስ (Refresh)' : 'Refresh'}
                   </button>
                 )}
               </div>
@@ -1003,11 +1175,11 @@ export default function BingoGame() {
                       <div className="h-20 bg-black flex flex-col items-center justify-center relative px-2.5 text-center">
                         {isInvitedRoom ? (
                           <div className="absolute top-2 left-2 flex items-center justify-center bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[10px] w-5 h-5 rounded-full shadow-sm">
-                            <span>â­</span>
+                            <span>⭐</span>
                           </div>
                         ) : room.is_pinned ? (
                           <div className="absolute top-2 left-2 flex items-center justify-center bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 text-[10px] w-5 h-5 rounded-full shadow-sm">
-                            <span>ðŸ“Œ</span>
+                            <span>📌</span>
                           </div>
                         ) : null}
                         <div className="absolute top-2 right-2 flex items-center space-x-1 bg-white/10 px-1.5 py-0.5 rounded-full">
@@ -1039,7 +1211,7 @@ export default function BingoGame() {
                       <div className="p-2 text-center bg-white">
                         <div className="w-full bg-slate-100 hover:bg-amber-500 hover:text-white text-slate-700 font-black py-2 rounded-xl text-[11px] transition-colors flex items-center justify-center space-x-1 shadow-2xs">
                           <span>{language === 'am' ? 'ክፍል ይግቡ' : 'Join Room'}</span>
-                          <span>â†’</span>
+                          <span>→</span>
                         </div>
                       </div>
                     </div>
@@ -1053,7 +1225,7 @@ export default function BingoGame() {
     );
   }
 
-  // â”€â”€ 2. STAKE SELECTION SCREEN (Shown AFTER room is selected) â”€â”€
+  // ── 2. STAKE SELECTION SCREEN (Shown AFTER room is selected) ──
   if (!selectedStake) {
     return (
       <div className="h-[calc(100dvh-80px)] w-full bg-white flex flex-col select-none overflow-hidden relative" onClick={initWebAudio}>
@@ -1115,7 +1287,7 @@ export default function BingoGame() {
                   {selectedRoom?.room_name || 'Active Room'}
                 </h3>
                 <p className="text-[9px] text-slate-500 font-semibold mt-0.5">
-                  👥 {selectedRoom?.total_players || 0} {language === 'am' ? 'ተጫዋቾች' : 'players'}   🎮 {selectedRoom?.total_games || 0} {language === 'am' ? 'ጨዋታዎች' : 'games'}
+                  👥 {selectedRoom?.total_players || 0} {language === 'am' ? 'ተጫዋቾች' : 'players'} • 🎮 {selectedRoom?.total_games || 0} {language === 'am' ? 'ጨዋታዎች' : 'games'}
                 </p>
               </div>
             </div>
@@ -1171,7 +1343,7 @@ export default function BingoGame() {
                     <span className="text-slate-500 font-bold text-[8px] uppercase tracking-widest mt-1">ETB</span>
                   </div>
 
-                  {/* Middle: Derash | Players | Status â€” 3 columns */}
+                  {/* Middle: Derash | Players | Status — 3 columns */}
                   <div className="w-full bg-slate-50 border-t border-b border-slate-100 flex h-[35px] shrink-0 relative z-10">
                     <div className="flex-1 flex flex-col items-center justify-center border-r border-slate-100">
                       <span className="text-slate-400 text-[7px] font-bold uppercase tracking-wider">{t[language].bingo.derash}</span>
@@ -1190,7 +1362,7 @@ export default function BingoGame() {
                   {/* Bottom: Action */}
                   <div className="w-full h-[30px] flex items-center justify-center relative z-10 bg-white">
                     {isWaiting ? (
-                      <span className="text-orange-500 text-[9px] font-black uppercase tracking-wider flex items-center gap-1">ðŸ”¥ {t[language].bingo.joinNow}</span>
+                      <span className="text-orange-500 text-[9px] font-black uppercase tracking-wider flex items-center gap-1">🔥 {t[language].bingo.joinNow}</span>
                     ) : (
                       <span className="text-slate-400 text-[9px] font-bold uppercase tracking-wider">{t[language].bingo.startMatch}</span>
                     )}
@@ -1218,7 +1390,7 @@ export default function BingoGame() {
 
   if (!game) return (
     <div className="h-[calc(100dvh-80px)] w-full bg-gradient-to-b from-[#fffbf0] via-[#fef3c7]/30 to-[#fffbf0] flex flex-col items-center justify-center text-slate-800 gap-4">
-      <div className="w-16 h-16 rounded-3xl bg-white border-2 border-amber-300 shadow-md flex items-center justify-center text-3xl">ðŸŽ±</div>
+      <div className="w-16 h-16 rounded-3xl bg-white border-2 border-amber-300 shadow-md flex items-center justify-center text-3xl">🎱</div>
       <p className="font-black text-lg text-slate-800">{t[language].bingo.preparingNext}</p>
       <button onClick={fetchState} className="px-8 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-black rounded-full text-sm shadow-md active:scale-95 transition-transform">{t[language].bingo.refresh}</button>
       <button onClick={() => setSelectedStake(null)} className="text-slate-400 text-xs underline mt-1">{t[language].bingo.changeStake}</button>
@@ -1266,7 +1438,7 @@ export default function BingoGame() {
           </div>
         </div>
 
-        {/* Caller Row + Card â€” scrollable */}
+        {/* Caller Row + Card — scrollable */}
         <div className="flex-1 min-h-0 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
         <div className={`w-full ${myCartelas.length > 1 ? 'max-w-[420px]' : 'max-w-[290px]'} mx-auto flex flex-col gap-1.5 pb-2`}>
           {/* Caller Row */}
@@ -1307,7 +1479,7 @@ export default function BingoGame() {
                     unlockAudio();
                     if (next) {
                       // Immediately play current number audio so user hears confirmation!
-                      /* sound toggle - audio plays on next ball */
+                      playCallAudio(lastNum || 1);
                     }
                   }}
                   className={`w-8 h-8 rounded-xl border flex items-center justify-center active:scale-90 transition-all ${soundEnabled ? 'bg-blue-100 border-blue-400 shadow-2xs' : 'bg-slate-100 border-slate-200'}`}>
@@ -1317,10 +1489,10 @@ export default function BingoGame() {
             </div>
           </div>
 
-          {/* My Cards â€” dynamic layout: 1 card = centered classic; 2+ cards = all visible side-by-side grid */}
+          {/* My Cards — dynamic layout: 1 card = centered classic; 2+ cards = all visible side-by-side grid */}
           {myCartelas.length > 0 ? (
             myCartelas.length === 1 ? (
-              /* Single Cartela â€” exact same classic centered layout as preset */
+              /* Single Cartela — exact same classic centered layout as preset */
               <div key={myCartelas[0].cartela_number} className="w-full max-w-[250px] mx-auto">
                 <div className="rounded-2xl overflow-hidden border-2 border-amber-300 shadow-md bg-white">
                   {/* BINGO Header */}
@@ -1374,7 +1546,7 @@ export default function BingoGame() {
                 </div>
               </div>
             ) : (
-              /* 2 or More Cartelas â€” Side-by-side grid, ALL visible without any hidden tabs! */
+              /* 2 or More Cartelas — Side-by-side grid, ALL visible without any hidden tabs! */
               <div className="w-full flex flex-col gap-1 px-1">
                 <div className="flex items-center justify-between px-0.5">
                   <span className="text-amber-800 text-[10px] font-black tracking-wider uppercase">CARTELAS ({myCartelas.length})</span>
@@ -1468,7 +1640,7 @@ export default function BingoGame() {
                 {/* Overlay Text */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-xs z-10">
                   <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mb-3 border border-red-500/30">
-                    <span className="text-xl animate-pulse">â³</span>
+                    <span className="text-xl animate-pulse">⏳</span>
                   </div>
                   <h3 className="text-red-400 font-black text-lg uppercase tracking-widest mb-1 drop-shadow-sm">Match is active</h3>
                   <p className="text-white text-[10px] font-bold text-center px-4 leading-relaxed uppercase tracking-wider">
@@ -1493,7 +1665,7 @@ export default function BingoGame() {
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           <p className="text-xs text-slate-700 font-black uppercase tracking-wider">
-            {canPickMore ? `TAP TO PICK - ${taken.length}/${maxPlayers} TAKEN` : `ALL CARTELAS SELECTED ✓`}
+            {canPickMore ? `TAP TO PICK — ${taken.length}/${maxPlayers} TAKEN` : `ALL CARTELAS SELECTED ✓`}
           </p>
         </div>
         <span className="text-[11px] bg-amber-100 text-amber-800 border border-amber-300/80 px-2.5 py-0.5 rounded-full font-black shadow-2xs">
@@ -1634,10 +1806,10 @@ export default function BingoGame() {
                               <DoorOpen size={13} className={isCurrent ? 'text-amber-600' : 'text-slate-400'} />
                               <div className="truncate">
                                 <div className="flex items-center space-x-1">
-                                  {r.is_pinned && <span className="text-[10px]">ðŸ“Œ</span>}
+                                  {r.is_pinned && <span className="text-[10px]">📌</span>}
                                   <p className="font-black text-xs truncate leading-tight">{r.room_name}</p>
                                 </div>
-                                <p className="text-[9px] text-slate-400 font-semibold leading-none mt-0.5">ðŸ‘¥ {r.total_players || 0}</p>
+                                <p className="text-[9px] text-slate-400 font-semibold leading-none mt-0.5">👥 {r.total_players || 0}</p>
                               </div>
                             </div>
                             {isCurrent && <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 ml-1.5" />}
@@ -1693,7 +1865,7 @@ export default function BingoGame() {
                 )}
               </div>
 
-              {/* Game ID Box â€” 8 uppercase characters, no hyphen */}
+              {/* Game ID Box — 8 uppercase characters, no hyphen */}
               <div className="flex-1 min-w-[75px] bg-white border border-amber-200/80 rounded-xl h-9 flex flex-col items-center justify-center shadow-xs">
                 <span className="text-[8px] text-slate-400 font-black tracking-wider uppercase leading-none">{t[language].bingo.gameId}</span>
                 <span className="text-xs font-black text-slate-800 leading-tight tracking-wider">{formatGameId(game.id)}</span>
@@ -1725,7 +1897,7 @@ export default function BingoGame() {
       {celebration && (
         <div className="absolute inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white border-2 border-amber-300 rounded-3xl p-4 text-center max-w-sm w-full shadow-2xl flex flex-col items-center relative">
-            {/* â”€â”€ REMATCH â”€â”€ */}
+            {/* ── REMATCH ── */}
             {celebration.winner_name === 'REMATCH' ? (<>
               <div className="text-5xl mb-2 animate-spin">🔄</div>
               <h2 className="text-3xl font-black text-orange-500 mb-2">{t[language].bingo.rematch}</h2>
@@ -1735,7 +1907,7 @@ export default function BingoGame() {
                 <p className="text-slate-400 text-xs mt-1 font-semibold">{t[language].bingo.newGameStarts}</p>
               </div>
 
-            {/* â”€â”€ 2-WAY TIEðŸŒŸ */}
+            {/* ── 2-WAY TIE🌟 */}
               </>) : celebration.winner_name.includes(' & ') ? (<>
                 <h2 className="text-xl font-black text-amber-700 mb-1">{t[language].bingo.tieTitle}</h2>
                 <div className="mb-2 inline-block bg-emerald-100 text-emerald-800 px-3.5 py-1 rounded-full font-black text-sm border border-emerald-300 shadow-2xs">
@@ -1792,9 +1964,9 @@ export default function BingoGame() {
                 
                 <p className="text-slate-400 text-[10px] font-black uppercase tracking-wider animate-pulse">{t[language].bingo.returning}</p>
   
-              {/* ðŸŒŸ  â”€â”€ */}
+              {/* 🌟  ── */}
             </>) : (<>
-              {/* Trophy + BINGO label â€” NO overlap */}
+              {/* Trophy + BINGO label — NO overlap */}
               <div className="flex flex-col items-center mb-3">
                 <div className="text-5xl mb-1 animate-bounce">🏆</div>
                 <div className="bg-amber-400 text-amber-950 px-7 py-1.5 rounded-full font-black text-2xl tracking-widest shadow-md">
@@ -1808,11 +1980,11 @@ export default function BingoGame() {
                 <p className="text-slate-900 font-black text-2xl leading-tight">{celebration.winner_name}</p>
                 <p className="text-amber-700 text-xs font-bold mt-0.5 flex items-center justify-center gap-1.5"><LayoutGrid size={12} className="text-amber-500 shrink-0" /> {t[language].bingo.cartelaNum.trim()} {celebration.winner_cartela}</p>
                 <div className="mt-2 inline-block bg-emerald-500 text-white px-6 py-1.5 rounded-full font-black text-lg shadow-[0_4px_16px_rgba(16,185,129,0.4)]">
-                  🎉 {Number(celebration.winner_prize || 0).toLocaleString()} ETB
+                  🎉 {celebration.winner_prize} ETB
                 </div>
               </div>
 
-              {/* Winner Card â€” green win cells, gold ring, pattern badge */}
+              {/* Winner Card — green win cells, gold ring, pattern badge */}
               {celebration.winner_matrix ? (() => {
                 const winCells = getWinningCells(celebration.winner_matrix, celebration.called);
                 const winTitle = getWinningPatternTitle(celebration.winner_matrix, celebration.called);
