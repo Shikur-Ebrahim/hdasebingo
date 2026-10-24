@@ -640,7 +640,7 @@ export default function BingoGame() {
     // Play celebration sound
     playSpecial('bingo_win');
 
-    // Start guaranteed 1-second auto-dismiss timer that CANNOT be cancelled or reset by background fetches or re-renders!
+    // Start guaranteed 2-second auto-dismiss timer that CANNOT be cancelled or reset by background fetches or re-renders!
     if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
     celebrationTimerRef.current = setTimeout(() => {
       celebrationTimerRef.current = null;
@@ -652,7 +652,7 @@ export default function BingoGame() {
       setGame(prev => prev ? { ...prev, status: 'waiting', called_numbers: [], total_players: 0, prize_pool: 0 } : prev);
       fetchStateRef.current();
       refreshUserRef.current();
-    }, 1000);
+    }, 2000);
 
     if (finGame.winner_first_name === 'REMATCH') {
       setCelebration({
@@ -1944,7 +1944,7 @@ export default function BingoGame() {
           <div className="bg-white border-2 border-amber-300 rounded-3xl p-4 text-center max-w-sm w-full shadow-2xl flex flex-col items-center relative">
             {/* â”€â”€ REMATCH â”€â”€ */}
             {celebration.winner_name === 'REMATCH' ? (<>
-              <div className="text-5xl mb-2 animate-spin">ðŸ”„</div>
+              <div className="text-5xl mb-2 animate-spin">🔄</div>
               <h2 className="text-3xl font-black text-orange-500 mb-2">{t[language].bingo.rematch}</h2>
               <div className="bg-amber-50/80 rounded-2xl p-3 mb-3 w-full border border-amber-200">
                 <p className="text-orange-600 font-black text-sm mb-1">{t[language].bingo.tieDesc}</p>
@@ -2013,7 +2013,7 @@ export default function BingoGame() {
             </>) : (<>
               {/* Trophy + BINGO label â€” NO overlap */}
               <div className="flex flex-col items-center mb-3">
-                <div className="text-5xl mb-1 animate-bounce">ðŸ†</div>
+                <div className="text-5xl mb-1 animate-bounce">🏆</div>
                 <div className="bg-amber-400 text-amber-950 px-7 py-1.5 rounded-full font-black text-2xl tracking-widest shadow-md">
                   BINGO!
                 </div>
@@ -2025,7 +2025,7 @@ export default function BingoGame() {
                 <p className="text-slate-900 font-black text-2xl leading-tight">{celebration.winner_name}</p>
                 <p className="text-amber-700 text-xs font-bold mt-0.5 flex items-center justify-center gap-1.5"><LayoutGrid size={12} className="text-amber-500 shrink-0" /> {t[language].bingo.cartelaNum.trim()} {celebration.winner_cartela}</p>
                 <div className="mt-2 inline-block bg-emerald-500 text-white px-6 py-1.5 rounded-full font-black text-lg shadow-[0_4px_16px_rgba(16,185,129,0.4)]">
-                  ðŸŽ‰ {celebration.winner_prize} ETB
+                  🎉 {Number(celebration.winner_prize || 0).toLocaleString()} ETB
                 </div>
               </div>
 
@@ -2074,7 +2074,7 @@ export default function BingoGame() {
                 );
               })() : (
                 <div className="w-full bg-amber-50/80 rounded-2xl p-4 mb-3 border border-amber-200 flex flex-col items-center">
-                  <div className="animate-spin text-2xl mb-1">â³</div>
+                  <div className="animate-spin text-2xl mb-1">⏳</div>
                   <p className="text-amber-800 text-xs font-bold">Loading winning cartela...</p>
                 </div>
               )}
