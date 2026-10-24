@@ -1705,7 +1705,7 @@ export default function BingoGame() {
           {myNums.map(n => (
             <span key={n} className="px-3 py-1 bg-emerald-500 text-white text-xs font-black rounded-full ring-2 ring-amber-300 flex items-center gap-1.5 shadow-sm">
               <LayoutGrid size={12} className="text-amber-200 shrink-0" />
-              <span>{t[language].bingo.cartelaNum.trim()} {n} ✓
+              <span>{t[language].bingo.cartelaNum.trim()} {n} ✓</span>
             </span>
           ))}
         </div>
