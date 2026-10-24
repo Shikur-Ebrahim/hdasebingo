@@ -343,249 +343,61 @@ export default function BingoGame() {
   }, [selectedStake, homeGames]);
   const [lastCallNum, setLastCallNum] = useState<number | null>(null);
   const [callAnim, setCallAnim] = useState(false);
-  const callAudioRef = useRef<HTMLAudioElement | null>(null);
-  const specialAudioRef = useRef<HTMLAudioElement | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const audioBufferCache = useRef<Map<string, AudioBuffer>>(new Map());
-  const activeCallSourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const activeSpecialSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  // ═══════════════════════════════════════════════════════════════════════
+  // SIMPLE AUDIO ENGINE - one sound at a time, zero overlap guaranteed
+  // ═══════════════════════════════════════════════════════════════════════
+  const audioEl = useRef<HTMLAudioElement | null>(null);
+  const playingNumRef = useRef<number | null>(null);
 
-  // Keep AudioContext resumed and mobile media pipeline unlocked on any touch
-  const unlockAudio = useCallback(() => {
+  const stopAudio = useCallback(() => {
     try {
-      const AC = window.AudioContext || (window as any).webkitAudioContext;
-      if (!audioCtxRef.current && AC) {
-        audioCtxRef.current = new AC();
+      if (audioEl.current) {
+        audioEl.current.pause();
+        audioEl.current.currentTime = 0;
+        audioEl.current.src = '';
+        audioEl.current = null;
       }
-      const ctx = audioCtxRef.current;
-      if (ctx) {
-        if (ctx.state === 'suspended') {
-          ctx.resume().catch(() => {});
-        }
-        // Play silent 1-sample buffer to permanently unlock audio on Android/iOS
-        if (ctx.state === 'running') {
-          const buffer = ctx.createBuffer(1, 1, 22050);
-          const source = ctx.createBufferSource();
-          source.buffer = buffer;
-          source.connect(ctx.destination);
-          source.start(0);
-        }
-      }
-    } catch(e) {}
+      playingNumRef.current = null;
+    } catch {}
   }, []);
 
-  const initWebAudio = unlockAudio;
-
-  // Listen continuously on window touch/click so audio never gets suspended during game
-  useEffect(() => {
-    const handleGesture = () => unlockAudio();
-    window.addEventListener('pointerdown', handleGesture, { passive: true });
-    window.addEventListener('touchstart', handleGesture, { passive: true });
-    window.addEventListener('touchend', handleGesture, { passive: true });
-    window.addEventListener('click', handleGesture, { passive: true });
-    return () => {
-      window.removeEventListener('pointerdown', handleGesture);
-      window.removeEventListener('touchstart', handleGesture);
-      window.removeEventListener('touchend', handleGesture);
-      window.removeEventListener('click', handleGesture);
-    };
-  }, [unlockAudio]);
-
-  // â”€â”€ RAW ARRAYBUFFER CACHE: fetched at startup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const rawBufferCache = useRef<Map<string, ArrayBuffer>>(new Map());
-
-  useEffect(() => {
-    let cancel = false;
-    const preload = async () => {
-      const allSrcs = [
-        ...Array.from({ length: 75 }, (_, i) => getAudioSrc(i + 1)),
-        '/audio/bingo/bingo_win.mp3',
-        '/audio/bingo/game_start.mp3',
-      ];
-      for (let i = 0; i < allSrcs.length; i += 4) {
-        if (cancel) break;
-        await Promise.all(
-          allSrcs.slice(i, i + 4).map(async (src) => {
-            if (rawBufferCache.current.has(src)) return;
-            try {
-              const res = await fetch(src);
-              if (res.ok) rawBufferCache.current.set(src, await res.arrayBuffer());
-            } catch {}
-          })
-        );
-        await new Promise(r => setTimeout(r, 40));
-      }
-    };
-    preload();
-    return () => { cancel = true; };
-  }, []);
-
-  // Cross-browser safe decodeAudioData (handles both Promise & Callback signatures)
-  const decodeAudio = useCallback((ctx: AudioContext, buffer: ArrayBuffer): Promise<AudioBuffer> => {
-    return new Promise((resolve, reject) => {
-      let settled = false;
+  const playAudioFile = useCallback((src: string, vol = 1.0): Promise<void> => {
+    return new Promise((resolve) => {
       try {
-        const res = ctx.decodeAudioData(
-          buffer,
-          (buf) => { if (!settled) { settled = true; resolve(buf); } },
-          (err) => { if (!settled) { settled = true; reject(err); } }
-        );
-        if (res && typeof (res as any).then === 'function') {
-          (res as any).then(
-            (buf: AudioBuffer) => { if (!settled) { settled = true; resolve(buf); } },
-            (err: any) => { if (!settled) { settled = true; reject(err); } }
-          );
-        }
-      } catch (e) {
-        if (!settled) { settled = true; reject(e); }
-      }
+        stopAudio();
+        const a = new Audio(src);
+        a.volume = Math.min(1.0, Math.max(0.0, vol));
+        audioEl.current = a;
+        a.onended = () => { audioEl.current = null; resolve(); };
+        a.onerror = () => { audioEl.current = null; resolve(); };
+        a.play().catch(() => { audioEl.current = null; resolve(); });
+      } catch { resolve(); }
     });
-  }, []);
+  }, [stopAudio]);
 
-  // â”€â”€ CORE WEBAUDIO PLAYER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const playViaWebAudio = useCallback(async (src: string, customGain?: number, isSpecial: boolean = false): Promise<boolean> => {
-    try {
-      if (!audioCtxRef.current) {
-        const AC = window.AudioContext || (window as any).webkitAudioContext;
-        if (AC) audioCtxRef.current = new AC();
-      }
-      const ctx = audioCtxRef.current;
-      if (!ctx) return false;
-      if (ctx.state === 'suspended') await ctx.resume();
-
-      // If playing special (bingo_win), stop any active caller audio immediately so they NEVER overlap!
-      if (isSpecial) {
-        if (activeCallSourceRef.current) {
-          try {
-            activeCallSourceRef.current.stop();
-            activeCallSourceRef.current.disconnect();
-          } catch {}
-          activeCallSourceRef.current = null;
-        }
-      } else {
-        if (activeCallSourceRef.current) {
-          try {
-            activeCallSourceRef.current.stop();
-            activeCallSourceRef.current.disconnect();
-          } catch {}
-          activeCallSourceRef.current = null;
-        }
-      }
-
-      let audioBuf = audioBufferCache.current.get(src);
-      if (!audioBuf) {
-        let raw = rawBufferCache.current.get(src);
-        if (!raw) {
-          const res = await fetch(src);
-          if (!res.ok) return false;
-          raw = await res.arrayBuffer();
-          rawBufferCache.current.set(src, raw);
-        }
-        audioBuf = await decodeAudio(ctx, raw.slice(0));
-        audioBufferCache.current.set(src, audioBuf);
-      }
-
-      const source = ctx.createBufferSource();
-      const gainNode = ctx.createGain();
-      gainNode.gain.value = customGain !== undefined ? customGain : Math.min(2.0, volume * 1.5);
-      source.buffer = audioBuf;
-      source.connect(gainNode);
-      gainNode.connect(ctx.destination);
-
-      if (isSpecial) {
-        activeSpecialSourceRef.current = source;
-      } else {
-        activeCallSourceRef.current = source;
-      }
-
-      source.onended = () => {
-        if (isSpecial && activeSpecialSourceRef.current === source) activeSpecialSourceRef.current = null;
-        if (!isSpecial && activeCallSourceRef.current === source) activeCallSourceRef.current = null;
-      };
-
-      source.start(0);
-      return true;
-    } catch(e) {
-      console.warn('WebAudio error:', e);
-      return false;
-    }
-  }, [volume, decodeAudio]);
-
-  // â”€â”€ CALLER SOUND â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // playCallAudio: plays ball number sound (skips if sound OFF)
   const playCallAudio = useCallback((num: number) => {
     if (!soundEnabled) return;
-    const cleanNum = Number(num);
-    if (!cleanNum || isNaN(cleanNum) || cleanNum < 1 || cleanNum > 75) return;
-
-    setLastCallNum(cleanNum);
+    const n = Number(num);
+    if (!n || isNaN(n) || n < 1 || n > 75) return;
+    if (playingNumRef.current === n) return; // deduplicate same ball
+    playingNumRef.current = n;
+    setLastCallNum(n);
     setCallAnim(false);
     setTimeout(() => setCallAnim(true), 20);
+    playAudioFile(getAudioSrc(n), Math.min(1.0, volume)).then(() => {
+      if (playingNumRef.current === n) playingNumRef.current = null;
+    });
+  }, [soundEnabled, volume, playAudioFile]);
 
-    const src = getAudioSrc(cleanNum);
-    unlockAudio();
+  // playSpecial: plays win sound, always plays regardless of soundEnabled
+  const playSpecial = useCallback((_name = 'bingo_win') => {
+    stopAudio();
+    playAudioFile('/audio/bingo/bingo_win.mp3', 1.0);
+  }, [stopAudio, playAudioFile]);
 
-    // 1. If WebAudio context is running, use WebAudio directly (fast, zero lag, reliable on mobile)
-    if (audioCtxRef.current && audioCtxRef.current.state === 'running') {
-      playViaWebAudio(src, undefined, false);
-      return;
-    }
-
-    // 2. Otherwise play via standard HTML5 Audio with fallback to WebAudio
-    try {
-      if (callAudioRef.current) {
-        callAudioRef.current.pause();
-      }
-      const audio = new Audio(src);
-      callAudioRef.current = audio;
-      audio.volume = Math.min(1.0, Math.max(0.0, volume));
-      audio.play().catch(() => {
-        playViaWebAudio(src, undefined, false);
-      });
-    } catch {
-      playViaWebAudio(src, undefined, false);
-    }
-  }, [soundEnabled, volume, unlockAudio, playViaWebAudio]);
-
-  // â”€â”€ CELEBRATION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Plays ONLY the "Bingo!" announcement voice (/audio/bingo/bingo_win.mp3).
-  // Immediately stops all other sounds so Bingo! is crystal clear with zero overlap.
-  const playSpecial = useCallback((name: string = 'bingo_win') => {
-    const src = `/audio/bingo/${name}.mp3`;
-    unlockAudio();
-
-    // Stop caller voice immediately so "Bingo!" is loud, clear, and never overlaps
-    if (activeCallSourceRef.current) {
-      try {
-        activeCallSourceRef.current.stop();
-        activeCallSourceRef.current.disconnect();
-      } catch {}
-      activeCallSourceRef.current = null;
-    }
-    try {
-      if (callAudioRef.current) {
-        callAudioRef.current.pause();
-        callAudioRef.current.currentTime = 0;
-      }
-    } catch {}
-
-    // Priority 1: WebAudio
-    if (audioCtxRef.current && audioCtxRef.current.state === 'running') {
-      playViaWebAudio(src, 1.8, true);
-      return;
-    }
-
-    // Priority 2: HTML Audio
-    try {
-      const audio = new Audio(src);
-      specialAudioRef.current = audio;
-      audio.volume = 1.0;
-      audio.play().catch(() => {
-        playViaWebAudio(src, 1.8, true);
-      });
-    } catch {
-      playViaWebAudio(src, 1.8, true);
-    }
-  }, [unlockAudio, playViaWebAudio]);
+  const unlockAudio = useCallback(() => {}, []);
+  const initWebAudio = useCallback(() => {}, []);
 
 
 
@@ -611,8 +423,6 @@ export default function BingoGame() {
   const prevCalledLenRef = useRef(0);
   const prevStatusRef = useRef<string | null>(null);
   const introPlayedRef = useRef<string | null>(null);
-  const introPlayingRef = useRef(false);
-  const pendingCallRef = useRef<number | null>(null); // tracks which game's intro already played
   const hadCartelasRef = useRef(false);
   const celebrationTimerRef = useRef<any>(null);
   const cartelaMatricesRef = useRef<Record<number, number[][]>>({});
@@ -802,50 +612,23 @@ export default function BingoGame() {
   const called = game?.called_numbers ?? [];
   const lastNum = called.length > 0 ? Number(called[called.length - 1]) : null;
 
-  // -- INTRO SEQUENCE: game_start -> then number calls (no overlap) --
+  // GAME START SOUND — plays once when status becomes "calling"
   useEffect(() => {
-    const currentStatus = game?.status ?? null;
-    const currentGameId = game?.id ?? null;
-
-    // Fire intro only once per game when status first becomes "calling"
-    if (
-      currentStatus === "calling" &&
-      prevStatusRef.current !== "calling" &&
-      soundEnabled &&
-      introPlayedRef.current !== String(currentGameId)
-    ) {
-      introPlayedRef.current = String(currentGameId);
-      introPlayingRef.current = true;
-      // Play game_start sound before any number calls
-      const startAudio = new Audio("/audio/bingo/game_start.mp3");
-      startAudio.volume = 1.0;
-      startAudio.play().catch(() => {
-        introPlayingRef.current = false;
-      });
-      startAudio.onended = () => {
-        introPlayingRef.current = false;
-        if (pendingCallRef.current !== null) {
-          playCallAudio(pendingCallRef.current);
-          pendingCallRef.current = null;
-        }
-      };
+    const status = game?.status ?? null;
+    const gid = String(game?.id ?? '');
+    if (status === 'calling' && prevStatusRef.current !== 'calling' && soundEnabled && introPlayedRef.current !== gid) {
+      introPlayedRef.current = gid;
+      playAudioFile('/audio/bingo/game_start.mp3', 1.0);
     }
-
-    prevStatusRef.current = currentStatus;
+    prevStatusRef.current = status;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.status, game?.id, soundEnabled]);
 
-  // -- NUMBER CALL: fires every time a new ball is called (no overlap with intro) --
+  // BALL CALL SOUND — one sound per new ball, uses dedup guard
   useEffect(() => {
-    if (game?.status === "calling" && called.length > prevCalledLenRef.current) {
-      if (lastNum) {
-        if (introPlayingRef.current) {
-          pendingCallRef.current = lastNum;
-        } else {
-          playCallAudio(lastNum);
-        }
-      }
-      if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred("medium");
+    if (game?.status === 'calling' && called.length > prevCalledLenRef.current) {
+      if (lastNum) playCallAudio(lastNum);
+      if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred('medium');
     }
     prevCalledLenRef.current = called.length;
   }, [called.length, game?.status, lastNum, playCallAudio]);
@@ -1524,7 +1307,7 @@ export default function BingoGame() {
                     unlockAudio();
                     if (next) {
                       // Immediately play current number audio so user hears confirmation!
-                      playCallAudio(lastNum || 1);
+                      /* sound toggle - audio plays on next ball */
                     }
                   }}
                   className={`w-8 h-8 rounded-xl border flex items-center justify-center active:scale-90 transition-all ${soundEnabled ? 'bg-blue-100 border-blue-400 shadow-2xs' : 'bg-slate-100 border-slate-200'}`}>
