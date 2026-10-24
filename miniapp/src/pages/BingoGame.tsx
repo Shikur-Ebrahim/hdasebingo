@@ -401,7 +401,6 @@ export default function BingoGame() {
         ...Array.from({ length: 75 }, (_, i) => getAudioSrc(i + 1)),
         '/audio/bingo/bingo_win.mp3',
         '/audio/bingo/game_start.mp3',
-        '/audio/bingo/shuffle.mp3',
       ];
       for (let i = 0; i < allSrcs.length; i += 4) {
         if (cancel) break;
@@ -801,7 +800,7 @@ export default function BingoGame() {
   const called = game?.called_numbers ?? [];
   const lastNum = called.length > 0 ? Number(called[called.length - 1]) : null;
 
-  // -- INTRO SEQUENCE: game_start -> shuffle -> then number calls (no overlap) --
+  // -- INTRO SEQUENCE: game_start -> then number calls (no overlap) --
   useEffect(() => {
     const currentStatus = game?.status ?? null;
     const currentGameId = game?.id ?? null;
@@ -814,16 +813,10 @@ export default function BingoGame() {
       introPlayedRef.current !== String(currentGameId)
     ) {
       introPlayedRef.current = String(currentGameId);
-      // Step 1: game_start
+      // Play game_start sound before any number calls
       const startAudio = new Audio("/audio/bingo/game_start.mp3");
       startAudio.volume = 1.0;
       startAudio.play().catch(() => {});
-      // Step 2: shuffle plays AFTER game_start ends
-      startAudio.onended = () => {
-        const shuffleAudio = new Audio("/audio/bingo/shuffle.mp3");
-        shuffleAudio.volume = 1.0;
-        shuffleAudio.play().catch(() => {});
-      };
     }
 
     prevStatusRef.current = currentStatus;
@@ -1565,7 +1558,7 @@ export default function BingoGame() {
                               canTap ? 'bg-white text-slate-800 active:scale-95 cursor-pointer ring-2 ring-blue-400 shadow-xs' :
                               'bg-white text-slate-800 border border-slate-100 shadow-xs'
                             }`}
-                          >{isFree ? 'â˜…' : num}</div>
+                          >{isFree ? '★' : num}</div>
                         );
                       })
                     )}
@@ -1627,7 +1620,7 @@ export default function BingoGame() {
                                     'bg-white text-slate-800 border border-slate-100 shadow-2xs'
                                   }`}
                                 >
-                                  {isFree ? 'â˜…' : num}
+                                  {isFree ? '★' : num}
                                 </div>
                               );
                             })
@@ -1661,7 +1654,7 @@ export default function BingoGame() {
                   {Array.from({ length: 5 }).flatMap((_, r) => 
                     Array.from({ length: 5 }, (_, c) => {
                       const isFree = r === 2 && c === 2;
-                      const num = isFree ? 'â˜…' : (c * 15) + r + (c % 2 === 0 ? 3 : 8);
+                      const num = isFree ? '★' : (c * 15) + r + (c % 2 === 0 ? 3 : 8);
                       return (
                         <div key={`${r}-${c}`} className={`aspect-square flex items-center justify-center font-black text-sm rounded-lg ${
                           isFree ? 'bg-amber-400 text-amber-950' : 'bg-white text-slate-800 shadow-2xs border border-slate-100'
@@ -1699,7 +1692,7 @@ export default function BingoGame() {
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           <p className="text-xs text-slate-700 font-black uppercase tracking-wider">
-            {canPickMore ? `TAP TO PICK â€” ${taken.length}/${maxPlayers} TAKEN` : `ALL CARTELAS SELECTED âœ“`}
+            {canPickMore ? `TAP TO PICK - ${taken.length}/${maxPlayers} TAKEN` : `ALL CARTELAS SELECTED ✓`}
           </p>
         </div>
         <span className="text-[11px] bg-amber-100 text-amber-800 border border-amber-300/80 px-2.5 py-0.5 rounded-full font-black shadow-2xs">
@@ -1712,7 +1705,7 @@ export default function BingoGame() {
           {myNums.map(n => (
             <span key={n} className="px-3 py-1 bg-emerald-500 text-white text-xs font-black rounded-full ring-2 ring-amber-300 flex items-center gap-1.5 shadow-sm">
               <LayoutGrid size={12} className="text-amber-200 shrink-0" />
-              <span>{t[language].bingo.cartelaNum.trim()} {n} âœ“</span>
+              <span>{t[language].bingo.cartelaNum.trim()} {n} ✓
             </span>
           ))}
         </div>
@@ -1725,14 +1718,14 @@ export default function BingoGame() {
             if (isMine) {
               return (
                 <div key={n} className="aspect-square flex items-center justify-center rounded-[8px] text-[10px] font-black bg-emerald-500 text-white ring-2 ring-amber-400 z-10 shadow-xs">
-                  âœ“
+                  ✓
                 </div>
               );
             }
             if (isTaken) {
               return (
                 <div key={n} className="aspect-square flex items-center justify-center rounded-[8px] text-[10px] font-bold bg-slate-100 text-slate-300 border border-slate-200/50">
-                  âœ•
+                  ✕
                 </div>
               );
             }
@@ -1919,7 +1912,7 @@ export default function BingoGame() {
       {errMsg && (
         <div className={`mx-3 mt-2 px-3 py-2 ${game.status === 'calling' ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'bg-red-50 border-red-200 text-red-600'} border rounded-xl flex items-center justify-between z-10 shrink-0`}>
           <p className="text-xs font-bold">{errMsg}</p>
-          <button onClick={() => setErrMsg("")} className="text-base leading-none ml-2">âœ•</button>
+          <button onClick={() => setErrMsg("")} className="text-base leading-none ml-2">✕</button>
         </div>
       )}
 
@@ -1981,7 +1974,7 @@ export default function BingoGame() {
                                     ? 'bg-orange-100 text-slate-800'
                                     : 'bg-white text-slate-800'
                                 }`}>
-                                  {isFree ? 'â˜…' : num}
+                                  {isFree ? '★' : num}
                                 </div>
                               )
                             }))}
@@ -2047,7 +2040,7 @@ export default function BingoGame() {
                               ? 'bg-orange-100 text-slate-800 font-bold'
                               : 'bg-white text-slate-800 border border-slate-100'
                           }`}>
-                            {isFree ? 'â˜…' : num}
+                            {isFree ? '★' : num}
                           </div>
                         );
                       }))}
@@ -2097,7 +2090,7 @@ export default function BingoGame() {
                     return (
                       <div key={`${r}-${c}`} className={`aspect-square flex items-center justify-center font-black text-sm rounded-md transition-all duration-300 ${
                         isFree ? 'bg-amber-400 text-amber-950 shadow-xs' : 'bg-white text-slate-800 border border-slate-100 shadow-xs'
-                      }`}>{isFree ? 'â˜…' : num}</div>
+                      }`}>{isFree ? '★' : num}</div>
                     );
                   })
                 )}
