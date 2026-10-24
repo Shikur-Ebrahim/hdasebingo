@@ -174,7 +174,7 @@ export default function BingoGame() {
   const [previewCartela, setPreviewCartela] = useState<{ seat: number; matrix: number[][] } | null>(null);
   const [homeGames, setHomeGames] = useState<Record<number, { pool: number; start_at?: string; status: string; players: number }>>({});
   const [homeTimeLeft, setHomeTimeLeft] = useState<Record<number, number>>({});
-  const [soundEnabled, setSoundEnabled] = useState(false); // default OFF
+  const [soundEnabled, setSoundEnabled] = useState(true); // default ON
   const [volume, setVolume] = useState(1.0);
   const [autoMark, setAutoMark] = useState(true); // default: auto-mark called numbers
   const [manuallyMarked, setManuallyMarked] = useState<Set<number>>(new Set());
@@ -803,16 +803,24 @@ export default function BingoGame() {
     if (game?.status === 'calling' && called.length > prevCalledLenRef.current) {
       if (called.length === 1) {
         // Play game_start sound, then number audio after it finishes
-        const startAudio = new Audio('/audio/bingo/game_start.mp3');
-        startAudio.volume = 1.0;
-        startAudio.play().catch(() => {});
-        startAudio.onended = () => { if (lastNum) playCallAudio(lastNum); };
+        if (soundEnabled) {
+          const startAudio = new Audio('/audio/bingo/game_start.mp3');
+          startAudio.volume = 1.0;
+          startAudio.play().catch(() => {});
+          startAudio.onended = () => { if (lastNum) playCallAudio(lastNum); };
+        } else {
+          if (lastNum) playCallAudio(lastNum);
+        }
       } else if (called.length === 2) {
         // Play shuffle sound, then number audio after it finishes
-        const shuffleAudio = new Audio('/audio/bingo/shuffle.mp3');
-        shuffleAudio.volume = 1.0;
-        shuffleAudio.play().catch(() => {});
-        shuffleAudio.onended = () => { if (lastNum) playCallAudio(lastNum); };
+        if (soundEnabled) {
+          const shuffleAudio = new Audio('/audio/bingo/shuffle.mp3');
+          shuffleAudio.volume = 1.0;
+          shuffleAudio.play().catch(() => {});
+          shuffleAudio.onended = () => { if (lastNum) playCallAudio(lastNum); };
+        } else {
+          if (lastNum) playCallAudio(lastNum);
+        }
       } else {
         if (lastNum) { playCallAudio(lastNum); }
       }
