@@ -61,21 +61,21 @@ const LETTER_BG: Record<string, string> = {
 
 // Full Amharic number words for display under the call
 const AMHARIC_NUM: Record<number, string> = {
-  1:'áŠ áŠ•á‹µ', 2:'áˆáˆˆá‰µ', 3:'áˆ¶áˆµá‰µ', 4:'áŠ áˆ«á‰µ', 5:'áŠ áˆáˆµá‰µ',
-  6:'áˆµá‹µáˆµá‰µ', 7:'áˆ°á‰£á‰µ', 8:'áˆµáˆáŠ•á‰µ', 9:'á‹˜áŒ áŠ', 10:'áŠ áˆµáˆ­',
-  11:'áŠ áˆµáˆ« áŠ áŠ•á‹µ', 12:'áŠ áˆµáˆ« áˆáˆˆá‰µ', 13:'áŠ áˆµáˆ« áˆ¶áˆµá‰µ', 14:'áŠ áˆµáˆ« áŠ áˆ«á‰µ', 15:'áŠ áˆµáˆ« áŠ áˆáˆµá‰µ',
-  16:'áŠ áˆµáˆ« áˆµá‹µáˆµá‰µ', 17:'áŠ áˆµáˆ« áˆ°á‰£á‰µ', 18:'áŠ áˆµáˆ« áˆµáˆáŠ•á‰µ', 19:'áŠ áˆµáˆ« á‹˜áŒ áŠ', 20:'áˆƒá‹«',
-  21:'áˆƒá‹« áŠ áŠ•á‹µ', 22:'áˆƒá‹« áˆáˆˆá‰µ', 23:'áˆƒá‹« áˆ¶áˆµá‰µ', 24:'áˆƒá‹« áŠ áˆ«á‰µ', 25:'áˆƒá‹« áŠ áˆáˆµá‰µ',
-  26:'áˆƒá‹« áˆµá‹µáˆµá‰µ', 27:'áˆƒá‹« áˆ°á‰£á‰µ', 28:'áˆƒá‹« áˆµáˆáŠ•á‰µ', 29:'áˆƒá‹« á‹˜áŒ áŠ', 30:'áˆ áˆ‹áˆ³',
-  31:'áˆ áˆ‹áˆ³ áŠ áŠ•á‹µ', 32:'áˆ áˆ‹áˆ³ áˆáˆˆá‰µ', 33:'áˆ áˆ‹áˆ³ áˆ¶áˆµá‰µ', 34:'áˆ áˆ‹áˆ³ áŠ áˆ«á‰µ', 35:'áˆ áˆ‹áˆ³ áŠ áˆáˆµá‰µ',
-  36:'áˆ áˆ‹áˆ³ áˆµá‹µáˆµá‰µ', 37:'áˆ áˆ‹áˆ³ áˆ°á‰£á‰µ', 38:'áˆ áˆ‹áˆ³ áˆµáˆáŠ•á‰µ', 39:'áˆ áˆ‹áˆ³ á‹˜áŒ áŠ', 40:'áŠ áˆ­á‰£',
-  41:'áŠ áˆ­á‰£ áŠ áŠ•á‹µ', 42:'áŠ áˆ­á‰£ áˆáˆˆá‰µ', 43:'áŠ áˆ­á‰£ áˆ¶áˆµá‰µ', 44:'áŠ áˆ­á‰£ áŠ áˆ«á‰µ', 45:'áŠ áˆ­á‰£ áŠ áˆáˆµá‰µ',
-  46:'áŠ áˆ­á‰£ áˆµá‹µáˆµá‰µ', 47:'áŠ áˆ­á‰£ áˆ°á‰£á‰µ', 48:'áŠ áˆ­á‰£ áˆµáˆáŠ•á‰µ', 49:'áŠ áˆ­á‰£ á‹˜áŒ áŠ', 50:'áˆƒáˆáˆ³',
-  51:'áˆƒáˆáˆ³ áŠ áŠ•á‹µ', 52:'áˆƒáˆáˆ³ áˆáˆˆá‰µ', 53:'áˆƒáˆáˆ³ áˆ¶áˆµá‰µ', 54:'áˆƒáˆáˆ³ áŠ áˆ«á‰µ', 55:'áˆƒáˆáˆ³ áŠ áˆáˆµá‰µ',
-  56:'áˆƒáˆáˆ³ áˆµá‹µáˆµá‰µ', 57:'áˆƒáˆáˆ³ áˆ°á‰£á‰µ', 58:'áˆƒáˆáˆ³ áˆµáˆáŠ•á‰µ', 59:'áˆƒáˆáˆ³ á‹˜áŒ áŠ', 60:'áˆµáˆáˆ³',
-  61:'áˆµáˆáˆ³ áŠ áŠ•á‹µ', 62:'áˆµáˆáˆ³ áˆáˆˆá‰µ', 63:'áˆµáˆáˆ³ áˆ¶áˆµá‰µ', 64:'áˆµáˆáˆ³ áŠ áˆ«á‰µ', 65:'áˆµáˆáˆ³ áŠ áˆáˆµá‰µ',
-  66:'áˆµáˆáˆ³ áˆµá‹µáˆµá‰µ', 67:'áˆµáˆáˆ³ áˆ°á‰£á‰µ', 68:'áˆµáˆáˆ³ áˆµáˆáŠ•á‰µ', 69:'áˆµáˆáˆ³ á‹˜áŒ áŠ', 70:'áˆ°á‰£',
-  71:'áˆ°á‰£ áŠ áŠ•á‹µ', 72:'áˆ°á‰£ áˆáˆˆá‰µ', 73:'áˆ°á‰£ áˆ¶áˆµá‰µ', 74:'áˆ°á‰£ áŠ áˆ«á‰µ', 75:'áˆ°á‰£ áŠ áˆáˆµá‰µ',
+  1:'አንድ', 2:'ሁለት', 3:'ሶስት', 4:'አራት', 5:'አምስት',
+  6:'ስድስት', 7:'ሰባት', 8:'ስምንት', 9:'ዘጠኝ', 10:'አስር',
+  11:'አስራ አንድ', 12:'አስራ ሁለት', 13:'አስራ ሶስት', 14:'አስራ አራት', 15:'አስራ አምስት',
+  16:'አስራ ስድስት', 17:'አስራ ሰባት', 18:'አስራ ስምንት', 19:'አስራ ዘጠኝ', 20:'ሃያ',
+  21:'ሃያ አንድ', 22:'ሃያ ሁለት', 23:'ሃያ ሶስት', 24:'ሃያ አራት', 25:'ሃያ አምስት',
+  26:'ሃያ ስድስት', 27:'ሃያ ሰባት', 28:'ሃያ ስምንት', 29:'ሃያ ዘጠኝ', 30:'ሠላሳ',
+  31:'ሠላሳ አንድ', 32:'ሠላሳ ሁለት', 33:'ሠላሳ ሶስት', 34:'ሠላሳ አራት', 35:'ሠላሳ አምስት',
+  36:'ሠላሳ ስድስት', 37:'ሠላሳ ሰባት', 38:'ሠላሳ ስምንት', 39:'ሠላሳ ዘጠኝ', 40:'አርባ',
+  41:'አርባ አንድ', 42:'አርባ ሁለት', 43:'አርባ ሶስት', 44:'አርባ አራት', 45:'አርባ አምስት',
+  46:'አርባ ስድስት', 47:'አርባ ሰባት', 48:'አርባ ስምንት', 49:'አርባ ዘጠኝ', 50:'ሃምሳ',
+  51:'ሃምሳ አንድ', 52:'ሃምሳ ሁለት', 53:'ሃምሳ ሶስት', 54:'ሃምሳ አራት', 55:'ሃምሳ አምስት',
+  56:'ሃምሳ ስድስት', 57:'ሃምሳ ሰባት', 58:'ሃምሳ ስምንት', 59:'ሃምሳ ዘጠኝ', 60:'ስልሳ',
+  61:'ስልሳ አንድ', 62:'ስልሳ ሁለት', 63:'ስልሳ ሶስት', 64:'ስልሳ አራት', 65:'ስልሳ አምስት',
+  66:'ስልሳ ስድስት', 67:'ስልሳ ሰባት', 68:'ስልሳ ስምንት', 69:'ስልሳ ዘጠኝ', 70:'ሰባ',
+  71:'ሰባ አንድ', 72:'ሰባ ሁለት', 73:'ሰባ ሶስት', 74:'ሰባ አራት', 75:'ሰባ አምስት',
 };
 
 const getLetter = (num: number) => BINGO_LETTERS[Math.floor((num - 1) / 15)];
@@ -253,10 +253,10 @@ export default function BingoGame() {
     });
 
   const BINGO_FILTER_OPTIONS = [
-    { key: 'all', label: language === 'am' ? 'áˆáˆ‰áˆ áŠ­ááˆŽá‰½' : 'All Rooms', icon: 'ðŸ ' },
-    { key: 'most_players', label: language === 'am' ? 'á‰°áŒ«á‹‹á‰¾á‰½ (áŠ¨áá‰°áŠ›)' : 'Most Players', icon: 'ðŸ‘¥' },
-    { key: 'most_games', label: language === 'am' ? 'áŒ¨á‹‹á‰³á‹Žá‰½ (áŠ¨áá‰°áŠ›)' : 'Most Games', icon: 'ðŸŽ®' },
-    { key: 'newest', label: language === 'am' ? 'áŠ á‹²áˆµ áŠ­ááˆŽá‰½' : 'Newest Rooms', icon: 'âœ¨' },
+    { key: 'all', label: language === 'am' ? 'ሁሉም ክፍሎች' : 'All Rooms', icon: '🏠' },
+    { key: 'most_players', label: language === 'am' ? 'ተጫዋቾች (ከፍተኛ)' : 'Most Players', icon: '👥' },
+    { key: 'most_games', label: language === 'am' ? 'ጨዋታዎች (ከፍተኛ)' : 'Most Games', icon: '🎮' },
+    { key: 'newest', label: language === 'am' ? 'አዲስ ክፍሎች' : 'Newest Rooms', icon: '✨' },
   ] as const;
 
   // Fetch and listen for active derash & status on stake selection screen
@@ -610,7 +610,9 @@ export default function BingoGame() {
   const gameIdRef = useRef<string | null>(null);
   const prevCalledLenRef = useRef(0);
   const prevStatusRef = useRef<string | null>(null);
-  const introPlayedRef = useRef<string | null>(null); // tracks which game's intro already played
+  const introPlayedRef = useRef<string | null>(null);
+  const introPlayingRef = useRef(false);
+  const pendingCallRef = useRef<number | null>(null); // tracks which game's intro already played
   const hadCartelasRef = useRef(false);
   const celebrationTimerRef = useRef<any>(null);
   const cartelaMatricesRef = useRef<Record<number, number[][]>>({});
@@ -813,10 +815,20 @@ export default function BingoGame() {
       introPlayedRef.current !== String(currentGameId)
     ) {
       introPlayedRef.current = String(currentGameId);
+      introPlayingRef.current = true;
       // Play game_start sound before any number calls
       const startAudio = new Audio("/audio/bingo/game_start.mp3");
       startAudio.volume = 1.0;
-      startAudio.play().catch(() => {});
+      startAudio.play().catch(() => {
+        introPlayingRef.current = false;
+      });
+      startAudio.onended = () => {
+        introPlayingRef.current = false;
+        if (pendingCallRef.current !== null) {
+          playCallAudio(pendingCallRef.current);
+          pendingCallRef.current = null;
+        }
+      };
     }
 
     prevStatusRef.current = currentStatus;
@@ -826,7 +838,13 @@ export default function BingoGame() {
   // -- NUMBER CALL: fires every time a new ball is called (no overlap with intro) --
   useEffect(() => {
     if (game?.status === "calling" && called.length > prevCalledLenRef.current) {
-      if (lastNum) { playCallAudio(lastNum); }
+      if (lastNum) {
+        if (introPlayingRef.current) {
+          pendingCallRef.current = lastNum;
+        } else {
+          playCallAudio(lastNum);
+        }
+      }
       if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred("medium");
     }
     prevCalledLenRef.current = called.length;
@@ -1027,11 +1045,11 @@ export default function BingoGame() {
               <div className="flex items-center justify-center space-x-1.5">
                 <DoorOpen size={16} className="text-amber-500" />
                 <h2 className="font-black text-base text-slate-800 tracking-wide">
-                  {language === 'am' ? 'á‹¨á‰¢áŠ•áŒŽ áŠ­ááˆŽá‰½' : 'BINGO ROOMS'}
+                  {language === 'am' ? 'የቢንጎ ክፍሎች' : 'BINGO ROOMS'}
                 </h2>
               </div>
               <p className="text-[10px] text-amber-600 font-bold">
-                {language === 'am' ? 'áŠ­ááˆ á‹­áˆáˆ¨áŒ¡áŠ“ á‹­áŒ«á‹ˆá‰±' : 'Select an active room to play'}
+                {language === 'am' ? 'ክፍል ይምረጡና ይጫወቱ' : 'Select an active room to play'}
               </p>
             </div>
             {/* Search icon + Filter */}
@@ -1070,7 +1088,7 @@ export default function BingoGame() {
                   <div className="absolute right-0 top-full mt-1.5 z-50 bg-white rounded-2xl shadow-xl border border-slate-200/80 overflow-hidden min-w-[180px]">
                     <div className="px-3 pt-2.5 pb-1">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        {language === 'am' ? 'áŠ­ááˆŽá‰½ á‰°áˆˆá‹­' : 'Sort Rooms By'}
+                        {language === 'am' ? 'ክፍሎች ደርድር' : 'Sort Rooms By'}
                       </p>
                     </div>
                     {BINGO_FILTER_OPTIONS.map(opt => (
@@ -1096,7 +1114,7 @@ export default function BingoGame() {
                         className="w-full flex items-center justify-center space-x-2 py-2 bg-slate-100 rounded-xl text-slate-600 text-xs font-bold active:scale-95 transition-all hover:bg-slate-200"
                       >
                         <RefreshCw size={12} className={roomsRefreshing ? 'animate-spin text-amber-500' : ''} />
-                        <span>{language === 'am' ? 'áŠ á‹µáˆµ' : 'Refresh Rooms'}</span>
+                        <span>{language === 'am' ? 'አድስ' : 'Refresh Rooms'}</span>
                       </button>
                     </div>
                   </div>
@@ -1118,7 +1136,7 @@ export default function BingoGame() {
                   type="text"
                   value={roomSearch}
                   onChange={e => setRoomSearch(e.target.value)}
-                  placeholder={language === 'am' ? 'áŠ­ááˆ áˆáˆáŒ...' : 'Search rooms by name...'}
+                  placeholder={language === 'am' ? 'ክፍል ፈልግ...' : 'Search rooms by name...'}
                   className="flex-1 bg-transparent text-xs font-semibold text-slate-700 placeholder-slate-400 outline-none"
                 />
                 {roomSearch && (
@@ -1153,14 +1171,14 @@ export default function BingoGame() {
             <div className="flex items-center justify-between mb-2.5">
               <div className="flex items-center space-x-1.5">
                 <span className="text-xs font-black text-slate-700 uppercase tracking-wide">
-                  {language === 'am' ? 'áŠ­áá‰µ áŠ­ááˆŽá‰½' : 'Available Rooms'}
+                  {language === 'am' ? 'ክፍት ክፍሎች' : 'Available Rooms'}
                 </span>
                 <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold">
                   {filteredRooms.length}
                 </span>
               </div>
               <span className="text-[10px] text-slate-400 font-bold">
-                {language === 'am' ? 'á‹­áˆáˆ¨áŒ¡áŠ“ á‹­áŒá‰¡' : 'Tap room to join'}
+                {language === 'am' ? 'ይምረጡና ይግቡ' : 'Tap room to join'}
               </span>
             </div>
 
@@ -1171,20 +1189,20 @@ export default function BingoGame() {
                 </div>
                 <p className="text-xs font-black text-slate-600">
                   {roomSearch.trim()
-                    ? (language === 'am' ? `"${roomSearch}" áŠ áˆá‰°áŒˆáŠ˜áˆ` : `No rooms matching "${roomSearch}"`)
-                    : (language === 'am' ? 'áˆáŠ•áˆ áŠ­ááˆŽá‰½ á‹¨áˆ‰áˆ' : 'No active rooms yet')}
+                    ? (language === 'am' ? `"${roomSearch}" አልተገኘም` : `No rooms matching "${roomSearch}"`)
+                    : (language === 'am' ? 'ምንም ክፍሎች የሉም' : 'No active rooms yet')}
                 </p>
                 <p className="text-[10px] text-slate-400">
                   {roomSearch.trim()
-                    ? (language === 'am' ? 'áˆŒáˆ‹ á‰ƒáˆ á‹­áˆžáŠ­áˆ©' : 'Try a different search term')
-                    : (language === 'am' ? 'áŠ­ááˆŽá‰½ áˆ²á‹˜áŒ‹áŒ áŠ¥á‹šáˆ… á‹­á‰³á‹«áˆ‰' : 'Rooms will appear here once agents create them')}
+                    ? (language === 'am' ? 'ሌላ ቃል ይሞክሩ' : 'Try a different search term')
+                    : (language === 'am' ? 'ክፍሎች ሲዘጋጁ እዚህ ይታያሉ' : 'Rooms will appear here once agents create them')}
                 </p>
                 {!roomSearch.trim() && (
                   <button
                     onClick={handleRefreshRooms}
                     className="mt-2 px-4 py-1.5 bg-amber-500 text-white rounded-xl text-xs font-black active:scale-95 shadow-sm"
                   >
-                    {language === 'am' ? 'áŠ á‹µáˆµ (Refresh)' : 'Refresh'}
+                    {language === 'am' ? 'አድስ' : 'Refresh'}
                   </button>
                 )}
               </div>
@@ -1222,13 +1240,13 @@ export default function BingoGame() {
                       <div className="w-full bg-slate-50 border-b border-slate-100 flex h-[38px] shrink-0">
                         <div className="flex-1 flex flex-col items-center justify-center border-r border-slate-100">
                           <span className="text-slate-400 text-[8px] font-bold uppercase tracking-wider">
-                            {language === 'am' ? 'á‰°áŒ«á‹‹á‰¾á‰½' : 'Players'}
+                            {language === 'am' ? 'ተጫዋቾች' : 'Players'}
                           </span>
                           <span className="text-[11px] font-black text-emerald-600">{room.total_players}</span>
                         </div>
                         <div className="flex-1 flex flex-col items-center justify-center">
                           <span className="text-slate-400 text-[8px] font-bold uppercase tracking-wider">
-                            {language === 'am' ? 'áŒ¨á‹‹á‰³á‹Žá‰½' : 'Games'}
+                            {language === 'am' ? 'ጨዋታዎች' : 'Games'}
                           </span>
                           <span className="text-[11px] font-black text-violet-600">{room.total_games}</span>
                         </div>
@@ -1237,7 +1255,7 @@ export default function BingoGame() {
                       {/* Action Button */}
                       <div className="p-2 text-center bg-white">
                         <div className="w-full bg-slate-100 hover:bg-amber-500 hover:text-white text-slate-700 font-black py-2 rounded-xl text-[11px] transition-colors flex items-center justify-center space-x-1 shadow-2xs">
-                          <span>{language === 'am' ? 'áŠ­ááˆ á‹­áŒá‰¡' : 'Join Room'}</span>
+                          <span>{language === 'am' ? 'ክፍል ይግቡ' : 'Join Room'}</span>
                           <span>â†’</span>
                         </div>
                       </div>
@@ -1278,7 +1296,7 @@ export default function BingoGame() {
                   });
                 }}
                 className="h-9 w-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl shrink-0 active:scale-95 transition-transform shadow-xs text-slate-700 hover:bg-slate-50"
-                title={language === 'am' ? 'á‹ˆá‹° áŠ­ááˆŽá‰½ á‰°áˆ˜áˆˆáˆµ' : 'Back to rooms'}
+                title={language === 'am' ? 'ወደ ክፍሎች ተመለስ' : 'Back to rooms'}
               >
                 <ArrowLeft size={16} className="text-slate-700" />
               </button>
@@ -1307,14 +1325,14 @@ export default function BingoGame() {
                 <div className="flex items-center space-x-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                   <span className="text-[9px] font-black text-amber-700 uppercase tracking-wider">
-                    {language === 'am' ? 'á‹¨á‰°áˆ˜áˆ¨áŒ  áŠ­ááˆ' : 'Selected Room'}
+                    {language === 'am' ? 'የተመረጠ ክፍል' : 'Selected Room'}
                   </span>
                 </div>
                 <h3 className="font-black text-sm text-slate-800 leading-tight">
                   {selectedRoom?.room_name || 'Active Room'}
                 </h3>
                 <p className="text-[9px] text-slate-500 font-semibold mt-0.5">
-                  ðŸ‘¥ {selectedRoom?.total_players || 0} {language === 'am' ? 'á‰°áŒ«á‹‹á‰¾á‰½' : 'players'} â€¢ ðŸŽ® {selectedRoom?.total_games || 0} {language === 'am' ? 'áŒ¨á‹‹á‰³á‹Žá‰½' : 'games'}
+                  👥 {selectedRoom?.total_players || 0} {language === 'am' ? 'ተጫዋቾች' : 'players'}   🎮 {selectedRoom?.total_games || 0} {language === 'am' ? 'ጨዋታዎች' : 'games'}
                 </p>
               </div>
             </div>
@@ -1329,7 +1347,7 @@ export default function BingoGame() {
               className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-slate-700 text-[11px] font-bold active:scale-95 transition-transform shadow-xs flex items-center space-x-1 hover:bg-slate-50"
             >
               <RotateCcw size={12} className="text-amber-600" />
-              <span>{language === 'am' ? 'áŠ­ááˆ á‰€á‹­áˆ­' : 'Change Room'}</span>
+              <span>{language === 'am' ? 'ክፍል ቀይር' : 'Change Room'}</span>
             </button>
           </div>
 
@@ -1769,7 +1787,7 @@ export default function BingoGame() {
                   setTaken([]);
                 }} 
                 className="h-9 w-9 flex items-center justify-center bg-white border border-amber-200/80 rounded-xl shrink-0 active:scale-95 transition-transform shadow-xs text-slate-700 hover:bg-amber-50"
-                title={language === 'am' ? 'á‹ˆá‹° áŠ¥áŒ£á‹Žá‰½ á‰°áˆ˜áˆˆáˆµ' : 'Back to stakes'}
+                title={language === 'am' ? 'ወደ እጣዎች ተመለስ' : 'Back to stakes'}
               >
                 <ArrowLeft size={16} className="text-slate-700" />
               </button>
@@ -1798,7 +1816,7 @@ export default function BingoGame() {
                     <div className="absolute top-[calc(100%+8px)] left-0 w-48 max-h-60 overflow-y-auto bg-white border border-amber-200 rounded-xl shadow-xl z-50 py-1" style={{ scrollbarWidth: 'none' }}>
                       <div className="px-3 py-1.5 border-b border-slate-100">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                          {language === 'am' ? 'áŠ­ááˆ áˆáˆ¨áŒ¥' : 'Select Room'}
+                          {language === 'am' ? 'ክፍል ምረጥ' : 'Select Room'}
                         </p>
                       </div>
                       {((rooms.filter(r => !r.status || r.status === 'active').length > 0 ? rooms.filter(r => !r.status || r.status === 'active') : rooms).slice().sort((a, b) => {
