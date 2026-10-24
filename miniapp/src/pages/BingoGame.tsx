@@ -343,17 +343,69 @@ export default function BingoGame() {
   }, [selectedStake, homeGames]);
   const [lastCallNum, setLastCallNum] = useState<number | null>(null);
   const [callAnim, setCallAnim] = useState(false);
-  // ── PURE SINGLE-AUDIO CONTROLLER (100% Zero-Overlap, Zero-Double Guaranteed) ──
-  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+// ── DEDICATED PRELOADED MOBILE AUDIO CONTROLLER ──
+  // Uses persistent audio elements to prevent mobile browsers from cutting off audio after several calls
+  const introAudioRef = useRef<HTMLAudioElement | null>(null);
+  const callAudioRef = useRef<HTMLAudioElement | null>(null);
+  const winAudioRef = useRef<HTMLAudioElement | null>(null);
   const lastVoicedBallRef = useRef<string>('');
   const gameStartVoicedRef = useRef<string>('');
 
-  // Mobile audio gesture unlock
-  const unlockAudio = useCallback(() => {
+  // Pre-initialize and preload persistent audio elements once on mount
+  useEffect(() => {
     try {
-      const silent = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
-      silent.play().catch(() => {});
+      if (!introAudioRef.current) {
+        const intro = new Audio('/audio/bingo/game_start.mp3');
+        intro.preload = 'auto';
+        introAudioRef.current = intro;
+      }
+      if (!winAudioRef.current) {
+        const win = new Audio('/audio/bingo/bingo_win.mp3');
+        win.preload = 'auto';
+        winAudioRef.current = win;
+      }
+      if (!callAudioRef.current) {
+        const call = new Audio();
+        call.preload = 'auto';
+        callAudioRef.current = call;
+      }
     } catch {}
+  }, []);
+
+  // Stop all sounds cleanly without resetting src (avoids mobile media pipeline errors)
+  const stopAudio = useCallback(() => {
+    try {
+      if (introAudioRef.current) {
+        introAudioRef.current.pause();
+        introAudioRef.current.currentTime = 0;
+      }
+      if (callAudioRef.current) {
+        callAudioRef.current.pause();
+        callAudioRef.current.currentTime = 0;
+      }
+      if (winAudioRef.current) {
+        winAudioRef.current.pause();
+        winAudioRef.current.currentTime = 0;
+      }
+    } catch {}
+  }, []);
+
+  // Mobile audio gesture unlock: primes the persistent elements on first interaction
+  const unlockAudio = useCallback(() => {
+    const list = [introAudioRef.current, winAudioRef.current, callAudioRef.current];
+    list.forEach(el => {
+      if (el) {
+        try {
+          const p = el.play();
+          if (p && typeof p.then === 'function') {
+            p.then(() => {
+              el.pause();
+              el.currentTime = 0;
+            }).catch(() => {});
+          }
+        } catch {}
+      }
+    });
   }, []);
 
   const initWebAudio = unlockAudio;
@@ -368,52 +420,53 @@ export default function BingoGame() {
     };
   }, [unlockAudio]);
 
-  // Strictly stops any audio immediately — ensures ZERO overlap
-  const stopAudio = useCallback(() => {
-    if (currentAudioRef.current) {
-      try {
-        currentAudioRef.current.pause();
-        currentAudioRef.current.currentTime = 0;
-        currentAudioRef.current.src = '';
-        currentAudioRef.current.onended = null;
-        currentAudioRef.current.onerror = null;
-      } catch {}
-      currentAudioRef.current = null;
-    }
-  }, []);
-
-  // Universal single-element audio player — stops previous before starting new!
-  const playAudio = useCallback((src: string) => {
-    if (!soundEnabled) return;
-    stopAudio();
-    try {
-      const audio = new Audio(src);
-      currentAudioRef.current = audio;
-      audio.volume = Math.min(1.0, Math.max(0.0, volume));
-      audio.onended = () => {
-        if (currentAudioRef.current === audio) currentAudioRef.current = null;
-      };
-      audio.onerror = () => {
-        if (currentAudioRef.current === audio) currentAudioRef.current = null;
-      };
-      audio.play().catch(() => {});
-    } catch {}
-  }, [soundEnabled, volume, stopAudio]);
-
-  // Caller sound for drawn ball 1-75
+  // Caller sound for drawn ball 1-75 (reuses persistent callAudioRef element)
   const playCallAudio = useCallback((num: number) => {
+    if (!soundEnabled) return;
     const cleanNum = Number(num);
     if (!cleanNum || isNaN(cleanNum) || cleanNum < 1 || cleanNum > 75) return;
+
     setLastCallNum(cleanNum);
     setCallAnim(false);
     setTimeout(() => setCallAnim(true), 20);
-    playAudio(getAudioSrc(cleanNum));
-  }, [playAudio]);
 
-  // Celebration sound (bingo_win.mp3)
+    stopAudio();
+
+    if (callAudioRef.current) {
+      try {
+        callAudioRef.current.src = getAudioSrc(cleanNum);
+        callAudioRef.current.currentTime = 0;
+        callAudioRef.current.volume = Math.min(1.0, Math.max(0.0, volume));
+        callAudioRef.current.play().catch(() => {});
+      } catch {}
+    }
+  }, [soundEnabled, volume, stopAudio]);
+
+  // Game start sound (reuses preloaded introAudioRef)
+  const playIntroAudio = useCallback(() => {
+    if (!soundEnabled) return;
+    stopAudio();
+    if (introAudioRef.current) {
+      try {
+        introAudioRef.current.currentTime = 0;
+        introAudioRef.current.volume = Math.min(1.0, Math.max(0.0, volume));
+        introAudioRef.current.play().catch(() => {});
+      } catch {}
+    }
+  }, [soundEnabled, volume, stopAudio]);
+
+  // Celebration sound (reuses preloaded winAudioRef for instant 0ms playback with celebration card)
   const playSpecial = useCallback((name: string = 'bingo_win') => {
-    playAudio(`/audio/bingo/${name}.mp3`);
-  }, [playAudio]);
+    if (!soundEnabled) return;
+    stopAudio();
+    if (winAudioRef.current) {
+      try {
+        winAudioRef.current.currentTime = 0;
+        winAudioRef.current.volume = 1.0;
+        winAudioRef.current.play().catch(() => {});
+      } catch {}
+    }
+  }, [soundEnabled, stopAudio]);
 
     useEffect(() => {
     if (!user?.telegram_id) return;
@@ -464,7 +517,7 @@ export default function BingoGame() {
     stopAudio();
     playSpecial('bingo_win');
 
-    // Start guaranteed 2-second auto-dismiss timer that CANNOT be cancelled or reset by background fetches or re-renders!
+    // Start 2.5-second auto-dismiss timer so celebration card and win sound (1.13s) are enjoyed together!
     if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
     celebrationTimerRef.current = setTimeout(() => {
       celebrationTimerRef.current = null;
@@ -476,7 +529,7 @@ export default function BingoGame() {
       setGame(prev => prev ? { ...prev, status: 'waiting', called_numbers: [], total_players: 0, prize_pool: 0 } : prev);
       fetchStateRef.current();
       refreshUserRef.current();
-    }, 2000);
+    }, 2500);
 
     if (finGame.winner_first_name === 'REMATCH') {
       setCelebration({
@@ -631,13 +684,13 @@ export default function BingoGame() {
     if (game.status === 'calling' && count === 0) {
       if (gameStartVoicedRef.current !== game.id) {
         gameStartVoicedRef.current = game.id;
-        playAudio('/audio/bingo/game_start.mp3');
+        playIntroAudio();
       }
     } else if (game.status === 'calling' && count > 0) {
       // Game already calling balls (e.g. at call 5), mark start sound as already played
       gameStartVoicedRef.current = game.id;
     }
-  }, [game?.status, game?.id, game?.called_numbers?.length, playAudio]);
+  }, [game?.status, game?.id, game?.called_numbers?.length, playIntroAudio]);
 
   // 2. NUMBER CALL SOUND: Plays strictly when a new ball is drawn during "calling" (never when finished)
   useEffect(() => {
