@@ -400,6 +400,8 @@ export default function BingoGame() {
       const allSrcs = [
         ...Array.from({ length: 75 }, (_, i) => getAudioSrc(i + 1)),
         '/audio/bingo/bingo_win.mp3',
+        '/audio/bingo/game_start.mp3',
+        '/audio/bingo/shuffle.mp3',
       ];
       for (let i = 0; i < allSrcs.length; i += 4) {
         if (cancel) break;
@@ -799,7 +801,21 @@ export default function BingoGame() {
 
   useEffect(() => {
     if (game?.status === 'calling' && called.length > prevCalledLenRef.current) {
-      if (lastNum) { playCallAudio(lastNum); }
+      if (called.length === 1) {
+        // Play game_start sound, then number audio after it finishes
+        const startAudio = new Audio('/audio/bingo/game_start.mp3');
+        startAudio.volume = 1.0;
+        startAudio.play().catch(() => {});
+        startAudio.onended = () => { if (lastNum) playCallAudio(lastNum); };
+      } else if (called.length === 2) {
+        // Play shuffle sound, then number audio after it finishes
+        const shuffleAudio = new Audio('/audio/bingo/shuffle.mp3');
+        shuffleAudio.volume = 1.0;
+        shuffleAudio.play().catch(() => {});
+        shuffleAudio.onended = () => { if (lastNum) playCallAudio(lastNum); };
+      } else {
+        if (lastNum) { playCallAudio(lastNum); }
+      }
       if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred('medium');
     }
     prevCalledLenRef.current = called.length;
