@@ -453,23 +453,21 @@ export default function BingoGame() {
       if (!ctx) return false;
       if (ctx.state === 'suspended') await ctx.resume();
 
-      // If playing special (bingo_win), stop any active caller audio immediately so they NEVER overlap!
-      if (isSpecial) {
-        if (activeCallSourceRef.current) {
-          try {
-            activeCallSourceRef.current.stop();
-            activeCallSourceRef.current.disconnect();
-          } catch {}
-          activeCallSourceRef.current = null;
-        }
-      } else {
-        if (activeCallSourceRef.current) {
-          try {
-            activeCallSourceRef.current.stop();
-            activeCallSourceRef.current.disconnect();
-          } catch {}
-          activeCallSourceRef.current = null;
-        }
+      // Stop any active WebAudio caller source
+      if (activeCallSourceRef.current) {
+        try {
+          activeCallSourceRef.current.stop();
+          activeCallSourceRef.current.disconnect();
+        } catch {}
+        activeCallSourceRef.current = null;
+      }
+      // Stop any active HTML5 audio element
+      if (callAudioRef.current) {
+        try {
+          callAudioRef.current.pause();
+          callAudioRef.current.currentTime = 0;
+        } catch {}
+        callAudioRef.current = null;
       }
 
       let audioBuf = audioBufferCache.current.get(src);
@@ -524,7 +522,16 @@ export default function BingoGame() {
     const src = getAudioSrc(cleanNum);
     unlockAudio();
 
-    // 1. If WebAudio context is running, use WebAudio directly (fast, zero lag, reliable on mobile)
+    // Stop any previously playing HTML5 audio element
+    if (callAudioRef.current) {
+      try {
+        callAudioRef.current.pause();
+        callAudioRef.current.currentTime = 0;
+      } catch {}
+      callAudioRef.current = null;
+    }
+
+    // 1. If WebAudio context is running, use WebAudio directly
     if (audioCtxRef.current && audioCtxRef.current.state === 'running') {
       playViaWebAudio(src, undefined, false);
       return;
@@ -532,9 +539,6 @@ export default function BingoGame() {
 
     // 2. Otherwise play via standard HTML5 Audio with fallback to WebAudio
     try {
-      if (callAudioRef.current) {
-        callAudioRef.current.pause();
-      }
       const audio = new Audio(src);
       callAudioRef.current = audio;
       audio.volume = Math.min(1.0, Math.max(0.0, volume));
@@ -612,7 +616,8 @@ export default function BingoGame() {
   const prevStatusRef = useRef<string | null>(null);
   const introPlayedRef = useRef<string | null>(null);
   const introPlayingRef = useRef(false);
-  const pendingCallRef = useRef<number | null>(null); // tracks which game's intro already played
+  const pendingCallRef = useRef<number | null>(null);
+  const lastPlayedBallKeyRef = useRef<string | null>(null); // tracks which game's intro already played
   const hadCartelasRef = useRef(false);
   const celebrationTimerRef = useRef<any>(null);
   const cartelaMatricesRef = useRef<Record<number, number[][]>>({});
@@ -835,20 +840,22 @@ export default function BingoGame() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [game?.status, game?.id, soundEnabled]);
 
-  // -- NUMBER CALL: fires every time a new ball is called (no overlap with intro) --
+  // -- NUMBER CALL: fires every time a new ball is called (strictly once per ball) --
   useEffect(() => {
-    if (game?.status === "calling" && called.length > prevCalledLenRef.current) {
-      if (lastNum) {
+    if (game?.status === "calling" && called.length > 0 && lastNum) {
+      const callKey = `${game.id}_${called.length}_${lastNum}`;
+      if (called.length > prevCalledLenRef.current && lastPlayedBallKeyRef.current !== callKey) {
+        lastPlayedBallKeyRef.current = callKey;
         if (introPlayingRef.current) {
           pendingCallRef.current = lastNum;
         } else {
           playCallAudio(lastNum);
         }
+        if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred("medium");
       }
-      if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred("medium");
     }
     prevCalledLenRef.current = called.length;
-  }, [called.length, game?.status, lastNum, playCallAudio]);
+  }, [called.length, game?.status, game?.id, lastNum, playCallAudio]);
 
   // Fire celebration when game finishes
   useEffect(() => {

@@ -300,10 +300,13 @@ class BingoEngine {
     const num = pool[Math.floor(Math.random() * pool.length)];
     const newCalled = [...called, num];
 
-    await supabase.from('bingo_games').update({
+    const { data: updated, error: updateErr } = await supabase.from('bingo_games').update({
       called_numbers: newCalled,
       updated_at: new Date().toISOString(),
-    }).eq('id', game.id);
+    }).eq('id', game.id).eq('updated_at', game.updated_at).select('id');
+
+    // Prevent duplicate calls: if another process/tick updated first, ignore
+    if (updateErr || !updated || updated.length === 0) return;
 
     await this.checkWinners(game.id, newCalled, game.prize_pool, game.stake, game.room_id);
   }
