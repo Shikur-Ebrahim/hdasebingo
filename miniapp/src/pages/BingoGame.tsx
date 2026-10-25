@@ -400,6 +400,7 @@ export default function BingoGame() {
       const allSrcs = [
         ...Array.from({ length: 75 }, (_, i) => getAudioSrc(i + 1)),
         '/audio/bingo/bingo_win.mp3',
+        '/audio/bingo/game_start.mp3',
       ];
       for (let i = 0; i < allSrcs.length; i += 4) {
         if (cancel) break;
@@ -800,21 +801,18 @@ export default function BingoGame() {
   const lastNum = called.length > 0 ? Number(called[called.length - 1]) : null;
 
 
-  // Play game_start.mp3 once when game transitions to calling (before first ball)
+  // Play game_start.mp3 immediately as soon as game hits Ready (timeLeft === 0) or transitions to 'calling'
   useEffect(() => {
-    const status = game?.status ?? null;
-    const gid = String(game?.id ?? "");
-    if (status === "calling" && prevStatusRef.current !== "calling" && soundEnabled && introPlayedRef.current !== gid) {
+    if (!game) return;
+    const gid = String(game.id || '');
+    const calledCount = (game.called_numbers || []).length;
+    const isReadyOrCalling = (game.status === 'calling' && calledCount === 0) || (game.status === 'waiting' && timeLeft === 0);
+
+    if (isReadyOrCalling && soundEnabled && introPlayedRef.current !== gid) {
       introPlayedRef.current = gid;
-      try {
-        const a = new Audio("/audio/bingo/game_start.mp3");
-        a.volume = 1.0;
-        a.play().catch(() => {});
-      } catch {}
+      playSpecial('game_start');
     }
-    prevStatusRef.current = status;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [game?.status, game?.id, soundEnabled]);
+  }, [game?.status, game?.id, game?.called_numbers, timeLeft, soundEnabled, playSpecial]);
 
   useEffect(() => {
     if (game?.status === 'calling' && called.length > prevCalledLenRef.current) {
