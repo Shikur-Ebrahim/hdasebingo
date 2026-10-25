@@ -147,6 +147,24 @@ router.get('/current', validateTelegramAuth, async (req: AuthRequest, res) => {
     }
   }
 
+  // Fetch live statuses of all stakes in this room (for live monitor & spectator stake switcher)
+  let room_stakes: Array<{ stake: number; status: string; prize_pool: number; total_players: number }> = [];
+  if (roomId) {
+    const { data: activeGames } = await supabase
+      .from('bingo_games')
+      .select('stake, status, prize_pool, total_players')
+      .eq('room_id', roomId)
+      .in('status', ['waiting', 'calling']);
+    if (activeGames) {
+      room_stakes = activeGames.map((g: any) => ({
+        stake: Number(g.stake),
+        status: g.status,
+        prize_pool: Number(g.prize_pool || 0),
+        total_players: Number(g.total_players || 0),
+      }));
+    }
+  }
+
   res.json({
     game,
     last_finished_game,
@@ -155,6 +173,7 @@ router.get('/current', validateTelegramAuth, async (req: AuthRequest, res) => {
     unique_players,
     my_card,
     my_cartelas,
+    room_stakes,
     max_players: cfg.max_players,
     max_cartelas_per_user: cfg.max_cartelas_per_user
   });

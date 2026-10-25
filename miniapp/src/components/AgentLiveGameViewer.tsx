@@ -158,6 +158,7 @@ export default function AgentLiveGameViewer({
   const [game, setGame] = useState<BGame | null>(null);
   const [takenCartelas, setTakenCartelas] = useState<number[]>([]);
   const [cartelaMatrices, setCartelaMatrices] = useState<Record<number, number[][]>>({});
+  const [stakeStatuses, setStakeStatuses] = useState<Record<number, { status: string; players: number; pool: number }>>({});
 
   // Default sound is ON (matching BingoGame.tsx and persisted to localStorage)
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
@@ -454,6 +455,19 @@ export default function AgentLiveGameViewer({
           const matrices: Record<number, number[][]> = data.cartela_matrices || {};
           setCartelaMatrices(matrices);
 
+          // Update live statuses across all stakes in this room
+          if (Array.isArray(data.room_stakes)) {
+            const map: Record<number, { status: string; players: number; pool: number }> = {};
+            data.room_stakes.forEach((s: any) => {
+              map[Number(s.stake)] = {
+                status: s.status,
+                players: Number(s.total_players || 0),
+                pool: Number(s.prize_pool || 0),
+              };
+            });
+            setStakeStatuses((prev) => ({ ...prev, ...map }));
+          }
+
           // ── Trigger celebration from last_finished_game ──
           const fg = data.last_finished_game;
           if (
@@ -511,17 +525,42 @@ export default function AgentLiveGameViewer({
     [selectedStake, roomId, playCallAudio, triggerCelebration]
   );
 
+  // Fetch all pools for this room to detect live/active games on other stakes
+  const fetchAllPools = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/bingo/pools?room=${roomId}`, {
+        headers: getHeaders(),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.pools)) {
+          const map: Record<number, { status: string; players: number; pool: number }> = {};
+          data.pools.forEach((p: any) => {
+            map[Number(p.stake)] = {
+              status: p.status,
+              players: Number(p.unique_players || 0),
+              pool: Number(p.prize_pool || 0),
+            };
+          });
+          setStakeStatuses((prev) => ({ ...prev, ...map }));
+        }
+      }
+    } catch {}
+  }, [roomId]);
+
   // Initial fetch and poll every 1 second for live game updates
   useEffect(() => {
     prevCalledCountRef.current = 0;
     fetchLiveGame(true);
+    fetchAllPools();
 
     const interval = setInterval(() => {
       fetchLiveGame(false);
+      fetchAllPools();
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [fetchLiveGame]);
+  }, [fetchLiveGame, fetchAllPools]);
 
   // Countdown timer calculation if game is waiting with a start_at
   useEffect(() => {
@@ -668,6 +707,10 @@ export default function AgentLiveGameViewer({
         <div className="flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
           {STAKE_PRESETS.map((stk) => {
             const isActive = stk === selectedStake;
+            const stakeInfo = stakeStatuses[stk];
+            const isCalling = stakeInfo?.status === 'calling';
+            const hasWaitingPlayers = !isCalling && ((stakeInfo?.players || 0) > 0 || (stakeInfo?.pool || 0) > 0);
+
             return (
               <button
                 key={stk}
@@ -682,13 +725,42 @@ export default function AgentLiveGameViewer({
                     introPlayedRef.current = null;
                   }
                 }}
-                className={`px-3 py-1 rounded-full text-xs font-black transition-all active:scale-95 ${
+                className={`relative px-3 py-1 rounded-full text-xs font-black transition-all active:scale-95 flex items-center gap-1.5 shrink-0 ${
                   isActive
                     ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-xs ring-1 ring-amber-500/40'
+                    : isCalling
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-500/30 border border-emerald-400'
+                    : hasWaitingPlayers
+                    ? 'bg-emerald-50 text-emerald-800 border-2 border-emerald-400 shadow-2xs'
                     : 'bg-white text-slate-600 border border-slate-200/90 hover:bg-slate-50'
                 }`}
               >
-                {stk} ETB
+                {/* Live pulsing dot indicator */}
+                {!isActive && isCalling && (
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                  </span>
+                )}
+                {!isActive && !isCalling && hasWaitingPlayers && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                )}
+
+                <span>{stk} ETB</span>
+
+                {/* Green LIVE badge for calling game */}
+                {!isActive && isCalling && (
+                  <span className="text-[8px] bg-white text-emerald-800 px-1 py-0.5 rounded-full font-black uppercase tracking-wider leading-none shadow-xs">
+                    LIVE
+                  </span>
+                )}
+
+                {/* Player count badge when waiting with players */}
+                {!isActive && !isCalling && hasWaitingPlayers && (
+                  <span className="text-[8px] bg-emerald-100 text-emerald-800 px-1 py-0.5 rounded-full font-black uppercase tracking-wider leading-none border border-emerald-300">
+                    {stakeInfo.players}P
+                  </span>
+                )}
               </button>
             );
           })}
