@@ -391,7 +391,7 @@ export default function BingoGame() {
     };
   }, [unlockAudio]);
 
-  // â”€â”€ RAW ARRAYBUFFER CACHE: fetched at startup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- RAW ARRAYBUFFER CACHE: fetched at startup ------------------
   const rawBufferCache = useRef<Map<string, ArrayBuffer>>(new Map());
 
   useEffect(() => {
@@ -442,7 +442,7 @@ export default function BingoGame() {
     });
   }, []);
 
-  // â”€â”€ CORE WEBAUDIO PLAYER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- CORE WEBAUDIO PLAYER ------------------------
   const playViaWebAudio = useCallback(async (src: string, customGain?: number, isSpecial: boolean = false): Promise<boolean> => {
     try {
       if (!audioCtxRef.current) {
@@ -511,7 +511,7 @@ export default function BingoGame() {
     }
   }, [volume, decodeAudio]);
 
-  // â”€â”€ CALLER SOUND â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- CALLER SOUND -------------------------------------------------------------
   const playCallAudio = useCallback((num: number) => {
     if (!soundEnabled) return;
     const cleanNum = Number(num);
@@ -546,7 +546,7 @@ export default function BingoGame() {
     }
   }, [soundEnabled, volume, unlockAudio, playViaWebAudio]);
 
-  // â”€â”€ CELEBRATION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- CELEBRATION --------------------------------------------------------------------------
   // Plays ONLY the "Bingo!" announcement voice (/audio/bingo/bingo_win.mp3).
   // Immediately stops all other sounds so Bingo! is crystal clear with zero overlap.
   const playSpecial = useCallback((name: string = 'bingo_win') => {
@@ -985,7 +985,7 @@ export default function BingoGame() {
     </div>
   );
 
-  // â”€â”€ 1. ROOMS SELECTION SCREEN (Shown before stake is chosen) â”€â”€
+  // -- 1. ROOMS SELECTION SCREEN (Shown before stake is chosen) --
   if (!selectedRoomId) {
     return (
       <div className="h-[calc(100dvh-80px)] w-full bg-white flex flex-col select-none overflow-hidden relative" onClick={initWebAudio}>
@@ -1066,7 +1066,7 @@ export default function BingoGame() {
                   }`}
                 >
                   <span>
-                    {BINGO_FILTER_OPTIONS.find(o => o.key === roomSortFilter)?.icon ?? 'ðŸ”½'}
+                    {BINGO_FILTER_OPTIONS.find(o => o.key === roomSortFilter)?.icon ?? '\ud83d\udd3d'}
                   </span>
                   <ChevronDown size={12} className={showFilterDropdown ? 'rotate-180 transition-transform' : 'transition-transform'} />
                 </button>
@@ -1208,11 +1208,11 @@ export default function BingoGame() {
                       <div className="h-20 bg-black flex flex-col items-center justify-center relative px-2.5 text-center">
                         {isInvitedRoom ? (
                           <div className="absolute top-2 left-2 flex items-center justify-center bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[10px] w-5 h-5 rounded-full shadow-sm">
-                            <span>â­</span>
+                            <span>\u2b50</span>
                           </div>
                         ) : room.is_pinned ? (
                           <div className="absolute top-2 left-2 flex items-center justify-center bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 text-[10px] w-5 h-5 rounded-full shadow-sm">
-                            <span>ðŸ“Œ</span>
+                            <span>\ud83d\udccc</span>
                           </div>
                         ) : null}
                         <div className="absolute top-2 right-2 flex items-center space-x-1 bg-white/10 px-1.5 py-0.5 rounded-full">
@@ -1244,7 +1244,7 @@ export default function BingoGame() {
                       <div className="p-2 text-center bg-white">
                         <div className="w-full bg-slate-100 hover:bg-amber-500 hover:text-white text-slate-700 font-black py-2 rounded-xl text-[11px] transition-colors flex items-center justify-center space-x-1 shadow-2xs">
                           <span>{language === 'am' ? 'áŠ­ááˆ á‹­áŒá‰¡' : 'Join Room'}</span>
-                          <span>â†’</span>
+                          <span>\u2192</span>
                         </div>
                       </div>
                     </div>
@@ -1258,7 +1258,7 @@ export default function BingoGame() {
     );
   }
 
-  // â”€â”€ 2. STAKE SELECTION SCREEN (Shown AFTER room is selected) â”€â”€
+  // -- 2. STAKE SELECTION SCREEN (Shown AFTER room is selected) --
   if (!selectedStake) {
     return (
       <div className="h-[calc(100dvh-80px)] w-full bg-white flex flex-col select-none overflow-hidden relative" onClick={initWebAudio}>
@@ -1320,7 +1320,7 @@ export default function BingoGame() {
                   {selectedRoom?.room_name || 'Active Room'}
                 </h3>
                 <p className="text-[9px] text-slate-500 font-semibold mt-0.5">
-                  ðŸ‘¥ {selectedRoom?.total_players || 0} {language === 'am' ? 'á‰°áŒ«á‹‹á‰¾á‰½' : 'players'} â€¢ ðŸŽ® {selectedRoom?.total_games || 0} {language === 'am' ? 'áŒ¨á‹‹á‰³á‹Žá‰½' : 'games'}
+                  \ud83d\udc65 {selectedRoom?.total_players || 0} {language === 'am' ? '\u1270\u132b\u12cb\u127e\u127d' : 'players'} \u2022 \ud83c\udfae {selectedRoom?.total_games || 0} {language === 'am' ? '\u1328\u12cb\u1273\u12c8\u127d' : 'games'}
                 </p>
               </div>
             </div>
@@ -1395,7 +1395,7 @@ export default function BingoGame() {
                   {/* Bottom: Action */}
                   <div className="w-full h-[30px] flex items-center justify-center relative z-10 bg-white">
                     {isWaiting ? (
-                      <span className="text-orange-500 text-[9px] font-black uppercase tracking-wider flex items-center gap-1">ðŸ”¥ {t[language].bingo.joinNow}</span>
+                      <span className="text-orange-500 text-[9px] font-black uppercase tracking-wider flex items-center gap-1">\ud83d\udd25 {t[language].bingo.joinNow}</span>
                     ) : (
                       <span className="text-slate-400 text-[9px] font-bold uppercase tracking-wider">{t[language].bingo.startMatch}</span>
                     )}
@@ -1423,7 +1423,7 @@ export default function BingoGame() {
 
   if (!game) return (
     <div className="h-[calc(100dvh-80px)] w-full bg-gradient-to-b from-[#fffbf0] via-[#fef3c7]/30 to-[#fffbf0] flex flex-col items-center justify-center text-slate-800 gap-4">
-      <div className="w-16 h-16 rounded-3xl bg-white border-2 border-amber-300 shadow-md flex items-center justify-center text-3xl">ðŸŽ±</div>
+      <div className="w-16 h-16 rounded-3xl bg-white border-2 border-amber-300 shadow-md flex items-center justify-center text-3xl">\ud83c\udfb1</div>
       <p className="font-black text-lg text-slate-800">{t[language].bingo.preparingNext}</p>
       <button onClick={fetchState} className="px-8 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-black rounded-full text-sm shadow-md active:scale-95 transition-transform">{t[language].bingo.refresh}</button>
       <button onClick={() => setSelectedStake(null)} className="text-slate-400 text-xs underline mt-1">{t[language].bingo.changeStake}</button>
@@ -1673,7 +1673,7 @@ export default function BingoGame() {
                 {/* Overlay Text */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-xs z-10">
                   <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mb-3 border border-red-500/30">
-                    <span className="text-xl animate-pulse">â³</span>
+                    <span className="text-xl animate-pulse">\u23f3</span>
                   </div>
                   <h3 className="text-red-400 font-black text-lg uppercase tracking-widest mb-1 drop-shadow-sm">Match is active</h3>
                   <p className="text-white text-[10px] font-bold text-center px-4 leading-relaxed uppercase tracking-wider">
@@ -1835,10 +1835,10 @@ export default function BingoGame() {
                               <DoorOpen size={13} className={isCurrent ? 'text-amber-600' : 'text-slate-400'} />
                               <div className="truncate">
                                 <div className="flex items-center space-x-1">
-                                  {r.is_pinned && <span className="text-[10px]">ðŸ“Œ</span>}
+                                  {r.is_pinned && <span className="text-[10px]">\ud83d\udccc</span>}
                                   <p className="font-black text-xs truncate leading-tight">{r.room_name}</p>
                                 </div>
-                                <p className="text-[9px] text-slate-400 font-semibold leading-none mt-0.5">ðŸ‘¥ {r.total_players || 0}</p>
+                                <p className="text-[9px] text-slate-400 font-semibold leading-none mt-0.5">\ud83d\udc65 {r.total_players || 0}</p>
                               </div>
                             </div>
                             {isCurrent && <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 ml-1.5" />}
@@ -1926,9 +1926,9 @@ export default function BingoGame() {
       {celebration && (
         <div className="absolute inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white border-2 border-amber-300 rounded-3xl p-4 text-center max-w-sm w-full shadow-2xl flex flex-col items-center relative">
-            {/* â”€â”€ REMATCH â”€â”€ */}
+            {/* -- REMATCH -- */}
             {celebration.winner_name === 'REMATCH' ? (<>
-              <div className="text-5xl mb-2 animate-spin">ðŸ”„</div>
+              <div className="text-5xl mb-2 animate-spin">\ud83d\udd04</div>
               <h2 className="text-3xl font-black text-orange-500 mb-2">{t[language].bingo.rematch}</h2>
               <div className="bg-amber-50/80 rounded-2xl p-3 mb-3 w-full border border-amber-200">
                 <p className="text-orange-600 font-black text-sm mb-1">{t[language].bingo.tieDesc}</p>
@@ -1936,7 +1936,7 @@ export default function BingoGame() {
                 <p className="text-slate-400 text-xs mt-1 font-semibold">{t[language].bingo.newGameStarts}</p>
               </div>
 
-            {/* â”€â”€ 2-WAY TIEðŸŒŸ */}
+            {/* -- 2-WAY TIE\u2b50 */}
               </>) : celebration.winner_name.includes(' & ') ? (<>
                 <h2 className="text-xl font-black text-amber-700 mb-1">{t[language].bingo.tieTitle}</h2>
                 <div className="mb-2 inline-block bg-emerald-100 text-emerald-800 px-3.5 py-1 rounded-full font-black text-sm border border-emerald-300 shadow-2xs">
@@ -1993,11 +1993,11 @@ export default function BingoGame() {
                 
                 <p className="text-slate-400 text-[10px] font-black uppercase tracking-wider animate-pulse">{t[language].bingo.returning}</p>
   
-              {/* ðŸŒŸ  â”€â”€ */}
+              {/* \u2b50  -- */}
             </>) : (<>
               {/* Trophy + BINGO label - NO overlap */}
               <div className="flex flex-col items-center mb-3">
-                <div className="text-5xl mb-1 animate-bounce">ðŸ†</div>
+                <div className="text-5xl mb-1 animate-bounce">\ud83c\udfc6</div>
                 <div className="bg-amber-400 text-amber-950 px-7 py-1.5 rounded-full font-black text-2xl tracking-widest shadow-md">
                   BINGO!
                 </div>
@@ -2009,7 +2009,7 @@ export default function BingoGame() {
                 <p className="text-slate-900 font-black text-2xl leading-tight">{celebration.winner_name}</p>
                 <p className="text-amber-700 text-xs font-bold mt-0.5 flex items-center justify-center gap-1.5"><LayoutGrid size={12} className="text-amber-500 shrink-0" /> {t[language].bingo.cartelaNum.trim()} {celebration.winner_cartela}</p>
                 <div className="mt-2 inline-block bg-emerald-500 text-white px-6 py-1.5 rounded-full font-black text-lg shadow-[0_4px_16px_rgba(16,185,129,0.4)]">
-                  ðŸŽ‰ {celebration.winner_prize} ETB
+                  \ud83c\udf89 {celebration.winner_prize} ETB
                 </div>
               </div>
 
@@ -2049,7 +2049,7 @@ export default function BingoGame() {
                     </div>
                     {/* Cartela label + Winning Rule Tag */}
                     <div className="py-2 px-3 flex items-center justify-between bg-white border-t border-amber-200">
-                      <p className="text-amber-800 font-black text-[11px] tracking-wider uppercase flex items-center gap-1.5"><LayoutGrid size={13} className="text-amber-500" /> CARTELA {celebration.winner_cartela}</p>
+                      <p className="text-amber-800 font-black text-[11px] tracking-wider uppercase flex items-center gap-1.5"><LayoutGrid size={13} className="text-amber-500" /> {t[language].bingo.cartelaNum.trim()} {celebration.winner_cartela}</p>
                       <span className="text-emerald-700 text-[10px] font-black uppercase tracking-wider bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300 shadow-2xs">
                         {winTitle}
                       </span>
@@ -2058,7 +2058,7 @@ export default function BingoGame() {
                 );
               })() : (
                 <div className="w-full bg-amber-50/80 rounded-2xl p-4 mb-3 border border-amber-200 flex flex-col items-center">
-                  <div className="animate-spin text-2xl mb-1">â³</div>
+                  <div className="animate-spin text-2xl mb-1">\u23f3</div>
                   <p className="text-amber-800 text-xs font-bold">Loading winning cartela...</p>
                 </div>
               )}
