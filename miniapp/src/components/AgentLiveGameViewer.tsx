@@ -23,6 +23,7 @@ import {
   Users,
   Sparkles,
   Gamepad2,
+  RotateCcw,
   X,
 } from 'lucide-react';
 
@@ -144,6 +145,7 @@ interface CelebrationState {
   winner_prize: number;
   winner_matrix: number[][] | null;
   called: number[];
+  winners_list?: any[];
 }
 
 export default function AgentLiveGameViewer({
@@ -156,7 +158,16 @@ export default function AgentLiveGameViewer({
   const [game, setGame] = useState<BGame | null>(null);
   const [takenCartelas, setTakenCartelas] = useState<number[]>([]);
   const [cartelaMatrices, setCartelaMatrices] = useState<Record<number, number[][]>>({});
-  const [soundEnabled, setSoundEnabled] = useState(false);
+
+  // Default sound is ON (matching BingoGame.tsx and persisted to localStorage)
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('bingo_sound') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+
   const [loading, setLoading] = useState(true);
   const [copiedLink, setCopiedLink] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -164,9 +175,19 @@ export default function AgentLiveGameViewer({
   const [celebration, setCelebration] = useState<CelebrationState | null>(null);
 
   const prevCalledCountRef = useRef(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const celebrationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const celebratedGamesRef = useRef<Set<string>>(new Set());
+  const introPlayedRef = useRef<string | null>(null);
+  const prevCountdownRef = useRef<number | null>(null);
+  const prevGameStatusRef = useRef<string | null>(null);
+
+  // ── Web Audio + HTML5 Audio Pipeline (mirrored from BingoGame.tsx) ─────────
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioBufferCache = useRef<Map<string, AudioBuffer>>(new Map());
+  const rawBufferCache = useRef<Map<string, ArrayBuffer>>(new Map());
+  const activeCallSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const activeSpecialSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const htmlAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const haptic = (style: 'light' | 'medium' | 'heavy' = 'light') => {
     if (typeof WebApp !== 'undefined' && WebApp.HapticFeedback) {
@@ -174,79 +195,321 @@ export default function AgentLiveGameViewer({
     }
   };
 
+  const unlockAudio = useCallback(() => {
+    try {
+      const AC = window.AudioContext || (window as any).webkitAudioContext;
+      if (!audioCtxRef.current && AC) {
+        audioCtxRef.current = new AC();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx) {
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
+        }
+        if (ctx.state === 'running') {
+          const buffer = ctx.createBuffer(1, 1, 22050);
+          const source = ctx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(ctx.destination);
+          source.start(0);
+        }
+      }
+    } catch {}
+  }, []);
+
+  // Unlock on user interactions
+  useEffect(() => {
+    const handleGesture = () => unlockAudio();
+    window.addEventListener('pointerdown', handleGesture, { passive: true });
+    window.addEventListener('touchstart', handleGesture, { passive: true });
+    window.addEventListener('touchend', handleGesture, { passive: true });
+    window.addEventListener('click', handleGesture, { passive: true });
+    return () => {
+      window.removeEventListener('pointerdown', handleGesture);
+      window.removeEventListener('touchstart', handleGesture);
+      window.removeEventListener('touchend', handleGesture);
+      window.removeEventListener('click', handleGesture);
+    };
+  }, [unlockAudio]);
+
+  // Preload audio files
+  useEffect(() => {
+    let cancel = false;
+    const preload = async () => {
+      const allSrcs = [
+        ...Array.from({ length: 75 }, (_, i) => `/audio/bingo/bingo_${String(i + 1).padStart(2, '0')}.mp3`),
+        '/audio/bingo/bingo_win.mp3',
+        '/audio/bingo/game_start.mp3',
+      ];
+      for (let i = 0; i < allSrcs.length; i += 4) {
+        if (cancel) break;
+        await Promise.all(
+          allSrcs.slice(i, i + 4).map(async (src) => {
+            if (rawBufferCache.current.has(src)) return;
+            try {
+              const res = await fetch(src);
+              if (res.ok) rawBufferCache.current.set(src, await res.arrayBuffer());
+            } catch {}
+          })
+        );
+        await new Promise(r => setTimeout(r, 40));
+      }
+    };
+    preload();
+    return () => { cancel = true; };
+  }, []);
+
+  const decodeAudio = useCallback((ctx: AudioContext, buffer: ArrayBuffer): Promise<AudioBuffer> => {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      try {
+        const res = ctx.decodeAudioData(
+          buffer,
+          (buf) => { if (!settled) { settled = true; resolve(buf); } },
+          (err) => { if (!settled) { settled = true; reject(err); } }
+        );
+        if (res && typeof (res as any).then === 'function') {
+          (res as any).then(
+            (buf: AudioBuffer) => { if (!settled) { settled = true; resolve(buf); } },
+            (err: any) => { if (!settled) { settled = true; reject(err); } }
+          );
+        }
+      } catch (e) {
+        if (!settled) { settled = true; reject(e); }
+      }
+    });
+  }, []);
+
+  const playViaWebAudio = useCallback(async (src: string, isSpecial = false): Promise<boolean> => {
+    try {
+      if (!audioCtxRef.current) {
+        const AC = window.AudioContext || (window as any).webkitAudioContext;
+        if (AC) audioCtxRef.current = new AC();
+      }
+      const ctx = audioCtxRef.current;
+      if (!ctx) return false;
+      if (ctx.state === 'suspended') await ctx.resume();
+
+      if (activeCallSourceRef.current) {
+        try {
+          activeCallSourceRef.current.stop();
+          activeCallSourceRef.current.disconnect();
+        } catch {}
+        activeCallSourceRef.current = null;
+      }
+      if (isSpecial && activeSpecialSourceRef.current) {
+        try {
+          activeSpecialSourceRef.current.stop();
+          activeSpecialSourceRef.current.disconnect();
+        } catch {}
+        activeSpecialSourceRef.current = null;
+      }
+
+      let audioBuf = audioBufferCache.current.get(src);
+      if (!audioBuf) {
+        let raw = rawBufferCache.current.get(src);
+        if (!raw) {
+          const res = await fetch(src);
+          if (!res.ok) return false;
+          raw = await res.arrayBuffer();
+          rawBufferCache.current.set(src, raw);
+        }
+        audioBuf = await decodeAudio(ctx, raw.slice(0));
+        audioBufferCache.current.set(src, audioBuf);
+      }
+
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuf;
+      source.connect(ctx.destination);
+
+      if (isSpecial) {
+        activeSpecialSourceRef.current = source;
+      } else {
+        activeCallSourceRef.current = source;
+      }
+
+      source.onended = () => {
+        if (isSpecial && activeSpecialSourceRef.current === source) activeSpecialSourceRef.current = null;
+        if (!isSpecial && activeCallSourceRef.current === source) activeCallSourceRef.current = null;
+      };
+
+      source.start(0);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [decodeAudio]);
+
+  const playSpecial = useCallback((name: string = 'bingo_win') => {
+    if (!soundEnabled) return;
+    const src = `/audio/bingo/${name}.mp3`;
+    unlockAudio();
+
+    if (activeCallSourceRef.current) {
+      try {
+        activeCallSourceRef.current.stop();
+        activeCallSourceRef.current.disconnect();
+      } catch {}
+      activeCallSourceRef.current = null;
+    }
+    if (htmlAudioRef.current) {
+      try {
+        htmlAudioRef.current.pause();
+        htmlAudioRef.current.currentTime = 0;
+      } catch {}
+    }
+
+    if (audioCtxRef.current && audioCtxRef.current.state === 'running') {
+      playViaWebAudio(src, true);
+      return;
+    }
+
+    try {
+      const audio = new Audio(src);
+      htmlAudioRef.current = audio;
+      audio.play().catch(() => {
+        playViaWebAudio(src, true);
+      });
+    } catch {
+      playViaWebAudio(src, true);
+    }
+  }, [soundEnabled, unlockAudio, playViaWebAudio]);
+
+  const playCallAudio = useCallback((num: number) => {
+    if (!soundEnabled) return;
+    const cleanNum = Number(num);
+    if (!cleanNum || isNaN(cleanNum) || cleanNum < 1 || cleanNum > 75) return;
+
+    const src = `/audio/bingo/bingo_${String(cleanNum).padStart(2, '0')}.mp3`;
+    unlockAudio();
+
+    if (audioCtxRef.current && audioCtxRef.current.state === 'running') {
+      playViaWebAudio(src, false);
+      return;
+    }
+
+    try {
+      if (htmlAudioRef.current) {
+        htmlAudioRef.current.pause();
+      }
+      const audio = new Audio(src);
+      htmlAudioRef.current = audio;
+      audio.play().catch(() => {
+        playViaWebAudio(src, false);
+      });
+    } catch {
+      playViaWebAudio(src, false);
+    }
+  }, [soundEnabled, unlockAudio, playViaWebAudio]);
+
+  const toggleSound = useCallback(() => {
+    haptic('light');
+    setSoundEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('bingo_sound', String(next));
+      } catch {}
+      if (next) unlockAudio();
+      return next;
+    });
+  }, [unlockAudio]);
+
+  const triggerCelebration = useCallback(
+    (data: {
+      winner_name: string;
+      winner_cartela: number;
+      winner_prize: number;
+      winner_matrix: number[][] | null;
+      called: number[];
+      winners_list?: any[];
+    }) => {
+      setCelebration(data);
+      playSpecial('bingo_win');
+      if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
+      celebrationTimerRef.current = setTimeout(() => {
+        setCelebration(null);
+      }, 8000);
+    },
+    [playSpecial]
+  );
+
   const getHeaders = () => {
     const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
     return { 'x-telegram-init-data': initData };
   };
 
-  // Play audio when sound is enabled
-  const playBallAudio = useCallback((num: number) => {
-    if (!soundEnabled) return;
-    try {
-      const src = `/audio/bingo/bingo_${String(num).padStart(2, '0')}.mp3`;
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
-      const audio = new Audio(src);
-      audioRef.current = audio;
-      audio.play().catch(() => {});
-    } catch {}
-  }, [soundEnabled]);
-
   // Fetch current live game for the selected stake & room
-  const fetchLiveGame = useCallback(async (isInitial = false) => {
-    try {
-      if (isInitial) setLoading(true);
-      const res = await fetch(`${API}/bingo/current?stake=${selectedStake}&room=${roomId}`, {
-        headers: getHeaders(),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const g: BGame | null = data.game || null;
-        setGame(g);
-        setTakenCartelas(Array.isArray(data.taken_cartelas) ? data.taken_cartelas : []);
-        const matrices: Record<number, number[][]> = data.cartela_matrices || {};
-        setCartelaMatrices(matrices);
+  const fetchLiveGame = useCallback(
+    async (isInitial = false) => {
+      try {
+        if (isInitial) setLoading(true);
+        const res = await fetch(`${API}/bingo/current?stake=${selectedStake}&room=${roomId}`, {
+          headers: getHeaders(),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const g: BGame | null = data.game || null;
+          setGame(g);
+          setTakenCartelas(Array.isArray(data.taken_cartelas) ? data.taken_cartelas : []);
+          const matrices: Record<number, number[][]> = data.cartela_matrices || {};
+          setCartelaMatrices(matrices);
 
-        // ── Trigger celebration from last_finished_game (API returns it for 6s after game ends) ──
-        const fg = data.last_finished_game;
-        if (
-          fg?.id &&
-          fg.winner_cartela != null &&
-          !celebratedGamesRef.current.has(fg.id)
-        ) {
-          celebratedGamesRef.current.add(fg.id);
-          // winner_matrix is injected by API into last_finished_game
-          const winnerMatrix: number[][] | null =
-            fg.winner_matrix ?? matrices[fg.winner_cartela] ?? null;
-          setCelebration({
-            winner_name: fg.winner_first_name || 'Winner',
-            winner_cartela: fg.winner_cartela,
-            winner_prize: fg.winner_prize || 0,
-            winner_matrix: winnerMatrix,
-            called: fg.called_numbers || [],
-          });
-          if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
-          celebrationTimerRef.current = setTimeout(() => setCelebration(null), 8000);
-        }
-
-        // Check for newly called balls to play sound
-        const newCalledLen = g?.called_numbers?.length || 0;
-        if (newCalledLen > prevCalledCountRef.current && g?.called_numbers) {
-          const latestBall = g.called_numbers[g.called_numbers.length - 1];
-          if (latestBall) {
-            playBallAudio(latestBall);
-            haptic('light');
+          // ── Trigger celebration from last_finished_game ──
+          const fg = data.last_finished_game;
+          if (
+            fg?.id &&
+            fg.winner_cartela != null &&
+            !celebratedGamesRef.current.has(fg.id)
+          ) {
+            celebratedGamesRef.current.add(fg.id);
+            const winnerMatrix: number[][] | null =
+              fg.winner_matrix ?? matrices[fg.winner_cartela] ?? null;
+            triggerCelebration({
+              winner_name: fg.winner_first_name || 'Winner',
+              winner_cartela: fg.winner_cartela,
+              winner_prize: fg.winner_prize || 0,
+              winner_matrix: winnerMatrix,
+              called: fg.called_numbers || [],
+              winners_list: fg.winners_list,
+            });
+          } else if (
+            g?.status === 'finished' &&
+            g.id &&
+            g.winner_cartela != null &&
+            !celebratedGamesRef.current.has(g.id)
+          ) {
+            celebratedGamesRef.current.add(g.id);
+            const winnerMatrix: number[][] | null =
+              matrices[g.winner_cartela] ?? null;
+            triggerCelebration({
+              winner_name: g.winner_first_name || 'Winner',
+              winner_cartela: g.winner_cartela,
+              winner_prize: g.winner_prize || 0,
+              winner_matrix: winnerMatrix,
+              called: g.called_numbers || [],
+              winners_list: (g as any).winners_list,
+            });
           }
+
+          // Check for newly called balls to play sound
+          const newCalledLen = g?.called_numbers?.length || 0;
+          if (!isInitial && newCalledLen > prevCalledCountRef.current && g?.called_numbers) {
+            const latestBall = g.called_numbers[g.called_numbers.length - 1];
+            if (latestBall) {
+              playCallAudio(latestBall);
+              haptic('light');
+            }
+          }
+          prevCalledCountRef.current = newCalledLen;
         }
-        prevCalledCountRef.current = newCalledLen;
+      } catch (err) {
+        console.error('Error fetching live game:', err);
+      } finally {
+        if (isInitial) setLoading(false);
       }
-    } catch (err) {
-      console.error('Error fetching live game:', err);
-    } finally {
-      if (isInitial) setLoading(false);
-    }
-  }, [selectedStake, roomId, playBallAudio]);
+    },
+    [selectedStake, roomId, playCallAudio, triggerCelebration]
+  );
 
   // Initial fetch and poll every 1 second for live game updates
   useEffect(() => {
@@ -281,6 +544,37 @@ export default function AgentLiveGameViewer({
     const t = setInterval(updateTimer, 500);
     return () => clearInterval(t);
   }, [game]);
+
+  // ── Start Audio Trigger (game_start.mp3) ───────────────────────────────────
+  // Plays when countdown reaches 0s or when game enters 'calling' before balls are called
+  useEffect(() => {
+    if (!game) return;
+    if (!soundEnabled) return;
+
+    const gid = String(game.id || '');
+    if (introPlayedRef.current === gid) return;
+
+    const calledCount = (game.called_numbers || []).length;
+    const isCountingDownToZero =
+      game.status === 'waiting' &&
+      countdown === 0 &&
+      prevCountdownRef.current !== null &&
+      prevCountdownRef.current > 0 &&
+      prevCountdownRef.current <= 10;
+
+    const isTransitionToCalling =
+      game.status === 'calling' &&
+      calledCount === 0 &&
+      prevGameStatusRef.current === 'waiting';
+
+    if (isCountingDownToZero || isTransitionToCalling) {
+      introPlayedRef.current = gid;
+      playSpecial('game_start');
+    }
+
+    prevCountdownRef.current = countdown;
+    prevGameStatusRef.current = game.status;
+  }, [game?.status, game?.id, game?.called_numbers, countdown, soundEnabled, playSpecial]);
 
   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'hdasebingo_bot';
   const shareLink = `https://t.me/${botUsername}?start=room_${roomId}`;
@@ -318,18 +612,19 @@ export default function AgentLiveGameViewer({
               haptic('light');
               onClose();
             }}
-            className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 hover:text-slate-900 active:scale-95 transition-all"
+            className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700 active:scale-95 transition-all"
+            title="Back to Agent Panel"
           >
             <ArrowLeft size={16} />
           </button>
           <div>
             <div className="flex items-center space-x-1.5">
-              <h1 className="text-sm font-black text-slate-900 leading-tight">
-                {roomName || 'Agent Room'}
-              </h1>
-              <span className="flex items-center gap-1 text-[9px] font-black px-1.5 py-0.2 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <h2 className="font-black text-sm text-slate-900 tracking-tight">
+                {roomName || "Agent's Room"}
+              </h2>
+              <span className="flex items-center space-x-1 bg-emerald-100 text-emerald-800 text-[9px] font-black px-2 py-0.5 rounded-full border border-emerald-300">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Live Monitor
+                <span>Live Monitor</span>
               </span>
             </div>
             <p className="text-[10px] text-slate-400 font-bold">
@@ -342,10 +637,7 @@ export default function AgentLiveGameViewer({
           {/* Sound Toggle */}
           <button
             type="button"
-            onClick={() => {
-              haptic('light');
-              setSoundEnabled(!soundEnabled);
-            }}
+            onClick={toggleSound}
             className={`w-8 h-8 rounded-xl flex items-center justify-center border transition-all active:scale-95 ${
               soundEnabled
                 ? 'bg-amber-100 border-amber-300 text-amber-700 shadow-2xs'
@@ -373,23 +665,27 @@ export default function AgentLiveGameViewer({
         <span className="text-[10px] font-black text-amber-900/80 uppercase tracking-wider pl-1 shrink-0">
           Stakes:
         </span>
-        <div className="flex items-center gap-1.5 flex-1 justify-end">
+        <div className="flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
           {STAKE_PRESETS.map((stk) => {
-            const isSelected = selectedStake === stk;
+            const isActive = stk === selectedStake;
             return (
               <button
                 key={stk}
                 type="button"
                 onClick={() => {
-                  if (selectedStake !== stk) {
+                  if (stk !== selectedStake) {
                     haptic('light');
                     setSelectedStake(stk);
+                    setGame(null);
+                    setTakenCartelas([]);
+                    setCartelaMatrices({});
+                    introPlayedRef.current = null;
                   }
                 }}
-                className={`py-1 px-2.5 rounded-xl text-xs font-black transition-all active:scale-95 ${
-                  isSelected
-                    ? 'bg-amber-500 text-white shadow-xs scale-102 ring-2 ring-amber-300'
-                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-amber-100/60'
+                className={`px-3 py-1 rounded-full text-xs font-black transition-all active:scale-95 ${
+                  isActive
+                    ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-xs ring-1 ring-amber-500/40'
+                    : 'bg-white text-slate-600 border border-slate-200/90 hover:bg-slate-50'
                 }`}
               >
                 {stk} ETB
@@ -401,105 +697,133 @@ export default function AgentLiveGameViewer({
 
       {/* ── Full-Screen Celebration Overlay ── */}
       {celebration && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white border-2 border-amber-300 rounded-3xl p-4 text-center max-w-sm w-full shadow-2xl flex flex-col items-center relative my-auto">
+        <div
+          className="absolute inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-sm overflow-y-auto"
+          onClick={() => setCelebration(null)}
+        >
+          <div
+            className="bg-white border-2 border-amber-300 rounded-3xl p-4 text-center max-w-sm w-full shadow-2xl flex flex-col items-center relative my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Dismiss button */}
             <button
               type="button"
               onClick={() => setCelebration(null)}
-              className="absolute top-3 right-3 w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 active:scale-90 transition-all"
+              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-sm font-black active:scale-90 transition-all z-20 cursor-pointer shadow-xs"
+              title="Close"
             >
-              <X size={14} />
+              <X size={16} className="text-slate-500" />
             </button>
 
-            {/* Trophy + BINGO! badge */}
-            <div className="flex flex-col items-center mb-3">
-              <div className="text-5xl mb-1 animate-bounce">🏆</div>
-              <div className="bg-amber-400 text-amber-950 px-7 py-1.5 rounded-full font-black text-2xl tracking-widest shadow-md">
-                BINGO!
-              </div>
-            </div>
-
-            {/* Winner info card */}
-            <div className="w-full bg-amber-50/80 rounded-2xl p-3 mb-3 border border-amber-200/80 shadow-sm">
-              <p className="text-amber-800 text-[9px] uppercase tracking-widest mb-1 font-black">WINNER</p>
-              <p className="text-slate-900 font-black text-2xl leading-tight">{celebration.winner_name}</p>
-              <p className="text-amber-700 text-xs font-bold mt-0.5 flex items-center justify-center gap-1.5">
-                <LayoutGrid size={12} className="text-amber-500 shrink-0" />
-                CARTELA {celebration.winner_cartela}
-              </p>
-              <div className="mt-2 inline-block bg-emerald-500 text-white px-6 py-1.5 rounded-full font-black text-lg shadow-[0_4px_16px_rgba(16,185,129,0.4)]">
-                🎉 {celebration.winner_prize} ETB
-              </div>
-            </div>
-
-            {/* Winner 5×5 cartela grid */}
-            {celebration.winner_matrix ? (() => {
-              const winCells = getWinningCells(celebration.winner_matrix, celebration.called);
-              const winTitle = getWinningPatternTitle(celebration.winner_matrix, celebration.called);
-              return (
-                <div className="w-full rounded-2xl overflow-hidden border-2 border-amber-300 mb-3 shadow-md bg-white">
-                  {/* B-I-N-G-O header */}
-                  <div className="grid grid-cols-5">
-                    {BINGO_LETTERS.map(l => (
-                      <div
-                        key={l}
-                        className="flex items-center justify-center py-1.5 font-black text-white text-sm"
-                        style={{ background: LETTER_BG[l] }}
-                      >
-                        {l}
-                      </div>
-                    ))}
+            {/* REMATCH */}
+            {celebration.winner_name === 'REMATCH' ? (
+              <>
+                <div className="mb-2 flex justify-center">
+                  <RotateCcw size={48} className="text-orange-500 animate-spin" />
+                </div>
+                <h2 className="text-3xl font-black text-orange-500 mb-2">REMATCH!</h2>
+                <div className="bg-amber-50/80 rounded-2xl p-3 mb-3 w-full border border-amber-200">
+                  <p className="text-orange-600 font-black text-sm mb-1">
+                    Game ended with no single winner!
+                  </p>
+                  <p className="text-slate-600 text-xs font-semibold">
+                    Stakes have been refunded.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Trophy + BINGO! badge */}
+                <div className="flex flex-col items-center mb-3">
+                  <div className="mb-1 flex justify-center">
+                    <Trophy
+                      size={52}
+                      className="text-amber-500 animate-bounce drop-shadow-md"
+                    />
                   </div>
-                  {/* Grid cells */}
-                  <div className="grid grid-cols-5 gap-[2px] p-[2px] bg-amber-50/60">
-                    {Array.from({ length: 5 }).flatMap((_, r) =>
-                      Array.from({ length: 5 }).map((_, c) => {
-                        const num = celebration.winner_matrix![r][c];
-                        const isFree = num === 0;
-                        const isWin = winCells.has(`${r}-${c}`);
-                        const isCalled = celebration.called.includes(num);
-                        return (
-                          <div
-                            key={`${r}-${c}`}
-                            className={`aspect-square flex items-center justify-center font-black text-xs rounded transition-all ${
-                              isFree
-                                ? 'bg-amber-400 text-amber-950'
-                                : isWin
-                                ? 'bg-emerald-500 text-white shadow-md ring-2 ring-amber-300 scale-105 z-10'
-                                : isCalled
-                                ? 'bg-orange-100 text-slate-800 font-bold'
-                                : 'bg-white text-slate-800 border border-slate-100'
-                            }`}
-                          >
-                            {isFree ? '★' : num}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                  {/* Footer: cartela number + pattern title */}
-                  <div className="py-2 px-3 flex items-center justify-between bg-white border-t border-amber-200">
-                    <p className="text-amber-800 font-black text-[11px] tracking-wider uppercase flex items-center gap-1.5">
-                      <LayoutGrid size={13} className="text-amber-500" />
-                      CARTELA {celebration.winner_cartela}
-                    </p>
-                    <span className="text-emerald-700 text-[10px] font-black uppercase tracking-wider bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300 shadow-sm">
-                      {winTitle}
-                    </span>
+                  <div className="bg-amber-400 text-amber-950 px-7 py-1.5 rounded-full font-black text-2xl tracking-widest shadow-md">
+                    BINGO!
                   </div>
                 </div>
-              );
-            })() : (
-              <div className="w-full bg-amber-50/80 rounded-2xl p-4 mb-3 border border-amber-200 flex flex-col items-center">
-                <div className="animate-spin text-2xl mb-1">⏳</div>
-                <p className="text-amber-800 text-xs font-bold">Loading winning cartela...</p>
-              </div>
-            )}
 
-            <p className="text-slate-400 text-[10px] font-black uppercase tracking-wider animate-pulse">
-              Next game starting soon...
-            </p>
+                {/* Winner info card */}
+                <div className="w-full bg-amber-50/80 rounded-2xl p-3 mb-3 border border-amber-200/80 shadow-2xs">
+                  <p className="text-amber-800 text-[9px] uppercase tracking-widest mb-1 font-black">
+                    WINNER
+                  </p>
+                  <p className="text-slate-900 font-black text-2xl leading-tight">
+                    {celebration.winner_name}
+                  </p>
+                  <p className="text-amber-700 text-xs font-bold mt-0.5 flex items-center justify-center gap-1.5">
+                    <LayoutGrid size={12} className="text-amber-500 shrink-0" />
+                    CARTELA {celebration.winner_cartela}
+                  </p>
+                  <div className="mt-2 inline-block bg-emerald-500 text-white px-6 py-1.5 rounded-full font-black text-lg shadow-[0_4px_16px_rgba(16,185,129,0.4)]">
+                    <Trophy size={18} className="text-amber-200 inline mr-1.5 -mt-0.5" />
+                    {celebration.winner_prize} ETB
+                  </div>
+                </div>
+
+                {/* Winner 5×5 cartela grid */}
+                {celebration.winner_matrix ? (() => {
+                  const winCells = getWinningCells(celebration.winner_matrix, celebration.called);
+                  const winTitle = getWinningPatternTitle(celebration.winner_matrix, celebration.called);
+                  return (
+                    <div className="w-full rounded-2xl overflow-hidden border-2 border-amber-300 mb-3 shadow-md bg-white">
+                      {/* B-I-N-G-O header */}
+                      <div className="grid grid-cols-5">
+                        {BINGO_LETTERS.map(l => (
+                          <div
+                            key={l}
+                            className="flex items-center justify-center py-1.5 font-black text-white text-sm"
+                            style={{ background: LETTER_BG[l] }}
+                          >
+                            {l}
+                          </div>
+                        ))}
+                      </div>
+                      {/* Grid cells */}
+                      <div className="grid grid-cols-5 gap-[2px] p-[2px] bg-amber-50/60">
+                        {Array.from({ length: 5 }).flatMap((_, r) =>
+                          Array.from({ length: 5 }).map((_, c) => {
+                            const num = celebration.winner_matrix![r][c];
+                            const isFree = num === 0;
+                            const isWin = winCells.has(`${r}-${c}`);
+                            const isCalled = celebration.called?.map(Number).includes(Number(num));
+                            return (
+                              <div
+                                key={`${r}-${c}`}
+                                className={`aspect-square flex items-center justify-center font-black text-xs rounded transition-all ${
+                                  isFree
+                                    ? 'bg-amber-400 text-amber-950 font-black'
+                                    : isWin
+                                    ? 'bg-emerald-500 text-white font-black shadow-md ring-2 ring-amber-300 scale-105 z-10'
+                                    : isCalled
+                                    ? 'bg-orange-100 text-slate-800 font-bold'
+                                    : 'bg-white text-slate-800 border border-slate-100'
+                                }`}
+                              >
+                                {isFree ? '★' : num}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                      {/* Footer: winning pattern banner */}
+                      <div className="bg-amber-100/90 py-1.5 px-3 flex items-center justify-center border-t border-amber-200">
+                        <span className="text-amber-900 font-black text-xs tracking-wide">
+                          {winTitle}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })() : null}
+
+                <p className="text-slate-400 text-[10px] font-black uppercase tracking-wider animate-pulse">
+                  Next game starting soon...
+                </p>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -540,32 +864,33 @@ export default function AgentLiveGameViewer({
                     WAITING
                   </span>
                 ) : (
-                  <span className="text-[9px] bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded-full font-black border border-emerald-200">
-                    ENDED
+                  <span className="text-[9px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-black border border-slate-200">
+                    FINISHED
                   </span>
                 )}
               </div>
             </div>
 
-            {/* ── 1-75 Master Tracker Board (Exact Match from Screenshot 1) ── */}
-            <div className="bg-white rounded-2xl px-2 py-2 border-2 border-amber-200/90 shadow-sm">
-              <div className="flex flex-col gap-[3px]">
-                {BINGO_LETTERS.map((letter, rowIndex) => (
-                  <div key={letter} className="flex items-center gap-1.5">
+            {/* ── 1-75 Master Board (Exact Match from Screenshot 1) ── */}
+            <div className="bg-white rounded-2xl border-2 border-amber-300 shadow-xs p-1.5 w-full">
+              <div className="flex flex-col gap-1">
+                {BINGO_LETTERS.map((letter, rowIdx) => (
+                  <div key={letter} className="flex items-center gap-1">
+                    {/* BINGO Letter Header Pill */}
                     <div
-                      className="w-4 shrink-0 flex items-center justify-center font-black text-[11px]"
+                      className="w-5 h-5 flex items-center justify-center font-black text-[11px] rounded shrink-0 select-none"
                       style={{ color: LETTER_COLOR[letter] }}
                     >
                       {letter}
                     </div>
-                    <div
-                      className="flex-1 grid gap-[2px]"
-                      style={{ gridTemplateColumns: 'repeat(15, minmax(0, 1fr))' }}
-                    >
+
+                    {/* 15 Numbers in this Row */}
+                    <div className="grid grid-cols-15 gap-[2px] flex-1">
                       {Array.from({ length: 15 }, (_, i) => {
-                        const num = rowIndex * 15 + i + 1;
+                        const num = rowIdx * 15 + i + 1;
                         const isCalled = called.includes(num);
-                        const isLatest = num === lastNum;
+                        const isLatest = lastNum === num;
+
                         return (
                           <div
                             key={num}
@@ -644,10 +969,7 @@ export default function AgentLiveGameViewer({
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => {
-                      haptic('light');
-                      setSoundEnabled(!soundEnabled);
-                    }}
+                    onClick={toggleSound}
                     className={`w-9 h-9 rounded-xl border flex items-center justify-center active:scale-90 transition-all ${
                       soundEnabled
                         ? 'bg-amber-100 border-amber-400 text-amber-700 shadow-2xs'
