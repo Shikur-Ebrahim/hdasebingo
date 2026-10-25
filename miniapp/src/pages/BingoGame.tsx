@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ChevronDown, Gift, RefreshCw, Users, Clock, Trophy, Volume2, VolumeX, RotateCcw, LayoutGrid, Wand2, Hand, DoorOpen, Gamepad2, Flame, X, Star } from "lucide-react";
 import WebApp from "@twa-dev/sdk";
@@ -845,14 +845,16 @@ export default function BingoGame() {
     if (introPlayedRef.current === gid) return;
 
     const calledCount = (game.called_numbers || []).length;
-    const isCountingDownToZero = game.status === 'waiting' && timeLeft === 0 && prevTimeLeftRef.current > 0 && prevTimeLeftRef.current <= 10;
+    const playerCount = Math.max(uniquePlayers || 0, game?.total_players || 0, taken.length || 0);
+    const hasMinPlayers = playerCount >= 2;
+    const isCountingDownToZero = hasMinPlayers && game.status === 'waiting' && timeLeft === 0 && prevTimeLeftRef.current > 0 && prevTimeLeftRef.current <= 10;
     const isJustStartingCalling = game.status === 'calling' && calledCount === 0;
 
     if (isCountingDownToZero || isJustStartingCalling) {
       introPlayedRef.current = gid;
       playSpecial('game_start');
     }
-  }, [game?.status, game?.id, game?.called_numbers, timeLeft, soundEnabled, myCartelas.length, playSpecial]);
+  }, [game?.status, game?.id, game?.called_numbers, timeLeft, soundEnabled, myCartelas.length, playSpecial, uniquePlayers, taken.length]);
 
   useEffect(() => {
     if (game?.status === 'calling' && called.length > prevCalledLenRef.current) {

@@ -157,6 +157,7 @@ export default function AgentLiveGameViewer({
   const [selectedStake, setSelectedStake] = useState<number>(initialStake);
   const [game, setGame] = useState<BGame | null>(null);
   const [takenCartelas, setTakenCartelas] = useState<number[]>([]);
+  const [uniquePlayers, setUniquePlayers] = useState<number>(0);
   const [cartelaMatrices, setCartelaMatrices] = useState<Record<number, number[][]>>({});
   const [stakeStatuses, setStakeStatuses] = useState<Record<number, { status: string; players: number; pool: number }>>({});
 
@@ -451,6 +452,7 @@ export default function AgentLiveGameViewer({
           const data = await res.json();
           const g: BGame | null = data.game || null;
           setGame(g);
+          if (data.unique_players !== undefined) setUniquePlayers(Number(data.unique_players));
           setTakenCartelas(Array.isArray(data.taken_cartelas) ? data.taken_cartelas : []);
           const matrices: Record<number, number[][]> = data.cartela_matrices || {};
           setCartelaMatrices(matrices);
@@ -584,8 +586,18 @@ export default function AgentLiveGameViewer({
     return () => clearInterval(t);
   }, [game]);
 
+  // Min 2 players required to start any game
+  const playerCount = Math.max(
+    uniquePlayers,
+    game?.total_players || 0,
+    takenCartelas.length
+  );
+  const hasMinPlayers = playerCount >= 2;
+
   // ── Start Audio Trigger (game_start.mp3) ───────────────────────────────────
-  // Plays when countdown reaches 0s or when game enters 'calling' before balls are called
+  // Plays ONLY when the game ACTUALLY starts:
+  // 1. Min players fulfilled (>= 2 players) AND countdown hits 0s, OR
+  // 2. Game actively transitions to 'calling' before balls are called
   useEffect(() => {
     if (!game) return;
     if (!soundEnabled) return;
@@ -594,7 +606,10 @@ export default function AgentLiveGameViewer({
     if (introPlayedRef.current === gid) return;
 
     const calledCount = (game.called_numbers || []).length;
+
+    // Must have at least 2 players to start! Never play when waiting for 2nd player!
     const isCountingDownToZero =
+      hasMinPlayers &&
       game.status === 'waiting' &&
       countdown === 0 &&
       prevCountdownRef.current !== null &&
@@ -613,7 +628,7 @@ export default function AgentLiveGameViewer({
 
     prevCountdownRef.current = countdown;
     prevGameStatusRef.current = game.status;
-  }, [game?.status, game?.id, game?.called_numbers, countdown, soundEnabled, playSpecial]);
+  }, [game?.status, game?.id, game?.called_numbers, countdown, soundEnabled, playSpecial, hasMinPlayers]);
 
   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'hdasebingo_bot';
   const shareLink = `https://t.me/${botUsername}?start=room_${roomId}`;
@@ -976,9 +991,15 @@ export default function AgentLiveGameViewer({
                 <div className="flex items-center gap-2">
                   {recentCalls.length === 0 ? (
                     <span className="text-amber-700 text-xs font-black animate-pulse py-2">
-                      {countdown !== null
-                        ? `Game starting in ${countdown}s...`
-                        : 'Waiting for call...'}
+                      {takenCartelas.length === 0
+                        ? 'Waiting for players...'
+                        : !hasMinPlayers
+                        ? (countdown !== null && countdown > 0
+                            ? `Waiting for 2nd player (${countdown}s)...`
+                            : 'Waiting for 2nd player...')
+                        : (countdown !== null && countdown > 0
+                            ? `Game starting in ${countdown}s...`
+                            : 'Game starting...')}
                     </span>
                   ) : (
                     recentCalls.map((num, idx) => {
