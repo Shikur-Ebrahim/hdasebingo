@@ -871,21 +871,24 @@ export default function AgentLiveGameViewer({
               </div>
             </div>
 
-            {/* ── 1-75 Master Board (Exact Match from Screenshot 1) ── */}
-            <div className="bg-white rounded-2xl border-2 border-amber-300 shadow-xs p-1.5 w-full">
-              <div className="flex flex-col gap-1">
+            {/* ── 1-75 Master Tracker Board (Exact Match from Screenshot 1) ── */}
+            <div className="bg-white rounded-2xl px-2 py-2 border-2 border-amber-200/90 shadow-sm">
+              <div className="flex flex-col gap-[3px]">
                 {BINGO_LETTERS.map((letter, rowIdx) => (
-                  <div key={letter} className="flex items-center gap-1">
+                  <div key={letter} className="flex items-center gap-1.5">
                     {/* BINGO Letter Header Pill */}
                     <div
-                      className="w-5 h-5 flex items-center justify-center font-black text-[11px] rounded shrink-0 select-none"
+                      className="w-4 shrink-0 flex items-center justify-center font-black text-[11px]"
                       style={{ color: LETTER_COLOR[letter] }}
                     >
                       {letter}
                     </div>
 
                     {/* 15 Numbers in this Row */}
-                    <div className="grid grid-cols-15 gap-[2px] flex-1">
+                    <div
+                      className="flex-1 grid gap-[2px]"
+                      style={{ gridTemplateColumns: 'repeat(15, minmax(0, 1fr))' }}
+                    >
                       {Array.from({ length: 15 }, (_, i) => {
                         const num = rowIdx * 15 + i + 1;
                         const isCalled = called.includes(num);
