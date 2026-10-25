@@ -611,6 +611,7 @@ export default function BingoGame() {
   const prevCalledLenRef = useRef(0);
   const prevStatusRef = useRef<string | null>(null);
   const introPlayedRef = useRef<string | null>(null);
+  const prevTimeLeftRef = useRef<number>(-1);
   const hadCartelasRef = useRef(false);
   const celebrationTimerRef = useRef<any>(null);
   const cartelaMatricesRef = useRef<Record<number, number[][]>>({});
@@ -801,18 +802,33 @@ export default function BingoGame() {
   const lastNum = called.length > 0 ? Number(called[called.length - 1]) : null;
 
 
-  // Play game_start.mp3 immediately as soon as game hits Ready (timeLeft === 0) or transitions to 'calling'
+  // Track previous timeLeft to detect real 1..10s -> 0s countdown transitions
+  useEffect(() => {
+    prevTimeLeftRef.current = timeLeft;
+  }, [timeLeft]);
+
+  // Play game_start.mp3 ONLY when:
+  // 1. User has bought cartelas for this game (myCartelas.length > 0)
+  // 2. Sound is enabled
+  // 3. Not already played for this game ID
+  // 4. Either countdown reached 0 (was actively counting down 1..10s -> 0s) OR game transitioned to 'calling' before balls are called
   useEffect(() => {
     if (!game) return;
-    const gid = String(game.id || '');
-    const calledCount = (game.called_numbers || []).length;
-    const isReadyOrCalling = (game.status === 'calling' && calledCount === 0) || (game.status === 'waiting' && timeLeft === 0);
+    if (myCartelas.length === 0) return; // User hasn't bought any cartela - NEVER play!
+    if (!soundEnabled) return;
 
-    if (isReadyOrCalling && soundEnabled && introPlayedRef.current !== gid) {
+    const gid = String(game.id || '');
+    if (introPlayedRef.current === gid) return;
+
+    const calledCount = (game.called_numbers || []).length;
+    const isCountingDownToZero = game.status === 'waiting' && timeLeft === 0 && prevTimeLeftRef.current > 0 && prevTimeLeftRef.current <= 10;
+    const isJustStartingCalling = game.status === 'calling' && calledCount === 0;
+
+    if (isCountingDownToZero || isJustStartingCalling) {
       introPlayedRef.current = gid;
       playSpecial('game_start');
     }
-  }, [game?.status, game?.id, game?.called_numbers, timeLeft, soundEnabled, playSpecial]);
+  }, [game?.status, game?.id, game?.called_numbers, timeLeft, soundEnabled, myCartelas.length, playSpecial]);
 
   useEffect(() => {
     if (game?.status === 'calling' && called.length > prevCalledLenRef.current) {
@@ -1682,7 +1698,7 @@ export default function BingoGame() {
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
           <p className="text-xs text-slate-700 font-black uppercase tracking-wider">
-            {canPickMore ? `TAP TO PICK â€” ${taken.length}/${maxPlayers} TAKEN` : `ALL CARTELAS SELECTED âœ“`}
+            {canPickMore ? `TAP TO PICK - ${taken.length}/${maxPlayers} TAKEN` : `ALL CARTELAS SELECTED ✓`}
           </p>
         </div>
         <span className="text-[11px] bg-amber-100 text-amber-800 border border-amber-300/80 px-2.5 py-0.5 rounded-full font-black shadow-2xs">
@@ -1695,7 +1711,7 @@ export default function BingoGame() {
           {myNums.map(n => (
             <span key={n} className="px-3 py-1 bg-emerald-500 text-white text-xs font-black rounded-full ring-2 ring-amber-300 flex items-center gap-1.5 shadow-sm">
               <LayoutGrid size={12} className="text-amber-200 shrink-0" />
-              <span>{t[language].bingo.cartelaNum.trim()} {n} âœ“</span>
+              <span>{t[language].bingo.cartelaNum.trim()} {n} ✓</span>
             </span>
           ))}
         </div>
@@ -1707,16 +1723,12 @@ export default function BingoGame() {
             const isTaken = taken.includes(n), isMine = myNums.includes(n), isBuying = buying === n;
             if (isMine) {
               return (
-                <div key={n} className="aspect-square flex items-center justify-center rounded-[8px] text-[10px] font-black bg-emerald-500 text-white ring-2 ring-amber-400 z-10 shadow-xs">
-                  âœ“
-                </div>
+                <div key={n} className="aspect-square flex items-center justify-center rounded-[8px] text-[10px] font-black bg-emerald-500 text-white ring-2 ring-amber-400 z-10 shadow-xs">✓</div>
               );
             }
             if (isTaken) {
               return (
-                <div key={n} className="aspect-square flex items-center justify-center rounded-[8px] text-[10px] font-bold bg-slate-100 text-slate-300 border border-slate-200/50">
-                  âœ•
-                </div>
+                <div key={n} className="aspect-square flex items-center justify-center rounded-[8px] text-[10px] font-bold bg-slate-100 text-slate-300 border border-slate-200/50">✕</div>
               );
             }
             return (
