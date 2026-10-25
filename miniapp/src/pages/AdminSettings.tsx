@@ -18,13 +18,13 @@ interface SettingField {
 }
 
 const SETTING_FIELDS: SettingField[] = [
-  { key: 'welcome_bonus_amount', label: 'Welcome / Signup Bonus', icon: <Gift size={16} />, type: 'number', unit: 'ETB', color: 'text-amber-600', bg: 'bg-amber-50', defaultValue: 10 },
-  { key: 'first_deposit_bonus_pct', label: '1st Deposit Bonus', icon: <Gift size={16} />, type: 'number', unit: '%', color: 'text-emerald-600', bg: 'bg-emerald-50', defaultValue: 20 },
-  { key: 'second_deposit_bonus_pct', label: '2nd Deposit Bonus', icon: <Gift size={16} />, type: 'number', unit: '%', color: 'text-blue-600', bg: 'bg-blue-50', defaultValue: 10 },
+  { key: 'welcome_bonus_amount', label: 'Welcome / Signup Bonus', icon: <Gift size={16} />, type: 'number', unit: 'ETB', color: 'text-amber-600', bg: 'bg-amber-50', defaultValue: 0 },
+  { key: 'first_deposit_bonus_pct', label: '1st Deposit Bonus', icon: <Gift size={16} />, type: 'number', unit: '%', color: 'text-emerald-600', bg: 'bg-emerald-50', defaultValue: 7 },
+  { key: 'second_deposit_bonus_pct', label: '2nd Deposit Bonus', icon: <Gift size={16} />, type: 'number', unit: '%', color: 'text-blue-600', bg: 'bg-blue-50', defaultValue: 3 },
   { key: 'invitation_reward_pct', label: 'Invite Reward', icon: <Users size={16} />, type: 'number', unit: '%', color: 'text-violet-600', bg: 'bg-violet-50', defaultValue: 10 },
   { key: 'support_username', label: 'Support Team User', icon: <Headphones size={16} />, type: 'text', color: 'text-orange-600', bg: 'bg-orange-50', defaultValue: 'hdasebingo_admin' },
   { key: 'support_phone_usa', label: 'USA Support Phone', icon: <Phone size={16} />, type: 'text', color: 'text-blue-700', bg: 'bg-blue-50', defaultValue: '+1 (984) 378-9510' },
-  { key: 'support_phone_eth', label: 'Ethiopia Support Phone', icon: <Phone size={16} />, type: 'text', color: 'text-green-700', bg: 'bg-green-50', defaultValue: '+251999992524' },
+  { key: 'support_phone_eth', label: 'Ethiopia Support Phone', icon: <Phone size={16} />, type: 'text', color: 'text-green-700', bg: 'bg-green-50', defaultValue: '+251996598686' },
   { key: 'channel_link', label: 'Official Channel Link', icon: <Megaphone size={16} />, type: 'text', color: 'text-indigo-600', bg: 'bg-indigo-50', defaultValue: 'https://t.me/hdasebingo' },
   { key: 'announcement_message', label: 'Announcement Message', icon: <Megaphone size={16} />, type: 'textarea', color: 'text-fuchsia-600', bg: 'bg-fuchsia-50', defaultValue: '' },
   { key: 'announcement_max_views', label: 'Popup Max Views', icon: <Users size={16} />, type: 'number', color: 'text-pink-600', bg: 'bg-pink-50', defaultValue: 2 },
@@ -152,7 +152,7 @@ export default function AdminSettings() {
 
   // Read phone values from DB (falls back to hardcoded defaults)
   const usaPhone = values['support_phone_usa'] || '+1 (984) 378-9510';
-  let ethPhone = values['support_phone_eth'] || '+251999992524';
+  let ethPhone = values['support_phone_eth'] || '+251996598686';
   if ((ethPhone.startsWith('09') || ethPhone.startsWith('07')) && ethPhone.length === 10) {
     ethPhone = '+251' + ethPhone.slice(1);
   }
@@ -280,7 +280,7 @@ export default function AdminSettings() {
                     {/* Editable Number Input (auto formats 09/07 to +251) */}
                     <input
                       type="text"
-                      value={values['support_phone_eth'] ?? '+251999992524'}
+                      value={values['support_phone_eth'] ?? '+251996598686'}
                       onChange={(e) => {
                         let val = e.target.value.trim();
                         if ((val.startsWith('09') || val.startsWith('07')) && val.length === 10) {

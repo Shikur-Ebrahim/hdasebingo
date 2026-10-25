@@ -55,7 +55,7 @@ export default function SupportVideos() {
     username: 'hdasebingo_admin',
     channel: 'https://t.me/hdasebingo',
     support_phone_usa: '+1 (984) 378-9510',
-    support_phone_eth: '+251999992524',
+    support_phone_eth: '+251996598686',
   });
   const [copiedType, setCopiedType] = useState<string | null>(null);
 
@@ -72,7 +72,7 @@ export default function SupportVideos() {
             username: (data.username || 'hdasebingo_admin').replace(/^@/, '').trim(),
             channel: data.channel || 'https://t.me/hdasebingo',
             support_phone_usa: data.support_phone_usa || '+1 (984) 378-9510',
-            support_phone_eth: data.support_phone_eth || '+251999992524',
+            support_phone_eth: data.support_phone_eth || '+251996598686',
           });
         }
       })
@@ -80,7 +80,7 @@ export default function SupportVideos() {
   }, [initData]);
 
   const formatEthPhone = (phone: string): string => {
-    if (!phone) return '+251 99 999 2524';
+    if (!phone) return '+251 99 659 8686';
     const clean = phone.replace(/[^\d+]/g, '');
     if (clean.startsWith('+251') && clean.length === 13) {
       return `${clean.slice(0, 4)} ${clean.slice(4, 6)} ${clean.slice(6, 9)} ${clean.slice(9)}`;

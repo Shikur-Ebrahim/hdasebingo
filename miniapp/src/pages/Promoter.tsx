@@ -197,7 +197,7 @@ export default function Promoter() {
   const [flyerSentToTg, setFlyerSentToTg] = useState(false);
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [supportPhoneUsa, setSupportPhoneUsa] = useState('+1 (984) 378-9510');
-  const [supportPhoneEth, setSupportPhoneEth] = useState('+251999992524');
+  const [supportPhoneEth, setSupportPhoneEth] = useState('+251996598686');
 
   // Promoter Profile, View Rooms & Bank Modals
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -206,7 +206,7 @@ export default function Promoter() {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
 
   const formatEthPhone = (phone: string) => {
-    if (!phone) return '+251999992524';
+    if (!phone) return '+251996598686';
     const clean = phone.trim();
     if ((clean.startsWith('09') || clean.startsWith('07')) && clean.length === 10) {
       return '+251' + clean.slice(1);

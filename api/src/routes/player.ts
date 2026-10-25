@@ -100,7 +100,7 @@ router.get('/support-contact', async (_req, res) => {
       username = 'Mosque_Dona';
     }
 
-    let ethPhone = getSetting('support_phone_eth', '+251999992524');
+    let ethPhone = getSetting('support_phone_eth', '+251996598686');
     if ((ethPhone.startsWith('09') || ethPhone.startsWith('07')) && ethPhone.length === 10) {
       ethPhone = '+251' + ethPhone.slice(1);
     }
@@ -137,8 +137,8 @@ router.get('/public-settings', async (_req, res) => {
     (data || []).forEach((row: any) => { map[row.key] = row.value; });
     res.json({
       invitation_reward_pct: parseFloat(map['invitation_reward_pct'] ?? '10'),
-      welcome_bonus_amount: parseFloat(map['welcome_bonus_amount'] ?? '10'),
-      first_deposit_bonus_pct: parseFloat(map['first_deposit_bonus_pct'] ?? '20'),
+      welcome_bonus_amount: parseFloat(map['welcome_bonus_amount'] ?? '0'),
+      first_deposit_bonus_pct: parseFloat(map['first_deposit_bonus_pct'] ?? '7'),
       weekend_bonus_pct: parseFloat(map['weekend_bonus_pct'] ?? '10'),
       weekend_bonus_enabled: map['weekend_bonus_enabled'] === 'true',
     });
@@ -290,8 +290,8 @@ router.get('/audit', validateTelegramAuth, async (req: AuthRequest, res) => {
       const row = allSettings?.find(s => s.key === key);
       return row ? row.value : def;
     };
-    const depPct = parseFloat(getSetting('first_deposit_bonus_pct', '20')) / 100;
-    const secondDepPct = parseFloat(getSetting('second_deposit_bonus_pct', '10')) / 100;
+    const depPct = parseFloat(getSetting('first_deposit_bonus_pct', '7')) / 100;
+    const secondDepPct = parseFloat(getSetting('second_deposit_bonus_pct', '3')) / 100;
     const invPct = parseFloat(getSetting('invitation_reward_pct', '10')) / 100;
 
     // 2. Fetch Deposits

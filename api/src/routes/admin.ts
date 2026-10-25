@@ -235,8 +235,8 @@ router.post('/deposits/:id/approve', async (req, res) => {
       return row ? row.value : def;
     };
 
-    const firstDepositPct = parseFloat(getSetting('first_deposit_bonus_pct', '20') as string) / 100;
-    const secondDepositPct = parseFloat(getSetting('second_deposit_bonus_pct', '10') as string) / 100;
+    const firstDepositPct = parseFloat(getSetting('first_deposit_bonus_pct', '7') as string) / 100;
+    const secondDepositPct = parseFloat(getSetting('second_deposit_bonus_pct', '3') as string) / 100;
     const invitationPct = parseFloat(getSetting('invitation_reward_pct', '10') as string) / 100;
 
     if (isFirstDeposit) {
@@ -759,8 +759,8 @@ router.get('/tx-report', validateTelegramAuth, requireAdmin, async (req, res) =>
     return row ? row.value : def;
   };
 
-  const depPct = parseFloat(getSetting('first_deposit_bonus_pct', '20')) / 100;
-  const secondDepPct = parseFloat(getSetting('second_deposit_bonus_pct', '10')) / 100;
+  const depPct = parseFloat(getSetting('first_deposit_bonus_pct', '7')) / 100;
+  const secondDepPct = parseFloat(getSetting('second_deposit_bonus_pct', '3')) / 100;
   const invPct = parseFloat(getSetting('invitation_reward_pct', '10')) / 100;
 
   let totalDeposits = 0;
@@ -861,7 +861,7 @@ router.get('/tx-report', validateTelegramAuth, requireAdmin, async (req, res) =>
   });
 
   // ─── Welcome / Signup bonuses for users registered in period ────────────────
-  const welcomeBonusAmount = parseFloat(getSetting('welcome_bonus_amount', '10'));
+  const welcomeBonusAmount = parseFloat(getSetting('welcome_bonus_amount', '0'));
   let usersQuery = supabase
     .from('users')
     .select('id, telegram_id, username, first_name, created_at')
@@ -1583,8 +1583,8 @@ router.get('/user-audit/:telegramId', async (req, res) => {
       const row = allSettings?.find(s => s.key === key);
       return row ? row.value : def;
     };
-    const depPct = parseFloat(getSetting('first_deposit_bonus_pct', '20')) / 100;
-    const secondDepPct = parseFloat(getSetting('second_deposit_bonus_pct', '10')) / 100;
+    const depPct = parseFloat(getSetting('first_deposit_bonus_pct', '7')) / 100;
+    const secondDepPct = parseFloat(getSetting('second_deposit_bonus_pct', '3')) / 100;
     const invPct = parseFloat(getSetting('invitation_reward_pct', '10')) / 100;
 
     // 2. Fetch Deposits

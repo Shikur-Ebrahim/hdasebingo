@@ -46,9 +46,9 @@ export async function upsertUser(telegramId: string, username: string, firstName
     }
     return data as User;
   } else {
-    // New user: fetch welcome bonus from settings (default 10)
+    // New user: fetch welcome bonus from settings (default 0)
     const { data: settingRow } = await supabase.from('settings').select('value').eq('key', 'welcome_bonus_amount').maybeSingle();
-    const welcomeBonus = settingRow && !isNaN(Number(settingRow.value)) ? Number(settingRow.value) : 10;
+    const welcomeBonus = settingRow && !isNaN(Number(settingRow.value)) ? Number(settingRow.value) : 0;
 
     const insertPayload: any = {
       telegram_id: telegramId,
