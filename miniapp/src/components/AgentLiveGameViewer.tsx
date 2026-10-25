@@ -159,8 +159,6 @@ export default function AgentLiveGameViewer({
   const [takenCartelas, setTakenCartelas] = useState<number[]>([]);
   const [cartelaMatrices, setCartelaMatrices] = useState<Record<number, number[][]>>({});
   const [stakeStatuses, setStakeStatuses] = useState<Record<number, { status: string; players: number; pool: number }>>({});
-  const [maxPlayers, setMaxPlayers] = useState<number>(150);
-  const [previewCartela, setPreviewCartela] = useState<{ seat: number; matrix: number[][]; isTaken: boolean } | null>(null);
 
   // Default sound is ON (matching BingoGame.tsx and persisted to localStorage)
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
@@ -436,33 +434,6 @@ export default function AgentLiveGameViewer({
     [playSpecial]
   );
 
-  const generateBingoCard = useCallback(() => {
-    const zones: [number, number][] = [[1, 15], [16, 30], [31, 45], [46, 60], [61, 75]];
-    const card: number[][] = Array.from({ length: 5 }, () => Array(5).fill(0));
-    for (let col = 0; col < 5; col++) {
-      const [lo, hi] = zones[col];
-      const chosen = new Set<number>();
-      while (chosen.size < 5) chosen.add(Math.floor(Math.random() * (hi - lo + 1)) + lo);
-      const nums = Array.from(chosen);
-      for (let row = 0; row < 5; row++) card[row][col] = nums[row];
-    }
-    card[2][2] = 0;
-    return card;
-  }, []);
-
-  const openPreview = useCallback(
-    (seat: number) => {
-      haptic('light');
-      const existing = cartelaMatrices[seat];
-      if (existing) {
-        setPreviewCartela({ seat, matrix: existing, isTaken: true });
-      } else {
-        setPreviewCartela({ seat, matrix: generateBingoCard(), isTaken: false });
-      }
-    },
-    [cartelaMatrices, generateBingoCard]
-  );
-
   const getHeaders = () => {
     const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
     return { 'x-telegram-init-data': initData };
@@ -480,7 +451,6 @@ export default function AgentLiveGameViewer({
           const data = await res.json();
           const g: BGame | null = data.game || null;
           setGame(g);
-          if (data.max_players) setMaxPlayers(Number(data.max_players));
           setTakenCartelas(Array.isArray(data.taken_cartelas) ? data.taken_cartelas : []);
           const matrices: Record<number, number[][]> = data.cartela_matrices || {};
           setCartelaMatrices(matrices);
@@ -1087,99 +1057,40 @@ export default function AgentLiveGameViewer({
               </div>
             </div>
 
-            {/* ── Cartela Selection Tray (always visible) — shows taken cartelas and full 1-maxPlayers grid ── */}
-            <div className="w-full flex flex-col gap-2 pt-1">
+            {/* ── Active Cartelas Section (Exact Match from Screenshot 1) ── */}
+            <div className="w-full flex flex-col gap-1.5 pt-1">
               <div className="flex items-center justify-between px-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-amber-900 text-[11px] font-black tracking-wider uppercase">
-                    CARTELA SELECTION ({takenCartelas.length}/{maxPlayers} TAKEN)
-                  </span>
-                </div>
-                <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border shadow-2xs ${
-                  game?.status === 'calling'
-                    ? 'bg-red-100 text-red-700 border-red-300 animate-pulse'
-                    : countdown !== null
-                    ? 'bg-amber-100 text-amber-800 border-amber-300'
-                    : 'bg-slate-100 text-slate-500 border-slate-200'
-                }`}>
-                  {game?.status === 'calling' ? 'LIVE' : countdown !== null ? `READY IN ${countdown}S` : 'WAITING'}
+                <span className="text-amber-900 text-[11px] font-black tracking-wider uppercase">
+                  CARTELAS ({activeCartelaList.length})
+                </span>
+                <span className="text-emerald-700 text-[9px] font-black uppercase tracking-wider bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                  ALL ACTIVE
                 </span>
               </div>
 
-              {/* Selected Cartela Chips */}
-              {takenCartelas.length > 0 && (
-                <div className="flex gap-1.5 flex-wrap px-0.5">
-                  {takenCartelas.map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => openPreview(n)}
-                      className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-black rounded-full ring-2 ring-amber-300 flex items-center gap-1.5 shadow-sm active:scale-95 transition-transform"
-                    >
-                      <LayoutGrid size={11} className="text-amber-200 shrink-0" />
-                      <span>CARTELA {n} ✓</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* 10-Column Cartela Selection Tray (1 to maxPlayers) */}
-              <div className="rounded-2xl border-2 border-amber-300/90 overflow-hidden bg-white shadow-md p-1.5">
-                <div
-                  className="grid gap-[3px] p-[2px]"
-                  style={{ gridTemplateColumns: 'repeat(10, 1fr)' }}
-                >
-                  {Array.from({ length: maxPlayers }, (_, i) => {
-                    const n = i + 1;
-                    const isTaken = takenCartelas.includes(n);
-
-                    return (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => openPreview(n)}
-                        className={`aspect-square flex items-center justify-center rounded-[7px] text-[10px] font-black transition-all cursor-pointer ${
-                          isTaken
-                            ? 'bg-emerald-500 text-white ring-2 ring-amber-300 shadow-xs active:scale-90 font-black'
-                            : 'bg-slate-50 text-slate-700 border border-slate-200/80 hover:border-amber-400 hover:bg-amber-50/50 shadow-2xs active:scale-90'
-                        }`}
-                        title={`Cartela ${n}${isTaken ? ' (Taken)' : ' (Available)'}`}
-                      >
-                        {isTaken ? '✓' : n}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Invite button */}
-              <div className="text-center pt-0.5">
-                <button
-                  type="button"
-                  onClick={handleShare}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black text-xs shadow-xs active:scale-95 transition-all"
-                >
-                  <Share2 size={13} />
-                  <span>Invite Players to Room</span>
-                </button>
-              </div>
-            </div>
-
-            {/* ── Active 5×5 Cartela Cards (only when game is calling / finished) ── */}
-            {activeCartelaList.length > 0 && game?.status !== 'waiting' && (
-              <div className="w-full flex flex-col gap-1.5 pt-2">
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                    <span className="text-amber-900 text-[11px] font-black tracking-wider uppercase">
-                      LIVE CARTELAS ({activeCartelaList.length})
-                    </span>
+              {activeCartelaList.length === 0 ? (
+                <div className="bg-white rounded-2xl p-6 border-2 border-dashed border-amber-200 text-center space-y-3">
+                  <div className="w-12 h-12 bg-amber-50 rounded-2xl mx-auto flex items-center justify-center text-amber-600">
+                    <Gamepad2 size={24} />
                   </div>
-                  <span className="text-emerald-700 text-[9px] font-black uppercase tracking-wider bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
-                    ALL ACTIVE
-                  </span>
+                  <div>
+                    <p className="text-xs font-black text-slate-800">
+                      No Cartelas Purchased Yet at {selectedStake} ETB
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Players will appear here as soon as they select their cartelas.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleShare}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black text-xs shadow-xs active:scale-95 transition-all"
+                  >
+                    <Share2 size={13} />
+                    <span>Invite Players to Room</span>
+                  </button>
                 </div>
+              ) : (
                 <div
                   className={`grid gap-2.5 w-full ${
                     activeCartelaList.length === 1
@@ -1190,13 +1101,20 @@ export default function AgentLiveGameViewer({
                   {activeCartelaList.map((card) => (
                     <div key={card.cartela_number} className="w-full">
                       <div className="rounded-2xl overflow-hidden border-2 border-amber-300 shadow-md bg-white">
+                        {/* B-I-N-G-O Colorful Header */}
                         <div className="grid grid-cols-5">
                           {BINGO_LETTERS.map((l) => (
-                            <div key={l} className="flex items-center justify-center py-0.5 font-black text-white text-[10px]" style={{ background: LETTER_BG[l] }}>
+                            <div
+                              key={l}
+                              className="flex items-center justify-center py-0.5 font-black text-white text-[10px]"
+                              style={{ background: LETTER_BG[l] }}
+                            >
                               {l}
                             </div>
                           ))}
                         </div>
+
+                        {/* 5x5 Number Grid with Star in Center */}
                         <div className="grid grid-cols-5 gap-[2px] p-[3px] bg-amber-50/60">
                           {Array.from({ length: 5 }).flatMap((_, r) =>
                             Array.from({ length: 5 }, (_, c) => {
@@ -1205,19 +1123,28 @@ export default function AgentLiveGameViewer({
                               const isCalled = called.includes(num);
                               const marked = isFree || isCalled;
                               const isLast = num === lastNum;
+
                               return (
-                                <div key={`${r}-${c}`} className={`aspect-square flex items-center justify-center font-black text-[11px] rounded transition-all select-none ${
-                                  isFree ? 'bg-amber-400 text-amber-950 font-black'
-                                  : isLast ? 'bg-orange-500 text-white shadow-md ring-2 ring-amber-300 scale-105 z-10'
-                                  : marked ? 'bg-emerald-500 text-white'
-                                  : 'bg-white text-slate-800 border border-slate-100 shadow-2xs'
-                                }`}>
+                                <div
+                                  key={`${r}-${c}`}
+                                  className={`aspect-square flex items-center justify-center font-black text-[11px] rounded transition-all select-none ${
+                                    isFree
+                                      ? 'bg-amber-400 text-amber-950 font-black'
+                                      : isLast
+                                      ? 'bg-orange-500 text-white shadow-md ring-2 ring-amber-300 scale-105 z-10'
+                                      : marked
+                                      ? 'bg-emerald-500 text-white'
+                                      : 'bg-white text-slate-800 border border-slate-100 shadow-2xs'
+                                  }`}
+                                >
                                   {isFree ? '★' : num}
                                 </div>
                               );
                             })
                           )}
                         </div>
+
+                        {/* Cartela Number Footer */}
                         <div className="py-1 px-2 flex items-center justify-center bg-white border-t border-amber-200">
                           <p className="text-amber-800 font-black text-[9px] tracking-wider uppercase flex items-center gap-1.5">
                             <LayoutGrid size={11} className="text-amber-500 shrink-0" />
@@ -1228,82 +1155,11 @@ export default function AgentLiveGameViewer({
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </>
         )}
       </div>
-
-      {/* ── Cartela Preview Modal for Agent ── */}
-      {previewCartela && (
-        <div
-          className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-          onClick={() => setPreviewCartela(null)}
-        >
-          <div
-            className="bg-white border-2 border-amber-300 rounded-3xl p-5 w-full max-w-[320px] shadow-2xl relative"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setPreviewCartela(null)}
-              className="absolute top-3 right-3 w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center active:scale-90 transition-all cursor-pointer shadow-xs"
-              title="Close"
-            >
-              <X size={15} />
-            </button>
-            <h3 className="text-xl font-black text-slate-800 text-center mb-0.5 flex items-center justify-center gap-2">
-              <LayoutGrid size={18} className="text-amber-500 shrink-0" />
-              <span>CARTELA {previewCartela.seat}</span>
-            </h3>
-            <p className="text-amber-600 text-[10px] uppercase font-black text-center tracking-widest mb-3.5">
-              {previewCartela.isTaken ? 'PLAYER CARTELA (IN PLAY)' : 'CARTELA NUMBERS'}
-            </p>
-
-            <div className="rounded-2xl overflow-hidden border border-amber-200 shadow-md mb-4 bg-white">
-              <div className="grid grid-cols-5">
-                {BINGO_LETTERS.map((l) => (
-                  <div
-                    key={l}
-                    className="flex items-center justify-center py-1.5 font-black text-white text-sm"
-                    style={{ background: LETTER_BG[l] }}
-                  >
-                    {l}
-                  </div>
-                ))}
-              </div>
-              <div className="grid grid-cols-5 gap-[2px] p-[2px] bg-amber-50/50">
-                {Array.from({ length: 5 }).flatMap((_, r) =>
-                  Array.from({ length: 5 }, (_, c) => {
-                    const num = previewCartela.matrix[r][c];
-                    const isFree = num === 0;
-                    return (
-                      <div
-                        key={`${r}-${c}`}
-                        className={`aspect-square flex items-center justify-center font-black text-sm rounded-md transition-all duration-300 ${
-                          isFree
-                            ? 'bg-amber-400 text-amber-950 shadow-xs'
-                            : 'bg-white text-slate-800 border border-slate-100 shadow-xs'
-                        }`}
-                      >
-                        {isFree ? '★' : num}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setPreviewCartela(null)}
-              className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs active:scale-95 transition-transform border border-slate-200"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
