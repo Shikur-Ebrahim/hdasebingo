@@ -61,21 +61,21 @@ const LETTER_BG: Record<string, string> = {
 
 // Full Amharic number words for display under the call
 const AMHARIC_NUM: Record<number, string> = {
-  1:'áŠ áŠ•á‹µ', 2:'áˆáˆˆá‰µ', 3:'áˆ¶áˆµá‰µ', 4:'áŠ áˆ«á‰µ', 5:'áŠ áˆáˆµá‰µ',
-  6:'áˆµá‹µáˆµá‰µ', 7:'áˆ°á‰£á‰µ', 8:'áˆµáˆáŠ•á‰µ', 9:'á‹˜áŒ áŠ', 10:'áŠ áˆµáˆ­',
-  11:'áŠ áˆµáˆ« áŠ áŠ•á‹µ', 12:'áŠ áˆµáˆ« áˆáˆˆá‰µ', 13:'áŠ áˆµáˆ« áˆ¶áˆµá‰µ', 14:'áŠ áˆµáˆ« áŠ áˆ«á‰µ', 15:'áŠ áˆµáˆ« áŠ áˆáˆµá‰µ',
-  16:'áŠ áˆµáˆ« áˆµá‹µáˆµá‰µ', 17:'áŠ áˆµáˆ« áˆ°á‰£á‰µ', 18:'áŠ áˆµáˆ« áˆµáˆáŠ•á‰µ', 19:'áŠ áˆµáˆ« á‹˜áŒ áŠ', 20:'áˆƒá‹«',
-  21:'áˆƒá‹« áŠ áŠ•á‹µ', 22:'áˆƒá‹« áˆáˆˆá‰µ', 23:'áˆƒá‹« áˆ¶áˆµá‰µ', 24:'áˆƒá‹« áŠ áˆ«á‰µ', 25:'áˆƒá‹« áŠ áˆáˆµá‰µ',
-  26:'áˆƒá‹« áˆµá‹µáˆµá‰µ', 27:'áˆƒá‹« áˆ°á‰£á‰µ', 28:'áˆƒá‹« áˆµáˆáŠ•á‰µ', 29:'áˆƒá‹« á‹˜áŒ áŠ', 30:'áˆ áˆ‹áˆ³',
-  31:'áˆ áˆ‹áˆ³ áŠ áŠ•á‹µ', 32:'áˆ áˆ‹áˆ³ áˆáˆˆá‰µ', 33:'áˆ áˆ‹áˆ³ áˆ¶áˆµá‰µ', 34:'áˆ áˆ‹áˆ³ áŠ áˆ«á‰µ', 35:'áˆ áˆ‹áˆ³ áŠ áˆáˆµá‰µ',
-  36:'áˆ áˆ‹áˆ³ áˆµá‹µáˆµá‰µ', 37:'áˆ áˆ‹áˆ³ áˆ°á‰£á‰µ', 38:'áˆ áˆ‹áˆ³ áˆµáˆáŠ•á‰µ', 39:'áˆ áˆ‹áˆ³ á‹˜áŒ áŠ', 40:'áŠ áˆ­á‰£',
-  41:'áŠ áˆ­á‰£ áŠ áŠ•á‹µ', 42:'áŠ áˆ­á‰£ áˆáˆˆá‰µ', 43:'áŠ áˆ­á‰£ áˆ¶áˆµá‰µ', 44:'áŠ áˆ­á‰£ áŠ áˆ«á‰µ', 45:'áŠ áˆ­á‰£ áŠ áˆáˆµá‰µ',
-  46:'áŠ áˆ­á‰£ áˆµá‹µáˆµá‰µ', 47:'áŠ áˆ­á‰£ áˆ°á‰£á‰µ', 48:'áŠ áˆ­á‰£ áˆµáˆáŠ•á‰µ', 49:'áŠ áˆ­á‰£ á‹˜áŒ áŠ', 50:'áˆƒáˆáˆ³',
-  51:'áˆƒáˆáˆ³ áŠ áŠ•á‹µ', 52:'áˆƒáˆáˆ³ áˆáˆˆá‰µ', 53:'áˆƒáˆáˆ³ áˆ¶áˆµá‰µ', 54:'áˆƒáˆáˆ³ áŠ áˆ«á‰µ', 55:'áˆƒáˆáˆ³ áŠ áˆáˆµá‰µ',
-  56:'áˆƒáˆáˆ³ áˆµá‹µáˆµá‰µ', 57:'áˆƒáˆáˆ³ áˆ°á‰£á‰µ', 58:'áˆƒáˆáˆ³ áˆµáˆáŠ•á‰µ', 59:'áˆƒáˆáˆ³ á‹˜áŒ áŠ', 60:'áˆµáˆáˆ³',
-  61:'áˆµáˆáˆ³ áŠ áŠ•á‹µ', 62:'áˆµáˆáˆ³ áˆáˆˆá‰µ', 63:'áˆµáˆáˆ³ áˆ¶áˆµá‰µ', 64:'áˆµáˆáˆ³ áŠ áˆ«á‰µ', 65:'áˆµáˆáˆ³ áŠ áˆáˆµá‰µ',
-  66:'áˆµáˆáˆ³ áˆµá‹µáˆµá‰µ', 67:'áˆµáˆáˆ³ áˆ°á‰£á‰µ', 68:'áˆµáˆáˆ³ áˆµáˆáŠ•á‰µ', 69:'áˆµáˆáˆ³ á‹˜áŒ áŠ', 70:'áˆ°á‰£',
-  71:'áˆ°á‰£ áŠ áŠ•á‹µ', 72:'áˆ°á‰£ áˆáˆˆá‰µ', 73:'áˆ°á‰£ áˆ¶áˆµá‰µ', 74:'áˆ°á‰£ áŠ áˆ«á‰µ', 75:'áˆ°á‰£ áŠ áˆáˆµá‰µ',
+  1: '\u12a0\u1295\u12f5', 2: '\u1201\u1208\u1275', 3: '\u1226\u1235\u1275', 4: '\u12a0\u122b\u1275', 5: '\u12a0\u121d\u1235\u1275',
+  6: '\u1235\u12f5\u1235\u1275', 7: '\u1230\u1263\u1275', 8: '\u1235\u121d\u1295\u1275', 9: '\u12d8\u1320\u129d', 10: '\u12a0\u1235\u122d',
+  11: '\u12a0\u1235\u122b \u12a0\u1295\u12f5', 12: '\u12a0\u1235\u122b \u1201\u1208\u1275', 13: '\u12a0\u1235\u122b \u1226\u1235\u1275', 14: '\u12a0\u1235\u122b \u12a0\u122b\u1275', 15: '\u12a0\u1235\u122b \u12a0\u121d\u1235\u1275',
+  16: '\u12a0\u1235\u122b \u1235\u12f5\u1235\u1275', 17: '\u12a0\u1235\u122b \u1230\u1263\u1275', 18: '\u12a0\u1235\u122b \u1235\u121d\u1295\u1275', 19: '\u12a0\u1235\u122b \u12d8\u1320\u129d', 20: '\u1200\u12eb',
+  21: '\u1200\u12eb \u12a0\u1295\u12f5', 22: '\u1200\u12eb \u1201\u1208\u1275', 23: '\u1200\u12eb \u1226\u1235\u1275', 24: '\u1200\u12eb \u12a0\u122b\u1275', 25: '\u1200\u12eb \u12a0\u121d\u1235\u1275',
+  26: '\u1200\u12eb \u1235\u12f5\u1235\u1275', 27: '\u1200\u12eb \u1230\u1263\u1275', 28: '\u1200\u12eb \u1235\u121d\u1295\u1275', 29: '\u1200\u12eb \u12d8\u1320\u129d', 30: '\u1220\u120b\u1233',
+  31: '\u1220\u120b\u1233 \u12a0\u1295\u12f5', 32: '\u1220\u120b\u1233 \u1201\u1208\u1275', 33: '\u1220\u120b\u1233 \u1226\u1235\u1275', 34: '\u1220\u120b\u1233 \u12a0\u122b\u1275', 35: '\u1220\u120b\u1233 \u12a0\u121d\u1235\u1275',
+  36: '\u1220\u120b\u1233 \u1235\u12f5\u1235\u1275', 37: '\u1220\u120b\u1233 \u1230\u1263\u1275', 38: '\u1220\u120b\u1233 \u1235\u121d\u1295\u1275', 39: '\u1220\u120b\u1233 \u12d8\u1320\u129d', 40: '\u12a0\u122d\u1263',
+  41: '\u12a0\u122d\u1263 \u12a0\u1295\u12f5', 42: '\u12a0\u122d\u1263 \u1201\u1208\u1275', 43: '\u12a0\u122d\u1263 \u1226\u1235\u1275', 44: '\u12a0\u122d\u1263 \u12a0\u122b\u1275', 45: '\u12a0\u122d\u1263 \u12a0\u121d\u1235\u1275',
+  46: '\u12a0\u122d\u1263 \u1235\u12f5\u1235\u1275', 47: '\u12a0\u122d\u1263 \u1230\u1263\u1275', 48: '\u12a0\u122d\u1263 \u1235\u121d\u1295\u1275', 49: '\u12a0\u122d\u1263 \u12d8\u1320\u129d', 50: '\u1203\u121d\u1233',
+  51: '\u1203\u121d\u1233 \u12a0\u1295\u12f5', 52: '\u1203\u121d\u1233 \u1201\u1208\u1275', 53: '\u1203\u121d\u1233 \u1226\u1235\u1275', 54: '\u1203\u121d\u1233 \u12a0\u122b\u1275', 55: '\u1203\u121d\u1233 \u12a0\u121d\u1235\u1275',
+  56: '\u1203\u121d\u1233 \u1235\u12f5\u1235\u1275', 57: '\u1203\u121d\u1233 \u1230\u1263\u1275', 58: '\u1203\u121d\u1233 \u1235\u121d\u1295\u1275', 59: '\u1203\u121d\u1233 \u12d8\u1320\u129d', 60: '\u1235\u120d\u1233',
+  61: '\u1235\u120d\u1233 \u12a0\u1295\u12f5', 62: '\u1235\u120d\u1233 \u1201\u1208\u1275', 63: '\u1235\u120d\u1233 \u1226\u1235\u1275', 64: '\u1235\u120d\u1233 \u12a0\u122b\u1275', 65: '\u1235\u120d\u1233 \u12a0\u121d\u1235\u1275',
+  66: '\u1235\u120d\u1233 \u1235\u12f5\u1235\u1275', 67: '\u1235\u120d\u1233 \u1230\u1263\u1275', 68: '\u1235\u120d\u1233 \u1235\u121d\u1295\u1275', 69: '\u1235\u120d\u1233 \u12d8\u1320\u129d', 70: '\u1230\u1263',
+  71: '\u1230\u1263 \u12a0\u1295\u12f5', 72: '\u1230\u1263 \u1201\u1208\u1275', 73: '\u1230\u1263 \u1226\u1235\u1275', 74: '\u1230\u1263 \u12a0\u122b\u1275', 75: '\u1230\u1263 \u12a0\u121d\u1235\u1275',
 };
 
 const getLetter = (num: number) => BINGO_LETTERS[Math.floor((num - 1) / 15)];
@@ -144,9 +144,9 @@ const getWinningPatternTitle = (matrix: number[][], called: number[]): string =>
   const isCol = [0, 1, 2, 3, 4].some(c => [0, 1, 2, 3, 4].every(r => m(r, c)));
   const isDiag = [0, 1, 2, 3, 4].every(i => m(i, i)) || [0, 1, 2, 3, 4].every(i => m(i, 4 - i));
 
-  if (isInnerCorners && !isRow && !isCol && !isDiag) return 'ðŸŽ¯ 2ND CORNER BINGO!';
-  if (isOuterCorners && !isRow && !isCol && !isDiag) return 'ðŸŽ¯ 4 CORNERS BINGO!';
-  if (isInnerCorners || isOuterCorners) return 'ðŸŽ¯ CORNER BINGO!';
+  if (isInnerCorners && !isRow && !isCol && !isDiag) return '\ud83c\udfaf 2ND CORNER BINGO!';
+  if (isOuterCorners && !isRow && !isCol && !isDiag) return '\ud83c\udfaf 4 CORNERS BINGO!';
+  if (isInnerCorners || isOuterCorners) return '\ud83c\udfaf CORNER BINGO!';
   return 'BINGO!';
 };
 
@@ -217,7 +217,7 @@ export default function BingoGame() {
     });
   };
 
-  // User's invited/assigned room â€” localStorage has the LATEST scan, DB is fallback
+  // User's invited/assigned room - localStorage has the LATEST scan, DB is fallback
   const userInvitedRoomId = (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null) || (user as any)?.room_id || null;
 
   // Filter/sort rooms in BingoGame rooms page
@@ -253,10 +253,10 @@ export default function BingoGame() {
     });
 
   const BINGO_FILTER_OPTIONS = [
-    { key: 'all', label: language === 'am' ? 'áˆáˆ‰áˆ áŠ­ááˆŽá‰½' : 'All Rooms', icon: 'ðŸ ' },
-    { key: 'most_players', label: language === 'am' ? 'á‰°áŒ«á‹‹á‰¾á‰½ (áŠ¨áá‰°áŠ›)' : 'Most Players', icon: 'ðŸ‘¥' },
-    { key: 'most_games', label: language === 'am' ? 'áŒ¨á‹‹á‰³á‹Žá‰½ (áŠ¨áá‰°áŠ›)' : 'Most Games', icon: 'ðŸŽ®' },
-    { key: 'newest', label: language === 'am' ? 'áŠ á‹²áˆµ áŠ­ááˆŽá‰½' : 'Newest Rooms', icon: 'âœ¨' },
+    { key: 'all', label: language === 'am' ? '\u1201\u1209\u121d \u12ad\u134d\u120e\u127d' : 'All Rooms', icon: '\ud83c\udfe0' },
+    { key: 'most_players', label: language === 'am' ? '\u1270\u132b\u12cb\u127e\u127d (\u12a8\u134d\u1270\u129b)' : 'Most Players', icon: '\ud83d\udc65' },
+    { key: 'most_games', label: language === 'am' ? '\u1328\u12cb\u1273\u12c8\u127d (\u12a8\u134d\u1270\u129b)' : 'Most Games', icon: '\ud83c\udfae' },
+    { key: 'newest', label: language === 'am' ? '\u12a0\u12f2\u1235 \u12ad\u134d\u120e\u127d' : 'Newest Rooms', icon: '\u2728' },
   ] as const;
 
   // Fetch and listen for active derash & status on stake selection screen
@@ -618,7 +618,7 @@ export default function BingoGame() {
   const fetchStateRef = useRef<() => void>(() => {});
   const refreshUserRef = useRef<() => void>(() => {});
 
-  // Instant celebration trigger â€” displays popup immediately in 0ms without waiting for network!
+  // Instant celebration trigger - displays popup immediately in 0ms without waiting for network!
   const triggerCelebration = useCallback((finGame: any) => {
     if (!finGame || finGame.status !== 'finished') return;
     if (celebratedGamesRef.current.has(finGame.id)) return;
@@ -670,7 +670,7 @@ export default function BingoGame() {
     const cachedCard = finGame.winner_matrix || (finGame.winner_cartela ? cartelaMatricesRef.current[finGame.winner_cartela] : null);
     const winningMatrix = localCard || cachedCard || null;
 
-    // Render celebration popup IMMEDIATELY with full tracked cartela matrix â€” 0ms, no loading!
+    // Render celebration popup IMMEDIATELY with full tracked cartela matrix - 0ms, no loading!
     setCelebration({
       winner_name: finGame.winner_first_name || 'Player',
       winner_cartela: finGame.winner_cartela || 0,
@@ -884,7 +884,7 @@ export default function BingoGame() {
     if (!user || bonusBal + mainBal < game.stake) { setErrMsg(`Need ${game.stake} ETB`); return; }
 
     setErrMsg("");
-    // INSTANT 0ms OPTIMISTIC UPDATE: Turn green with âœ“ immediately!
+    // INSTANT 0ms OPTIMISTIC UPDATE: Turn green with \u2713 immediately!
     const optimisticCard = { cartela_number: seat, card_matrix: matrix };
     setMyCartelas(prev => [...prev, optimisticCard]);
     setMyCard(optimisticCard);
@@ -1092,7 +1092,7 @@ export default function BingoGame() {
                         <span className="text-base leading-none">{opt.icon}</span>
                         <span className="text-xs font-bold leading-tight">{opt.label}</span>
                         {roomSortFilter === opt.key && (
-                          <span className="ml-auto text-amber-500 text-xs font-black">âœ“</span>
+                          <span className="ml-auto text-amber-500 text-xs font-black">\u2713</span>
                         )}
                       </button>
                     ))}
@@ -1376,7 +1376,7 @@ export default function BingoGame() {
                     <span className="text-slate-500 font-bold text-[8px] uppercase tracking-widest mt-1">ETB</span>
                   </div>
 
-                  {/* Middle: Derash | Players | Status â€” 3 columns */}
+                  {/* Middle: Derash | Players | Status - 3 columns */}
                   <div className="w-full bg-slate-50 border-t border-b border-slate-100 flex h-[35px] shrink-0 relative z-10">
                     <div className="flex-1 flex flex-col items-center justify-center border-r border-slate-100">
                       <span className="text-slate-400 text-[7px] font-bold uppercase tracking-wider">{t[language].bingo.derash}</span>
@@ -1471,7 +1471,7 @@ export default function BingoGame() {
           </div>
         </div>
 
-        {/* Caller Row + Card â€” scrollable */}
+        {/* Caller Row + Card - scrollable */}
         <div className="flex-1 min-h-0 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
         <div className={`w-full ${myCartelas.length > 1 ? 'max-w-[420px]' : 'max-w-[290px]'} mx-auto flex flex-col gap-1.5 pb-2`}>
           {/* Caller Row */}
@@ -1522,10 +1522,10 @@ export default function BingoGame() {
             </div>
           </div>
 
-          {/* My Cards â€” dynamic layout: 1 card = centered classic; 2+ cards = all visible side-by-side grid */}
+          {/* My Cards - dynamic layout: 1 card = centered classic; 2+ cards = all visible side-by-side grid */}
           {myCartelas.length > 0 ? (
             myCartelas.length === 1 ? (
-              /* Single Cartela â€” exact same classic centered layout as preset */
+              /* Single Cartela - exact same classic centered layout as preset */
               <div key={myCartelas[0].cartela_number} className="w-full max-w-[250px] mx-auto">
                 <div className="rounded-2xl overflow-hidden border-2 border-amber-300 shadow-md bg-white">
                   {/* BINGO Header */}
@@ -1564,7 +1564,7 @@ export default function BingoGame() {
                               canTap ? 'bg-white text-slate-800 active:scale-95 cursor-pointer ring-2 ring-blue-400 shadow-xs' :
                               'bg-white text-slate-800 border border-slate-100 shadow-xs'
                             }`}
-                          >{isFree ? 'â˜…' : num}</div>
+                          >{isFree ? '\u2605' : num}</div>
                         );
                       })
                     )}
@@ -1579,7 +1579,7 @@ export default function BingoGame() {
                 </div>
               </div>
             ) : (
-              /* 2 or More Cartelas â€” Side-by-side grid, ALL visible without any hidden tabs! */
+              /* 2 or More Cartelas - Side-by-side grid, ALL visible without any hidden tabs! */
               <div className="w-full flex flex-col gap-1 px-1">
                 <div className="flex items-center justify-between px-0.5">
                   <span className="text-amber-800 text-[10px] font-black tracking-wider uppercase">CARTELAS ({myCartelas.length})</span>
@@ -1626,7 +1626,7 @@ export default function BingoGame() {
                                     'bg-white text-slate-800 border border-slate-100 shadow-2xs'
                                   }`}
                                 >
-                                  {isFree ? 'â˜…' : num}
+                                  {isFree ? '\u2605' : num}
                                 </div>
                               );
                             })
@@ -1660,7 +1660,7 @@ export default function BingoGame() {
                   {Array.from({ length: 5 }).flatMap((_, r) => 
                     Array.from({ length: 5 }, (_, c) => {
                       const isFree = r === 2 && c === 2;
-                      const num = isFree ? 'â˜…' : (c * 15) + r + (c % 2 === 0 ? 3 : 8);
+                      const num = isFree ? '\u2605' : (c * 15) + r + (c % 2 === 0 ? 3 : 8);
                       return (
                         <div key={`${r}-${c}`} className={`aspect-square flex items-center justify-center font-black text-sm rounded-lg ${
                           isFree ? 'bg-amber-400 text-amber-950' : 'bg-white text-slate-800 shadow-2xs border border-slate-100'
@@ -1894,7 +1894,7 @@ export default function BingoGame() {
                 )}
               </div>
 
-              {/* Game ID Box â€” 8 uppercase characters, no hyphen */}
+              {/* Game ID Box - 8 uppercase characters, no hyphen */}
               <div className="flex-1 min-w-[75px] bg-white border border-amber-200/80 rounded-xl h-9 flex flex-col items-center justify-center shadow-xs">
                 <span className="text-[8px] text-slate-400 font-black tracking-wider uppercase leading-none">{t[language].bingo.gameId}</span>
                 <span className="text-xs font-black text-slate-800 leading-tight tracking-wider">{formatGameId(game.id)}</span>
@@ -1914,7 +1914,7 @@ export default function BingoGame() {
       {errMsg && (
         <div className={`mx-3 mt-2 px-3 py-2 ${game.status === 'calling' ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'bg-red-50 border-red-200 text-red-600'} border rounded-xl flex items-center justify-between z-10 shrink-0`}>
           <p className="text-xs font-bold">{errMsg}</p>
-          <button onClick={() => setErrMsg("")} className="text-base leading-none ml-2">âœ•</button>
+          <button onClick={() => setErrMsg("")} className="text-base leading-none ml-2">\u2715</button>
         </div>
       )}
 
@@ -1976,7 +1976,7 @@ export default function BingoGame() {
                                     ? 'bg-orange-100 text-slate-800'
                                     : 'bg-white text-slate-800'
                                 }`}>
-                                  {isFree ? 'â˜…' : num}
+                                  {isFree ? '\u2605' : num}
                                 </div>
                               )
                             }))}
@@ -1995,7 +1995,7 @@ export default function BingoGame() {
   
               {/* ðŸŒŸ  â”€â”€ */}
             </>) : (<>
-              {/* Trophy + BINGO label â€” NO overlap */}
+              {/* Trophy + BINGO label - NO overlap */}
               <div className="flex flex-col items-center mb-3">
                 <div className="text-5xl mb-1 animate-bounce">ðŸ†</div>
                 <div className="bg-amber-400 text-amber-950 px-7 py-1.5 rounded-full font-black text-2xl tracking-widest shadow-md">
@@ -2013,7 +2013,7 @@ export default function BingoGame() {
                 </div>
               </div>
 
-              {/* Winner Card â€” green win cells, gold ring, pattern badge */}
+              {/* Winner Card - green win cells, gold ring, pattern badge */}
               {celebration.winner_matrix ? (() => {
                 const winCells = getWinningCells(celebration.winner_matrix, celebration.called);
                 const winTitle = getWinningPatternTitle(celebration.winner_matrix, celebration.called);
@@ -2042,7 +2042,7 @@ export default function BingoGame() {
                               ? 'bg-orange-100 text-slate-800 font-bold'
                               : 'bg-white text-slate-800 border border-slate-100'
                           }`}>
-                            {isFree ? 'â˜…' : num}
+                            {isFree ? '\u2605' : num}
                           </div>
                         );
                       }))}
@@ -2092,7 +2092,7 @@ export default function BingoGame() {
                     return (
                       <div key={`${r}-${c}`} className={`aspect-square flex items-center justify-center font-black text-sm rounded-md transition-all duration-300 ${
                         isFree ? 'bg-amber-400 text-amber-950 shadow-xs' : 'bg-white text-slate-800 border border-slate-100 shadow-xs'
-                      }`}>{isFree ? 'â˜…' : num}</div>
+                      }`}>{isFree ? '\u2605' : num}</div>
                     );
                   })
                 )}
