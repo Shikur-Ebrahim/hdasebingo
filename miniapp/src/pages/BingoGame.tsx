@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ChevronDown, Gift, RefreshCw, Users, Clock, Trophy, Volume2, VolumeX, RotateCcw, LayoutGrid, Wand2, Hand, DoorOpen, Gamepad2, Flame } from "lucide-react";
+import { ArrowLeft, ChevronDown, Gift, RefreshCw, Users, Clock, Trophy, Volume2, VolumeX, RotateCcw, LayoutGrid, Wand2, Hand, DoorOpen, Gamepad2, Flame, X, Star } from "lucide-react";
 import WebApp from "@twa-dev/sdk";
 import { supabase } from "../lib/supabase";
 import { useGameStore, Room } from "../store/gameStore";
@@ -1057,11 +1057,11 @@ export default function BingoGame() {
               <div className="flex items-center justify-center space-x-1.5">
                 <DoorOpen size={16} className="text-amber-500" />
                 <h2 className="font-black text-base text-slate-800 tracking-wide">
-                  {language === 'am' ? 'á‹¨á‰¢áŠ•áŒŽ áŠ­ááˆŽá‰½' : 'BINGO ROOMS'}
+                  {language === 'am' ? 'የቢንጎ ክፍሎች' : 'BINGO ROOMS'}
                 </h2>
               </div>
               <p className="text-[10px] text-amber-600 font-bold">
-                {language === 'am' ? 'áŠ­ááˆ á‹­áˆáˆ¨áŒ¡áŠ“ á‹­áŒ«á‹ˆá‰±' : 'Select an active room to play'}
+                {language === 'am' ? 'ክፍል ይምረጡና ይጫወቱ' : 'Select an active room to play'}
               </p>
             </div>
             {/* Search icon + Filter */}
@@ -1100,7 +1100,7 @@ export default function BingoGame() {
                   <div className="absolute right-0 top-full mt-1.5 z-50 bg-white rounded-2xl shadow-xl border border-slate-200/80 overflow-hidden min-w-[180px]">
                     <div className="px-3 pt-2.5 pb-1">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        {language === 'am' ? 'áŠ­ááˆŽá‰½ á‰°áˆˆá‹­' : 'Sort Rooms By'}
+                        {language === 'am' ? 'ክፍሎች ለይ' : 'Sort Rooms By'}
                       </p>
                     </div>
                     {BINGO_FILTER_OPTIONS.map(opt => (
@@ -1116,7 +1116,7 @@ export default function BingoGame() {
                         <span className="text-base leading-none">{opt.icon}</span>
                         <span className="text-xs font-bold leading-tight">{opt.label}</span>
                         {roomSortFilter === opt.key && (
-                          <span className="ml-auto text-amber-500 text-xs font-black">\u2713</span>
+                          <span className="ml-auto text-amber-500 text-xs font-black">✓</span>
                         )}
                       </button>
                     ))}
@@ -1126,7 +1126,7 @@ export default function BingoGame() {
                         className="w-full flex items-center justify-center space-x-2 py-2 bg-slate-100 rounded-xl text-slate-600 text-xs font-bold active:scale-95 transition-all hover:bg-slate-200"
                       >
                         <RefreshCw size={12} className={roomsRefreshing ? 'animate-spin text-amber-500' : ''} />
-                        <span>{language === 'am' ? 'áŠ á‹µáˆµ' : 'Refresh Rooms'}</span>
+                        <span>{language === 'am' ? 'አድስ' : 'Refresh Rooms'}</span>
                       </button>
                     </div>
                   </div>
@@ -1148,11 +1148,11 @@ export default function BingoGame() {
                   type="text"
                   value={roomSearch}
                   onChange={e => setRoomSearch(e.target.value)}
-                  placeholder={language === 'am' ? 'áŠ­ááˆ áˆáˆáŒ...' : 'Search rooms by name...'}
+                  placeholder={language === 'am' ? 'ክፍል ፈልግ...' : 'Search rooms by name...'}
                   className="flex-1 bg-transparent text-xs font-semibold text-slate-700 placeholder-slate-400 outline-none"
                 />
                 {roomSearch && (
-                  <button onClick={() => setRoomSearch('')} className="text-slate-400 hover:text-slate-600 ml-1 text-sm leading-none">Ã—</button>
+                  <button onClick={() => setRoomSearch('')} className="text-slate-400 hover:text-slate-600 ml-1 text-sm leading-none">×</button>
                 )}
               </div>
             </div>
@@ -1183,14 +1183,14 @@ export default function BingoGame() {
             <div className="flex items-center justify-between mb-2.5">
               <div className="flex items-center space-x-1.5">
                 <span className="text-xs font-black text-slate-700 uppercase tracking-wide">
-                  {language === 'am' ? 'áŠ­áá‰µ áŠ­ááˆŽá‰½' : 'Available Rooms'}
+                  {language === 'am' ? 'ክፍት ክፍሎች' : 'Available Rooms'}
                 </span>
                 <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold">
                   {filteredRooms.length}
                 </span>
               </div>
               <span className="text-[10px] text-slate-400 font-bold">
-                {language === 'am' ? 'á‹­áˆáˆ¨áŒ¡áŠ“ á‹­áŒá‰¡' : 'Tap room to join'}
+                {language === 'am' ? 'ይምረጡና ይግቡ' : 'Tap room to join'}
               </span>
             </div>
 
@@ -1201,20 +1201,20 @@ export default function BingoGame() {
                 </div>
                 <p className="text-xs font-black text-slate-600">
                   {roomSearch.trim()
-                    ? (language === 'am' ? `"${roomSearch}" áŠ áˆá‰°áŒˆáŠ˜áˆ` : `No rooms matching "${roomSearch}"`)
-                    : (language === 'am' ? 'áˆáŠ•áˆ áŠ­ááˆŽá‰½ á‹¨áˆ‰áˆ' : 'No active rooms yet')}
+                    ? (language === 'am' ? `"${roomSearch}" አልተገኘም` : `No rooms matching "${roomSearch}"` )
+                    : (language === 'am' ? 'ምንም ክፍሎች የሉም' : 'No active rooms yet')}
                 </p>
                 <p className="text-[10px] text-slate-400">
                   {roomSearch.trim()
-                    ? (language === 'am' ? 'áˆŒáˆ‹ á‰ƒáˆ á‹­áˆžáŠ­áˆ©' : 'Try a different search term')
-                    : (language === 'am' ? 'áŠ­ááˆŽá‰½ áˆ²á‹˜áŒ‹áŒ áŠ¥á‹šáˆ… á‹­á‰³á‹«áˆ‰' : 'Rooms will appear here once agents create them')}
+                    ? (language === 'am' ? 'ሌላ ቃል ይሞክሩ' : 'Try a different search term')
+                    : (language === 'am' ? 'ክፍሎች ሲዘጋጁ እዚህ ይታያሉ' : 'Rooms will appear here once agents create them')}
                 </p>
                 {!roomSearch.trim() && (
                   <button
                     onClick={handleRefreshRooms}
                     className="mt-2 px-4 py-1.5 bg-amber-500 text-white rounded-xl text-xs font-black active:scale-95 shadow-sm"
                   >
-                    {language === 'am' ? 'áŠ á‹µáˆµ (Refresh)' : 'Refresh'}
+                    {language === 'am' ? 'አድስ (Refresh)' : 'Refresh'}
                   </button>
                 )}
               </div>
@@ -1232,11 +1232,11 @@ export default function BingoGame() {
                       <div className="h-20 bg-black flex flex-col items-center justify-center relative px-2.5 text-center">
                         {isInvitedRoom ? (
                           <div className="absolute top-2 left-2 flex items-center justify-center bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[10px] w-5 h-5 rounded-full shadow-sm">
-                            <span>\u2b50</span>
+                            <Star size={12} className="text-amber-400 fill-amber-400" />
                           </div>
                         ) : room.is_pinned ? (
                           <div className="absolute top-2 left-2 flex items-center justify-center bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 text-[10px] w-5 h-5 rounded-full shadow-sm">
-                            <span>\ud83d\udccc</span>
+                            <span className="text-xs">📌</span>
                           </div>
                         ) : null}
                         <div className="absolute top-2 right-2 flex items-center space-x-1 bg-white/10 px-1.5 py-0.5 rounded-full">
@@ -1252,13 +1252,13 @@ export default function BingoGame() {
                       <div className="w-full bg-slate-50 border-b border-slate-100 flex h-[38px] shrink-0">
                         <div className="flex-1 flex flex-col items-center justify-center border-r border-slate-100">
                           <span className="text-slate-400 text-[8px] font-bold uppercase tracking-wider">
-                            {language === 'am' ? 'á‰°áŒ«á‹‹á‰¾á‰½' : 'Players'}
+                            {language === 'am' ? 'ተጫዋቾች' : 'Players'}
                           </span>
                           <span className="text-[11px] font-black text-emerald-600">{room.total_players}</span>
                         </div>
                         <div className="flex-1 flex flex-col items-center justify-center">
                           <span className="text-slate-400 text-[8px] font-bold uppercase tracking-wider">
-                            {language === 'am' ? 'áŒ¨á‹‹á‰³á‹Žá‰½' : 'Games'}
+                            {language === 'am' ? 'ጨዋታዎች' : 'Games'}
                           </span>
                           <span className="text-[11px] font-black text-violet-600">{room.total_games}</span>
                         </div>
@@ -1267,8 +1267,8 @@ export default function BingoGame() {
                       {/* Action Button */}
                       <div className="p-2 text-center bg-white">
                         <div className="w-full bg-slate-100 hover:bg-amber-500 hover:text-white text-slate-700 font-black py-2 rounded-xl text-[11px] transition-colors flex items-center justify-center space-x-1 shadow-2xs">
-                          <span>{language === 'am' ? 'áŠ­ááˆ á‹­áŒá‰¡' : 'Join Room'}</span>
-                          <span>\u2192</span>
+                          <span>{language === 'am' ? 'ክፍል ይግቡ' : 'Join Room'}</span>
+                          <span className="font-bold">→</span>
                         </div>
                       </div>
                     </div>
@@ -1308,7 +1308,7 @@ export default function BingoGame() {
                   });
                 }}
                 className="h-9 w-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl shrink-0 active:scale-95 transition-transform shadow-xs text-slate-700 hover:bg-slate-50"
-                title={language === 'am' ? 'á‹ˆá‹° áŠ­ááˆŽá‰½ á‰°áˆ˜áˆˆáˆµ' : 'Back to rooms'}
+                title={language === 'am' ? 'ወደ ክፍሎች ተመለስ' : 'Back to rooms'}
               >
                 <ArrowLeft size={16} className="text-slate-700" />
               </button>
@@ -1337,14 +1337,14 @@ export default function BingoGame() {
                 <div className="flex items-center space-x-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                   <span className="text-[9px] font-black text-amber-700 uppercase tracking-wider">
-                    {language === 'am' ? 'á‹¨á‰°áˆ˜áˆ¨áŒ  áŠ­ááˆ' : 'Selected Room'}
+                    {language === 'am' ? 'የተመረጠ ክፍል' : 'Selected Room'}
                   </span>
                 </div>
                 <h3 className="font-black text-sm text-slate-800 leading-tight">
                   {selectedRoom?.room_name || 'Active Room'}
                 </h3>
                 <p className="text-[9px] text-slate-500 font-semibold mt-0.5">
-                  \ud83d\udc65 {selectedRoom?.total_players || 0} {language === 'am' ? '\u1270\u132b\u12cb\u127e\u127d' : 'players'} \u2022 \ud83c\udfae {selectedRoom?.total_games || 0} {language === 'am' ? '\u1328\u12cb\u1273\u12c8\u127d' : 'games'}
+                  <Users size={11} className="inline mr-1 text-slate-400 -mt-0.5" />{selectedRoom?.total_players || 0} {language === 'am' ? '\u1270\u132b\u12cb\u127e\u127d' : 'players'} • <Gamepad2 size={11} className="inline mr-1 ml-1.5 text-slate-400 -mt-0.5" />{selectedRoom?.total_games || 0} {language === 'am' ? '\u1328\u12cb\u1273\u12c8\u127d' : 'games'}
                 </p>
               </div>
             </div>
@@ -1359,7 +1359,7 @@ export default function BingoGame() {
               className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-slate-700 text-[11px] font-bold active:scale-95 transition-transform shadow-xs flex items-center space-x-1 hover:bg-slate-50"
             >
               <RotateCcw size={12} className="text-amber-600" />
-              <span>{language === 'am' ? 'áŠ­ááˆ á‰€á‹­áˆ­' : 'Change Room'}</span>
+              <span>{language === 'am' ? 'ክፍል ቀይር' : 'Change Room'}</span>
             </button>
           </div>
 
@@ -1419,7 +1419,7 @@ export default function BingoGame() {
                   {/* Bottom: Action */}
                   <div className="w-full h-[30px] flex items-center justify-center relative z-10 bg-white">
                     {isWaiting ? (
-                      <span className="text-orange-500 text-[9px] font-black uppercase tracking-wider flex items-center gap-1">\ud83d\udd25 {t[language].bingo.joinNow}</span>
+                      <span className="text-orange-500 text-[9px] font-black uppercase tracking-wider flex items-center gap-1"><Flame size={12} className="inline text-orange-500" /> {t[language].bingo.joinNow}</span>
                     ) : (
                       <span className="text-slate-400 text-[9px] font-bold uppercase tracking-wider">{t[language].bingo.startMatch}</span>
                     )}
@@ -1447,7 +1447,7 @@ export default function BingoGame() {
 
   if (!game) return (
     <div className="h-[calc(100dvh-80px)] w-full bg-gradient-to-b from-[#fffbf0] via-[#fef3c7]/30 to-[#fffbf0] flex flex-col items-center justify-center text-slate-800 gap-4">
-      <div className="w-16 h-16 rounded-3xl bg-white border-2 border-amber-300 shadow-md flex items-center justify-center text-3xl">\ud83c\udfb1</div>
+      <div className="w-16 h-16 rounded-3xl bg-white border-2 border-amber-300 shadow-md flex items-center justify-center text-3xl">🎱</div>
       <p className="font-black text-lg text-slate-800">{t[language].bingo.preparingNext}</p>
       <button onClick={fetchState} className="px-8 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-black rounded-full text-sm shadow-md active:scale-95 transition-transform">{t[language].bingo.refresh}</button>
       <button onClick={() => setSelectedStake(null)} className="text-slate-400 text-xs underline mt-1">{t[language].bingo.changeStake}</button>
@@ -1697,7 +1697,7 @@ export default function BingoGame() {
                 {/* Overlay Text */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-xs z-10">
                   <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mb-3 border border-red-500/30">
-                    <span className="text-xl animate-pulse">\u23f3</span>
+                    <Clock size={20} className="animate-pulse text-amber-500" />
                   </div>
                   <h3 className="text-red-400 font-black text-lg uppercase tracking-widest mb-1 drop-shadow-sm">Match is active</h3>
                   <p className="text-white text-[10px] font-bold text-center px-4 leading-relaxed uppercase tracking-wider">
@@ -1795,7 +1795,7 @@ export default function BingoGame() {
                   setTaken([]);
                 }} 
                 className="h-9 w-9 flex items-center justify-center bg-white border border-amber-200/80 rounded-xl shrink-0 active:scale-95 transition-transform shadow-xs text-slate-700 hover:bg-amber-50"
-                title={language === 'am' ? 'á‹ˆá‹° áŠ¥áŒ£á‹Žá‰½ á‰°áˆ˜áˆˆáˆµ' : 'Back to stakes'}
+                title={language === 'am' ? 'ወደ ዕጣዎች ተመለስ' : 'Back to stakes'}
               >
                 <ArrowLeft size={16} className="text-slate-700" />
               </button>
@@ -1824,7 +1824,7 @@ export default function BingoGame() {
                     <div className="absolute top-[calc(100%+8px)] left-0 w-48 max-h-60 overflow-y-auto bg-white border border-amber-200 rounded-xl shadow-xl z-50 py-1" style={{ scrollbarWidth: 'none' }}>
                       <div className="px-3 py-1.5 border-b border-slate-100">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                          {language === 'am' ? 'áŠ­ááˆ áˆáˆ¨áŒ¥' : 'Select Room'}
+                          {language === 'am' ? 'ክፍል ምረጥ' : 'Select Room'}
                         </p>
                       </div>
                       {((rooms.filter(r => !r.status || r.status === 'active').length > 0 ? rooms.filter(r => !r.status || r.status === 'active') : rooms).slice().sort((a, b) => {
@@ -1859,10 +1859,10 @@ export default function BingoGame() {
                               <DoorOpen size={13} className={isCurrent ? 'text-amber-600' : 'text-slate-400'} />
                               <div className="truncate">
                                 <div className="flex items-center space-x-1">
-                                  {r.is_pinned && <span className="text-[10px]">\ud83d\udccc</span>}
+                                  {r.is_pinned && <span className="text-[10px]">📌</span>}
                                   <p className="font-black text-xs truncate leading-tight">{r.room_name}</p>
                                 </div>
-                                <p className="text-[9px] text-slate-400 font-semibold leading-none mt-0.5">\ud83d\udc65 {r.total_players || 0}</p>
+                                <p className="text-[9px] text-slate-400 font-semibold leading-none mt-0.5 flex items-center gap-1"><Users size={10} className="inline text-slate-400" /> {r.total_players || 0}</p>
                               </div>
                             </div>
                             {isCurrent && <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0 ml-1.5" />}
@@ -1938,7 +1938,7 @@ export default function BingoGame() {
       {errMsg && (
         <div className={`mx-3 mt-2 px-3 py-2 ${game.status === 'calling' ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'bg-red-50 border-red-200 text-red-600'} border rounded-xl flex items-center justify-between z-10 shrink-0`}>
           <p className="text-xs font-bold">{errMsg}</p>
-          <button onClick={() => setErrMsg("")} className="text-base leading-none ml-2">\u2715</button>
+          <button onClick={() => setErrMsg("")} className="text-base leading-none ml-2 p-1 hover:bg-red-200/50 rounded-full transition-colors"><X size={14} /></button>
         </div>
       )}
 
@@ -1953,14 +1953,10 @@ export default function BingoGame() {
             {/* Close button */}
             <button
               onClick={dismissCelebration}
-              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-sm font-black active:scale-90 transition-all z-20 cursor-pointer shadow-xs"
-              title="Close"
-            >
-              \u2715
-            </button>
+              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-sm font-black active:scale-90 transition-all z-20 cursor-pointer shadow-xs" title="Close"><X size={16} className="text-slate-500" /></button>
             {/* -- REMATCH -- */}
             {celebration.winner_name === 'REMATCH' ? (<>
-              <div className="text-5xl mb-2 animate-spin">\ud83d\udd04</div>
+              <div className="mb-2 flex justify-center"><RotateCcw size={48} className="text-orange-500 animate-spin" /></div>
               <h2 className="text-3xl font-black text-orange-500 mb-2">{t[language].bingo.rematch}</h2>
               <div className="bg-amber-50/80 rounded-2xl p-3 mb-3 w-full border border-amber-200">
                 <p className="text-orange-600 font-black text-sm mb-1">{t[language].bingo.tieDesc}</p>
@@ -2029,7 +2025,7 @@ export default function BingoGame() {
             </>) : (<>
               {/* Trophy + BINGO label - NO overlap */}
               <div className="flex flex-col items-center mb-3">
-                <div className="text-5xl mb-1 animate-bounce">\ud83c\udfc6</div>
+                <div className="mb-1 flex justify-center"><Trophy size={52} className="text-amber-500 animate-bounce drop-shadow-md" /></div>
                 <div className="bg-amber-400 text-amber-950 px-7 py-1.5 rounded-full font-black text-2xl tracking-widest shadow-md">
                   BINGO!
                 </div>
@@ -2041,7 +2037,7 @@ export default function BingoGame() {
                 <p className="text-slate-900 font-black text-2xl leading-tight">{celebration.winner_name}</p>
                 <p className="text-amber-700 text-xs font-bold mt-0.5 flex items-center justify-center gap-1.5"><LayoutGrid size={12} className="text-amber-500 shrink-0" /> {t[language].bingo.cartelaNum.trim()} {celebration.winner_cartela}</p>
                 <div className="mt-2 inline-block bg-emerald-500 text-white px-6 py-1.5 rounded-full font-black text-lg shadow-[0_4px_16px_rgba(16,185,129,0.4)]">
-                  \ud83c\udf89 {celebration.winner_prize} ETB
+                  <Trophy size={18} className="text-amber-200 inline mr-1.5 -mt-0.5" />{celebration.winner_prize} ETB
                 </div>
               </div>
 
@@ -2090,7 +2086,7 @@ export default function BingoGame() {
                 );
               })() : (
                 <div className="w-full bg-amber-50/80 rounded-2xl p-4 mb-3 border border-amber-200 flex flex-col items-center">
-                  <div className="animate-spin text-2xl mb-1">\u23f3</div>
+                  <div className="flex justify-center mb-1"><Clock size={28} className="animate-spin text-amber-500" /></div>
                   <p className="text-amber-800 text-xs font-bold">Loading winning cartela...</p>
                 </div>
               )}
