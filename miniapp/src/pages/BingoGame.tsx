@@ -625,7 +625,7 @@ export default function BingoGame() {
     if (!finGame.winner_cartela && finGame.winner_first_name !== 'REMATCH') return;
 
     // Guard: ignore stale games > 6s old
-    if (finGame.finished_at && (Date.now() - new Date(finGame.finished_at).getTime()) > 6000) {
+    if (finGame.finished_at && (Date.now() - new Date(finGame.finished_at).getTime()) > 12000) {
       celebratedGamesRef.current.add(finGame.id);
       return;
     }
@@ -639,7 +639,15 @@ export default function BingoGame() {
     // Play celebration sound
     playSpecial('bingo_win');
 
-    // Start guaranteed 1-second auto-dismiss timer that CANNOT be cancelled or reset by background fetches or re-renders!
+        // Auto-dismiss matches bingo_win.mp3 duration + viewing time (minimum 3.5s so card does not vanish fast)
+    let durationMs = 3500;
+    try {
+      const audioBuffer = audioBufferCache.current.get('/audio/bingo/bingo_win.mp3');
+      if (audioBuffer && audioBuffer.duration > 0) {
+        durationMs = Math.max(3500, Math.ceil(audioBuffer.duration * 1000) + 1200);
+      }
+    } catch {}
+
     if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
     celebrationTimerRef.current = setTimeout(() => {
       celebrationTimerRef.current = null;
@@ -651,7 +659,7 @@ export default function BingoGame() {
       setGame(prev => prev ? { ...prev, status: 'waiting', called_numbers: [], total_players: 0, prize_pool: 0 } : prev);
       fetchStateRef.current();
       refreshUserRef.current();
-    }, 1000);
+    }, durationMs);
 
     if (finGame.winner_first_name === 'REMATCH') {
       setCelebration({
@@ -700,6 +708,22 @@ export default function BingoGame() {
         }).catch(() => {});
     }
   }, [user?.telegram_id, myCartelas, playSpecial]);
+
+  const dismissCelebration = useCallback(() => {
+    if (celebrationTimerRef.current) {
+      clearTimeout(celebrationTimerRef.current);
+      celebrationTimerRef.current = null;
+    }
+    setCelebration(null);
+    setMyCard(null);
+    setMyCartelas([]);
+    setActiveCartelaIdx(0);
+    setTaken([]);
+    setGame(prev => prev ? { ...prev, status: 'waiting', called_numbers: [], total_players: 0, prize_pool: 0 } : prev);
+    fetchStateRef.current();
+    refreshUserRef.current();
+  }, []);
+
 
   const fetchState = useCallback(async () => {
     if (!selectedStake) return;
@@ -1924,8 +1948,16 @@ export default function BingoGame() {
 
       {/* Winner Celebration */}
       {celebration && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white border-2 border-amber-300 rounded-3xl p-4 text-center max-w-sm w-full shadow-2xl flex flex-col items-center relative">
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-sm overflow-y-auto" onClick={dismissCelebration}>
+          <div className="bg-white border-2 border-amber-300 rounded-3xl p-4 text-center max-w-sm w-full shadow-2xl flex flex-col items-center relative" onClick={e => e.stopPropagation()}>
+            {/* Close button */}
+            <button
+              onClick={dismissCelebration}
+              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-sm font-black active:scale-90 transition-all z-20 cursor-pointer shadow-xs"
+              title="Close"
+            >
+              \u2715
+            </button>
             {/* -- REMATCH -- */}
             {celebration.winner_name === 'REMATCH' ? (<>
               <div className="text-5xl mb-2 animate-spin">\ud83d\udd04</div>
