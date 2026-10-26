@@ -77,7 +77,7 @@ export default function AdminChannelProofs() {
     depositEnabled: true,
     withdrawThreshold: 10,
     withdrawEnabled: true,
-    targetChannel: '@hdasebingo',
+    targetChannel: '@hdasebingo_channel',
     lastDepositPostAt: null,
     lastWithdrawPostAt: null,
   });
@@ -196,7 +196,7 @@ export default function AdminChannelProofs() {
         setFormDepositEnabled(json.settings.depositEnabled !== false);
         setFormWithdrawThreshold(String(json.settings.withdrawThreshold || 10));
         setFormWithdrawEnabled(json.settings.withdrawEnabled !== false);
-        setFormTargetChannel(json.settings.targetChannel || '@hdasebingo');
+        setFormTargetChannel(json.settings.targetChannel || '@hdasebingo_channel');
 
         // Sync batch size with settings threshold on first load
         setDepositBatchSize(prev => (prev === 10 && json.settings.depositThreshold) ? json.settings.depositThreshold : prev);
@@ -1276,7 +1276,7 @@ export default function AdminChannelProofs() {
                 type="text"
                 value={formTargetChannel}
                 onChange={(e) => setFormTargetChannel(e.target.value)}
-                placeholder={settings.targetChannel || '@hdasebingo'}
+                placeholder={settings.targetChannel || '@hdasebingo_channel'}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
               <span className="text-[10px] text-slate-400 mt-1 block">

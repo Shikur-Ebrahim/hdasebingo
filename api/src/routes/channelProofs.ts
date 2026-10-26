@@ -6,7 +6,7 @@ import { uploadToR2 } from '../services/r2';
 const router = Router();
 
 // Default Telegram Channel
-export const DEFAULT_PROOF_CHANNEL = '@hdasebingo';
+export const DEFAULT_PROOF_CHANNEL = '@hdasebingo_channel';
 
 // ── Middleware: Admin or Worker with permissions ──────────────────────────────
 const requireAdminOrWorker = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {

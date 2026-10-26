@@ -86,7 +86,7 @@ export async function getDynamicBotSettings(): Promise<DynamicBotSettings> {
   }
 
   const supportUrl = formatTelegramUrl(supportUsername, 'https://t.me/hdasebingo_admin');
-  const channelUrl = formatTelegramUrl(channelLink, 'https://t.me/hdasebingo');
+  const channelUrl = formatTelegramUrl(channelLink, 'https://t.me/hdasebingo_channel');
 
   return {
     support_username: cleanTelegramUsername(supportUsername, 'hdasebingo_admin'),
