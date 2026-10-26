@@ -523,42 +523,42 @@ export default function SupportVideos() {
         </div>
       )}
 
-      {/* FULL-SCREEN REELS/SHORTS-STYLE SWIPEABLE VIDEO PLAYER */}
+      {/* FULL-SCREEN REELS/SHORTS-STYLE SWIPEABLE VIDEO PLAYER (CLEAN WHITE THEME) */}
       {isPlayerOpen && currentVideo && (
         <div
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onWheel={handleWheel}
-          className="fixed inset-0 z-50 bg-black flex flex-col justify-between select-none touch-none"
+          className="fixed inset-0 z-50 bg-white flex flex-col justify-between select-none touch-none"
         >
-          {/* Top Bar */}
-          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/90 via-black/60 to-transparent z-20">
+          {/* Top Bar - Clean White */}
+          <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-slate-100 z-20 shrink-0">
             <div className="flex-1 min-w-0 pr-3">
-              <div className="flex items-center space-x-2 mb-0.5">
+              <div className="flex items-center space-x-2 mb-1">
                 {currentVideoCat && (
-                  <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-white/20 text-white backdrop-blur-md">
+                  <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${currentVideoCat.bg} ${currentVideoCat.text}`}>
                     {currentVideoCat.emoji} {currentVideoCat.label}
                   </span>
                 )}
-                <span className="text-[10px] font-bold text-white/70 bg-black/40 px-2 py-0.5 rounded-full">
+                <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
                   {activeVideoIndex + 1} of {playerPlaylist.length}
                 </span>
               </div>
-              <p className="font-bold text-white text-sm truncate">{currentVideo.title}</p>
+              <p className="font-black text-slate-900 text-sm truncate">{currentVideo.title}</p>
             </div>
             
             <div className="flex items-center space-x-2">
               <button
                 onClick={handleSupport}
-                className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center active:scale-90 transition-all"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center active:scale-90 transition-all border border-slate-200"
                 title="Support"
               >
                 <MessageCircle size={16} />
               </button>
               <button 
                 onClick={closeVideoPlayer} 
-                className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center active:scale-90 transition-all"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center active:scale-90 transition-all border border-slate-200"
                 title="Close"
               >
                 <X size={18} />
@@ -566,8 +566,8 @@ export default function SupportVideos() {
             </div>
           </div>
 
-          {/* Main Video Viewport */}
-          <div className="flex-1 relative flex items-center justify-center bg-black overflow-hidden">
+          {/* Main Video Viewport - Pure White Canvas */}
+          <div className="flex-1 min-h-0 relative flex items-center justify-center bg-white overflow-hidden p-3">
             <video
               key={currentVideo.id} // Reload video smoothly when index changes
               ref={videoRef}
@@ -575,32 +575,32 @@ export default function SupportVideos() {
               controls
               autoPlay
               playsInline
-              className="w-full max-h-full object-contain"
-              style={{ maxHeight: 'calc(100vh - 150px)' }}
+              className="w-full max-h-full object-contain bg-white rounded-2xl shadow-lg border border-slate-100"
+              style={{ maxHeight: 'calc(100vh - 160px)' }}
             >
               Your browser does not support video playback.
             </video>
 
-            {/* Floating Navigation Controls on the Right Edge (TikTok / Shorts style) */}
+            {/* Floating Navigation Controls on the Right Edge (TikTok / Shorts style - White Theme) */}
             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col items-center space-y-3 z-30">
               {/* Prev Video Button (▲) */}
               <button
                 onClick={(e) => { e.stopPropagation(); goToPrevVideo(); }}
-                className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-white flex flex-col items-center justify-center active:scale-90 transition-transform shadow-lg hover:bg-black/80"
+                className="w-10 h-10 rounded-full bg-white/95 hover:bg-white text-slate-700 backdrop-blur-md border border-slate-200 shadow-xl flex items-center justify-center active:scale-90 transition-all"
                 title="Previous Video (Swipe Down)"
               >
                 <ChevronUp size={20} />
               </button>
 
               {/* Progress counter pill */}
-              <div className="px-2 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/15 text-[10px] font-black text-white/90">
+              <div className="px-2.5 py-1 rounded-full bg-white/95 border border-slate-200 shadow-md text-[10px] font-black text-slate-800">
                 {activeVideoIndex + 1}/{playerPlaylist.length}
               </div>
 
               {/* Next Video Button (▼) */}
               <button
                 onClick={(e) => { e.stopPropagation(); goToNextVideo(); }}
-                className="w-10 h-10 rounded-full bg-violet-600/90 backdrop-blur-md border border-violet-400/40 text-white flex flex-col items-center justify-center active:scale-90 transition-transform shadow-lg hover:bg-violet-700 animate-pulse"
+                className="w-10 h-10 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border border-violet-400/30 shadow-xl shadow-violet-500/25 flex items-center justify-center active:scale-90 transition-all animate-pulse"
                 title="Next Video (Swipe Up)"
               >
                 <ChevronDown size={20} />
@@ -608,25 +608,26 @@ export default function SupportVideos() {
             </div>
           </div>
 
-          {/* Bottom Info & Swipe Hint Overlay */}
-          <div className="p-4 bg-gradient-to-t from-black via-black/80 to-transparent z-20 space-y-2">
+          {/* Bottom Info & Swipe Hint Overlay - Clean White Dock */}
+          <div className="p-4 bg-white border-t border-slate-100 z-20 space-y-2 shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.04)]">
             {currentVideo.description && (
-              <p className="text-xs text-white/80 font-medium line-clamp-2 leading-relaxed">
+              <p className="text-xs text-slate-600 font-medium line-clamp-2 leading-relaxed">
                 {currentVideo.description}
               </p>
             )}
 
             {/* Swipe instruction helper */}
-            <div className="flex items-center justify-between pt-1">
-              <div className="flex items-center space-x-1.5 text-[10px] font-bold text-white/60">
-                <span className="inline-block animate-bounce">↕</span>
-                <span>Swipe up or down for next video</span>
+            <div className="flex items-center justify-between pt-0.5">
+              <div className="flex items-center space-x-1.5 text-[11px] font-bold text-slate-500">
+                <span className="inline-block animate-bounce text-violet-600">↕</span>
+                <span>{language === 'am' ? 'ቪዲዮ ለመቀየር ወደ ላይ ወይም ወደ ታች ይጎትቱ' : 'Swipe up or down for next video'}</span>
               </div>
               <button
                 onClick={handleSupport}
-                className="text-[10px] font-bold text-violet-300 hover:text-white flex items-center space-x-1 underline"
+                className="text-[11px] font-black text-violet-700 bg-violet-50 hover:bg-violet-100 px-3 py-1 rounded-full border border-violet-200 transition-colors flex items-center space-x-1 shadow-2xs"
               >
-                <span>Ask Admin Help</span>
+                <Headphones size={12} className="text-violet-600" />
+                <span>{language === 'am' ? 'እርዳታ ጠይቅ' : 'Ask Admin Help'}</span>
               </button>
             </div>
           </div>

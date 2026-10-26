@@ -443,38 +443,38 @@ export default function AdminSupportVideos() {
         )}
       </div>
 
-      {/* FULL-SCREEN VIDEO PLAYER MODAL WITH SWIPE UP/DOWN NAVIGATION */}
+      {/* FULL-SCREEN VIDEO PLAYER MODAL WITH SWIPE UP/DOWN NAVIGATION (CLEAN WHITE THEME) */}
       {currentPreviewVideo && (
         <div 
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onWheel={handleWheel}
-          className="fixed inset-0 z-50 bg-black flex flex-col justify-between select-none touch-none"
+          className="fixed inset-0 z-50 bg-white flex flex-col justify-between select-none touch-none"
         >
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-slate-900/90 backdrop-blur-md border-b border-white/10 z-20">
+          {/* Header - Clean White */}
+          <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-slate-100 z-20">
             <div className="flex-1 min-w-0 pr-3">
               <div className="flex items-center space-x-2 mb-0.5">
                 <span className={`inline-block text-[9px] font-black px-2 py-0.5 rounded-full ${categoryColor(currentPreviewVideo.category)}`}>
                   {categoryLabel(currentPreviewVideo.category)}
                 </span>
-                <span className="text-[10px] font-bold text-white/70 bg-black/40 px-2 py-0.5 rounded-full">
+                <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
                   {(previewIndex ?? 0) + 1} of {filtered.length}
                 </span>
               </div>
-              <p className="font-bold text-white text-sm truncate">{currentPreviewVideo.title}</p>
+              <p className="font-bold text-slate-900 text-sm truncate">{currentPreviewVideo.title}</p>
             </div>
             <button
               onClick={closePreview}
-              className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 active:scale-90 text-white flex items-center justify-center transition-all"
+              className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 text-slate-600 flex items-center justify-center transition-all border border-slate-200"
             >
               <X size={20} />
             </button>
           </div>
 
-          {/* Video Player Area */}
-          <div className="flex-1 relative flex items-center justify-center bg-black p-2 overflow-hidden">
+          {/* Video Player Area - Clean White Canvas */}
+          <div className="flex-1 relative flex items-center justify-center bg-white p-3 overflow-hidden">
             <video
               key={currentPreviewVideo.id}
               ref={previewVideoRef}
@@ -482,29 +482,29 @@ export default function AdminSupportVideos() {
               controls
               autoPlay
               playsInline
-              className="w-full max-h-full rounded-xl object-contain"
-              style={{ maxHeight: 'calc(100vh - 150px)' }}
+              className="w-full max-h-full rounded-2xl object-contain bg-white shadow-lg border border-slate-100"
+              style={{ maxHeight: 'calc(100vh - 160px)' }}
             >
               Your browser does not support video playback.
             </video>
 
-            {/* Floating Navigation Controls on the Right Edge (Swipe Up/Down) */}
+            {/* Floating Navigation Controls on the Right Edge (Swipe Up/Down - White Theme) */}
             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col items-center space-y-3 z-30">
               <button
                 onClick={(e) => { e.stopPropagation(); goToPrevPreview(); }}
-                className="w-10 h-10 rounded-full bg-black/70 backdrop-blur-md border border-white/20 text-white flex items-center justify-center active:scale-90 transition-transform shadow-lg"
+                className="w-10 h-10 rounded-full bg-white/95 hover:bg-white text-slate-700 backdrop-blur-md border border-slate-200 shadow-xl flex items-center justify-center active:scale-90 transition-transform"
                 title="Previous Video (Swipe Down)"
               >
                 <ChevronUp size={20} />
               </button>
 
-              <div className="px-2 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/15 text-[10px] font-black text-white/90">
+              <div className="px-2 py-1 rounded-full bg-white/95 border border-slate-200 shadow-sm text-[10px] font-black text-slate-800">
                 {(previewIndex ?? 0) + 1}/{filtered.length}
               </div>
 
               <button
                 onClick={(e) => { e.stopPropagation(); goToNextPreview(); }}
-                className="w-10 h-10 rounded-full bg-violet-600/90 backdrop-blur-md border border-violet-400/40 text-white flex items-center justify-center active:scale-90 transition-transform shadow-lg animate-pulse"
+                className="w-10 h-10 rounded-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border border-violet-400/30 shadow-xl shadow-violet-500/25 flex items-center justify-center active:scale-90 transition-transform animate-pulse"
                 title="Next Video (Swipe Up)"
               >
                 <ChevronDown size={20} />
@@ -512,13 +512,13 @@ export default function AdminSupportVideos() {
             </div>
           </div>
 
-          {/* Bottom info footer & helper */}
-          <div className="p-3.5 bg-slate-900/90 border-t border-white/10 z-20 space-y-1">
+          {/* Bottom info footer & helper - Clean White Dock */}
+          <div className="p-3.5 bg-white border-t border-slate-100 z-20 space-y-1 shadow-[0_-4px_16px_rgba(0,0,0,0.04)]">
             {currentPreviewVideo.description && (
-              <p className="text-xs text-white/80 font-medium line-clamp-2">{currentPreviewVideo.description}</p>
+              <p className="text-xs text-slate-600 font-medium line-clamp-2">{currentPreviewVideo.description}</p>
             )}
-            <div className="text-[10px] text-white/50 font-bold flex items-center space-x-1">
-              <span>↕</span>
+            <div className="text-[10px] text-slate-400 font-bold flex items-center space-x-1">
+              <span className="text-violet-600">↕</span>
               <span>Swipe up or down or use arrows to view next/prev video</span>
             </div>
           </div>
