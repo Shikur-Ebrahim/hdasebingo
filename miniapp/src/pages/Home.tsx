@@ -293,7 +293,7 @@ export default function Home() {
 
           {/* Full Screen Video Container - Clean White Background */}
           <div 
-            className="flex-1 relative w-full h-full flex items-center justify-center bg-white overflow-hidden p-1 pt-12 pb-2"
+            className="flex-1 min-h-0 relative w-full h-full flex items-center justify-center bg-white overflow-hidden p-1 pt-12 pb-2"
             onClick={(e) => { e.stopPropagation(); if (isMuted) toggleSound(); }}
           >
             {isMuted && (

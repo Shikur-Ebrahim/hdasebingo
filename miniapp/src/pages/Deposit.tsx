@@ -744,7 +744,7 @@ export default function Deposit() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20 relative">
       {/* Header */}
-      <div className="bg-white dark:bg-slate-900 px-4 py-3.5 rounded-b-2xl shadow-sm border-b border-gray-100 dark:border-slate-800 flex items-center justify-between sticky top-0 z-10">
+      <div className="bg-white dark:bg-slate-900 px-4 py-3 rounded-b-2xl shadow-sm border-b border-gray-100 dark:border-slate-800 flex items-center justify-between sticky top-0 z-30 h-[60px]">
         <div className="flex items-center space-x-3 min-w-0">
           <Link to="/" className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors shrink-0">
             <ArrowLeft size={18} />
@@ -781,23 +781,27 @@ export default function Deposit() {
         </div>
       </div>
 
-      {/* OVERLAY OVER AVAILABLE METHODS SECTION (CLEAN WHITE THEME) */}
+      {/* OVERLAY OVER AVAILABLE METHODS SECTION (CLEAN WHITE THEME - NEVER COVERS NAV BAR) */}
       {showDepositPopup && depositVideos.length > 0 && (
         <div 
-          className={`absolute inset-x-0 top-[65px] bottom-0 z-20 bg-white flex flex-col justify-between overflow-hidden transition-all duration-300 ${
+          style={{
+            top: '60px',
+            bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
+          }}
+          className={`fixed inset-x-0 z-30 bg-white flex flex-col justify-between overflow-hidden shadow-xl transition-all duration-300 ${
             isClosingDepositVideo ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100 animate-fadeIn'
           }`}
           onClick={() => handleCloseDepositPopup(false)}
         >
           {/* Top Controls: Sound Toggle and Close Button */}
-          <div className="p-3 pb-1 flex items-center justify-between shrink-0 bg-white z-20">
+          <div className="p-3 pb-1.5 flex items-center justify-between shrink-0 bg-white border-b border-slate-100/80 z-20">
             <button
               type="button"
               onClick={toggleInlineSound}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-black shadow-md border transition-all active:scale-95 ${
+              className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-black shadow-md border transition-all active:scale-95 ${
                 isMuted 
-                  ? 'bg-rose-500 text-white border-rose-400 animate-pulse' 
-                  : 'bg-emerald-600 text-white border-emerald-500'
+                  ? 'bg-rose-500 text-white border-rose-400 animate-pulse ring-2 ring-rose-500/30' 
+                  : 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-600/20'
               }`}
             >
               {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
@@ -805,6 +809,7 @@ export default function Deposit() {
             </button>
 
             <button
+              type="button"
               onClick={() => handleCloseDepositPopup(false)}
               className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 text-slate-700 flex items-center justify-center shadow-sm border border-slate-200 transition-all"
               aria-label="Close"
@@ -815,7 +820,7 @@ export default function Deposit() {
 
           {/* Full Video Container - Clean White Background */}
           <div 
-            className="flex-1 relative w-full flex items-center justify-center bg-white overflow-hidden p-2"
+            className="flex-1 min-h-0 relative w-full flex items-center justify-center bg-white overflow-hidden p-2"
             onClick={(e) => { e.stopPropagation(); if (isMuted) toggleInlineSound(); }}
           >
             {isMuted && (
@@ -836,20 +841,21 @@ export default function Deposit() {
               playsInline
               autoPlay
               onEnded={() => handleCloseDepositPopup(true)}
-              className="w-full h-full object-contain bg-white rounded-xl"
+              className="w-full h-full max-h-full object-contain bg-white rounded-xl"
             >
               Your browser does not support video playback.
             </video>
           </div>
 
-          {/* Centered Attractive Action Button (No Icon) */}
+          {/* Centered Attractive Action Button (Redesigned & Guaranteed 100% Visible Above Bottom Nav) */}
           <div 
-            className="p-4 pt-2 pb-6 bg-white flex items-center justify-center shrink-0 z-20"
+            className="p-3.5 pb-3.5 sm:pb-4 bg-white/95 backdrop-blur-md border-t border-slate-100 flex flex-col items-center justify-center shrink-0 z-20 shadow-[0_-8px_24px_rgba(0,0,0,0.08)]"
             onClick={(e) => e.stopPropagation()}
           >
             <button
+              type="button"
               onClick={() => handleCloseDepositPopup(false)}
-              className="w-full max-w-sm py-3.5 px-6 bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:from-red-500 hover:to-amber-400 active:scale-95 text-white font-black text-sm rounded-2xl shadow-xl shadow-red-500/25 transition-all flex items-center justify-center border border-white/20"
+              className="w-full max-w-sm py-3.5 px-6 bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:from-red-500 hover:to-amber-400 active:scale-95 text-white font-black text-sm sm:text-base rounded-2xl shadow-xl shadow-red-500/35 transition-all flex items-center justify-center border border-white/25 tracking-wide ring-2 ring-red-500/20"
             >
               <span>{language === 'am' ? 'ተረድቻለሁ • ክፍያ ልፈጽም' : "Got it, Let's Deposit!"}</span>
             </button>
