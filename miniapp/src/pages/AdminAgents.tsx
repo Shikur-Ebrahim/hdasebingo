@@ -61,7 +61,7 @@ interface AgentUser {
   room?: AgentRoom | null;
 }
 
-const COMMISSION_PRESETS = [5, 8, 10, 12, 15, 20];
+// Commission entered as free-form number input; default is 7%
 
 export default function AdminAgents() {
   const { user } = useGameStore();
@@ -72,7 +72,7 @@ export default function AdminAgents() {
 
   // Assign room form state
   const [newRoomName, setNewRoomName] = useState('');
-  const [newCommissionRate, setNewCommissionRate] = useState<number>(8); // default 8%
+  const [newCommissionRate, setNewCommissionRate] = useState<number>(7); // default 7%
   const [newIsPinned, setNewIsPinned] = useState(false); // default not pinned
   const [newIsPrivate, setNewIsPrivate] = useState(false); // default not private (public)
   const [newPromoterId, setNewPromoterId] = useState(''); // promoter UUID (optional)
@@ -90,7 +90,7 @@ export default function AdminAgents() {
   const [editingRoom, setEditingRoom] = useState<AgentRoom | null>(null);
   const [editRoomName, setEditRoomName] = useState('');
   const [editRoomStatus, setEditRoomStatus] = useState<'active' | 'inactive' | 'paused'>('active');
-  const [editCommissionRate, setEditCommissionRate] = useState<number>(8);
+  const [editCommissionRate, setEditCommissionRate] = useState<number>(7);
   const [editIsPinned, setEditIsPinned] = useState(false);
   const [editIsPrivate, setEditIsPrivate] = useState(false);
   const [editPromoterId, setEditPromoterId] = useState('');
@@ -149,7 +149,7 @@ export default function AdminAgents() {
         setSearchedUser(data.user);
         setSearchedRoom(data.room);
         setNewRoomName(`${data.user.first_name || data.user.username || 'Agent'}'s Room`);
-        setNewCommissionRate(data.room?.commission_rate ?? 8);
+        setNewCommissionRate(data.room?.commission_rate ?? 7);
         setNewIsPinned(Boolean(data.room?.is_pinned));
         setNewIsPrivate(Boolean(data.room?.is_private));
         setNewPromoterId(data.room?.promoter_id || '');
@@ -195,7 +195,7 @@ export default function AdminAgents() {
           telegramId: searchedUser.telegram_id,
           roomName: newRoomName.trim(),
           status: 'active',
-          commission_rate: Number(newCommissionRate) || 8,
+          commission_rate: Number(newCommissionRate) || 7,
           is_pinned: Boolean(newIsPinned),
           is_private: Boolean(newIsPrivate),
           promoter_id: newPromoterId.trim() || null,
@@ -204,7 +204,7 @@ export default function AdminAgents() {
 
       if (res.ok) {
         const data = await res.json();
-        showToast('success', `Room "${data.room.room_name}" successfully assigned with ${data.room.commission_rate ?? 8}% commission!`);
+        showToast('success', `Room "${data.room.room_name}" successfully assigned with ${data.room.commission_rate ?? 7}% commission!`);
         setSearchedRoom(data.room);
         setSearchedUser({ ...searchedUser, role: 'agent' });
         fetchRoomsAndAgents();
@@ -305,7 +305,7 @@ export default function AdminAgents() {
     setEditingRoom(room);
     setEditRoomName(room.room_name);
     setEditRoomStatus(room.status);
-    setEditCommissionRate(room.commission_rate ?? 8);
+    setEditCommissionRate(room.commission_rate ?? 7);
     setEditIsPinned(Boolean(room.is_pinned));
     setEditIsPrivate(Boolean(room.is_private));
     setEditPromoterId(room.promoter_id || '');
@@ -322,7 +322,7 @@ export default function AdminAgents() {
         body: JSON.stringify({
           room_name: editRoomName.trim(),
           status: editRoomStatus,
-          commission_rate: Number(editCommissionRate) || 8,
+          commission_rate: Number(editCommissionRate) || 7,
           is_pinned: Boolean(editIsPinned),
           is_private: Boolean(editIsPrivate),
           promoter_id: editPromoterId.trim() || null,
@@ -516,7 +516,7 @@ export default function AdminAgents() {
                   <div className="flex items-center space-x-2 bg-emerald-50/70 border border-emerald-100 rounded-xl px-2.5 py-1.5">
                     <DollarSign size={13} className="text-emerald-600" />
                     <span className="text-[11px] font-black text-emerald-800">
-                      Agent Commission: {searchedRoom.commission_rate ?? 8}% per game pot
+                      Agent Commission: {searchedRoom.commission_rate ?? 7}% per game pot
                     </span>
                   </div>
 
@@ -589,55 +589,57 @@ export default function AdminAgents() {
                     />
                   </div>
 
-                  {/* Game Commission Rate % */}
-                  <div className="bg-slate-50/70 p-3 rounded-2xl border border-slate-200/80 space-y-2.5">
+                  {/* Commission Rate % - Clean Number Input */}
+                  <div className="bg-gradient-to-br from-emerald-50 to-teal-50/50 p-4 rounded-2xl border border-emerald-200/70 space-y-3">
                     <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-bold text-slate-700 uppercase flex items-center space-x-1">
-                        <Percent size={11} className="text-emerald-600" />
-                        <span>Agent Commission (from Platform 20% Fee)</span>
-                      </label>
-                      <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                        {newCommissionRate}% of pot
+                      <div className="flex items-center space-x-2">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                          <Percent size={15} />
+                        </div>
+                        <div>
+                          <p className="text-xs font-black text-slate-800">Agent Commission</p>
+                          <p className="text-[9px] text-slate-400 font-medium">From platform's 20% fee only</p>
+                        </div>
+                      </div>
+                      <span className="text-sm font-black text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-200">
+                        {newCommissionRate || 0}% of pot
                       </span>
                     </div>
 
-                    {/* Quick preset chips */}
-                    <div className="flex flex-wrap gap-1.5">
-                      {COMMISSION_PRESETS.map(preset => (
-                        <button
-                          key={preset}
-                          type="button"
-                          onClick={() => setNewCommissionRate(preset)}
-                          className={`px-2 py-1 rounded-lg text-[10px] font-black border transition-all ${
-                            newCommissionRate === preset
-                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                              : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300'
-                          }`}
-                        >
-                          {preset}% {preset === 8 && '(Default)'}
-                        </button>
-                      ))}
+                    {/* Free-form number input */}
+                    <div className="flex items-center space-x-3 bg-white rounded-xl border border-emerald-200 px-3 py-2 shadow-sm">
+                      <Percent size={14} className="text-emerald-500 shrink-0" />
+                      <input
+                        type="number"
+                        min={0}
+                        max={20}
+                        step={0.5}
+                        value={newCommissionRate}
+                        onChange={e => setNewCommissionRate(Math.min(20, Math.max(0, Number(e.target.value))))}
+                        className="flex-1 bg-transparent outline-none text-sm font-black text-slate-800 placeholder-slate-300"
+                        placeholder="7"
+                      />
+                      <span className="text-xs font-bold text-slate-400">% (0–20)</span>
                     </div>
 
-                    {/* Split Formula Breakdown Card */}
-                    <div className="p-2.5 bg-white rounded-xl border border-slate-200/70 text-[10px] space-y-1">
-                      <p className="font-black text-slate-600 text-[9px] uppercase tracking-wider">Example Pot Split (100 ETB Pot):</p>
-                      <div className="flex items-center justify-between text-slate-600">
-                        <span>🏆 Player Winner Prize:</span>
-                        <span className="font-black text-emerald-600">80% (80 ETB)</span>
+                    {/* Live split breakdown */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="bg-white rounded-xl border border-slate-100 p-2 text-center shadow-2xs">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">🏆 Winner</p>
+                        <p className="text-sm font-black text-emerald-600">80%</p>
                       </div>
-                      <div className="flex items-center justify-between text-slate-600">
-                        <span>💼 Agent Room Commission:</span>
-                        <span className="font-black text-sky-600">{newCommissionRate}% ({newCommissionRate} ETB)</span>
+                      <div className="bg-white rounded-xl border border-sky-100 p-2 text-center shadow-2xs">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">💼 Agent</p>
+                        <p className="text-sm font-black text-sky-600">{newCommissionRate || 0}%</p>
                       </div>
-                      <div className="flex items-center justify-between text-slate-600 border-t border-slate-100 pt-1">
-                        <span>🏛️ Platform Net Cut:</span>
-                        <span className="font-black text-slate-700">{Math.max(0, 20 - newCommissionRate)}% ({Math.max(0, 20 - newCommissionRate)} ETB)</span>
+                      <div className="bg-white rounded-xl border border-slate-100 p-2 text-center shadow-2xs">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">🏛️ Platform</p>
+                        <p className="text-sm font-black text-slate-600">{Math.max(0, 20 - (newCommissionRate || 0))}%</p>
                       </div>
                     </div>
 
                     <p className="text-[9px] text-slate-400 font-medium leading-tight">
-                      ℹ️ Player winner prize (80%) is strictly controlled in Bingo Monitoring and is <b>never reduced</b>. The agent commission is paid exclusively out of the platform's 20% fee.
+                      ℹ️ Player winner prize (80%) is never reduced. Agent commission comes from the platform's 20% fee.
                     </p>
                   </div>
 
@@ -871,7 +873,7 @@ export default function AdminAgents() {
                     <div className="bg-white rounded-lg p-1 border border-slate-100">
                       <p className="text-slate-400 font-semibold uppercase text-[8px]">Commission</p>
                       <p className="font-black text-emerald-600 flex items-center justify-center">
-                        {room.commission_rate ?? 8}%
+                        {room.commission_rate ?? 7}%
                       </p>
                     </div>
                     <div className="bg-white rounded-lg p-1 border border-slate-100">
@@ -940,36 +942,58 @@ export default function AdminAgents() {
               />
             </div>
 
-            {/* Commission Rate (%) */}
-            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 space-y-2">
+            {/* Commission Rate (%) - Clean Number Input */}
+            <div className="bg-gradient-to-br from-emerald-50 to-teal-50/50 p-4 rounded-2xl border border-emerald-200/70 space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-[10px] font-bold text-slate-700 uppercase flex items-center space-x-1">
-                  <Percent size={11} className="text-emerald-600" />
-                  <span>Agent Commission (from Platform 20% Fee)</span>
-                </label>
-                <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                  {editCommissionRate}% of pot
+                <div className="flex items-center space-x-2">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                    <Percent size={15} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-slate-800">Agent Commission</p>
+                    <p className="text-[9px] text-slate-400 font-medium">From platform's 20% fee only</p>
+                  </div>
+                </div>
+                <span className="text-sm font-black text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-200">
+                  {editCommissionRate || 0}% of pot
                 </span>
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {COMMISSION_PRESETS.map(preset => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => setEditCommissionRate(preset)}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-black border transition-all ${
-                      editCommissionRate === preset
-                        ? 'bg-emerald-600 text-white border-emerald-600'
-                        : 'bg-white text-slate-600 border-slate-200'
-                    }`}
-                  >
-                    {preset}% {preset === 8 && '(Default)'}
-                  </button>
-                ))}
+
+              {/* Free-form number input */}
+              <div className="flex items-center space-x-3 bg-white rounded-xl border border-emerald-200 px-3 py-2 shadow-sm">
+                <Percent size={14} className="text-emerald-500 shrink-0" />
+                <input
+                  type="number"
+                  min={0}
+                  max={20}
+                  step={0.5}
+                  value={editCommissionRate}
+                  onChange={e => setEditCommissionRate(Math.min(20, Math.max(0, Number(e.target.value))))}
+                  className="flex-1 bg-transparent outline-none text-sm font-black text-slate-800 placeholder-slate-300"
+                  placeholder="7"
+                />
+                <span className="text-xs font-bold text-slate-400">% (0–20)</span>
               </div>
-              <div className="text-[9px] text-slate-500 bg-white p-2 rounded-lg border border-slate-200/60 leading-tight">
-                Winner Prize: <b>80% (Unchanged)</b> · Agent Cut: <b>{editCommissionRate}%</b> · Platform Net: <b>{Math.max(0, 20 - editCommissionRate)}%</b>
+
+              {/* Live split breakdown */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-white rounded-xl border border-slate-100 p-2 text-center shadow-2xs">
+                  <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">🏆 Winner</p>
+                  <p className="text-sm font-black text-emerald-600">80%</p>
+                </div>
+                <div className="bg-white rounded-xl border border-sky-100 p-2 text-center shadow-2xs">
+                  <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">💼 Agent</p>
+                  <p className="text-sm font-black text-sky-600">{editCommissionRate || 0}%</p>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-100 p-2 text-center shadow-2xs">
+                  <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">🏛️ Platform</p>
+                  <p className="text-sm font-black text-slate-600">{Math.max(0, 20 - (editCommissionRate || 0))}%</p>
+                </div>
               </div>
+
+              <p className="text-[9px] text-slate-400 font-medium leading-tight">
+                ℹ️ Player winner prize (80%) is never reduced. Agent commission comes from the platform's 20% fee.
+              </p>
             </div>
 
             {/* Pin to Top Switch */}

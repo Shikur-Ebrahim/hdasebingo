@@ -510,7 +510,7 @@ router.get('/rooms', async (req, res) => {
     // Also fetch rooms' commission_rate for this calculation
     const roomCommRateMap: Record<string, number> = {};
     visibleRooms.forEach((r: any) => {
-      roomCommRateMap[r.id] = Number(r.commission_rate ?? 8);
+      roomCommRateMap[r.id] = Number(r.commission_rate ?? 7);
     });
 
     (recentGames || []).forEach((g: any) => {
@@ -519,7 +519,7 @@ router.get('/rooms', async (req, res) => {
       if (players < 2) return; // only count games with enough players
       const stake = Number(g.stake || 0);
       const pot = players * stake;
-      const commRate = roomCommRateMap[g.room_id] ?? 8;
+      const commRate = roomCommRateMap[g.room_id] ?? 7;
       const roomComm = pot * commRate / 100;
       if (!roomCommMap[g.room_id]) {
         roomCommMap[g.room_id] = { commission: 0, games: 0 };
@@ -532,7 +532,7 @@ router.get('/rooms', async (req, res) => {
       ...room,
       is_pinned: Boolean(room.is_pinned),
       is_private: Boolean(room.is_private),
-      commission_rate: room.commission_rate ?? 8,
+      commission_rate: room.commission_rate ?? 7,
       total_players: roomPlayersMap[room.id] || 0,
       total_games: Number(room.total_games || 0),
       commission_24h: Math.round((roomCommMap[room.id]?.commission || 0) * 100) / 100,
@@ -627,7 +627,7 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
       });
     }
 
-    const commRate = Number(room.commission_rate ?? 8);
+    const commRate = Number(room.commission_rate ?? 7);
 
     // 1. Fetch active games (waiting or calling)
     const { data: games } = await supabase
@@ -875,7 +875,7 @@ router.get('/promoter-dashboard', validateTelegramAuth, async (req: AuthRequest,
       if (r && r.id && !roomsMap.has(r.id)) {
         roomsMap.set(r.id, {
           ...r,
-          commission_rate: r.commission_rate ?? 8,
+          commission_rate: r.commission_rate ?? 7,
           promoter_commission_rate: r.promoter_commission_rate ?? 3,
         });
       }

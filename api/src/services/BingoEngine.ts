@@ -538,7 +538,7 @@ class BingoEngine {
 
       // 1. Award Agent Commission (default 8% of total pot)
       if (room.agent_id) {
-        const commRate = Number(room.commission_rate ?? 8);
+        const commRate = Number(room.commission_rate ?? 7);
         if (commRate > 0) {
           const commAmount = Number(((totalPot * commRate) / 100).toFixed(2));
           if (commAmount > 0) {

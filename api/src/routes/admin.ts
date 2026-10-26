@@ -920,7 +920,7 @@ router.get('/tx-report', validateTelegramAuth, requireAdmin, async (req, res) =>
       const pot = pCount * Number(g.stake || 0);
       const prize = Number(g.winner_prize || 0);
       const room = rMap[g.room_id];
-      const commRate = Number(room?.commission_rate ?? 8);
+      const commRate = Number(room?.commission_rate ?? 7);
       const promoRate = Number(room?.promoter_commission_rate ?? 3);
 
       // Commission only applies if 3 or more unique players participated
@@ -1312,7 +1312,7 @@ router.get('/room-ranking', validateTelegramAuth, requireAdmin, async (req, res)
         room_name: r.room_name,
         status: r.status,
         agent_name: r.agent_name || null,
-        commission_rate: Number(r.commission_rate ?? 8),
+        commission_rate: Number(r.commission_rate ?? 7),
         promoter_commission_rate: Number(r.promoter_commission_rate ?? 3),
         total_games_all_time: Number(r.total_games || 0),
         is_pinned: Boolean(r.is_pinned),
@@ -1346,7 +1346,7 @@ router.get('/room-ranking', validateTelegramAuth, requireAdmin, async (req, res)
       // If unique players < 3, 100% of the pot went to the winner (0% platform fee, 0% room, 0% promoter).
       if (uniqueCount >= 3) {
         const totalCut = Math.max(0, pot - prize);
-        const commRate = Number(room.commission_rate ?? 8);
+        const commRate = Number(room.commission_rate ?? 7);
         const promoRate = Number(room.promoter_commission_rate ?? 3);
         
         roomComm = Math.min(totalCut, (pot * commRate) / 100);
@@ -1483,7 +1483,7 @@ router.get('/game-report', validateTelegramAuth, requireAdmin, async (req, res) 
       const stake = Number(g.stake || 0);
       const pot = cartelas_count * stake;
       const winner_prize = Number(g.winner_prize || 0);
-      const comm_rate = Number(room?.commission_rate ?? 8);
+      const comm_rate = Number(room?.commission_rate ?? 7);
       const promo_rate = Number(room?.promoter_commission_rate ?? 3);
 
       let room_commission = 0;
@@ -1782,7 +1782,7 @@ router.post('/agents/assign-room', async (req, res) => {
 
     const assignedRoomName = roomName?.trim() || `${user.first_name || user.username || 'Agent'}'s Room`;
     const roomStatus = status || 'active';
-    const commRate = commission_rate !== undefined ? Number(commission_rate) : 8;
+    const commRate = commission_rate !== undefined ? Number(commission_rate) : 7;
     const isPinned = is_pinned !== undefined ? Boolean(is_pinned) : false;
     const isPrivate = is_private !== undefined ? Boolean(is_private) : false;
     const promoterCommRate = promoter_commission_rate !== undefined ? Number(promoter_commission_rate) : 3;
@@ -1911,7 +1911,7 @@ router.get('/rooms', async (_req, res) => {
 
         return {
           ...r,
-          commission_rate: r.commission_rate ?? 8,
+          commission_rate: r.commission_rate ?? 7,
           promoter_commission_rate: r.promoter_commission_rate ?? 3,
           is_pinned: Boolean(r.is_pinned),
           is_private: Boolean(r.is_private),
