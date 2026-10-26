@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
-import { Gift, ArrowDownToLine, Share2, PlusCircle, Info, DoorOpen, Users, Gamepad2, RefreshCw, ChevronDown, Clapperboard, Play, X, Sparkles } from 'lucide-react';
+import { Gift, ArrowDownToLine, Share2, PlusCircle, Info, DoorOpen, Users, Gamepad2, RefreshCw, ChevronDown, Clapperboard, Play, X, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { supabase } from '../lib/supabase';
@@ -52,21 +52,38 @@ export default function Home() {
   const pendingAnnouncementRef = useRef(false);
   const [isClosingVideo, setIsClosingVideo] = useState(false);
   const [highlightGuideBtn, setHighlightGuideBtn] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
 
-  // Auto-play popup video on mount
+  // Auto-play popup video on mount with sound prioritized
   useEffect(() => {
     if (showVideoPopup && videoRef.current) {
+      videoRef.current.muted = false;
       const p = videoRef.current.play();
       if (p !== undefined) {
-        p.catch(() => {
+        p.then(() => {
+          setIsMuted(false);
+        }).catch(() => {
+          // If browser policy blocks sound without interaction, start muted with prompt
           if (videoRef.current) {
             videoRef.current.muted = true;
+            setIsMuted(true);
             videoRef.current.play().catch(() => {});
           }
         });
       }
     }
   }, [showVideoPopup]);
+
+  const toggleSound = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (videoRef.current) {
+      videoRef.current.muted = !videoRef.current.muted;
+      setIsMuted(videoRef.current.muted);
+      if (typeof WebApp !== 'undefined') {
+        WebApp.HapticFeedback?.impactOccurred('light');
+      }
+    }
+  };
 
   // Manual refresh spinner
   const [manualRefreshing, setManualRefreshing] = useState(false);
@@ -250,11 +267,24 @@ export default function Home() {
           }`}
           onClick={() => handleCloseVideoPopup(false)}
         >
-          {/* Top Floating Close Button */}
-          <div className="absolute top-3 right-3 z-30">
+          {/* Top Floating Controls: Sound Toggle & Close Button */}
+          <div className="absolute top-3 left-3 right-3 z-30 flex items-center justify-between pointer-events-none">
+            <button
+              type="button"
+              onClick={toggleSound}
+              className={`pointer-events-auto flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-black shadow-md border transition-all active:scale-95 ${
+                isMuted 
+                  ? 'bg-rose-500 text-white border-rose-400 animate-pulse' 
+                  : 'bg-emerald-600 text-white border-emerald-500'
+              }`}
+            >
+              {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+              <span>{isMuted ? 'Sound OFF · Tap for Sound' : 'Sound ON'}</span>
+            </button>
+
             <button
               onClick={() => handleCloseVideoPopup(false)}
-              className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 text-slate-700 flex items-center justify-center shadow-md border border-slate-200/80 transition-all"
+              className="pointer-events-auto w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 text-slate-700 flex items-center justify-center shadow-md border border-slate-200/80 transition-all"
               aria-label="Close"
             >
               <X size={18} />
@@ -264,8 +294,18 @@ export default function Home() {
           {/* Full Screen Video Container - Clean White Background */}
           <div 
             className="flex-1 relative w-full h-full flex items-center justify-center bg-white overflow-hidden p-1 pt-12 pb-2"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); if (isMuted) toggleSound(); }}
           >
+            {isMuted && (
+              <button
+                type="button"
+                onClick={toggleSound}
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-slate-900/90 hover:bg-black text-white px-5 py-3 rounded-2xl border border-white/20 backdrop-blur-md shadow-2xl flex items-center space-x-2 animate-bounce cursor-pointer active:scale-95"
+              >
+                <VolumeX size={20} className="text-rose-400" />
+                <span className="font-black text-sm">Tap to Turn Sound ON 🔊</span>
+              </button>
+            )}
             <video
               ref={videoRef}
               src={homePopupVideo.video_url}
@@ -280,16 +320,16 @@ export default function Home() {
             </video>
           </div>
 
-          {/* Middle / Center Attractive Action Button */}
+          {/* Middle / Center Attractive Action Button (No Icon) */}
           <div 
             className="p-4 pt-2 pb-6 bg-white flex items-center justify-center shrink-0 z-20"
             onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => handleCloseVideoPopup(false)}
-              className="w-full max-w-sm py-4 px-6 bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-600 hover:from-violet-500 hover:to-indigo-500 active:scale-95 text-white font-black text-base rounded-2xl shadow-xl shadow-violet-500/30 transition-all flex items-center justify-center space-x-2 border border-violet-400/30"
+              className="w-full max-w-sm py-4 px-6 bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-600 hover:from-violet-500 hover:to-indigo-500 active:scale-95 text-white font-black text-base rounded-2xl shadow-xl shadow-violet-500/30 transition-all flex items-center justify-center border border-violet-400/30"
             >
-              <span>Got it, Let's Play! 🚀</span>
+              <span>Got it, Let's Play!</span>
             </button>
           </div>
         </div>
