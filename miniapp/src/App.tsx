@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { MemoryRouter, Routes, Route, Link, useLocation, Navigate, useNavigate } from 'react-router-dom';
-import { Gamepad2, Wallet, Trophy, User, Headphones } from 'lucide-react';
+import { Gamepad2, Wallet, Trophy, User, Headphones, ShieldAlert, MessageCircle } from 'lucide-react';
 import WebApp from '@twa-dev/sdk';
 import { useGameStore } from './store/gameStore';
 import { t } from './lib/translations';
@@ -358,24 +358,51 @@ function App() {
 
   if (isBlocked) {
     return (
-      <div className="fixed inset-0 bg-slate-900 flex flex-col items-center justify-center p-6 z-50">
-        <div className="w-20 h-20 rounded-full bg-rose-500/20 flex items-center justify-center mb-5">
-          <span className="text-4xl">🚫</span>
+      <div className="fixed inset-0 bg-gradient-to-b from-white via-slate-50 to-rose-50/20 flex flex-col items-center justify-between p-6 select-none overflow-hidden z-50">
+        {/* Ambient background glows */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 translate-y-1/2 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Top bar branding */}
+        <div className="w-full flex items-center justify-center pt-4 relative z-10">
+          <div className="px-3.5 py-1 rounded-full bg-white border border-slate-200/80 shadow-xs flex items-center space-x-1.5 text-[11px] font-bold text-slate-500">
+            <span>🇪🇹</span>
+            <span>HDASE BINGO • Official Platform</span>
+          </div>
         </div>
-        <h1 className="text-white font-black text-xl mb-2 text-center">Account Deactivated</h1>
-        <p className="text-white/60 text-sm font-medium text-center max-w-xs mb-8">
-          Your account has been deactivated by the admin. Please contact support for more information.
-        </p>
-        
-        {supportUsername && (
+
+        {/* Center content */}
+        <div className="flex flex-col items-center text-center relative z-10 max-w-sm px-4">
+          <div className="w-20 h-20 rounded-3xl bg-rose-50 border-2 border-rose-200/80 shadow-xl shadow-rose-500/15 flex items-center justify-center mb-5 text-rose-600">
+            <ShieldAlert size={40} className="text-rose-600" />
+          </div>
+
+          <h1 className="text-slate-900 font-black text-2xl mb-1 text-center tracking-tight">Account Deactivated</h1>
+          <p className="text-rose-600 font-bold text-xs uppercase tracking-wider mb-3">የተጠቃሚ መለያ ታግዷል</p>
+
+          <p className="text-slate-600 text-sm font-medium text-center leading-relaxed mb-6">
+            Your account has been deactivated by the admin. Please contact our official support team for verification and assistance.
+          </p>
+
           <button 
             onClick={handleSupport}
-            className="px-6 py-3 bg-white text-slate-900 rounded-xl font-black text-sm active:scale-95 transition-all flex items-center space-x-2"
+            className="w-full py-3.5 px-6 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 hover:from-slate-800 hover:to-slate-700 active:scale-95 text-white rounded-2xl font-black text-sm shadow-xl shadow-slate-900/20 transition-all flex items-center justify-center space-x-2 border border-slate-700 cursor-pointer"
           >
-            <span>💬</span>
-            <span>Contact Support</span>
+            <MessageCircle size={18} className="text-sky-400" />
+            <span>Contact Support • አድሚኑን ያነጋግሩ</span>
           </button>
-        )}
+
+          {supportUsername && (
+            <p className="mt-3 text-xs text-slate-400 font-mono">
+              @{supportUsername.replace(/^@/, '')}
+            </p>
+          )}
+        </div>
+
+        {/* Bottom security note */}
+        <div className="text-center relative z-10 text-[10px] text-slate-400 font-semibold tracking-wider pb-4">
+          Customer Protection & Security Policy
+        </div>
       </div>
     );
   }

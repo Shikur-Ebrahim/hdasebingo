@@ -77,7 +77,7 @@ export default function AdminChannelProofs() {
     depositEnabled: true,
     withdrawThreshold: 10,
     withdrawEnabled: true,
-    targetChannel: '@dmg_official_channel',
+    targetChannel: '@hdasebingo',
     lastDepositPostAt: null,
     lastWithdrawPostAt: null,
   });
@@ -106,7 +106,7 @@ export default function AdminChannelProofs() {
   const [formDepositEnabled, setFormDepositEnabled] = useState(true);
   const [formWithdrawThreshold, setFormWithdrawThreshold] = useState('10');
   const [formWithdrawEnabled, setFormWithdrawEnabled] = useState(true);
-  const [formTargetChannel, setFormTargetChannel] = useState('@dmg_official_channel');
+  const [formTargetChannel, setFormTargetChannel] = useState('');
 
   // Preview data URLs
   const [depositDataUrl, setDepositDataUrl] = useState<string | null>(null);
@@ -196,7 +196,7 @@ export default function AdminChannelProofs() {
         setFormDepositEnabled(json.settings.depositEnabled !== false);
         setFormWithdrawThreshold(String(json.settings.withdrawThreshold || 10));
         setFormWithdrawEnabled(json.settings.withdrawEnabled !== false);
-        setFormTargetChannel(json.settings.targetChannel || '@dmg_official_channel');
+        setFormTargetChannel(json.settings.targetChannel || '@hdasebingo');
 
         // Sync batch size with settings threshold on first load
         setDepositBatchSize(prev => (prev === 10 && json.settings.depositThreshold) ? json.settings.depositThreshold : prev);
@@ -1264,18 +1264,23 @@ export default function AdminChannelProofs() {
           <form onSubmit={handleSaveSettings} className="space-y-4">
             {/* Target Channel */}
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">
-                Official Telegram Channel
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-bold text-slate-700">
+                  Official Telegram Channel
+                </label>
+                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  Dynamic Setting
+                </span>
+              </div>
               <input
                 type="text"
                 value={formTargetChannel}
                 onChange={(e) => setFormTargetChannel(e.target.value)}
-                placeholder="@dmg_official_channel"
+                placeholder={settings.targetChannel || '@hdasebingo'}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
               <span className="text-[10px] text-slate-400 mt-1 block">
-                Bot must be an admin with "Post Messages" permission in this channel.
+                Automatically synced with the official channel configured in Admin Settings. Bot must be an administrator in this channel.
               </span>
             </div>
 

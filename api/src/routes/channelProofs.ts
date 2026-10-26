@@ -6,7 +6,7 @@ import { uploadToR2 } from '../services/r2';
 const router = Router();
 
 // Default Telegram Channel
-export const DEFAULT_PROOF_CHANNEL = '@dmg_official_channel';
+export const DEFAULT_PROOF_CHANNEL = '@hdasebingo';
 
 // ── Middleware: Admin or Worker with permissions ──────────────────────────────
 const requireAdminOrWorker = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
@@ -23,14 +23,14 @@ const requireAdminOrWorker = async (req: AuthRequest, res: Response, next: NextF
  * Normalizes any channel link or username into a valid Telegram chat_id
  */
 export function normalizeTelegramChannel(input?: string | null): string {
-  if (!input || !input.trim()) return DEFAULT_PROOF_CHANNEL;
+  if (!input || !input.trim() || input.includes('dmg_official_channel')) return DEFAULT_PROOF_CHANNEL;
   let ch = input.trim();
   ch = ch.replace(/^https?:\/\//i, '');
   ch = ch.replace(/^www\./i, '');
   ch = ch.replace(/^(t\.me|telegram\.me)\//i, '');
   ch = ch.replace(/\/.*$/, '');
   ch = ch.trim();
-  if (!ch) return DEFAULT_PROOF_CHANNEL;
+  if (!ch || ch.includes('dmg_official_channel')) return DEFAULT_PROOF_CHANNEL;
   if (ch.startsWith('-') || /^\d+$/.test(ch)) {
     return ch.startsWith('-') ? ch : `-${ch}`;
   }
@@ -39,10 +39,11 @@ export function normalizeTelegramChannel(input?: string | null): string {
 }
 
 /**
- * Resolves target channel from settings or custom input
+ * Resolves target channel dynamically from Admin Settings (channel_link) or custom input.
+ * Dynamically tracks the official channel link configured in Admin Settings.
  */
 export async function resolveProofChannel(customChannel?: string | null): Promise<string> {
-  if (customChannel && customChannel.trim()) {
+  if (customChannel && customChannel.trim() && !customChannel.includes('dmg_official_channel')) {
     return normalizeTelegramChannel(customChannel);
   }
 
@@ -50,25 +51,36 @@ export async function resolveProofChannel(customChannel?: string | null): Promis
     const { data: rows } = await supabase
       .from('settings')
       .select('key, value')
-      .in('key', ['channel_post_target', 'channel_link', 'channel_id', 'telegram_channel_id']);
+      .in('key', ['channel_link', 'channel_post_target', 'channel_id', 'telegram_channel_id']);
 
     if (rows && rows.length > 0) {
       const map = Object.fromEntries(rows.map(r => [r.key, r.value]));
-      if (map.channel_post_target?.trim()) {
-        return normalizeTelegramChannel(map.channel_post_target);
-      }
-      if (map.channel_link?.trim()) {
+
+      // 1. Primary: channel_link saved in Admin Settings (The central authoritative channel)
+      if (map.channel_link?.trim() && !map.channel_link.includes('dmg_official_channel')) {
         return normalizeTelegramChannel(map.channel_link);
       }
-      if (map.telegram_channel_id?.trim()) {
+
+      // 2. Secondary: channel_post_target if explicitly configured and not legacy
+      if (map.channel_post_target?.trim() && !map.channel_post_target.includes('dmg_official_channel')) {
+        return normalizeTelegramChannel(map.channel_post_target);
+      }
+
+      // 3. Fallbacks: telegram_channel_id or channel_id
+      if (map.telegram_channel_id?.trim() && !map.telegram_channel_id.includes('dmg_official_channel')) {
         return normalizeTelegramChannel(map.telegram_channel_id);
       }
-      if (map.channel_id?.trim()) {
+      if (map.channel_id?.trim() && !map.channel_id.includes('dmg_official_channel')) {
         return normalizeTelegramChannel(map.channel_id);
       }
     }
   } catch (err) {
     console.error('Failed to resolve proof channel from settings:', err);
+  }
+
+  const envChannel = process.env.TELEGRAM_CHANNEL_ID || process.env.CHANNEL_ID;
+  if (envChannel && !envChannel.includes('dmg_official_channel')) {
+    return normalizeTelegramChannel(envChannel);
   }
 
   return DEFAULT_PROOF_CHANNEL;
@@ -101,7 +113,18 @@ router.get('/data', validateTelegramAuth, requireAdminOrWorker, async (req: Auth
     const depositEnabled = sMap.channel_post_deposit_enabled !== 'false';
     const withdrawThreshold = parseInt(sMap.channel_post_withdraw_threshold || '10', 10) || 10;
     const withdrawEnabled = sMap.channel_post_withdraw_enabled !== 'false';
-    const targetChannel = normalizeTelegramChannel(sMap.channel_post_target || sMap.channel_link || DEFAULT_PROOF_CHANNEL);
+
+    // Clean up any legacy hardcoded target channel in database so dynamic channel takes over
+    if (sMap.channel_post_target && sMap.channel_post_target.includes('dmg_official_channel')) {
+      await supabase.from('settings').delete().eq('key', 'channel_post_target');
+    }
+
+    // Resolves dynamically from Admin Settings (channel_link)
+    const targetChannel = await resolveProofChannel(
+      sMap.channel_post_target && !sMap.channel_post_target.includes('dmg_official_channel')
+        ? sMap.channel_post_target
+        : null
+    );
     const lastDepositPostAt = sMap.last_channel_post_deposit_at || null;
     const lastWithdrawPostAt = sMap.last_channel_post_withdraw_at || null;
 
@@ -497,8 +520,12 @@ router.put('/settings', validateTelegramAuth, requireAdminOrWorker, async (req: 
       { key: 'channel_post_deposit_enabled', value: depositEnabled ? 'true' : 'false' },
       { key: 'channel_post_withdraw_threshold', value: String(Math.max(1, parseInt(withdrawThreshold || '10', 10))) },
       { key: 'channel_post_withdraw_enabled', value: withdrawEnabled ? 'true' : 'false' },
-      { key: 'channel_post_target', value: normalizeTelegramChannel(targetChannel || DEFAULT_PROOF_CHANNEL) },
     ];
+
+    if (targetChannel && targetChannel.trim() && !targetChannel.includes('dmg_official_channel')) {
+      const normalized = normalizeTelegramChannel(targetChannel);
+      updates.push({ key: 'channel_post_target', value: normalized });
+    }
 
     const { error } = await supabase.from('settings').upsert(updates, { onConflict: 'key' });
     if (error) {
@@ -580,7 +607,7 @@ export async function checkAndAutoPostProofs(type: 'deposit' | 'withdrawal'): Pr
       return;
     }
 
-    const channelId = normalizeTelegramChannel(sMap.channel_post_target || sMap.channel_link || DEFAULT_PROOF_CHANNEL);
+    const channelId = await resolveProofChannel();
     const cachedImage = isDeposit ? sMap.last_channel_post_deposit_image : sMap.last_channel_post_withdraw_image;
 
     // CRITICAL: ONLY post if the exact canvas image is cached on R2 and is fresh!
