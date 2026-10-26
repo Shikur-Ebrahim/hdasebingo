@@ -50,6 +50,23 @@ export default function Home() {
   const [showVideoPopup, setShowVideoPopup] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const pendingAnnouncementRef = useRef(false);
+  const [isClosingVideo, setIsClosingVideo] = useState(false);
+  const [highlightGuideBtn, setHighlightGuideBtn] = useState(false);
+
+  // Auto-play popup video on mount
+  useEffect(() => {
+    if (showVideoPopup && videoRef.current) {
+      const p = videoRef.current.play();
+      if (p !== undefined) {
+        p.catch(() => {
+          if (videoRef.current) {
+            videoRef.current.muted = true;
+            videoRef.current.play().catch(() => {});
+          }
+        });
+      }
+    }
+  }, [showVideoPopup]);
 
   // Manual refresh spinner
   const [manualRefreshing, setManualRefreshing] = useState(false);
@@ -199,14 +216,20 @@ export default function Home() {
 
 
 
-  const handleCloseVideoPopup = () => {
+  const handleCloseVideoPopup = (_fromVideoEnd = false) => {
     if (videoRef.current) {
       try { videoRef.current.pause(); } catch (_) {}
     }
     if (typeof WebApp !== 'undefined') {
       WebApp.HapticFeedback?.impactOccurred('medium');
     }
-    setShowVideoPopup(false);
+    setIsClosingVideo(true);
+    setTimeout(() => {
+      setShowVideoPopup(false);
+      setIsClosingVideo(false);
+      setHighlightGuideBtn(true);
+      setTimeout(() => setHighlightGuideBtn(false), 5000);
+    }, 280);
     if (pendingAnnouncementRef.current) {
       setShowAnnouncement(true);
       pendingAnnouncementRef.current = false;
@@ -219,83 +242,55 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-screen pb-20 space-y-4">
 
-      {/* HOME VIDEO GUIDE POPUP MODAL */}
+      {/* HOME VIDEO GUIDE FULLSCREEN POPUP (CLEAN WHITE THEME) */}
       {showVideoPopup && homePopupVideo && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/80 backdrop-blur-md transition-all"
-          onClick={handleCloseVideoPopup}
+          className={`fixed inset-0 z-50 bg-white flex flex-col justify-between overflow-hidden transition-all duration-300 ${
+            isClosingVideo ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100 animate-fadeIn'
+          }`}
+          onClick={() => handleCloseVideoPopup(false)}
         >
-          <div
-            className="relative bg-gradient-to-b from-slate-900 via-slate-900 to-[#0b0f19] rounded-3xl border border-white/15 shadow-2xl w-full max-w-sm overflow-hidden flex flex-col"
+          {/* Top Floating Close Button */}
+          <div className="absolute top-3 right-3 z-30">
+            <button
+              onClick={() => handleCloseVideoPopup(false)}
+              className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 text-slate-700 flex items-center justify-center shadow-md border border-slate-200/80 transition-all"
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Full Screen Video Container - Clean White Background */}
+          <div 
+            className="flex-1 relative w-full h-full flex items-center justify-center bg-white overflow-hidden p-1 pt-12 pb-2"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Top ambient color glow accent */}
-            <div className="h-1.5 w-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-amber-400" />
+            <video
+              ref={videoRef}
+              src={homePopupVideo.video_url}
+              poster={homePopupVideo.thumbnail_url || undefined}
+              controls
+              playsInline
+              autoPlay
+              onEnded={() => handleCloseVideoPopup(true)}
+              className="w-full h-full object-contain bg-white rounded-xl"
+            >
+              Your browser does not support video playback.
+            </video>
+          </div>
 
-            {/* Header bar */}
-            <div className="px-4 pt-3.5 pb-2 flex items-center justify-between">
-              <div className="flex items-center space-x-2 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-xs shrink-0">
-                  <Play size={13} fill="white" className="ml-0.5" />
-                </div>
-                <div className="min-w-0">
-                  <span className="inline-flex items-center space-x-1 text-[9.5px] font-black uppercase tracking-wider text-violet-300 bg-violet-950/80 px-2 py-0.5 rounded-full border border-violet-700/50">
-                    <Sparkles size={9} className="text-amber-400" />
-                    <span>App Guide Video</span>
-                  </span>
-                </div>
-              </div>
-              <button
-                onClick={handleCloseVideoPopup}
-                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 active:scale-90 text-white/80 flex items-center justify-center transition-all ml-2"
-                aria-label="Close"
-              >
-                <X size={15} />
-              </button>
-            </div>
-
-            {/* Video Container */}
-            <div className="px-3 pb-2">
-              <div className="relative rounded-2xl overflow-hidden bg-black border border-white/10 shadow-inner aspect-[16/10] flex items-center justify-center">
-                <video
-                  ref={videoRef}
-                  src={homePopupVideo.video_url}
-                  poster={homePopupVideo.thumbnail_url || undefined}
-                  controls
-                  playsInline
-                  autoPlay
-                  className="w-full h-full object-contain bg-black"
-                >
-                  Your browser does not support video playback.
-                </video>
-              </div>
-            </div>
-
-            {/* Title & Description */}
-            <div className="px-4 py-2 space-y-1">
-              <h3 className="font-black text-white text-base leading-tight">
-                {homePopupVideo.title}
-              </h3>
-              {homePopupVideo.description && (
-                <p className="text-xs text-slate-300 font-medium leading-relaxed line-clamp-2">
-                  {homePopupVideo.description}
-                </p>
-              )}
-            </div>
-
-            {/* Footer / CTA Buttons */}
-            <div className="p-4 pt-2 space-y-2">
-              <button
-                onClick={handleCloseVideoPopup}
-                className="w-full py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-black text-sm rounded-xl shadow-lg shadow-violet-900/40 active:scale-95 transition-all flex items-center justify-center space-x-2"
-              >
-                <span>Got it, Let's Play! 🚀</span>
-              </button>
-
-              <p className="text-[10px] text-center text-slate-400 font-medium">
-                You can rewatch anytime from the <span className="text-violet-400 font-bold">Videos (Guide)</span> menu
-              </p>
-            </div>
+          {/* Middle / Center Attractive Action Button */}
+          <div 
+            className="p-4 pt-2 pb-6 bg-white flex items-center justify-center shrink-0 z-20"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => handleCloseVideoPopup(false)}
+              className="w-full max-w-sm py-4 px-6 bg-gradient-to-r from-violet-600 via-indigo-600 to-purple-600 hover:from-violet-500 hover:to-indigo-500 active:scale-95 text-white font-black text-base rounded-2xl shadow-xl shadow-violet-500/30 transition-all flex items-center justify-center space-x-2 border border-violet-400/30"
+            >
+              <span>Got it, Let's Play! 🚀</span>
+            </button>
           </div>
         </div>
       )}
@@ -382,21 +377,31 @@ export default function Home() {
           <Share2 size={18} />
           <span>{t[language].home.invite}</span>
         </button>
-        <Link
-          to="/help-videos"
-          className="relative group flex flex-col items-center justify-center space-y-1 bg-black hover:bg-slate-900 text-white py-2.5 rounded-xl font-bold text-[11px] shadow-sm active:scale-95 transition-all overflow-hidden border border-slate-800"
-        >
-          {/* Subtle animated shimmer highlight */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full duration-1000 transition-transform pointer-events-none" />
-          
-          {/* Attention-seeker badge */}
-          <span className="absolute -top-1 -right-1 bg-gradient-to-r from-amber-400 to-rose-500 text-white text-[7.5px] font-black px-1.5 py-0.5 rounded-full shadow-sm animate-pulse tracking-wider uppercase border border-white/40">
-            Guide
-          </span>
+        <div className="relative">
+          {highlightGuideBtn && (
+            <div className="absolute -top-7 right-0 z-30 whitespace-nowrap bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-[9.5px] font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-violet-500/50 flex items-center space-x-1 animate-bounce">
+              <Sparkles size={10} className="text-amber-300" />
+              <span>Rewatch here!</span>
+            </div>
+          )}
+          <Link
+            to="/help-videos"
+            className={`relative group flex flex-col items-center justify-center space-y-1 bg-black hover:bg-slate-900 text-white py-2.5 rounded-xl font-bold text-[11px] shadow-sm active:scale-95 transition-all overflow-hidden border border-slate-800 ${
+              highlightGuideBtn ? 'ring-4 ring-violet-500 ring-offset-2 scale-105 shadow-xl shadow-violet-500/40 animate-pulse' : ''
+            }`}
+          >
+            {/* Subtle animated shimmer highlight */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full duration-1000 transition-transform pointer-events-none" />
+            
+            {/* Attention-seeker badge */}
+            <span className="absolute -top-1 -right-1 bg-gradient-to-r from-amber-400 to-rose-500 text-white text-[7.5px] font-black px-1.5 py-0.5 rounded-full shadow-sm animate-pulse tracking-wider uppercase border border-white/40">
+              Guide
+            </span>
 
-          <Clapperboard size={18} className="text-white drop-shadow-sm" />
-          <span className="tracking-wide">Videos</span>
-        </Link>
+            <Clapperboard size={18} className="text-white drop-shadow-sm" />
+            <span className="tracking-wide">Videos</span>
+          </Link>
+        </div>
       </div>
 
       {/* LIVE BINGO BANNER */}
