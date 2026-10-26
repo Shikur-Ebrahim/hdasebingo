@@ -124,6 +124,52 @@ export default function Deposit() {
     setActiveVideoIndex((prev) => (prev - 1 + depositVideos.length) % depositVideos.length);
   };
 
+  // Auto-play deposit popup video on mount with sound prioritized
+  useEffect(() => {
+    if (showDepositPopup && inlineVideoRef.current) {
+      inlineVideoRef.current.muted = false;
+      const p = inlineVideoRef.current.play();
+      if (p !== undefined) {
+        p.then(() => {
+          setIsMuted(false);
+        }).catch(() => {
+          if (inlineVideoRef.current) {
+            inlineVideoRef.current.muted = true;
+            setIsMuted(true);
+            inlineVideoRef.current.play().catch(() => {});
+          }
+        });
+      }
+    }
+  }, [showDepositPopup]);
+
+  const handleCloseDepositPopup = (_fromVideoEnd = false) => {
+    if (inlineVideoRef.current) {
+      try { inlineVideoRef.current.pause(); } catch (_) {}
+    }
+    if (typeof WebApp !== 'undefined') {
+      WebApp.HapticFeedback?.notificationOccurred('success');
+    }
+    setIsClosingDepositVideo(true);
+    setTimeout(() => {
+      setShowDepositPopup(false);
+      setIsClosingDepositVideo(false);
+      setHighlightGuideBtn(true);
+      setTimeout(() => setHighlightGuideBtn(false), 5000);
+    }, 280);
+  };
+
+  const toggleInlineSound = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (inlineVideoRef.current) {
+      inlineVideoRef.current.muted = !inlineVideoRef.current.muted;
+      setIsMuted(inlineVideoRef.current.muted);
+      if (typeof WebApp !== 'undefined') {
+        WebApp.HapticFeedback?.impactOccurred('light');
+      }
+    }
+  };
+
   useEffect(() => { fetchMethods(); }, []);
 
   // Auto-dismiss success notification after 1 second
@@ -164,7 +210,20 @@ export default function Deposit() {
 
       if (videosRes.ok) {
         const vData = await videosRes.json();
-        setDepositVideos(vData.videos || []);
+        const vids = vData.videos || [];
+        setDepositVideos(vids);
+
+        // One-time auto popup for deposit guidance
+        if (vids.length > 0 && vids[0].video_url) {
+          const firstVid = vids[0];
+          const viewedKey = `deposit_video_viewed_${firstVid.id}`;
+          const hasViewed = localStorage.getItem(viewedKey) || localStorage.getItem('deposit_guide_viewed_once');
+          if (!hasViewed) {
+            localStorage.setItem(viewedKey, 'true');
+            localStorage.setItem('deposit_guide_viewed_once', 'true');
+            setShowDepositPopup(true);
+          }
+        }
       }
     } catch (err) {
       console.error(err);
@@ -683,7 +742,7 @@ export default function Deposit() {
 
   // ── STEP: LIST ───────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20 relative">
       {/* Header */}
       <div className="bg-white dark:bg-slate-900 px-4 py-3.5 rounded-b-2xl shadow-sm border-b border-gray-100 dark:border-slate-800 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center space-x-3 min-w-0">
@@ -697,20 +756,106 @@ export default function Deposit() {
         </div>
 
         {/* Video Guide Button */}
-        <button
-          type="button"
-          onClick={() => openVideoModal(0)}
-          className="relative flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white shadow-md shadow-red-500/25 active:scale-95 transition-all text-xs font-black border border-white/20 shrink-0 ml-2"
-        >
-          <span className="relative flex h-4 w-4 items-center justify-center rounded-full bg-white/25 text-white">
-            <Play size={9} className="fill-white ml-0.5" />
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-40 duration-1000" />
-          </span>
-          <span className="text-[11px] font-black tracking-wide whitespace-nowrap">
-            {language === 'am' ? 'የቪዲዮ መመሪያ' : 'Video Guide'}
-          </span>
-        </button>
+        <div className="relative shrink-0 ml-2">
+          {highlightGuideBtn && (
+            <div className="absolute -bottom-8 right-0 z-40 whitespace-nowrap bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 text-white text-[9.5px] font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-red-500/50 flex items-center space-x-1 animate-bounce">
+              <Sparkles size={10} className="text-amber-300" />
+              <span>Rewatch guide here!</span>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => openVideoModal(0)}
+            className={`relative flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white shadow-md shadow-red-500/25 active:scale-95 transition-all text-xs font-black border border-white/20 ${
+              highlightGuideBtn ? 'ring-4 ring-red-500 ring-offset-2 scale-105 shadow-xl shadow-red-500/40 animate-pulse' : ''
+            }`}
+          >
+            <span className="relative flex h-4 w-4 items-center justify-center rounded-full bg-white/25 text-white">
+              <Play size={9} className="fill-white ml-0.5" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-40 duration-1000" />
+            </span>
+            <span className="text-[11px] font-black tracking-wide whitespace-nowrap">
+              {language === 'am' ? 'የቪዲዮ መመሪያ' : 'Video Guide'}
+            </span>
+          </button>
+        </div>
       </div>
+
+      {/* OVERLAY OVER AVAILABLE METHODS SECTION (CLEAN WHITE THEME) */}
+      {showDepositPopup && depositVideos.length > 0 && (
+        <div 
+          className={`absolute inset-x-0 top-[65px] bottom-0 z-20 bg-white flex flex-col justify-between overflow-hidden transition-all duration-300 ${
+            isClosingDepositVideo ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100 animate-fadeIn'
+          }`}
+          onClick={() => handleCloseDepositPopup(false)}
+        >
+          {/* Top Controls: Sound Toggle and Close Button */}
+          <div className="p-3 pb-1 flex items-center justify-between shrink-0 bg-white z-20">
+            <button
+              type="button"
+              onClick={toggleInlineSound}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-black shadow-md border transition-all active:scale-95 ${
+                isMuted 
+                  ? 'bg-rose-500 text-white border-rose-400 animate-pulse' 
+                  : 'bg-emerald-600 text-white border-emerald-500'
+              }`}
+            >
+              {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+              <span>{isMuted ? 'Sound OFF · Tap for Sound' : 'Sound ON'}</span>
+            </button>
+
+            <button
+              onClick={() => handleCloseDepositPopup(false)}
+              className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 text-slate-700 flex items-center justify-center shadow-sm border border-slate-200 transition-all"
+              aria-label="Close"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Full Video Container - Clean White Background */}
+          <div 
+            className="flex-1 relative w-full flex items-center justify-center bg-white overflow-hidden p-2"
+            onClick={(e) => { e.stopPropagation(); if (isMuted) toggleInlineSound(); }}
+          >
+            {isMuted && (
+              <button
+                type="button"
+                onClick={toggleInlineSound}
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-slate-900/90 hover:bg-black text-white px-5 py-3 rounded-2xl border border-white/20 backdrop-blur-md shadow-2xl flex items-center space-x-2 animate-bounce cursor-pointer active:scale-95"
+              >
+                <VolumeX size={20} className="text-rose-400" />
+                <span className="font-black text-sm">Tap to Turn Sound ON 🔊</span>
+              </button>
+            )}
+            <video
+              ref={inlineVideoRef}
+              src={depositVideos[0].video_url}
+              poster={depositVideos[0].thumbnail_url || undefined}
+              controls
+              playsInline
+              autoPlay
+              onEnded={() => handleCloseDepositPopup(true)}
+              className="w-full h-full object-contain bg-white rounded-xl"
+            >
+              Your browser does not support video playback.
+            </video>
+          </div>
+
+          {/* Centered Attractive Action Button (No Icon) */}
+          <div 
+            className="p-4 pt-2 pb-6 bg-white flex items-center justify-center shrink-0 z-20"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => handleCloseDepositPopup(false)}
+              className="w-full max-w-sm py-3.5 px-6 bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:from-red-500 hover:to-amber-400 active:scale-95 text-white font-black text-sm rounded-2xl shadow-xl shadow-red-500/25 transition-all flex items-center justify-center border border-white/20"
+            >
+              <span>{language === 'am' ? 'ተረድቻለሁ • ክፍያ ልፈጽም' : "Got it, Let's Deposit!"}</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="p-4 space-y-3">
         {loading ? (
