@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, ChevronRight, CheckCircle2, UploadCloud, X, Clock, AlertCircle, Copy, Check, MessageCircle, Play, ChevronLeft, Video as VideoIcon } from 'lucide-react';
+import { ArrowLeft, ChevronRight, CheckCircle2, UploadCloud, X, Clock, AlertCircle, Copy, Check, MessageCircle, Play, ChevronLeft, Video as VideoIcon, Sparkles, Volume2, VolumeX } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { useGameStore } from '../store/gameStore';
@@ -82,6 +82,11 @@ export default function Deposit() {
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
   const videoPlayerRef = useRef<HTMLVideoElement>(null);
+  const inlineVideoRef = useRef<HTMLVideoElement>(null);
+  const [showDepositPopup, setShowDepositPopup] = useState(false);
+  const [isClosingDepositVideo, setIsClosingDepositVideo] = useState(false);
+  const [highlightGuideBtn, setHighlightGuideBtn] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
 
   // Form state
   const [amount, setAmount] = useState('');
