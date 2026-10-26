@@ -1,12 +1,23 @@
-import { useState } from 'react';
-import { ArrowLeft, ArrowRightLeft, CheckCircle2, AlertCircle, Send, User, ShieldCheck } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import {
+  ArrowLeft, ArrowRightLeft, CheckCircle2, AlertCircle, Send, User, ShieldCheck,
+  Play, ChevronLeft, ChevronRight, X, Sparkles, Volume2, VolumeX,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
 import WebApp from '@twa-dev/sdk';
-import VideoGuideButton from '../components/VideoGuideButton';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+
+interface SupportVideo {
+  id: string;
+  category: string;
+  title: string;
+  description: string | null;
+  video_url: string;
+  thumbnail_url?: string | null;
+}
 
 type Step = 'form' | 'confirm' | 'success' | 'error';
 
@@ -21,6 +32,188 @@ export default function Transfer() {
   const [loading, setLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const navigate = useNavigate();
+
+  // Transfer guidance video state
+  const [transferVideos, setTransferVideos] = useState<SupportVideo[]>([]);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [activeVideoIndex, setActiveVideoIndex] = useState(0);
+  const videoPlayerRef = useRef<HTMLVideoElement>(null);
+  const inlineVideoRef = useRef<HTMLVideoElement>(null);
+  const [showTransferPopup, setShowTransferPopup] = useState(false);
+  const [isClosingTransferVideo, setIsClosingTransferVideo] = useState(false);
+  const [highlightGuideBtn, setHighlightGuideBtn] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+
+  // Fetch transfer videos on mount
+  useEffect(() => {
+    const fetchVideos = async () => {
+      try {
+        const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+        const res = await fetch(`${API_URL}/player/support-videos?category=transfer`, {
+          headers: { 'x-telegram-init-data': initData },
+        });
+        if (res.ok) {
+          const vData = await res.json();
+          const vids = vData.videos || [];
+          setTransferVideos(vids);
+          if (vids.length > 0 && vids[0].video_url) {
+            const viewedKey = `transfer_video_viewed_${vids[0].id}`;
+            const hasViewed = localStorage.getItem(viewedKey) || localStorage.getItem('transfer_guide_viewed_once');
+            if (!hasViewed) {
+              localStorage.setItem(viewedKey, 'true');
+              localStorage.setItem('transfer_guide_viewed_once', 'true');
+              setShowTransferPopup(true);
+            }
+          }
+        }
+      } catch { /* silent */ }
+    };
+    fetchVideos();
+  }, []);
+
+  // Auto-play with sound prioritized
+  useEffect(() => {
+    if (showTransferPopup && inlineVideoRef.current) {
+      inlineVideoRef.current.muted = false;
+      const p = inlineVideoRef.current.play();
+      if (p !== undefined) {
+        p.then(() => setIsMuted(false)).catch(() => {
+          if (inlineVideoRef.current) {
+            inlineVideoRef.current.muted = true;
+            setIsMuted(true);
+            inlineVideoRef.current.play().catch(() => {});
+          }
+        });
+      }
+    }
+  }, [showTransferPopup]);
+
+  const handleCloseTransferPopup = (_fromVideoEnd = false) => {
+    if (inlineVideoRef.current) { try { inlineVideoRef.current.pause(); } catch (_) {} }
+    if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.notificationOccurred('success');
+    setIsClosingTransferVideo(true);
+    setTimeout(() => {
+      setShowTransferPopup(false);
+      setIsClosingTransferVideo(false);
+      setHighlightGuideBtn(true);
+      setTimeout(() => setHighlightGuideBtn(false), 5000);
+    }, 280);
+  };
+
+  const toggleInlineSound = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (inlineVideoRef.current) {
+      inlineVideoRef.current.muted = !inlineVideoRef.current.muted;
+      setIsMuted(inlineVideoRef.current.muted);
+      if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('light');
+    }
+  };
+
+  const openVideoModal = (index = 0) => {
+    setActiveVideoIndex(index);
+    setIsVideoModalOpen(true);
+  };
+
+  const closeVideoModal = () => {
+    if (videoPlayerRef.current) videoPlayerRef.current.pause();
+    setIsVideoModalOpen(false);
+  };
+
+  const nextVideo = () => {
+    if (transferVideos.length <= 1) return;
+    setActiveVideoIndex((prev) => (prev + 1) % transferVideos.length);
+  };
+
+  const prevVideo = () => {
+    if (transferVideos.length <= 1) return;
+    setActiveVideoIndex((prev) => (prev - 1 + transferVideos.length) % transferVideos.length);
+  };
+
+  const renderVideoModal = () => {
+    if (!isVideoModalOpen) return null;
+    const currentVid = transferVideos[activeVideoIndex];
+    return (
+      <div
+        className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col justify-between select-none animate-in fade-in duration-200"
+        onClick={(e) => { if (e.target === e.currentTarget) closeVideoModal(); }}
+      >
+        <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/95 via-black/80 to-transparent z-20">
+          <div className="flex items-center space-x-2.5 min-w-0 pr-2">
+            <div className="w-8 h-8 rounded-full bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0">
+              <Play size={13} className="fill-current ml-0.5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-black text-white truncate">
+                {currentVid?.title || (language === 'am' ? 'እንዴት ማስተላለፍ ይቻላል' : 'How to Transfer')}
+              </p>
+              <p className="text-[10px] text-slate-400 font-semibold truncate">
+                {transferVideos.length > 1
+                  ? `${language === 'am' ? 'ቪዲዮ' : 'Video'} ${activeVideoIndex + 1} / ${transferVideos.length}`
+                  : (language === 'am' ? 'ኦፊሴላዊ የቪዲዮ መመሪያ' : 'Official Step-by-Step Guide')}
+              </p>
+            </div>
+          </div>
+          <button type="button" onClick={closeVideoModal} className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center active:scale-90 transition-all shrink-0">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex-1 relative flex items-center justify-center p-3 overflow-hidden">
+          {currentVid ? (
+            <div className="w-full max-w-lg relative flex flex-col items-center">
+              <video
+                ref={videoPlayerRef}
+                key={currentVid.id}
+                src={currentVid.video_url}
+                poster={currentVid.thumbnail_url || undefined}
+                controls autoPlay playsInline
+                className="w-full max-h-[68vh] rounded-2xl shadow-2xl bg-black border border-white/10 object-contain"
+              >
+                Your browser does not support video playback.
+              </video>
+              {transferVideos.length > 1 && (
+                <div className="flex items-center justify-center space-x-3 mt-3">
+                  <button type="button" onClick={prevVideo} className="px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 text-white text-xs font-bold transition-all flex items-center space-x-1">
+                    <ChevronLeft size={14} /><span>{language === 'am' ? 'ቀዳሚ' : 'Previous'}</span>
+                  </button>
+                  <span className="text-xs text-white/80 font-bold px-2">{activeVideoIndex + 1} / {transferVideos.length}</span>
+                  <button type="button" onClick={nextVideo} className="px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 text-white text-xs font-bold transition-all flex items-center space-x-1">
+                    <span>{language === 'am' ? 'ቀጣይ' : 'Next'}</span><ChevronRight size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center max-w-sm mx-auto shadow-2xl">
+              <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mx-auto mb-3 text-indigo-400">
+                <Play size={24} className="fill-indigo-400/30" />
+              </div>
+              <h3 className="text-base font-black text-white mb-1">{language === 'am' ? 'የቪዲዮ መመሪያ በቅርቡ ይጫናል' : 'Video Guide Coming Soon'}</h3>
+              <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                {language === 'am' ? 'አድሚኑ አዲስ ቪዲዮ እያዘጋጀ ነው።' : 'The transfer video guide is being prepared.'}
+              </p>
+              <button type="button" onClick={closeVideoModal} className="w-full py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-amber-500 text-white font-black text-xs active:scale-95 transition-all">
+                {language === 'am' ? 'እሺ ተረድቻለሁ' : 'Got It'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 bg-gradient-to-t from-black via-black/85 to-transparent z-20 space-y-2">
+          {currentVid?.description && (
+            <p className="text-xs text-slate-300 font-medium text-center line-clamp-2">{currentVid.description}</p>
+          )}
+          <button
+            type="button"
+            onClick={closeVideoModal}
+            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-amber-500 hover:from-indigo-500 hover:to-amber-400 text-white font-black text-xs shadow-lg shadow-indigo-500/30 active:scale-95 transition-all border border-white/20"
+          >
+            {language === 'am' ? 'ተረድቻለሁ • ገንዘብ ላስተላልፍ' : "Got it, Let's Transfer!"}
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   const handleBack = () => {
     navigate(-1);
@@ -250,22 +443,128 @@ export default function Transfer() {
 
   // ─── MAIN FORM ────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col pb-24">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col pb-24 relative">
+      {renderVideoModal()}
 
       {/* HEADER */}
-      <div className="bg-white dark:bg-slate-900 px-4 pt-6 pb-4 shadow-sm border-b border-gray-100 dark:border-slate-800 flex items-center sticky top-0 z-10">
-        <button
-          onClick={handleBack}
-          className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-200 active:bg-slate-200 transition-colors"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <div className="ml-4 flex-1">
-          <h1 className="text-xl font-black text-slate-800 dark:text-slate-100 tracking-tight">{t[language].transfer.transferTitle}</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{t[language].transfer.transferSubtitle}</p>
+      <div className="bg-white dark:bg-slate-900 px-4 py-3 shadow-sm border-b border-gray-100 dark:border-slate-800 flex items-center justify-between sticky top-0 z-30 h-[60px]">
+        <div className="flex items-center space-x-3 min-w-0">
+          <button
+            onClick={handleBack}
+            className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-200 active:scale-95 transition-all shrink-0"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div className="min-w-0">
+            <h1 className="text-lg font-black text-slate-800 dark:text-slate-100 tracking-tight truncate">{t[language].transfer.transferTitle}</h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate">{t[language].transfer.transferSubtitle}</p>
+          </div>
         </div>
-        <VideoGuideButton category="transfer" />
+
+        {/* Video Guide Button */}
+        <div className="relative shrink-0 ml-2">
+          {highlightGuideBtn && (
+            <div className="absolute -bottom-8 right-0 z-40 whitespace-nowrap bg-gradient-to-r from-indigo-600 via-purple-500 to-amber-500 text-white text-[9.5px] font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-indigo-500/50 flex items-center space-x-1 animate-bounce">
+              <Sparkles size={10} className="text-amber-300" />
+              <span>Rewatch guide here!</span>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => openVideoModal(0)}
+            className={`relative flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-indigo-600 via-purple-500 to-amber-500 hover:from-indigo-500 hover:to-amber-400 text-white shadow-md shadow-indigo-500/25 active:scale-95 transition-all text-xs font-black border border-white/20 ${
+              highlightGuideBtn ? 'ring-4 ring-indigo-500 ring-offset-2 scale-105 shadow-xl shadow-indigo-500/40 animate-pulse' : ''
+            }`}
+          >
+            <span className="relative flex h-4 w-4 items-center justify-center rounded-full bg-white/25 text-white">
+              <Play size={9} className="fill-white ml-0.5" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-40 duration-1000" />
+            </span>
+            <span className="text-[11px] font-black tracking-wide whitespace-nowrap">
+              {language === 'am' ? 'የቪዲዮ መመሪያ' : 'Video Guide'}
+            </span>
+          </button>
+        </div>
       </div>
+
+      {/* ONE-TIME FULLSCREEN VIDEO POPUP */}
+      {showTransferPopup && transferVideos.length > 0 && (
+        <div
+          style={{
+            top: '60px',
+            bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
+          }}
+          className={`fixed inset-x-0 z-30 bg-white flex flex-col justify-between overflow-hidden shadow-xl transition-all duration-300 ${
+            isClosingTransferVideo ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'
+          }`}
+          onClick={() => handleCloseTransferPopup(false)}
+        >
+          {/* Sound Toggle & Close */}
+          <div className="p-3 pb-1.5 flex items-center justify-between shrink-0 bg-white border-b border-slate-100/80 z-20">
+            <button
+              type="button"
+              onClick={toggleInlineSound}
+              className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-black shadow-md border transition-all active:scale-95 ${
+                isMuted
+                  ? 'bg-rose-500 text-white border-rose-400 animate-pulse ring-2 ring-rose-500/30'
+                  : 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-600/20'
+              }`}
+            >
+              {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+              <span>{isMuted ? 'Sound OFF · Tap for Sound' : 'Sound ON'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleCloseTransferPopup(false)}
+              className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 text-slate-700 flex items-center justify-center shadow-sm border border-slate-200 transition-all"
+              aria-label="Close"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Video */}
+          <div
+            className="flex-1 min-h-0 relative w-full flex items-center justify-center bg-white overflow-hidden p-2"
+            onClick={(e) => { e.stopPropagation(); if (isMuted) toggleInlineSound(); }}
+          >
+            {isMuted && (
+              <button
+                type="button"
+                onClick={toggleInlineSound}
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-slate-900/90 hover:bg-black text-white px-5 py-3 rounded-2xl border border-white/20 backdrop-blur-md shadow-2xl flex items-center space-x-2 animate-bounce cursor-pointer active:scale-95"
+              >
+                <VolumeX size={20} className="text-rose-400" />
+                <span className="font-black text-sm">Tap to Turn Sound ON 🔊</span>
+              </button>
+            )}
+            <video
+              ref={inlineVideoRef}
+              src={transferVideos[0].video_url}
+              poster={transferVideos[0].thumbnail_url || undefined}
+              controls playsInline autoPlay
+              onEnded={() => handleCloseTransferPopup(true)}
+              className="w-full h-full max-h-full object-contain bg-white rounded-xl"
+            >
+              Your browser does not support video playback.
+            </video>
+          </div>
+
+          {/* Action Button */}
+          <div
+            className="p-3.5 bg-white/95 backdrop-blur-md border-t border-slate-100 flex flex-col items-center justify-center shrink-0 z-20 shadow-[0_-8px_24px_rgba(0,0,0,0.08)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => handleCloseTransferPopup(false)}
+              className="w-full max-w-sm py-3.5 px-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-amber-500 hover:from-indigo-500 hover:to-amber-400 active:scale-95 text-white font-black text-sm sm:text-base rounded-2xl shadow-xl shadow-indigo-500/35 transition-all flex items-center justify-center border border-white/25 tracking-wide ring-2 ring-indigo-500/20"
+            >
+              <span>{language === 'am' ? 'ተረድቻለሁ • ገንዘብ ላስተላልፍ' : "Got it, Let's Transfer!"}</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="px-4 py-5 flex flex-col space-y-4">
 
