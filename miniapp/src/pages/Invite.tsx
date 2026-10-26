@@ -1,16 +1,25 @@
 import { useState, useRef, useEffect } from 'react';
 import { 
   ArrowLeft, Share2, Copy, Check, Gift, QrCode, Link2, 
-  Download, Maximize2, X, Sparkles, CheckCircle2, Crown, RefreshCw 
+  Download, Maximize2, X, Sparkles, CheckCircle2, Crown, RefreshCw,
+  Play, ChevronLeft, ChevronRight, Volume2, VolumeX,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
 import WebApp from '@twa-dev/sdk';
 import { QRCodeCanvas } from 'qrcode.react';
-import VideoGuideButton from '../components/VideoGuideButton';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+
+interface SupportVideo {
+  id: string;
+  category: string;
+  title: string;
+  description: string | null;
+  video_url: string;
+  thumbnail_url?: string | null;
+}
 
 export default function Invite() {
   const { user, setProfileOpen, language } = useGameStore();
@@ -24,30 +33,121 @@ export default function Invite() {
   const fullscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const navigate = useNavigate();
 
+  // Invite guidance video state
+  const [inviteVideos, setInviteVideos] = useState<SupportVideo[]>([]);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [activeVideoIndex, setActiveVideoIndex] = useState(0);
+  const videoPlayerRef = useRef<HTMLVideoElement>(null);
+  const inlineVideoRef = useRef<HTMLVideoElement>(null);
+  const [showInvitePopup, setShowInvitePopup] = useState(false);
+  const [isClosingInviteVideo, setIsClosingInviteVideo] = useState(false);
+  const [highlightGuideBtn, setHighlightGuideBtn] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+
   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'hdasebingo_bot';
   const refCode = `ref_${user?.telegram_id || 'player'}`;
   const inviteLink = `https://t.me/${botUsername}?start=${refCode}`;
 
-  // Fetch real invite reward % from admin settings
+  // Fetch real invite reward % from admin settings + invite videos
   useEffect(() => {
     const fetchSettings = async () => {
       try {
         const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
-        const res = await fetch(`${API_URL}/player/public-settings`, {
-          headers: { 'x-telegram-init-data': initData },
-        });
-        if (res.ok) {
-          const data = await res.json();
+        const [settingsRes, videosRes] = await Promise.all([
+          fetch(`${API_URL}/player/public-settings`, { headers: { 'x-telegram-init-data': initData } }),
+          fetch(`${API_URL}/player/support-videos?category=invite`, { headers: { 'x-telegram-init-data': initData } }),
+        ]);
+
+        if (settingsRes.ok) {
+          const data = await settingsRes.json();
           if (typeof data.invitation_reward_pct === 'number') {
             setInviteRewardPct(data.invitation_reward_pct);
           }
         }
+
+        if (videosRes.ok) {
+          const vData = await videosRes.json();
+          const vids = vData.videos || [];
+          setInviteVideos(vids);
+
+          // One-time auto popup for invite guidance
+          if (vids.length > 0 && vids[0].video_url) {
+            const firstVid = vids[0];
+            const viewedKey = `invite_video_viewed_${firstVid.id}`;
+            const hasViewed = localStorage.getItem(viewedKey) || localStorage.getItem('invite_guide_viewed_once');
+            if (!hasViewed) {
+              localStorage.setItem(viewedKey, 'true');
+              localStorage.setItem('invite_guide_viewed_once', 'true');
+              setShowInvitePopup(true);
+            }
+          }
+        }
       } catch {
-        // fallback stays at default 10%
+        // fallback stays at defaults
       }
     };
     fetchSettings();
   }, []);
+
+  // Auto-play invite popup video with sound prioritized
+  useEffect(() => {
+    if (showInvitePopup && inlineVideoRef.current) {
+      inlineVideoRef.current.muted = false;
+      const p = inlineVideoRef.current.play();
+      if (p !== undefined) {
+        p.then(() => setIsMuted(false)).catch(() => {
+          if (inlineVideoRef.current) {
+            inlineVideoRef.current.muted = true;
+            setIsMuted(true);
+            inlineVideoRef.current.play().catch(() => {});
+          }
+        });
+      }
+    }
+  }, [showInvitePopup]);
+
+  const handleCloseInvitePopup = (_fromVideoEnd = false) => {
+    if (inlineVideoRef.current) {
+      try { inlineVideoRef.current.pause(); } catch (_) {}
+    }
+    if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.notificationOccurred('success');
+    setIsClosingInviteVideo(true);
+    setTimeout(() => {
+      setShowInvitePopup(false);
+      setIsClosingInviteVideo(false);
+      setHighlightGuideBtn(true);
+      setTimeout(() => setHighlightGuideBtn(false), 5000);
+    }, 280);
+  };
+
+  const toggleInlineSound = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (inlineVideoRef.current) {
+      inlineVideoRef.current.muted = !inlineVideoRef.current.muted;
+      setIsMuted(inlineVideoRef.current.muted);
+      if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('light');
+    }
+  };
+
+  const openVideoModal = (index = 0) => {
+    setActiveVideoIndex(index);
+    setIsVideoModalOpen(true);
+  };
+
+  const closeVideoModal = () => {
+    if (videoPlayerRef.current) videoPlayerRef.current.pause();
+    setIsVideoModalOpen(false);
+  };
+
+  const nextVideo = () => {
+    if (inviteVideos.length <= 1) return;
+    setActiveVideoIndex((prev) => (prev + 1) % inviteVideos.length);
+  };
+
+  const prevVideo = () => {
+    if (inviteVideos.length <= 1) return;
+    setActiveVideoIndex((prev) => (prev - 1 + inviteVideos.length) % inviteVideos.length);
+  };
 
   const handleBack = () => {
     navigate(-1);
@@ -465,28 +565,233 @@ export default function Invite() {
     handleShare();
   };
 
+  const renderVideoModal = () => {
+    if (!isVideoModalOpen) return null;
+    const currentVid = inviteVideos[activeVideoIndex];
+
+    return (
+      <div
+        className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col justify-between select-none animate-in fade-in duration-200"
+        onClick={(e) => { if (e.target === e.currentTarget) closeVideoModal(); }}
+      >
+        {/* Top Bar */}
+        <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/95 via-black/80 to-transparent z-20">
+          <div className="flex items-center space-x-2.5 min-w-0 pr-2">
+            <div className="w-8 h-8 rounded-full bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400 shrink-0">
+              <Play size={13} className="fill-current ml-0.5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-black text-white truncate">
+                {currentVid?.title || (language === 'am' ? 'ጓደኞችን እንዴት መጋበዝ ይቻላል' : 'How to Invite Friends')}
+              </p>
+              <p className="text-[10px] text-slate-400 font-semibold truncate">
+                {inviteVideos.length > 1
+                  ? `${language === 'am' ? 'ቪዲዮ' : 'Video'} ${activeVideoIndex + 1} / ${inviteVideos.length}`
+                  : (language === 'am' ? 'ኦፊሴላዊ የቪዲዮ መመሪያ' : 'Official Step-by-Step Guide')}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={closeVideoModal}
+            className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center active:scale-90 transition-all shrink-0"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Video Player */}
+        <div className="flex-1 relative flex items-center justify-center p-3 overflow-hidden">
+          {currentVid ? (
+            <div className="w-full max-w-lg relative flex flex-col items-center">
+              <video
+                ref={videoPlayerRef}
+                key={currentVid.id}
+                src={currentVid.video_url}
+                poster={currentVid.thumbnail_url || undefined}
+                controls
+                autoPlay
+                playsInline
+                className="w-full max-h-[68vh] rounded-2xl shadow-2xl bg-black border border-white/10 object-contain"
+              >
+                Your browser does not support video playback.
+              </video>
+              {inviteVideos.length > 1 && (
+                <div className="flex items-center justify-center space-x-3 mt-3">
+                  <button type="button" onClick={prevVideo} className="px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 text-white text-xs font-bold transition-all flex items-center space-x-1">
+                    <ChevronLeft size={14} /><span>{language === 'am' ? 'ቀዳሚ' : 'Previous'}</span>
+                  </button>
+                  <span className="text-xs text-white/80 font-bold px-2">{activeVideoIndex + 1} / {inviteVideos.length}</span>
+                  <button type="button" onClick={nextVideo} className="px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 text-white text-xs font-bold transition-all flex items-center space-x-1">
+                    <span>{language === 'am' ? 'ቀጣይ' : 'Next'}</span><ChevronRight size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center max-w-sm mx-auto shadow-2xl">
+              <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mx-auto mb-3 text-purple-400">
+                <Play size={24} className="fill-purple-400/30" />
+              </div>
+              <h3 className="text-base font-black text-white mb-1">
+                {language === 'am' ? 'የቪዲዮ መመሪያ በቅርቡ ይጫናል' : 'Video Guide Coming Soon'}
+              </h3>
+              <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                {language === 'am' ? 'አድሚኑ አዲስ ቪዲዮ እያዘጋጀ ነው።' : 'The invite video guide is being prepared. Share your link now!'}
+              </p>
+              <button type="button" onClick={closeVideoModal} className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-amber-500 text-white font-black text-xs active:scale-95 transition-all">
+                {language === 'am' ? 'እሺ ተረድቻለሁ' : 'Got It'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Bottom Action */}
+        <div className="p-4 bg-gradient-to-t from-black via-black/85 to-transparent z-20 space-y-2">
+          {currentVid?.description && (
+            <p className="text-xs text-slate-300 font-medium text-center line-clamp-2">{currentVid.description}</p>
+          )}
+          <button
+            type="button"
+            onClick={closeVideoModal}
+            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-600 via-violet-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-white font-black text-xs shadow-lg shadow-purple-500/30 active:scale-95 transition-all border border-white/20"
+          >
+            {language === 'am' ? 'ተረድቻለሁ • ጓደኛ ልጋብዝ' : "Got it, Let's Invite Friends!"}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col pb-24 select-none">
+      {renderVideoModal()}
+
       {/* HEADER */}
-      <div className="bg-white dark:bg-slate-900 px-4 pt-4 pb-3 shadow-xs border-b border-gray-100 dark:border-slate-800 flex items-center justify-between sticky top-0 z-20">
-        <div className="flex items-center">
+      <div className="bg-white dark:bg-slate-900 px-4 pt-4 pb-3 shadow-xs border-b border-gray-100 dark:border-slate-800 flex items-center justify-between sticky top-0 z-30 h-[60px]">
+        <div className="flex items-center min-w-0">
           <button
             onClick={handleBack}
-            className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-200 active:scale-95 transition-transform"
+            className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-200 active:scale-95 transition-transform shrink-0"
           >
             <ArrowLeft size={18} />
           </button>
-          <div className="ml-3">
-            <h1 className="text-lg font-black text-slate-800 dark:text-slate-100 tracking-tight leading-tight">
+          <div className="ml-3 min-w-0">
+            <h1 className="text-lg font-black text-slate-800 dark:text-slate-100 tracking-tight leading-tight truncate">
               {t[language].invite.title}
             </h1>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">
               {t[language].invite.subtitle}
             </p>
           </div>
         </div>
-        <VideoGuideButton category="invite" />
+
+        {/* Video Guide Button */}
+        <div className="relative shrink-0 ml-2">
+          {highlightGuideBtn && (
+            <div className="absolute -bottom-8 right-0 z-40 whitespace-nowrap bg-gradient-to-r from-purple-600 via-violet-500 to-amber-500 text-white text-[9.5px] font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-purple-500/50 flex items-center space-x-1 animate-bounce">
+              <Sparkles size={10} className="text-amber-300" />
+              <span>Rewatch guide here!</span>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => openVideoModal(0)}
+            className={`relative flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-600 via-violet-500 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-white shadow-md shadow-purple-500/25 active:scale-95 transition-all text-xs font-black border border-white/20 ${
+              highlightGuideBtn ? 'ring-4 ring-purple-500 ring-offset-2 scale-105 shadow-xl shadow-purple-500/40 animate-pulse' : ''
+            }`}
+          >
+            <span className="relative flex h-4 w-4 items-center justify-center rounded-full bg-white/25 text-white">
+              <Play size={9} className="fill-white ml-0.5" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-40 duration-1000" />
+            </span>
+            <span className="text-[11px] font-black tracking-wide whitespace-nowrap">
+              {language === 'am' ? 'የቪዲዮ መመሪያ' : 'Video Guide'}
+            </span>
+          </button>
+        </div>
       </div>
+
+      {/* ONE-TIME FULLSCREEN VIDEO POPUP */}
+      {showInvitePopup && inviteVideos.length > 0 && (
+        <div
+          style={{
+            top: '60px',
+            bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
+          }}
+          className={`fixed inset-x-0 z-30 bg-white flex flex-col justify-between overflow-hidden shadow-xl transition-all duration-300 ${
+            isClosingInviteVideo ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'
+          }`}
+          onClick={() => handleCloseInvitePopup(false)}
+        >
+          {/* Sound Toggle & Close */}
+          <div className="p-3 pb-1.5 flex items-center justify-between shrink-0 bg-white border-b border-slate-100/80 z-20">
+            <button
+              type="button"
+              onClick={toggleInlineSound}
+              className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-black shadow-md border transition-all active:scale-95 ${
+                isMuted
+                  ? 'bg-rose-500 text-white border-rose-400 animate-pulse ring-2 ring-rose-500/30'
+                  : 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-600/20'
+              }`}
+            >
+              {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+              <span>{isMuted ? 'Sound OFF · Tap for Sound' : 'Sound ON'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleCloseInvitePopup(false)}
+              className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 text-slate-700 flex items-center justify-center shadow-sm border border-slate-200 transition-all"
+              aria-label="Close"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Video */}
+          <div
+            className="flex-1 min-h-0 relative w-full flex items-center justify-center bg-white overflow-hidden p-2"
+            onClick={(e) => { e.stopPropagation(); if (isMuted) toggleInlineSound(); }}
+          >
+            {isMuted && (
+              <button
+                type="button"
+                onClick={toggleInlineSound}
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-slate-900/90 hover:bg-black text-white px-5 py-3 rounded-2xl border border-white/20 backdrop-blur-md shadow-2xl flex items-center space-x-2 animate-bounce cursor-pointer active:scale-95"
+              >
+                <VolumeX size={20} className="text-rose-400" />
+                <span className="font-black text-sm">Tap to Turn Sound ON 🔊</span>
+              </button>
+            )}
+            <video
+              ref={inlineVideoRef}
+              src={inviteVideos[0].video_url}
+              poster={inviteVideos[0].thumbnail_url || undefined}
+              controls
+              playsInline
+              autoPlay
+              onEnded={() => handleCloseInvitePopup(true)}
+              className="w-full h-full max-h-full object-contain bg-white rounded-xl"
+            >
+              Your browser does not support video playback.
+            </video>
+          </div>
+
+          {/* Action Button */}
+          <div
+            className="p-3.5 bg-white/95 backdrop-blur-md border-t border-slate-100 flex flex-col items-center justify-center shrink-0 z-20 shadow-[0_-8px_24px_rgba(0,0,0,0.08)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => handleCloseInvitePopup(false)}
+              className="w-full max-w-sm py-3.5 px-6 bg-gradient-to-r from-purple-600 via-violet-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 active:scale-95 text-white font-black text-sm sm:text-base rounded-2xl shadow-xl shadow-purple-500/35 transition-all flex items-center justify-center border border-white/25 tracking-wide ring-2 ring-purple-500/20"
+            >
+              <span>{language === 'am' ? 'ተረድቻለሁ • ጓደኛ ልጋብዝ' : "Got it, Let's Invite Friends!"}</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="px-4 py-3 flex flex-col space-y-3 flex-1 overflow-y-auto">
 
