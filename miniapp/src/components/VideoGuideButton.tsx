@@ -177,19 +177,19 @@ export default function VideoGuideButton({
 
   const modalContent = isOpen ? (
     <div
-      className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-md flex flex-col justify-between select-none animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] bg-white flex flex-col justify-between select-none animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget) closeModal();
       }}
     >
-      {/* Top Bar */}
-      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/95 via-black/80 to-transparent z-20">
+      {/* Top Bar - Clean White */}
+      <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-slate-100 z-20 shrink-0">
         <div className="flex items-center space-x-2.5 min-w-0 pr-2">
-          <div className={`w-8 h-8 rounded-full border flex items-center justify-center shrink-0 ${meta.badgeBg} ${meta.badgeText}`}>
-            <Play size={13} className="fill-current ml-0.5" />
+          <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 shadow-md ${meta.badgeBg} ${meta.badgeText}`}>
+            <Play size={14} className="fill-current ml-0.5" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-black text-white truncate">
+            <p className="text-sm font-black text-slate-800 truncate">
               {displayTitle}
             </p>
             <p className="text-[10px] text-slate-400 font-semibold truncate">
@@ -203,17 +203,17 @@ export default function VideoGuideButton({
         <button
           type="button"
           onClick={closeModal}
-          className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center active:scale-90 transition-all shrink-0"
+          className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center active:scale-90 transition-all shrink-0 border border-slate-200"
           title="Close"
         >
-          <X size={18} />
+          <X size={16} />
         </button>
       </div>
 
       {/* Video Viewport / Fallback */}
-      <div className="flex-1 relative flex items-center justify-center p-3 overflow-hidden">
+      <div className="flex-1 min-h-0 relative flex items-center justify-center bg-white overflow-hidden p-3">
         {currentVid ? (
-          <div className="w-full max-w-lg relative flex flex-col items-center">
+          <div className="w-full h-full flex flex-col items-center justify-center">
             <video
               ref={videoRef}
               key={currentVid.id}
@@ -222,29 +222,29 @@ export default function VideoGuideButton({
               controls
               autoPlay
               playsInline
-              className="w-full max-h-[68vh] rounded-2xl shadow-2xl bg-black border border-white/10 object-contain"
+              className="w-full max-h-full rounded-2xl shadow-lg bg-white border border-slate-100 object-contain"
             >
               Your browser does not support video playback.
             </video>
 
             {/* Multiple videos prev/next */}
             {videos.length > 1 && (
-              <div className="flex items-center justify-center space-x-3 mt-3">
+              <div className="flex items-center justify-center space-x-3 mt-3 shrink-0">
                 <button
                   type="button"
                   onClick={prevVideo}
-                  className="px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 text-white text-xs font-bold transition-all flex items-center space-x-1"
+                  className="px-4 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 text-xs font-bold border border-slate-200 transition-all flex items-center space-x-1"
                 >
                   <ChevronLeft size={14} />
                   <span>{language === 'am' ? 'ቀዳሚ' : 'Previous'}</span>
                 </button>
-                <span className="text-xs text-white/80 font-bold px-2">
+                <span className="text-xs text-slate-500 font-black px-2">
                   {activeVideoIndex + 1} / {videos.length}
                 </span>
                 <button
                   type="button"
                   onClick={nextVideo}
-                  className="px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 text-white text-xs font-bold transition-all flex items-center space-x-1"
+                  className="px-4 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 text-xs font-bold border border-slate-200 transition-all flex items-center space-x-1"
                 >
                   <span>{language === 'am' ? 'ቀጣይ' : 'Next'}</span>
                   <ChevronRight size={14} />
@@ -253,11 +253,11 @@ export default function VideoGuideButton({
             )}
           </div>
         ) : (
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center max-w-sm mx-auto shadow-2xl">
+          <div className="bg-white border border-slate-100 rounded-3xl p-6 text-center max-w-sm mx-auto shadow-sm">
             <div className={`w-14 h-14 rounded-2xl border flex items-center justify-center mx-auto mb-3 ${meta.badgeBg} ${meta.badgeText}`}>
               <Play size={24} className="fill-current/30" />
             </div>
-            <h3 className="text-base font-black text-white mb-1">
+            <h3 className="text-base font-black text-slate-800 mb-1">
               {language === 'am' ? 'የቪዲዮ መመሪያ በቅርቡ ይጫናል' : 'Video Guide Coming Soon'}
             </h3>
             <p className="text-xs text-slate-400 leading-relaxed mb-4">
@@ -268,7 +268,7 @@ export default function VideoGuideButton({
             <button
               type="button"
               onClick={closeModal}
-              className="w-full py-2.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-black text-xs transition-transform active:scale-95"
+              className={`w-full py-2.5 rounded-xl bg-gradient-to-r ${meta.gradient} text-white font-black text-xs active:scale-95 transition-all shadow-md`}
             >
               {language === 'am' ? 'እሺ ተረድቻለሁ' : 'Got It'}
             </button>
@@ -277,16 +277,16 @@ export default function VideoGuideButton({
       </div>
 
       {/* Bottom Description & Close Action */}
-      <div className="p-4 bg-gradient-to-t from-black via-black/85 to-transparent z-20 space-y-2">
+      <div className="p-4 bg-white border-t border-slate-100 z-20 space-y-2 shrink-0">
         {currentVid?.description && (
-          <p className="text-xs text-slate-300 font-medium text-center line-clamp-2">
+          <p className="text-xs text-slate-500 font-medium text-center line-clamp-2">
             {currentVid.description}
           </p>
         )}
         <button
           type="button"
           onClick={closeModal}
-          className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition-all text-center"
+          className={`w-full py-3.5 rounded-2xl bg-gradient-to-r ${meta.gradient} text-white font-black text-sm shadow-xl active:scale-95 transition-all border border-white/20 tracking-wide text-center`}
         >
           {language === 'am' ? 'ተረድቻለሁ' : 'I Understand • Continue'}
         </button>

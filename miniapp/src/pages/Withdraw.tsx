@@ -469,21 +469,19 @@ export default function Withdraw() {
     const currentVid = withdrawVideos[activeVideoIndex];
 
     return (
-      <div 
-        className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col justify-between select-none animate-in fade-in duration-200"
-        onClick={(e) => {
-          if (e.target === e.currentTarget) closeVideoModal();
-        }}
+      <div
+        className="fixed inset-0 z-50 bg-white flex flex-col justify-between select-none animate-in fade-in duration-200"
+        onClick={(e) => { if (e.target === e.currentTarget) closeVideoModal(); }}
       >
-        {/* Top Bar */}
-        <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/95 via-black/80 to-transparent z-20">
+        {/* Top Bar - Clean White */}
+        <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-slate-100 z-20 shrink-0">
           <div className="flex items-center space-x-2.5 min-w-0 pr-2">
-            <div className="w-8 h-8 rounded-full bg-rose-600/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0">
-              <Play size={13} className="fill-current ml-0.5" />
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-rose-500 to-amber-500 flex items-center justify-center shrink-0 shadow-md shadow-rose-500/30">
+              <Play size={14} className="fill-white ml-0.5" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-black text-white truncate">
-                {currentVid?.title || (language === 'am' ? 'የገንዘብ ማውጫ ቪዲዮ መመሪያ' : 'How to Withdraw')}
+              <p className="text-sm font-black text-slate-800 truncate">
+                {currentVid?.title || (language === 'am' ? 'የገንዘብ ማውጫ ቪዲዮ' : 'How to Withdraw')}
               </p>
               <p className="text-[10px] text-slate-400 font-semibold truncate">
                 {withdrawVideos.length > 1
@@ -492,96 +490,64 @@ export default function Withdraw() {
               </p>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={closeVideoModal}
-            className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center active:scale-90 transition-all shrink-0"
-            title="Close"
-          >
-            <X size={18} />
+          <button type="button" onClick={closeVideoModal} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center active:scale-90 transition-all shrink-0 border border-slate-200">
+            <X size={16} />
           </button>
         </div>
 
-        {/* Video Player or Fallback */}
-        <div className="flex-1 relative flex items-center justify-center p-3 overflow-hidden">
+        {/* Video Player */}
+        <div className="flex-1 min-h-0 relative flex items-center justify-center bg-white overflow-hidden p-3">
           {currentVid ? (
-            <div className="w-full max-w-lg relative flex flex-col items-center">
+            <div className="w-full h-full flex flex-col items-center justify-center">
               <video
                 ref={videoPlayerRef}
                 key={currentVid.id}
                 src={currentVid.video_url}
                 poster={currentVid.thumbnail_url || undefined}
-                controls
-                autoPlay
-                playsInline
-                className="w-full max-h-[68vh] rounded-2xl shadow-2xl bg-black border border-white/10 object-contain"
+                controls autoPlay playsInline
+                className="w-full max-h-full rounded-2xl shadow-lg bg-white border border-slate-100 object-contain"
               >
                 Your browser does not support video playback.
               </video>
-
-              {/* Prev / Next controls if multiple videos exist */}
               {withdrawVideos.length > 1 && (
-                <div className="flex items-center justify-center space-x-3 mt-3">
-                  <button
-                    type="button"
-                    onClick={prevVideo}
-                    className="px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 text-white text-xs font-bold transition-all flex items-center space-x-1"
-                  >
-                    <ChevronLeft size={14} />
-                    <span>{language === 'am' ? 'ቀዳሚ' : 'Previous'}</span>
+                <div className="flex items-center justify-center space-x-3 mt-3 shrink-0">
+                  <button type="button" onClick={prevVideo} className="px-4 py-1.5 rounded-full bg-slate-200 hover:bg-slate-300 active:scale-95 text-slate-700 text-xs font-bold transition-all flex items-center space-x-1">
+                    <ChevronLeft size={14} /><span>{language === 'am' ? 'ቀዳሚ' : 'Prev'}</span>
                   </button>
-                  <span className="text-xs text-white/80 font-bold px-2">
-                    {activeVideoIndex + 1} / {withdrawVideos.length}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={nextVideo}
-                    className="px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 text-white text-xs font-bold transition-all flex items-center space-x-1"
-                  >
-                    <span>{language === 'am' ? 'ቀጣይ' : 'Next'}</span>
-                    <ChevronRight size={14} />
+                  <span className="text-xs text-slate-500 font-black px-2">{activeVideoIndex + 1} / {withdrawVideos.length}</span>
+                  <button type="button" onClick={nextVideo} className="px-4 py-1.5 rounded-full bg-slate-200 hover:bg-slate-300 active:scale-95 text-slate-700 text-xs font-bold transition-all flex items-center space-x-1">
+                    <span>{language === 'am' ? 'ቀጣይ' : 'Next'}</span><ChevronRight size={14} />
                   </button>
                 </div>
               )}
             </div>
           ) : (
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 text-center max-w-sm mx-auto shadow-2xl">
-              <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mx-auto mb-3 text-rose-400">
-                <Play size={24} className="fill-rose-400/30" />
+            <div className="bg-white border border-slate-100 rounded-3xl p-6 text-center max-w-sm mx-auto shadow-sm">
+              <div className="w-14 h-14 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center mx-auto mb-3 text-rose-400">
+                <Play size={24} className="fill-rose-300" />
               </div>
-              <h3 className="text-base font-black text-white mb-1">
-                {language === 'am' ? 'የቪዲዮ መመሪያ በቅርቡ ይጫናል' : 'Video Guide Coming Soon'}
-              </h3>
+              <h3 className="text-base font-black text-slate-800 mb-1">{language === 'am' ? 'የቪዲዮ መመሪያ በቅርቡ ይጫናል' : 'Video Guide Coming Soon'}</h3>
               <p className="text-xs text-slate-400 leading-relaxed mb-4">
-                {language === 'am'
-                  ? 'አድሚኑ አዲስ የገንዘብ ማውጫ ቪዲዮ እያዘጋጀ ነው። እባክዎ ከታች ያሉትን ደረጃዎች በመከተል ገንዘብዎን ያውጡ።'
-                  : 'The withdrawal video tutorial is being updated. Please follow the instructions on screen or contact support.'}
+                {language === 'am' ? 'አድሚኑ አዲስ ቪዲዮ እያዘጋጀ ነው።' : 'The withdrawal video tutorial is being updated. Please follow on-screen instructions.'}
               </p>
-              <button
-                type="button"
-                onClick={closeVideoModal}
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white font-black text-xs transition-transform active:scale-95 shadow-md shadow-rose-500/30"
-              >
+              <button type="button" onClick={closeVideoModal} className="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 text-white font-black text-xs active:scale-95 transition-all shadow-md">
                 {language === 'am' ? 'እሺ ተረድቻለሁ' : 'Got It'}
               </button>
             </div>
           )}
         </div>
 
-        {/* Bottom Description or Action */}
-        <div className="p-4 bg-gradient-to-t from-black via-black/85 to-transparent z-20 space-y-2">
+        {/* Bottom Action - Clean White */}
+        <div className="p-4 bg-white border-t border-slate-100 z-20 space-y-2 shrink-0">
           {currentVid?.description && (
-            <p className="text-xs text-slate-300 font-medium text-center line-clamp-2">
-              {currentVid.description}
-            </p>
+            <p className="text-xs text-slate-500 font-medium text-center line-clamp-2">{currentVid.description}</p>
           )}
           <button
             type="button"
             onClick={closeVideoModal}
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-rose-600 via-pink-600 to-amber-500 hover:from-rose-500 hover:to-amber-400 text-white font-black text-xs shadow-lg shadow-rose-500/30 active:scale-95 transition-all text-center border border-white/20"
+            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-rose-600 via-pink-600 to-amber-500 hover:from-rose-500 hover:to-amber-400 text-white font-black text-sm shadow-xl shadow-rose-500/30 active:scale-95 transition-all border border-white/20 tracking-wide"
           >
-            {language === 'am' ? 'ተረድቻለሁ • ገንዘብ ላውጣ' : "I'm Ready to Withdraw"}
+            {language === 'am' ? 'ተረድቻለሁ • ገንዘብ ላውጣ' : "Got it, Let's Withdraw!"}
           </button>
         </div>
       </div>
