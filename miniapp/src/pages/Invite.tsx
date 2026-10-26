@@ -89,18 +89,29 @@ export default function Invite() {
     fetchSettings();
   }, []);
 
-  // Auto-play invite popup video with sound prioritized
+  // Auto-play invite popup video with sound ON by default
   useEffect(() => {
     if (showInvitePopup && inlineVideoRef.current) {
       inlineVideoRef.current.muted = false;
+      inlineVideoRef.current.volume = 1.0;
+      setIsMuted(false);
       const p = inlineVideoRef.current.play();
       if (p !== undefined) {
         p.then(() => setIsMuted(false)).catch(() => {
           if (inlineVideoRef.current) {
             inlineVideoRef.current.muted = true;
-            setIsMuted(true);
             inlineVideoRef.current.play().catch(() => {});
           }
+          const enableAudio = () => {
+            if (inlineVideoRef.current) {
+              inlineVideoRef.current.muted = false;
+              inlineVideoRef.current.volume = 1.0;
+              setIsMuted(false);
+            }
+          };
+          window.addEventListener('touchstart', enableAudio, { once: true, passive: true });
+          window.addEventListener('pointerdown', enableAudio, { once: true, passive: true });
+          window.addEventListener('click', enableAudio, { once: true, passive: true });
         });
       }
     }
@@ -727,12 +738,12 @@ export default function Invite() {
               onClick={toggleInlineSound}
               className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-black shadow-md border transition-all active:scale-95 ${
                 isMuted
-                  ? 'bg-rose-500 text-white border-rose-400 animate-pulse ring-2 ring-rose-500/30'
+                  ? 'bg-rose-500 text-white border-rose-400'
                   : 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-600/20'
               }`}
             >
               {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
-              <span>{isMuted ? 'Sound OFF · Tap for Sound' : 'Sound ON'}</span>
+              <span>{isMuted ? (language === 'am' ? 'ድምጽ አጥፋ' : 'Sound OFF') : (language === 'am' ? 'ድምጽ በርቷል 🔊' : 'Sound ON 🔊')}</span>
             </button>
             <button
               type="button"
@@ -747,18 +758,15 @@ export default function Invite() {
           {/* Video */}
           <div
             className="flex-1 min-h-0 relative w-full flex items-center justify-center bg-white overflow-hidden p-2"
-            onClick={(e) => { e.stopPropagation(); if (isMuted) toggleInlineSound(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (inlineVideoRef.current && inlineVideoRef.current.muted) {
+                inlineVideoRef.current.muted = false;
+                inlineVideoRef.current.volume = 1.0;
+                setIsMuted(false);
+              }
+            }}
           >
-            {isMuted && (
-              <button
-                type="button"
-                onClick={toggleInlineSound}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-slate-900/90 hover:bg-black text-white px-5 py-3 rounded-2xl border border-white/20 backdrop-blur-md shadow-2xl flex items-center space-x-2 animate-bounce cursor-pointer active:scale-95"
-              >
-                <VolumeX size={20} className="text-rose-400" />
-                <span className="font-black text-sm">Tap to Turn Sound ON 🔊</span>
-              </button>
-            )}
             <video
               ref={inlineVideoRef}
               src={inviteVideos[0].video_url}

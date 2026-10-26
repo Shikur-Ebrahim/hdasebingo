@@ -54,21 +54,34 @@ export default function Home() {
   const [highlightGuideBtn, setHighlightGuideBtn] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
 
-  // Auto-play popup video on mount with sound prioritized
+  // Auto-play popup video on mount with sound ON by default
   useEffect(() => {
     if (showVideoPopup && videoRef.current) {
       videoRef.current.muted = false;
+      videoRef.current.volume = 1.0;
+      setIsMuted(false);
+
       const p = videoRef.current.play();
       if (p !== undefined) {
         p.then(() => {
           setIsMuted(false);
         }).catch(() => {
-          // If browser policy blocks sound without interaction, start muted with prompt
+          // If browser strictly blocks unmuted autoplay without prior interaction,
+          // play muted temporarily and instantly unmute on the very first touch/click
           if (videoRef.current) {
             videoRef.current.muted = true;
-            setIsMuted(true);
             videoRef.current.play().catch(() => {});
           }
+          const enableAudio = () => {
+            if (videoRef.current) {
+              videoRef.current.muted = false;
+              videoRef.current.volume = 1.0;
+              setIsMuted(false);
+            }
+          };
+          window.addEventListener('touchstart', enableAudio, { once: true, passive: true });
+          window.addEventListener('pointerdown', enableAudio, { once: true, passive: true });
+          window.addEventListener('click', enableAudio, { once: true, passive: true });
         });
       }
     }
@@ -77,8 +90,9 @@ export default function Home() {
   const toggleSound = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     if (videoRef.current) {
-      videoRef.current.muted = !videoRef.current.muted;
-      setIsMuted(videoRef.current.muted);
+      const nextMuted = !videoRef.current.muted;
+      videoRef.current.muted = nextMuted;
+      setIsMuted(nextMuted);
       if (typeof WebApp !== 'undefined') {
         WebApp.HapticFeedback?.impactOccurred('light');
       }
@@ -272,14 +286,14 @@ export default function Home() {
             <button
               type="button"
               onClick={toggleSound}
-              className={`pointer-events-auto flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-black shadow-md border transition-all active:scale-95 ${
+              className={`pointer-events-auto flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-black shadow-md border transition-all active:scale-95 ${
                 isMuted 
-                  ? 'bg-rose-500 text-white border-rose-400 animate-pulse' 
-                  : 'bg-emerald-600 text-white border-emerald-500'
+                  ? 'bg-rose-500 text-white border-rose-400' 
+                  : 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-600/20'
               }`}
             >
               {isMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
-              <span>{isMuted ? 'Sound OFF · Tap for Sound' : 'Sound ON'}</span>
+              <span>{isMuted ? (language === 'am' ? 'ድምጽ አጥፋ' : 'Sound OFF') : (language === 'am' ? 'ድምጽ በርቷል 🔊' : 'Sound ON 🔊')}</span>
             </button>
 
             <button
@@ -294,18 +308,15 @@ export default function Home() {
           {/* Full Screen Video Container - Clean White Background */}
           <div 
             className="flex-1 min-h-0 relative w-full h-full flex items-center justify-center bg-white overflow-hidden p-1 pt-12 pb-2"
-            onClick={(e) => { e.stopPropagation(); if (isMuted) toggleSound(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (videoRef.current && videoRef.current.muted) {
+                videoRef.current.muted = false;
+                videoRef.current.volume = 1.0;
+                setIsMuted(false);
+              }
+            }}
           >
-            {isMuted && (
-              <button
-                type="button"
-                onClick={toggleSound}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-slate-900/90 hover:bg-black text-white px-5 py-3 rounded-2xl border border-white/20 backdrop-blur-md shadow-2xl flex items-center space-x-2 animate-bounce cursor-pointer active:scale-95"
-              >
-                <VolumeX size={20} className="text-rose-400" />
-                <span className="font-black text-sm">Tap to Turn Sound ON 🔊</span>
-              </button>
-            )}
             <video
               ref={videoRef}
               src={homePopupVideo.video_url}
