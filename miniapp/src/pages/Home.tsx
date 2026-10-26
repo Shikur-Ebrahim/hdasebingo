@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
-import { Gift, ArrowDownToLine, Share2, PlusCircle, Info, DoorOpen, Users, Gamepad2, RefreshCw, ChevronDown, Clapperboard } from 'lucide-react';
+import { Gift, ArrowDownToLine, Share2, PlusCircle, Info, DoorOpen, Users, Gamepad2, RefreshCw, ChevronDown, Clapperboard, Play, X, Sparkles } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { supabase } from '../lib/supabase';
@@ -37,6 +37,19 @@ export default function Home() {
   const [announcement, setAnnouncement] = useState<{ message: string; maxViews: number } | null>(null);
   const [showAnnouncement, setShowAnnouncement] = useState(false);
   const announcementShownRef = useRef(false);
+
+  // Home Video Guide Popup state
+  const [homePopupVideo, setHomePopupVideo] = useState<{
+    id: string;
+    title: string;
+    description: string | null;
+    video_url: string;
+    thumbnail_url: string | null;
+    max_views: number;
+  } | null>(null);
+  const [showVideoPopup, setShowVideoPopup] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const pendingAnnouncementRef = useRef(false);
 
   // Manual refresh spinner
   const [manualRefreshing, setManualRefreshing] = useState(false);
@@ -148,6 +161,21 @@ export default function Home() {
         if (data?.support_phone_eth) setSupportPhoneEth(data.support_phone_eth);
         if (data?.username) setSupportUsername(data.username);
 
+        // Check for Home Video Guide Popup
+        let isVideoShowing = false;
+        if (data?.home_popup_video && data.home_popup_video.video_url) {
+          const vid = data.home_popup_video;
+          const vidKey = `home_vid_views_${vid.id}`;
+          const currentViews = parseInt(localStorage.getItem(vidKey) || '0', 10);
+          const maxViews = typeof vid.max_views === 'number' ? vid.max_views : 1;
+          if (currentViews < maxViews) {
+            localStorage.setItem(vidKey, String(currentViews + 1));
+            setHomePopupVideo(vid);
+            setShowVideoPopup(true);
+            isVideoShowing = true;
+          }
+        }
+
         if (announcementShownRef.current) return;
         const msg = data?.announcement_message || '';
         const maxViews = typeof data?.announcement_max_views === 'number' ? data.announcement_max_views : 2;
@@ -157,7 +185,11 @@ export default function Home() {
         if (viewCount < maxViews) {
           localStorage.setItem(storageKey, String(viewCount + 1));
           setAnnouncement({ message: msg, maxViews });
-          setShowAnnouncement(true);
+          if (isVideoShowing) {
+            pendingAnnouncementRef.current = true;
+          } else {
+            setShowAnnouncement(true);
+          }
           announcementShownRef.current = true;
         }
       })
@@ -167,11 +199,106 @@ export default function Home() {
 
 
 
+  const handleCloseVideoPopup = () => {
+    if (videoRef.current) {
+      try { videoRef.current.pause(); } catch (_) {}
+    }
+    if (typeof WebApp !== 'undefined') {
+      WebApp.HapticFeedback?.impactOccurred('medium');
+    }
+    setShowVideoPopup(false);
+    if (pendingAnnouncementRef.current) {
+      setShowAnnouncement(true);
+      pendingAnnouncementRef.current = false;
+    }
+  };
+
   const initial = user?.first_name ? user.first_name.charAt(0).toUpperCase() : 'U';
   const formatMoney = (amount: number | undefined) => (amount || 0).toLocaleString('en-US');
 
   return (
     <div className="flex flex-col min-h-screen pb-20 space-y-4">
+
+      {/* HOME VIDEO GUIDE POPUP MODAL */}
+      {showVideoPopup && homePopupVideo && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/80 backdrop-blur-md transition-all"
+          onClick={handleCloseVideoPopup}
+        >
+          <div
+            className="relative bg-gradient-to-b from-slate-900 via-slate-900 to-[#0b0f19] rounded-3xl border border-white/15 shadow-2xl w-full max-w-sm overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Top ambient color glow accent */}
+            <div className="h-1.5 w-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-amber-400" />
+
+            {/* Header bar */}
+            <div className="px-4 pt-3.5 pb-2 flex items-center justify-between">
+              <div className="flex items-center space-x-2 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-xs shrink-0">
+                  <Play size={13} fill="white" className="ml-0.5" />
+                </div>
+                <div className="min-w-0">
+                  <span className="inline-flex items-center space-x-1 text-[9.5px] font-black uppercase tracking-wider text-violet-300 bg-violet-950/80 px-2 py-0.5 rounded-full border border-violet-700/50">
+                    <Sparkles size={9} className="text-amber-400" />
+                    <span>App Guide Video</span>
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={handleCloseVideoPopup}
+                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 active:scale-90 text-white/80 flex items-center justify-center transition-all ml-2"
+                aria-label="Close"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Video Container */}
+            <div className="px-3 pb-2">
+              <div className="relative rounded-2xl overflow-hidden bg-black border border-white/10 shadow-inner aspect-[16/10] flex items-center justify-center">
+                <video
+                  ref={videoRef}
+                  src={homePopupVideo.video_url}
+                  poster={homePopupVideo.thumbnail_url || undefined}
+                  controls
+                  playsInline
+                  autoPlay
+                  className="w-full h-full object-contain bg-black"
+                >
+                  Your browser does not support video playback.
+                </video>
+              </div>
+            </div>
+
+            {/* Title & Description */}
+            <div className="px-4 py-2 space-y-1">
+              <h3 className="font-black text-white text-base leading-tight">
+                {homePopupVideo.title}
+              </h3>
+              {homePopupVideo.description && (
+                <p className="text-xs text-slate-300 font-medium leading-relaxed line-clamp-2">
+                  {homePopupVideo.description}
+                </p>
+              )}
+            </div>
+
+            {/* Footer / CTA Buttons */}
+            <div className="p-4 pt-2 space-y-2">
+              <button
+                onClick={handleCloseVideoPopup}
+                className="w-full py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-black text-sm rounded-xl shadow-lg shadow-violet-900/40 active:scale-95 transition-all flex items-center justify-center space-x-2"
+              >
+                <span>Got it, Let's Play! 🚀</span>
+              </button>
+
+              <p className="text-[10px] text-center text-slate-400 font-medium">
+                You can rewatch anytime from the <span className="text-violet-400 font-bold">Videos (Guide)</span> menu
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ANNOUNCEMENT POPUP */}
       {showAnnouncement && announcement && (

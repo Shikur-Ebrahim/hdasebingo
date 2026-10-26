@@ -105,6 +105,62 @@ router.get('/support-contact', async (_req, res) => {
       ethPhone = '+251' + ethPhone.slice(1);
     }
 
+    // Query active home popup video (if enabled)
+    let homePopupVideo: any = null;
+    try {
+      const popupEnabledSetting = getSetting('home_popup_video_enabled', 'true');
+      if (popupEnabledSetting !== 'false') {
+        const specificVideoId = getSetting('home_popup_video_id', '');
+        const specificViews = parseInt(getSetting('home_popup_video_views', '1'), 10) || 1;
+
+        if (specificVideoId) {
+          const { data: v } = await supabase
+            .from('support_videos')
+            .select('*')
+            .eq('id', specificVideoId)
+            .eq('is_active', true)
+            .maybeSingle();
+
+          if (v && v.video_url && (v.show_on_home === undefined || v.show_on_home === true)) {
+            homePopupVideo = {
+              id: v.id,
+              title: v.title,
+              description: v.description,
+              video_url: v.video_url,
+              thumbnail_url: v.thumbnail_url,
+              max_views: typeof v.popup_max_views === 'number' ? v.popup_max_views : specificViews,
+            };
+          }
+        }
+
+        // If no specific video found via settings, fallback to latest active 'how_to_use' video
+        if (!homePopupVideo) {
+          const { data: v } = await supabase
+            .from('support_videos')
+            .select('*')
+            .eq('category', 'how_to_use')
+            .eq('is_active', true)
+            .order('sort_order', { ascending: true })
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (v && v.video_url && (v.show_on_home === undefined || v.show_on_home === true)) {
+            homePopupVideo = {
+              id: v.id,
+              title: v.title,
+              description: v.description,
+              video_url: v.video_url,
+              thumbnail_url: v.thumbnail_url,
+              max_views: typeof v.popup_max_views === 'number' ? v.popup_max_views : 1,
+            };
+          }
+        }
+      }
+    } catch {
+      // Safe fallback if support_videos query fails
+    }
+
     res.json({
       username,
       channel: getSetting('channel_link', 'https://t.me/hdasebingo'),
@@ -112,13 +168,15 @@ router.get('/support-contact', async (_req, res) => {
       announcement_max_views: parseInt(getSetting('announcement_max_views', '2'), 10),
       support_phone_usa: getSetting('support_phone_usa', '+1 (984) 378-9510'),
       support_phone_eth: ethPhone,
+      home_popup_video: homePopupVideo,
     });
   } catch {
     res.json({
       username: 'Mosque_Dona',
       channel: 'https://t.me/hdasebingo',
       announcement_message: '',
-      announcement_max_views: 2
+      announcement_max_views: 2,
+      home_popup_video: null,
     });
   }
 });

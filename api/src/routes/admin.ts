@@ -2058,7 +2058,37 @@ router.get('/support-videos', async (_req, res) => {
       .order('sort_order')
       .order('created_at');
     if (error) throw error;
-    res.json({ videos: data || [] });
+
+    // Also get settings for home popup
+    const { data: settingsData } = await supabase
+      .from('settings')
+      .select('key, value')
+      .in('key', ['home_popup_video_id', 'home_popup_video_views', 'home_popup_video_enabled']);
+
+    const settingsMap: Record<string, string> = {};
+    (settingsData || []).forEach((r: any) => { settingsMap[r.key] = r.value; });
+
+    const activePopupId = settingsMap['home_popup_video_id'];
+    const activePopupViews = parseInt(settingsMap['home_popup_video_views'] || '1', 10);
+    const popupEnabled = settingsMap['home_popup_video_enabled'] !== 'false';
+
+    const augmented = (data || []).map((v: any) => {
+      const isHomePopup = activePopupId
+        ? (v.id === activePopupId && popupEnabled)
+        : (v.show_on_home ?? (v.category === 'how_to_use'));
+
+      const maxViews = (activePopupId && v.id === activePopupId)
+        ? activePopupViews
+        : (typeof v.popup_max_views === 'number' ? v.popup_max_views : 1);
+
+      return {
+        ...v,
+        show_on_home: isHomePopup,
+        popup_max_views: maxViews,
+      };
+    });
+
+    res.json({ videos: augmented });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -2067,18 +2097,59 @@ router.get('/support-videos', async (_req, res) => {
 // POST /admin/support-videos
 router.post('/support-videos', async (req, res) => {
   try {
-    const { category, title, description, video_url, video_key, thumbnail_url, sort_order } = req.body;
+    const { category, title, description, video_url, video_key, thumbnail_url, sort_order, show_on_home, popup_max_views } = req.body;
     if (!category || !title || !video_url || !video_key) {
       res.status(400).json({ error: 'category, title, video_url and video_key are required' });
       return;
     }
+
+    const isShowOnHome = show_on_home !== undefined ? Boolean(show_on_home) : (category === 'how_to_use');
+    const parsedViews = popup_max_views !== undefined ? Math.max(1, parseInt(popup_max_views, 10) || 1) : 1;
+
+    const insertData: any = {
+      category,
+      title,
+      description: description || null,
+      video_url,
+      video_key,
+      thumbnail_url: thumbnail_url || null,
+      sort_order: sort_order ?? 0,
+      show_on_home: isShowOnHome,
+      popup_max_views: parsedViews,
+    };
+
+    let savedVideo: any = null;
     const { data, error } = await supabase
       .from('support_videos')
-      .insert({ category, title, description: description || null, video_url, video_key, thumbnail_url: thumbnail_url || null, sort_order: sort_order ?? 0 })
+      .insert(insertData)
       .select()
       .single();
-    if (error) throw error;
-    res.json({ success: true, video: data });
+
+    if (error) {
+      // If error is missing column (e.g. 42703), retry without show_on_home & popup_max_views
+      if (error.code === '42703' || String(error.message).includes('column')) {
+        delete insertData.show_on_home;
+        delete insertData.popup_max_views;
+        const retry = await supabase.from('support_videos').insert(insertData).select().single();
+        if (retry.error) throw retry.error;
+        savedVideo = retry.data;
+      } else {
+        throw error;
+      }
+    } else {
+      savedVideo = data;
+    }
+
+    // Always update settings table with home popup preference so it works immediately
+    if (savedVideo && isShowOnHome) {
+      await supabase.from('settings').upsert([
+        { key: 'home_popup_video_id', value: String(savedVideo.id) },
+        { key: 'home_popup_video_views', value: String(parsedViews) },
+        { key: 'home_popup_video_enabled', value: 'true' }
+      ], { onConflict: 'key' });
+    }
+
+    res.json({ success: true, video: savedVideo });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -2088,18 +2159,51 @@ router.post('/support-videos', async (req, res) => {
 router.put('/support-videos/:id', async (req, res) => {
   try {
     const updates: any = { updated_at: new Date().toISOString() };
-    const fields = ['category', 'title', 'description', 'video_url', 'video_key', 'thumbnail_url', 'is_active', 'sort_order'];
+    const fields = ['category', 'title', 'description', 'video_url', 'video_key', 'thumbnail_url', 'is_active', 'sort_order', 'show_on_home', 'popup_max_views'];
     for (const f of fields) {
       if (req.body[f] !== undefined) updates[f] = req.body[f];
     }
+
+    let savedVideo: any = null;
     const { data, error } = await supabase
       .from('support_videos')
       .update(updates)
       .eq('id', req.params.id)
       .select()
       .single();
-    if (error) throw error;
-    res.json({ success: true, video: data });
+
+    if (error) {
+      if (error.code === '42703' || String(error.message).includes('column')) {
+        delete updates.show_on_home;
+        delete updates.popup_max_views;
+        const retry = await supabase.from('support_videos').update(updates).eq('id', req.params.id).select().single();
+        if (retry.error) throw retry.error;
+        savedVideo = retry.data;
+      } else {
+        throw error;
+      }
+    } else {
+      savedVideo = data;
+    }
+
+    // Sync settings table for home popup
+    if (req.body.show_on_home !== undefined || req.body.popup_max_views !== undefined) {
+      const isShowOnHome = req.body.show_on_home !== false;
+      const parsedViews = req.body.popup_max_views !== undefined ? Math.max(1, parseInt(req.body.popup_max_views, 10) || 1) : 1;
+      if (isShowOnHome) {
+        await supabase.from('settings').upsert([
+          { key: 'home_popup_video_id', value: String(req.params.id) },
+          { key: 'home_popup_video_views', value: String(parsedViews) },
+          { key: 'home_popup_video_enabled', value: 'true' }
+        ], { onConflict: 'key' });
+      } else {
+        await supabase.from('settings').upsert([
+          { key: 'home_popup_video_enabled', value: 'false' }
+        ], { onConflict: 'key' });
+      }
+    }
+
+    res.json({ success: true, video: savedVideo });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -2118,6 +2222,19 @@ router.delete('/support-videos/:id', async (req, res) => {
 
     const { error } = await supabase.from('support_videos').delete().eq('id', req.params.id);
     if (error) throw error;
+
+    // Clean up settings if this was the active home popup video
+    await supabase.from('settings').delete().eq('key', 'home_popup_video_id').eq('value', String(req.params.id));
+
+    // Best-effort R2 deletion
+    if (vid?.video_key) {
+      try {
+        const { deleteFromR2 } = await import('../services/r2');
+        await deleteFromR2(vid.video_key);
+      } catch (_) {}
+    }
+
+    res.json({ success: true });
 
     // Best-effort R2 deletion
     if (vid?.video_key) {

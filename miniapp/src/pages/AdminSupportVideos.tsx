@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Plus, Trash2, Edit3, Upload, CheckCircle, XCircle, Video, Loader2, Eye, EyeOff, Play, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { ChevronLeft, Plus, Trash2, Edit3, Upload, CheckCircle, XCircle, Video, Loader2, Eye, EyeOff, Play, X, ChevronUp, ChevronDown, Sparkles } from 'lucide-react';
 import WebApp from '@twa-dev/sdk';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -15,6 +15,8 @@ interface SupportVideo {
   thumbnail_url: string | null;
   is_active: boolean;
   sort_order: number;
+  show_on_home?: boolean;
+  popup_max_views?: number;
   created_at: string;
 }
 
@@ -39,7 +41,13 @@ export default function AdminSupportVideos() {
   // Upload / form state
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<SupportVideo | null>(null);
-  const [form, setForm] = useState({ category: 'how_to_use', title: '', description: '' });
+  const [form, setForm] = useState({
+    category: 'how_to_use',
+    title: '',
+    description: '',
+    show_on_home: true,
+    popup_max_views: 1,
+  });
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -80,7 +88,13 @@ export default function AdminSupportVideos() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ category: activeTab === 'all' ? 'how_to_use' : activeTab, title: '', description: '' });
+    setForm({
+      category: activeTab === 'all' ? 'how_to_use' : activeTab,
+      title: '',
+      description: '',
+      show_on_home: true,
+      popup_max_views: 1,
+    });
     setFile(null);
     setUploadProgress(0);
     setShowForm(true);
@@ -88,7 +102,13 @@ export default function AdminSupportVideos() {
 
   const openEdit = (v: SupportVideo) => {
     setEditing(v);
-    setForm({ category: v.category, title: v.title, description: v.description || '' });
+    setForm({
+      category: v.category,
+      title: v.title,
+      description: v.description || '',
+      show_on_home: v.show_on_home !== false,
+      popup_max_views: typeof v.popup_max_views === 'number' ? v.popup_max_views : 1,
+    });
     setFile(null);
     setUploadProgress(0);
     setShowForm(true);
@@ -189,7 +209,13 @@ export default function AdminSupportVideos() {
         setUploading(false);
       }
 
-      const payload = { ...form, video_url, video_key };
+      const payload = {
+        ...form,
+        video_url,
+        video_key,
+        show_on_home: form.show_on_home,
+        popup_max_views: Math.max(1, parseInt(String(form.popup_max_views), 10) || 1),
+      };
       const url = editing
         ? `${API_URL}/admin/support-videos/${editing.id}`
         : `${API_URL}/admin/support-videos`;
@@ -338,10 +364,15 @@ export default function AdminSupportVideos() {
                 </div>
 
                 {/* Badge tags */}
-                <div className="absolute top-2.5 left-2.5 flex items-center space-x-1.5">
+                <div className="absolute top-2.5 left-2.5 flex items-center space-x-1.5 flex-wrap gap-y-1">
                   <span className={`text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm bg-white/95 ${categoryColor(v.category)}`}>
                     {categoryLabel(v.category)}
                   </span>
+                  {v.show_on_home && (
+                    <span className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow-sm">
+                      ✨ Home Popup ({v.popup_max_views ?? 1}x)
+                    </span>
+                  )}
                 </div>
 
                 <div className="absolute top-2.5 right-2.5">
@@ -550,6 +581,72 @@ export default function AdminSupportVideos() {
                 rows={2}
                 className="w-full px-3.5 py-3 rounded-xl border border-gray-200 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-violet-400 resize-none"
               />
+            </div>
+
+            {/* Home Popup Display Settings */}
+            <div className="p-3.5 bg-gradient-to-r from-violet-50 to-indigo-50/70 rounded-2xl border border-violet-100 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="w-7 h-7 rounded-lg bg-violet-600 text-white flex items-center justify-center shadow-xs">
+                    <Sparkles size={13} className="text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-slate-800">Display on Home Screen as Popup</p>
+                    <p className="text-[10px] text-slate-500 font-medium">Auto-play guide popup when user opens the app</p>
+                  </div>
+                </div>
+
+                {/* Toggle Switch */}
+                <button
+                  type="button"
+                  onClick={() => setForm(f => ({ ...f, show_on_home: !f.show_on_home }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                    form.show_on_home ? 'bg-violet-600' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      form.show_on_home ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {form.show_on_home && (
+                <div className="pt-2 border-t border-violet-200/60 flex items-center justify-between">
+                  <div className="pr-2">
+                    <label className="text-xs font-bold text-slate-700">Display Count on Screen (Per User)</label>
+                    <p className="text-[9.5px] text-slate-500">Default is 1 (shows on first open). Set 2 or more to repeat.</p>
+                  </div>
+                  <div className="flex items-center space-x-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, popup_max_views: Math.max(1, (Number(f.popup_max_views) || 1) - 1) }))}
+                      className="w-7 h-7 rounded-lg bg-white border border-violet-200 text-violet-700 font-black text-sm flex items-center justify-center active:scale-95 shadow-xs"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={form.popup_max_views}
+                      onChange={e => {
+                        const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                        setForm(f => ({ ...f, popup_max_views: val }));
+                      }}
+                      className="w-12 h-7 text-center font-black text-xs text-violet-900 bg-white border border-violet-200 rounded-lg outline-none focus:border-violet-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, popup_max_views: (Number(f.popup_max_views) || 1) + 1 }))}
+                      className="w-7 h-7 rounded-lg bg-white border border-violet-200 text-violet-700 font-black text-sm flex items-center justify-center active:scale-95 shadow-xs"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Video File Picker */}
