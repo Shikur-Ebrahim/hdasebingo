@@ -589,58 +589,35 @@ export default function AdminAgents() {
                     />
                   </div>
 
-                  {/* Commission Rate % - Clean Number Input */}
-                  <div className="bg-gradient-to-br from-emerald-50 to-teal-50/50 p-4 rounded-2xl border border-emerald-200/70 space-y-3">
+                  {/* Agent Commission Rate % - Clean Mobile Card */}
+                  <div className="bg-emerald-50/60 p-3 rounded-2xl border border-emerald-200/70 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
-                        <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                          <Percent size={15} />
+                        <div className="w-7 h-7 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                          <Percent size={14} />
                         </div>
-                        <div>
-                          <p className="text-xs font-black text-slate-800">Agent Commission</p>
-                          <p className="text-[9px] text-slate-400 font-medium">From platform's 20% fee only</p>
-                        </div>
+                        <span className="text-xs font-black text-slate-800">Agent Commission Rate</span>
                       </div>
-                      <span className="text-sm font-black text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-200">
+                      <span className="text-xs font-black text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-200">
                         {newCommissionRate || 0}% of pot
                       </span>
                     </div>
 
                     {/* Free-form number input */}
-                    <div className="flex items-center space-x-3 bg-white rounded-xl border border-emerald-200 px-3 py-2 shadow-sm">
-                      <Percent size={14} className="text-emerald-500 shrink-0" />
+                    <div className="flex items-center space-x-2.5 bg-white rounded-xl border border-emerald-200 px-3 py-2 shadow-xs">
+                      <Percent size={13} className="text-emerald-500 shrink-0" />
                       <input
                         type="number"
                         min={0}
-                        max={20}
+                        max={100}
                         step={0.5}
                         value={newCommissionRate}
-                        onChange={e => setNewCommissionRate(Math.min(20, Math.max(0, Number(e.target.value))))}
-                        className="flex-1 bg-transparent outline-none text-sm font-black text-slate-800 placeholder-slate-300"
+                        onChange={e => setNewCommissionRate(Math.max(0, Number(e.target.value)))}
+                        className="flex-1 bg-transparent outline-none text-xs font-black text-slate-800 placeholder-slate-300"
                         placeholder="7"
                       />
-                      <span className="text-xs font-bold text-slate-400">% (0–20)</span>
+                      <span className="text-[11px] font-bold text-slate-400">% (Default: 7%)</span>
                     </div>
-
-                    {/* Live split breakdown */}
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="bg-white rounded-xl border border-slate-100 p-2 text-center shadow-2xs">
-                        <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">🏆 Winner</p>
-                        <p className="text-sm font-black text-emerald-600">80%</p>
-                      </div>
-                      <div className="bg-white rounded-xl border border-sky-100 p-2 text-center shadow-2xs">
-                        <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">💼 Agent</p>
-                        <p className="text-sm font-black text-sky-600">{newCommissionRate || 0}%</p>
-                      </div>
-                      <div className="bg-white rounded-xl border border-slate-100 p-2 text-center shadow-2xs">
-                        <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">🏛️ Platform</p>
-                        <p className="text-sm font-black text-slate-600">{Math.max(0, 20 - (newCommissionRate || 0))}%</p>
-                      </div>
-                    </div>
-
-                    <p className="text-[9px] text-slate-400 font-medium leading-tight">
-                      ℹ️ Player winner prize (80%) is never reduced. Agent commission comes from the platform's 20% fee.
-                    </p>
                   </div>
 
                   {/* Pin Room to Top Switch */}
@@ -917,9 +894,10 @@ export default function AdminAgents() {
 
       {/* ─── EDIT ROOM MODAL ─── */}
       {editingRoom && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-3.5 shadow-2xl animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm max-h-[88vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-150 my-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 shrink-0">
               <div className="flex items-center space-x-2">
                 <div className="w-7 h-7 rounded-xl bg-sky-100 text-sky-600 flex items-center justify-center">
                   <Edit3 size={14} />
@@ -931,166 +909,146 @@ export default function AdminAgents() {
               </button>
             </div>
 
-            {/* Room Name */}
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase">Room Name</label>
-              <input
-                type="text"
-                value={editRoomName}
-                onChange={e => setEditRoomName(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-sky-500"
-              />
-            </div>
-
-            {/* Commission Rate (%) - Clean Number Input */}
-            <div className="bg-gradient-to-br from-emerald-50 to-teal-50/50 p-4 rounded-2xl border border-emerald-200/70 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                    <Percent size={15} />
-                  </div>
-                  <div>
-                    <p className="text-xs font-black text-slate-800">Agent Commission</p>
-                    <p className="text-[9px] text-slate-400 font-medium">From platform's 20% fee only</p>
-                  </div>
-                </div>
-                <span className="text-sm font-black text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-200">
-                  {editCommissionRate || 0}% of pot
-                </span>
+            {/* Scrollable Modal Content */}
+            <div className="overflow-y-auto space-y-3.5 pr-1 -mr-1 flex-1 py-1">
+              {/* Room Name */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Room Name</label>
+                <input
+                  type="text"
+                  value={editRoomName}
+                  onChange={e => setEditRoomName(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-sky-500"
+                />
               </div>
 
-              {/* Free-form number input */}
-              <div className="flex items-center space-x-3 bg-white rounded-xl border border-emerald-200 px-3 py-2 shadow-sm">
-                <Percent size={14} className="text-emerald-500 shrink-0" />
+              {/* Commission Rate (%) - Clean Mobile Card */}
+              <div className="bg-emerald-50/60 p-3 rounded-2xl border border-emerald-200/70 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-7 h-7 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                      <Percent size={14} />
+                    </div>
+                    <span className="text-xs font-black text-slate-800">Agent Commission Rate</span>
+                  </div>
+                  <span className="text-xs font-black text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    {editCommissionRate || 0}% of pot
+                  </span>
+                </div>
+
+                {/* Free-form number input */}
+                <div className="flex items-center space-x-2.5 bg-white rounded-xl border border-emerald-200 px-3 py-2 shadow-xs">
+                  <Percent size={13} className="text-emerald-500 shrink-0" />
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.5}
+                    value={editCommissionRate}
+                    onChange={e => setEditCommissionRate(Math.max(0, Number(e.target.value)))}
+                    className="flex-1 bg-transparent outline-none text-xs font-black text-slate-800 placeholder-slate-300"
+                    placeholder="7"
+                  />
+                  <span className="text-[11px] font-bold text-slate-400">% (Default: 7%)</span>
+                </div>
+              </div>
+
+              {/* Pin to Top Switch */}
+              <div className="flex items-center justify-between bg-amber-50/60 border border-amber-200 p-2.5 rounded-xl">
+                <div className="flex items-center space-x-2">
+                  <Pin size={14} className="text-amber-600" />
+                  <div>
+                    <p className="text-xs font-black text-slate-800">Pin Room to Top</p>
+                    <p className="text-[9px] text-slate-400 font-medium">Show this room first in room listings</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditIsPinned(!editIsPinned)}
+                  className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
+                    editIsPinned ? 'bg-amber-500 justify-end' : 'bg-slate-300 justify-start'
+                  }`}
+                >
+                  <div className="bg-white w-4 h-4 rounded-full shadow-md transform transition-transform" />
+                </button>
+              </div>
+
+              {/* Private Room Switch */}
+              <div className="flex items-center justify-between bg-purple-50/60 border border-purple-200 p-2.5 rounded-xl">
+                <div className="flex items-center space-x-2">
+                  {editIsPrivate ? <Lock size={14} className="text-purple-600" /> : <Unlock size={14} className="text-purple-600" />}
+                  <div>
+                    <p className="text-xs font-black text-slate-800">Private Room Mode</p>
+                    <p className="text-[9px] text-slate-400 font-medium">Only visible to users who have this room assigned / invited</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditIsPrivate(!editIsPrivate)}
+                  className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
+                    editIsPrivate ? 'bg-purple-600 justify-end' : 'bg-slate-300 justify-start'
+                  }`}
+                >
+                  <div className="bg-white w-4 h-4 rounded-full shadow-md transform transition-transform" />
+                </button>
+              </div>
+
+              {/* Promoter ID (UUID) */}
+              <div className="bg-violet-50/50 border border-violet-200/70 p-2.5 rounded-xl space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-700 uppercase flex items-center space-x-1">
+                  <Users size={11} className="text-violet-600" />
+                  <span>Linked Promoter UUID (Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={editPromoterId}
+                  onChange={e => setEditPromoterId(e.target.value)}
+                  placeholder="e.g. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                  className="w-full bg-white border border-violet-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-violet-500 font-mono"
+                />
+                <p className="text-[9px] text-slate-400 font-medium">UUID of the promoter who recruited this agent. Leave blank to remove.</p>
+              </div>
+
+              {/* Status Selector */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Room Status</label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setEditRoomStatus('active')}
+                    className={`py-1.5 rounded-xl text-xs font-black border ${editRoomStatus === 'active' ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' : 'bg-slate-100 text-slate-600 border-slate-200'}`}
+                  >
+                    Active
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditRoomStatus('inactive')}
+                    className={`py-1.5 rounded-xl text-xs font-black border ${editRoomStatus === 'inactive' ? 'bg-rose-600 text-white border-rose-600 shadow-xs' : 'bg-slate-100 text-slate-600 border-slate-200'}`}
+                  >
+                    Inactive
+                  </button>
+                </div>
+              </div>
+
+              {/* Total Games */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Total Games</label>
                 <input
                   type="number"
-                  min={0}
-                  max={20}
-                  step={0.5}
-                  value={editCommissionRate}
-                  onChange={e => setEditCommissionRate(Math.min(20, Math.max(0, Number(e.target.value))))}
-                  className="flex-1 bg-transparent outline-none text-sm font-black text-slate-800 placeholder-slate-300"
-                  placeholder="7"
+                  min="0"
+                  value={editRoomGames}
+                  onChange={e => setEditRoomGames(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-sky-500"
                 />
-                <span className="text-xs font-bold text-slate-400">% (0–20)</span>
               </div>
-
-              {/* Live split breakdown */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="bg-white rounded-xl border border-slate-100 p-2 text-center shadow-2xs">
-                  <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">🏆 Winner</p>
-                  <p className="text-sm font-black text-emerald-600">80%</p>
-                </div>
-                <div className="bg-white rounded-xl border border-sky-100 p-2 text-center shadow-2xs">
-                  <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">💼 Agent</p>
-                  <p className="text-sm font-black text-sky-600">{editCommissionRate || 0}%</p>
-                </div>
-                <div className="bg-white rounded-xl border border-slate-100 p-2 text-center shadow-2xs">
-                  <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">🏛️ Platform</p>
-                  <p className="text-sm font-black text-slate-600">{Math.max(0, 20 - (editCommissionRate || 0))}%</p>
-                </div>
-              </div>
-
-              <p className="text-[9px] text-slate-400 font-medium leading-tight">
-                ℹ️ Player winner prize (80%) is never reduced. Agent commission comes from the platform's 20% fee.
-              </p>
-            </div>
-
-            {/* Pin to Top Switch */}
-            <div className="flex items-center justify-between bg-amber-50/60 border border-amber-200 p-2.5 rounded-xl">
-              <div className="flex items-center space-x-2">
-                <Pin size={14} className="text-amber-600" />
-                <div>
-                  <p className="text-xs font-black text-slate-800">Pin Room to Top</p>
-                  <p className="text-[9px] text-slate-400 font-medium">Show this room first in room listings</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditIsPinned(!editIsPinned)}
-                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
-                  editIsPinned ? 'bg-amber-500 justify-end' : 'bg-slate-300 justify-start'
-                }`}
-              >
-                <div className="bg-white w-4 h-4 rounded-full shadow-md transform transition-transform" />
-              </button>
-            </div>
-
-            {/* Private Room Switch */}
-            <div className="flex items-center justify-between bg-purple-50/60 border border-purple-200 p-2.5 rounded-xl">
-              <div className="flex items-center space-x-2">
-                {editIsPrivate ? <Lock size={14} className="text-purple-600" /> : <Unlock size={14} className="text-purple-600" />}
-                <div>
-                  <p className="text-xs font-black text-slate-800">Private Room Mode</p>
-                  <p className="text-[9px] text-slate-400 font-medium">Only visible to users who have this room assigned / invited</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditIsPrivate(!editIsPrivate)}
-                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
-                  editIsPrivate ? 'bg-purple-600 justify-end' : 'bg-slate-300 justify-start'
-                }`}
-              >
-                <div className="bg-white w-4 h-4 rounded-full shadow-md transform transition-transform" />
-              </button>
-            </div>
-
-            {/* Promoter ID (UUID) */}
-            <div className="bg-violet-50/50 border border-violet-200/70 p-2.5 rounded-xl space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-700 uppercase flex items-center space-x-1">
-                <Users size={11} className="text-violet-600" />
-                <span>Linked Promoter UUID (Optional)</span>
-              </label>
-              <input
-                type="text"
-                value={editPromoterId}
-                onChange={e => setEditPromoterId(e.target.value)}
-                placeholder="e.g. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                className="w-full bg-white border border-violet-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-violet-500 font-mono"
-              />
-              <p className="text-[9px] text-slate-400 font-medium">UUID of the promoter who recruited this agent. Leave blank to remove.</p>
-            </div>
-
-            {/* Status Selector */}
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase">Room Status</label>
-              <div className="grid grid-cols-2 gap-2 mt-1">
-                <button
-                  type="button"
-                  onClick={() => setEditRoomStatus('active')}
-                  className={`py-1.5 rounded-xl text-xs font-black border ${editRoomStatus === 'active' ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' : 'bg-slate-100 text-slate-600 border-slate-200'}`}
-                >
-                  Active
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditRoomStatus('inactive')}
-                  className={`py-1.5 rounded-xl text-xs font-black border ${editRoomStatus === 'inactive' ? 'bg-rose-600 text-white border-rose-600 shadow-xs' : 'bg-slate-100 text-slate-600 border-slate-200'}`}
-                >
-                  Inactive
-                </button>
-              </div>
-            </div>
-
-            {/* Total Games */}
-            <div>
-              <label className="text-[10px] font-bold text-slate-400 uppercase">Total Games</label>
-              <input
-                type="number"
-                min="0"
-                value={editRoomGames}
-                onChange={e => setEditRoomGames(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-sky-500"
-              />
             </div>
 
             {/* Action buttons */}
-            <div className="flex space-x-2 pt-2 border-t border-slate-100">
+            <div className="flex space-x-2 pt-3 border-t border-slate-100 shrink-0">
               <button
                 type="button"
                 onClick={() => setEditingRoom(null)}
-                className="flex-1 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-black active:scale-95 transition-all"
+                className="flex-1 py-2.5 bg-slate-100 text-slate-600 rounded-xl text-xs font-black active:scale-95 transition-all"
               >
                 Cancel
               </button>
@@ -1098,7 +1056,7 @@ export default function AdminAgents() {
                 type="button"
                 disabled={savingEdit || !editRoomName.trim()}
                 onClick={handleSaveEditRoom}
-                className="flex-1 py-2 bg-sky-600 text-white rounded-xl text-xs font-black disabled:opacity-50 flex items-center justify-center space-x-1 active:scale-95 transition-all shadow-md shadow-sky-600/20"
+                className="flex-1 py-2.5 bg-sky-600 text-white rounded-xl text-xs font-black disabled:opacity-50 flex items-center justify-center space-x-1 active:scale-95 transition-all shadow-md shadow-sky-600/20"
               >
                 {savingEdit ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
                 <span>Save Changes</span>

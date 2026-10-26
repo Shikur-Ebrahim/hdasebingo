@@ -358,17 +358,14 @@ export default function AdminPromoters() {
                     ))}
                   </select>
 
-                  {/* Promoter Commission Rate % - Clean Number Input */}
-                  <div className="bg-gradient-to-br from-violet-50 to-purple-50/50 p-3.5 rounded-2xl border border-violet-200/70 space-y-2.5">
+                  {/* Promoter Commission Rate % - Clean Mobile Card */}
+                  <div className="bg-violet-50/60 p-3 rounded-2xl border border-violet-200/70 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <div className="w-7 h-7 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center">
                           <Percent size={13} />
                         </div>
-                        <div>
-                          <p className="text-xs font-black text-slate-800">Promoter Commission</p>
-                          <p className="text-[9px] text-slate-400 font-medium">From platform's 20% house fee</p>
-                        </div>
+                        <span className="text-xs font-black text-slate-800">Promoter Commission Rate</span>
                       </div>
                       <span className="text-xs font-black text-violet-700 bg-violet-100 px-2.5 py-0.5 rounded-full border border-violet-200">
                         {promoterCommRate || 0}% of pot
@@ -381,19 +378,15 @@ export default function AdminPromoters() {
                       <input
                         type="number"
                         min={0}
-                        max={20}
+                        max={100}
                         step={0.5}
                         value={promoterCommRate}
-                        onChange={e => setPromoterCommRate(Math.min(20, Math.max(0, Number(e.target.value))))}
+                        onChange={e => setPromoterCommRate(Math.max(0, Number(e.target.value)))}
                         className="flex-1 bg-transparent outline-none text-xs font-black text-slate-800 placeholder-slate-300"
                         placeholder="3"
                       />
-                      <span className="text-[11px] font-bold text-slate-400">% (Default: 3)</span>
+                      <span className="text-[11px] font-bold text-slate-400">% (Default: 3%)</span>
                     </div>
-
-                    <p className="text-[9px] text-slate-400 font-medium leading-tight">
-                      ℹ️ Commission is automatically credited to the promoter's wallet after each completed game.
-                    </p>
                   </div>
 
                   <button
@@ -530,9 +523,9 @@ export default function AdminPromoters() {
 
       {/* ─── EDIT ROOM PROMOTER MODAL ─── */}
       {editingRoom && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-5 w-full max-w-sm space-y-3.5 shadow-2xl animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm max-h-[88vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-150 my-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 shrink-0">
               <div className="flex items-center space-x-2">
                 <Building2 size={16} className="text-violet-600" />
                 <h3 className="text-sm font-black text-slate-900">{editingRoom.room_name}</h3>
@@ -545,59 +538,61 @@ export default function AdminPromoters() {
               </button>
             </div>
 
-            {/* Promoter UUID Input */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase">
-                Promoter UUID
-              </label>
-              <input
-                type="text"
-                value={editPromoterId}
-                onChange={(e) => setEditPromoterId(e.target.value)}
-                placeholder="Promoter UUID (leave blank to unlink)"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 outline-none focus:border-violet-500"
-              />
-            </div>
-
-            {/* Commission Rate - Clean Number Input */}
-            <div className="bg-gradient-to-br from-violet-50 to-purple-50/50 p-3.5 rounded-2xl border border-violet-200/70 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <div className="w-7 h-7 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center">
-                    <Percent size={13} />
-                  </div>
-                  <div>
-                    <p className="text-xs font-black text-slate-800">Promoter Commission</p>
-                    <p className="text-[9px] text-slate-400 font-medium">From platform's 20% house fee</p>
-                  </div>
-                </div>
-                <span className="text-xs font-black text-violet-700 bg-violet-100 px-2.5 py-0.5 rounded-full border border-violet-200">
-                  {editCommissionRate || 0}% of pot
-                </span>
-              </div>
-
-              {/* Free-form number input */}
-              <div className="flex items-center space-x-2.5 bg-white rounded-xl border border-violet-200 px-3 py-2 shadow-xs">
-                <Percent size={13} className="text-violet-500 shrink-0" />
+            <div className="overflow-y-auto space-y-3 pr-1 -mr-1 flex-1 py-1">
+              {/* Promoter UUID Input */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">
+                  Promoter UUID
+                </label>
                 <input
-                  type="number"
-                  min={0}
-                  max={20}
-                  step={0.5}
-                  value={editCommissionRate}
-                  onChange={e => setEditCommissionRate(Math.min(20, Math.max(0, Number(e.target.value))))}
-                  className="flex-1 bg-transparent outline-none text-xs font-black text-slate-800 placeholder-slate-300"
-                  placeholder="3"
+                  type="text"
+                  value={editPromoterId}
+                  onChange={(e) => setEditPromoterId(e.target.value)}
+                  placeholder="Promoter UUID (leave blank to unlink)"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-800 outline-none focus:border-violet-500"
                 />
-                <span className="text-[11px] font-bold text-slate-400">% (Default: 3)</span>
               </div>
 
-              <p className="text-[9px] text-slate-400 font-medium leading-tight">
-                ℹ️ Automatically applies to all future game pots in this room.
-              </p>
+              {/* Commission Rate - Clean Number Input */}
+              <div className="bg-gradient-to-br from-violet-50 to-purple-50/50 p-3.5 rounded-2xl border border-violet-200/70 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-7 h-7 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center">
+                      <Percent size={13} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-black text-slate-800">Promoter Commission</p>
+                      <p className="text-[9px] text-slate-400 font-medium">Default: 3%</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-black text-violet-700 bg-violet-100 px-2.5 py-0.5 rounded-full border border-violet-200">
+                    {editCommissionRate || 0}% of pot
+                  </span>
+                </div>
+
+                {/* Free-form number input */}
+                <div className="flex items-center space-x-2.5 bg-white rounded-xl border border-violet-200 px-3 py-2 shadow-xs">
+                  <Percent size={13} className="text-violet-500 shrink-0" />
+                  <input
+                    type="number"
+                    min={0}
+                    max={20}
+                    step={0.5}
+                    value={editCommissionRate}
+                    onChange={e => setEditCommissionRate(Math.min(20, Math.max(0, Number(e.target.value))))}
+                    className="flex-1 bg-transparent outline-none text-xs font-black text-slate-800 placeholder-slate-300"
+                    placeholder="3"
+                  />
+                  <span className="text-[11px] font-bold text-slate-400">% (Default: 3)</span>
+                </div>
+
+                <p className="text-[9px] text-slate-400 font-medium leading-tight">
+                  ℹ️ Automatically applies to all future game pots in this room.
+                </p>
+              </div>
             </div>
 
-            <div className="flex space-x-2 pt-2">
+            <div className="flex space-x-2 pt-3 border-t border-slate-100 shrink-0">
               <button
                 type="button"
                 onClick={() => setEditingRoom(null)}
