@@ -4,10 +4,11 @@ import { t } from '../lib/translations';
 import { 
   Wallet, Gift, PlusCircle, ArrowDownToLine, Share2, 
   ArrowRightLeft, History, Users, Globe, Headphones, Megaphone,
-  ChevronRight, X, Moon, BarChart2, Copy, Check, BookOpen, Bot, Sparkles
+  ChevronRight, X, Moon, BarChart2, Copy, Check, BookOpen, Bot, Sparkles, Download
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
+import { triggerPWAInstall } from '../components/PWAInstallPrompt';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -183,6 +184,13 @@ export default function Profile() {
               <div className={icon('bg-emerald-50 text-emerald-500')}><Users size={12} /></div>
               <span className="flex-1 font-bold text-slate-700 dark:text-slate-200 text-[10px]">{t[language].profile.invitePerson}</span>
               <ChevronRight size={11} className="text-slate-300" />
+            </button>
+
+            <button onClick={() => { setProfileOpen(false); triggerPWAInstall(); }} className={`${row} bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/30`}>
+              <div className={icon('bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300')}><Download size={12} /></div>
+              <span className="flex-1 font-black text-amber-900 dark:text-amber-300 text-[10px]">መተግበሪያውን ጫን • Install App</span>
+              <span className="text-[7.5px] font-black bg-amber-500 text-slate-950 px-1.5 py-0.5 rounded-full mr-1 shadow-xs">PWA</span>
+              <ChevronRight size={11} className="text-amber-400" />
             </button>
 
             <button onClick={() => navigateTo('/rules')} className={row}>

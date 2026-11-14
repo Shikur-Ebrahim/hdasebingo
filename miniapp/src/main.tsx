@@ -84,6 +84,31 @@ function Root() {
   return <App key={appKey} />;
 }
 
+// ── Register Progressive Web App (PWA) Service Worker ─────────
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((reg) => {
+        // Automatically check for updates
+        reg.onupdatefound = () => {
+          const installingWorker = reg.installing;
+          if (installingWorker) {
+            installingWorker.onstatechange = () => {
+              if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // New update available
+                console.log('[Hdase PWA] New version ready.');
+              }
+            };
+          }
+        };
+      })
+      .catch((err) => {
+        console.warn('[Hdase PWA] Service worker registration failed:', err);
+      });
+  });
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode><Root /></React.StrictMode>
 );

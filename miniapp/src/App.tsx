@@ -24,6 +24,7 @@ import AdminChannelProofs from './pages/AdminChannelProofs';
 import AdminGameReport from './pages/AdminGameReport';
 import AdminAgencyWithdrawalFee from './pages/AdminAgencyWithdrawalFee';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 
 // Show/hide Telegram's native Back button based on route depth
 // Uses a stable ref so we NEVER register multiple onClick handlers
@@ -409,6 +410,7 @@ function App() {
 
   return (
     <MemoryRouter initialEntries={['/']} initialIndex={0}>
+      <PWAInstallPrompt />
       <TelegramBackButton />
       <div className="min-h-screen bg-slate-50 pb-20 font-sans text-slate-800">
         <ErrorBoundary><Routes>

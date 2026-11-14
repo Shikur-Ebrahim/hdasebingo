@@ -5,6 +5,21 @@
   "framework": null,
   "headers": [
     {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Content-Type", "value": "application/javascript; charset=utf-8" },
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
+        { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
+    },
+    {
+      "source": "/manifest.json",
+      "headers": [
+        { "key": "Content-Type", "value": "application/manifest+json; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=3600" }
+      ]
+    },
+    {
       "source": "/audio/(.*)",
       "headers": [
         { "key": "Content-Type", "value": "audio/mpeg" },
@@ -19,7 +34,7 @@
       "destination": "http://169.58.138.229:3004/api/:path*"
     },
     {
-      "source": "/((?!assets/|audio/|.*\\.(?:ico|png|jpg|jpeg|svg|mp3|wav|ogg|json|webp|webmanifest)).*)",
+      "source": "/((?!assets/|audio/|sw\\.js|manifest\\.json|.*\\.(?:ico|png|jpg|jpeg|svg|mp3|wav|ogg|json|js|webp|webmanifest)).*)",
       "destination": "/index.html"
     }
   ]

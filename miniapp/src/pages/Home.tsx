@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
-import { Gift, ArrowDownToLine, Share2, PlusCircle, Info, DoorOpen, Users, Gamepad2, RefreshCw, ChevronDown, Clapperboard, Play, X, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { Gift, ArrowDownToLine, Share2, PlusCircle, Info, DoorOpen, Users, Gamepad2, RefreshCw, ChevronDown, Clapperboard, Play, X, Sparkles, Volume2, VolumeX, Download } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { supabase } from '../lib/supabase';
+import { triggerPWAInstall } from '../components/PWAInstallPrompt';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -452,6 +453,36 @@ export default function Home() {
             <Clapperboard size={18} className="text-white drop-shadow-sm" />
             <span className="tracking-wide">Videos</span>
           </Link>
+        </div>
+      </div>
+
+      {/* PWA INSTALL QUICK BANNER (Displays App Icon & Instant Install Action) */}
+      <div className="px-4">
+        <div className="bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-2xl p-2.5 shadow-sm flex items-center justify-between border border-amber-300/80">
+          <div className="flex items-center space-x-2.5 min-w-0">
+            <img
+              src="/app-icon.png"
+              alt="Hdase Bingo App Icon"
+              className="w-10 h-10 rounded-xl object-contain bg-white p-0.5 border border-white/60 shadow-xs shrink-0"
+            />
+            <div className="min-w-0">
+              <div className="flex items-center space-x-1">
+                <span className="font-black text-xs text-slate-950 truncate">HDASE BINGO APP</span>
+                <span className="text-[8px] bg-slate-950 text-amber-300 font-black px-1.5 py-0.2 rounded-full">OFFICIAL</span>
+              </div>
+              <p className="text-[10px] text-slate-900 font-bold truncate">
+                በስልክዎ ላይ ይጫኑ • Tap to Install PWA
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={triggerPWAInstall}
+            className="bg-slate-950 hover:bg-slate-900 active:scale-95 text-amber-300 px-3 py-1.5 rounded-xl font-black text-xs shadow-sm flex items-center space-x-1 shrink-0 transition-transform"
+          >
+            <Download size={13} strokeWidth={2.5} />
+            <span>Install</span>
+          </button>
         </div>
       </div>
 
