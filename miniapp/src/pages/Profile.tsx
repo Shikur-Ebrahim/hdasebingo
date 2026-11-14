@@ -4,7 +4,8 @@ import { t } from '../lib/translations';
 import { 
   Wallet, Gift, PlusCircle, ArrowDownToLine, Share2, 
   ArrowRightLeft, History, Users, Globe, Headphones, Megaphone,
-  ChevronRight, X, Moon, BarChart2, Copy, Check, BookOpen, Bot, Sparkles, Download, LogOut
+  ChevronRight, X, Moon, BarChart2, Copy, Check, BookOpen, Bot, Sparkles, Download, LogOut,
+  KeyRound, Lock, Eye, EyeOff, AlertCircle, CheckCircle2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
@@ -19,6 +20,66 @@ export default function Profile() {
   const [channelLink, setChannelLink] = useState('https://t.me/hdasebingo');
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
+
+  // Change password states
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [currPass, setCurrPass] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
+  const [showCurrPass, setShowCurrPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [passLoading, setPassLoading] = useState(false);
+  const [passError, setPassError] = useState<string | null>(null);
+  const [passSuccess, setPassSuccess] = useState<string | null>(null);
+
+  const isRegisteredAccount = Boolean(
+    (typeof window !== 'undefined' && localStorage.getItem('hdase_pwa_token')) ||
+    user?.telegram_id?.startsWith('251')
+  );
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPassError(null);
+    setPassSuccess(null);
+
+    if (!currPass) {
+      setPassError('Please enter your current password • የድሮውን ይለፍ ቃል ያስገቡ');
+      return;
+    }
+    if (!newPass || newPass.length < 4) {
+      setPassError('New password must be at least 4 characters • አዲሱ ይለፍ ቃል ቢያንስ 4 ፊደል መሆን አለበት');
+      return;
+    }
+    if (newPass !== confirmPass) {
+      setPassError('New passwords do not match • የይለፍ ቃሎች አይመሳሰሉም');
+      return;
+    }
+
+    setPassLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_password: currPass, new_password: newPass }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update password');
+      }
+      setPassSuccess('Password updated successfully! • የይለፍ ቃልዎ ተቀይሯል');
+      setCurrPass('');
+      setNewPass('');
+      setConfirmPass('');
+      setTimeout(() => {
+        setShowChangePassword(false);
+        setPassSuccess(null);
+      }, 1400);
+    } catch (err: any) {
+      setPassError(err.message || 'Failed to update password');
+    } finally {
+      setPassLoading(false);
+    }
+  };
 
   useEffect(() => {
     const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
@@ -258,6 +319,22 @@ export default function Profile() {
               <ChevronRight size={11} className="text-slate-300" />
             </button>
 
+            {/* Change Password (Only for registered account users) */}
+            {isRegisteredAccount && (
+              <button
+                onClick={() => {
+                  setPassError(null);
+                  setPassSuccess(null);
+                  setShowChangePassword(true);
+                }}
+                className={row}
+              >
+                <div className={icon('bg-amber-50 text-amber-600')}><KeyRound size={12} /></div>
+                <span className="flex-1 font-bold text-slate-700 dark:text-slate-200 text-[10px]">Change Password • የይለፍ ቃል ቀይር</span>
+                <ChevronRight size={11} className="text-slate-300" />
+              </button>
+            )}
+
             {/* PWA Auth Switch or Logout */}
             {user ? (
               <button
@@ -289,6 +366,126 @@ export default function Profile() {
           </div>
         </div>
       </div>
+
+      {/* ── CHANGE PASSWORD MODAL (CLEAN WHITE THEME) ── */}
+      {showChangePassword && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowChangePassword(false)}
+        >
+          <div 
+            className="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl border border-amber-200 relative flex flex-col space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center">
+                  <KeyRound size={16} />
+                </div>
+                <h3 className="text-sm font-black text-slate-900">Change Password • የይለፍ ቃል ቀይር</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowChangePassword(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {passError && (
+              <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start space-x-2 text-rose-700 text-xs">
+                <AlertCircle size={14} className="shrink-0 mt-0.5 text-rose-500" />
+                <span className="flex-1 font-medium leading-snug">{passError}</span>
+              </div>
+            )}
+
+            {passSuccess && (
+              <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center space-x-2 text-emerald-700 text-xs font-bold">
+                <CheckCircle2 size={14} className="shrink-0 text-emerald-600" />
+                <span>{passSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleChangePassword} className="space-y-3">
+              {/* Previous password */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Current Password • የድሮው ይለፍ ቃል
+                </label>
+                <div className="relative">
+                  <input
+                    type={showCurrPass ? 'text' : 'password'}
+                    required
+                    value={currPass}
+                    onChange={(e) => { setCurrPass(e.target.value); setPassError(null); }}
+                    placeholder="Enter current password"
+                    className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 focus:bg-white focus:border-amber-500 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrPass(!showCurrPass)}
+                    className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600"
+                  >
+                    {showCurrPass ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* New password */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  New Password • አዲሱ ይለፍ ቃል
+                </label>
+                <div className="relative">
+                  <input
+                    type={showNewPass ? 'text' : 'password'}
+                    required
+                    value={newPass}
+                    onChange={(e) => { setNewPass(e.target.value); setPassError(null); }}
+                    placeholder="Min 4 characters"
+                    className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 focus:bg-white focus:border-amber-500 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPass(!showNewPass)}
+                    className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600"
+                  >
+                    {showNewPass ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm new password */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Confirm New Password • በድጋሚ ያስገቡ
+                </label>
+                <input
+                  type={showNewPass ? 'text' : 'password'}
+                  required
+                  value={confirmPass}
+                  onChange={(e) => { setConfirmPass(e.target.value); setPassError(null); }}
+                  placeholder="Repeat new password"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:bg-white focus:border-amber-500 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 outline-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={passLoading}
+                className="w-full mt-2 py-2.5 px-4 bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs rounded-xl shadow-md shadow-amber-500/20 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center space-x-1.5"
+              >
+                {passLoading ? (
+                  <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <span>Update Password • ቀይር</span>
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -142,3 +142,61 @@ export async function validateTelegramAuth(req: AuthRequest, res: Response, next
   // 3. Neither Telegram initData nor PWA token provided
   res.status(401).json({ error: 'No auth data' });
 }
+
+// ── Optional Authentication Middleware (does not block unauthenticated users) ──
+export async function optionalTelegramAuth(req: AuthRequest, _res: Response, next: NextFunction): Promise<void> {
+  const initData = req.headers['x-telegram-init-data'] as string;
+  if (initData && initData.trim() !== '') {
+    try {
+      const params = new URLSearchParams(initData);
+      const hash = params.get('hash');
+      params.delete('hash');
+      const dataCheckString = Array.from(params.entries())
+        .sort(([a],[b]) => a.localeCompare(b))
+        .map(([k,v]) => `${k}=${v}`)
+        .join('\n');
+      const secretKey = crypto.createHmac('sha256', 'WebAppData').update(process.env.BOT_TOKEN!).digest();
+      const expectedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+
+      if (expectedHash === hash) {
+        const userData = params.get('user');
+        if (userData) {
+          req.telegramUser = JSON.parse(decodeURIComponent(userData));
+          return next();
+        }
+      }
+    } catch {}
+  }
+
+  let pwaToken = req.headers['x-pwa-auth'] as string;
+  if (!pwaToken && req.headers['authorization']) {
+    const authHeader = req.headers['authorization'] as string;
+    if (authHeader.startsWith('Bearer ')) {
+      pwaToken = authHeader.slice(7).trim();
+    }
+  }
+
+  if (pwaToken) {
+    const payload = verifyPwaToken(pwaToken);
+    if (payload?.telegram_id) {
+      try {
+        const { data: user } = await supabase
+          .from('users')
+          .select('*')
+          .eq('telegram_id', payload.telegram_id.toString())
+          .maybeSingle();
+
+        if (user && user.status !== 'inactive') {
+          req.telegramUser = {
+            id: user.telegram_id,
+            first_name: user.first_name || 'Player',
+            username: user.username || user.first_name,
+          };
+          req.pwaUser = user;
+        }
+      } catch {}
+    }
+  }
+
+  next();
+}

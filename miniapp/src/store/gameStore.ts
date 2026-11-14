@@ -277,11 +277,11 @@ export const useGameStore = create<GameStore>()(
                 set({ loading: false, isBlocked: true, user: null });
               } else {
                 if (typeof window !== 'undefined') localStorage.removeItem('hdase_pwa_token');
-                set({ user: null, loading: false, isAuthModalOpen: true });
+                set({ user: null, loading: false, isAuthModalOpen: false });
               }
             } else {
-              // Visitor without account in PWA: open auth modal
-              set({ user: null, loading: false, isAuthModalOpen: true });
+              // Visitor without account: allow browsing leaderboard & rooms freely
+              set({ user: null, loading: false, isAuthModalOpen: false });
             }
           }
         } catch (error: any) {

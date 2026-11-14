@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { AuthRequest, validateTelegramAuth } from '../middleware/auth';
+import { AuthRequest, optionalTelegramAuth } from '../middleware/auth';
 import { supabase } from '../services/supabase';
 
 const router = Router();
-router.use(validateTelegramAuth);
+router.use(optionalTelegramAuth);
 
 // Helper to calculate fromDate based on period in Ethiopian Time (EAT = UTC+3)
 function getPeriodFromDate(period: string): string | null {
@@ -33,7 +33,7 @@ function getPeriodFromDate(period: string): string | null {
 // GET /api/leaderboard/players?period=all|daily|weekly|monthly|yearly
 router.get('/players', async (req: AuthRequest, res) => {
   const period = (req.query.period as string) || 'all';
-  const telegramId = req.telegramUser!.id.toString();
+  const telegramId = req.telegramUser?.id ? req.telegramUser.id.toString() : null;
 
   const fromDate = getPeriodFromDate(period);
   let topPlayers: any[] = [];
@@ -111,7 +111,7 @@ router.get('/players', async (req: AuthRequest, res) => {
     }));
 
   // Find current user's rank
-  const myRank = topPlayers.findIndex(p => p.telegram_id === telegramId) + 1;
+  const myRank = telegramId ? (topPlayers.findIndex(p => p.telegram_id === telegramId) + 1) : null;
 
   res.json({ players: topPlayers, my_rank: myRank || null });
 });
@@ -119,7 +119,7 @@ router.get('/players', async (req: AuthRequest, res) => {
 // GET /api/leaderboard/inviters?period=all|daily|weekly|monthly|yearly
 router.get('/inviters', async (req: AuthRequest, res) => {
   const period = (req.query.period as string) || 'all';
-  const telegramId = req.telegramUser!.id.toString();
+  const telegramId = req.telegramUser?.id ? req.telegramUser.id.toString() : null;
   const fromDate = getPeriodFromDate(period);
 
   // Get all users with inviter_id set
@@ -181,10 +181,14 @@ router.get('/inviters', async (req: AuthRequest, res) => {
     invites: countMap[id] || 0,
   }));
 
-  const { data: curU } = await supabase.from('users').select('id').eq('telegram_id', telegramId).maybeSingle();
-  const myRank = inviters.findIndex(p => p.telegram_id === telegramId || (curU?.id && p.id === curU.id)) + 1;
+  let myRank: number | null = null;
+  if (telegramId) {
+    const { data: curU } = await supabase.from('users').select('id').eq('telegram_id', telegramId).maybeSingle();
+    const rankIdx = inviters.findIndex(p => p.telegram_id === telegramId || (curU?.id && p.id === curU.id));
+    myRank = rankIdx >= 0 ? rankIdx + 1 : null;
+  }
 
-  res.json({ inviters, my_rank: myRank || null });
+  res.json({ inviters, my_rank: myRank });
 });
 
 export default router;

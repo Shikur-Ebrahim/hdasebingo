@@ -66,7 +66,7 @@ function TelegramBackButton() {
 
 function Navigation() {
   const location = useLocation();
-  const { user, isProfileOpen, setProfileOpen, language } = useGameStore();
+  const { user, isProfileOpen, setProfileOpen, language, setAuthModalOpen } = useGameStore();
 
   // Hide the player bottom navigation if the user is an Admin, Worker, Agent, or Promoter
   if (user?.role === 'admin' || user?.role === 'worker' || user?.role === 'agent' || user?.role === 'promoter') {
@@ -98,6 +98,9 @@ function Navigation() {
                 if (isProfileTab) {
                   e.preventDefault();
                   setProfileOpen(true);
+                } else if (item.path === '/deposit' && !user && !WebApp?.initData) {
+                  e.preventDefault();
+                  setAuthModalOpen(true);
                 } else {
                   setProfileOpen(false);
                 }

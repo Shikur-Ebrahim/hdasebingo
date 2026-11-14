@@ -223,6 +223,63 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// ── POST /api/auth/change-password — Reset / Change Password for Registered Accounts ──
+router.post('/change-password', validateTelegramAuth, async (req: AuthRequest, res) => {
+  try {
+    const { current_password, new_password } = req.body || {};
+    const safeCurr = (current_password || '').toString();
+    const safeNew = (new_password || '').toString();
+
+    if (!safeCurr) {
+      res.status(400).json({ error: 'Please enter your current password • የድሮውን ይለፍ ቃል ያስገቡ' });
+      return;
+    }
+
+    if (!safeNew || safeNew.length < 4) {
+      res.status(400).json({ error: 'New password must be at least 4 characters • አዲሱ ይለፍ ቃል ቢያንስ 4 ፊደል መሆን አለበት' });
+      return;
+    }
+
+    const telegramId = req.telegramUser!.id.toString();
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('telegram_id', telegramId)
+      .maybeSingle();
+
+    if (error || !user) {
+      res.status(404).json({ error: 'User not found.' });
+      return;
+    }
+
+    if (!user.password_hash) {
+      res.status(400).json({ error: 'No password is set on this account. Please register with a password.' });
+      return;
+    }
+
+    const isMatch = verifyPassword(safeCurr, user.password_hash);
+    if (!isMatch) {
+      res.status(400).json({ error: 'Current password is incorrect • ያስገቡት የድሮ ይለፍ ቃል የተሳሳተ ነው' });
+      return;
+    }
+
+    const newHash = hashPassword(safeNew);
+    const { error: updateErr } = await supabase
+      .from('users')
+      .update({ password_hash: newHash })
+      .eq('id', user.id);
+
+    if (updateErr) {
+      res.status(500).json({ error: updateErr.message });
+      return;
+    }
+
+    res.json({ success: true, message: 'Password updated successfully! • የይለፍ ቃልዎ በተሳካ ሁኔታ ተቀይሯል' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to update password.' });
+  }
+});
+
 // ── POST /api/auth/verify — Legacy & Telegram WebApp User Verification ────────
 router.post('/verify', validateTelegramAuth, async (req: AuthRequest, res) => {
   const user = req.telegramUser!;
