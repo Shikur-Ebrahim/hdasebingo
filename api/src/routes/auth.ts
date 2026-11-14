@@ -1,9 +1,240 @@
 import { Router } from 'express';
-import { AuthRequest, validateTelegramAuth } from '../middleware/auth';
+import { AuthRequest, validateTelegramAuth, hashPassword, verifyPassword, generatePwaToken } from '../middleware/auth';
 import { supabase } from '../services/supabase';
 
 const router = Router();
 
+// Normalizes Ethiopian phone number to 9 digits starting with 9 or 7
+export function normalizeEthiopianPhone(raw: string): string | null {
+  if (!raw || typeof raw !== 'string') return null;
+  let digits = raw.replace(/\D/g, '');
+  if (digits.startsWith('251')) {
+    digits = digits.slice(3);
+  }
+  if (digits.startsWith('0')) {
+    digits = digits.slice(1);
+  }
+  if (/^[97]\d{8}$/.test(digits)) {
+    return digits;
+  }
+  return null;
+}
+
+// ── GET /api/auth/me — Check current session (Telegram initData or PWA token) ─
+router.get('/me', validateTelegramAuth, async (req: AuthRequest, res) => {
+  try {
+    const telegramId = req.telegramUser!.id.toString();
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('telegram_id', telegramId)
+      .maybeSingle();
+
+    if (error || !user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    res.json({ user });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/auth/register — PWA & Web Visitor Registration ──────────────────
+router.post('/register', async (req, res) => {
+  try {
+    const { first_name, phone_number, password, room_id, promoter_ref } = req.body || {};
+
+    // 1. Validate full name
+    const safeName = (first_name || '').toString().trim();
+    if (!safeName || safeName.length < 2) {
+      res.status(400).json({ error: 'Please enter your full name (minimum 2 characters).' });
+      return;
+    }
+
+    // 2. Validate and normalize Ethiopian phone
+    const cleanPhone = normalizeEthiopianPhone(phone_number);
+    if (!cleanPhone) {
+      res.status(400).json({
+        error: 'Invalid Ethiopian phone number. Must be 9 digits starting with 9 or 7 (e.g. 912345678 or 712345678).'
+      });
+      return;
+    }
+
+    // 3. Validate password
+    const safePassword = (password || '').toString();
+    if (!safePassword || safePassword.length < 4) {
+      res.status(400).json({ error: 'Password must be at least 4 characters long.' });
+      return;
+    }
+
+    const fullPhone = `+251${cleanPhone}`;
+    const telegramId = `251${cleanPhone}`; // Direct phone number representation in telegram_id column
+
+    // 4. Resolve promoter/inviter if provided
+    let resolvedInviterUuid: string | null = null;
+    if (typeof promoter_ref === 'string' && promoter_ref.trim()) {
+      const cleanRef = promoter_ref.replace('ref_', '').trim();
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanRef);
+      const { data: promoterUser } = await (isUuid
+        ? supabase.from('users').select('id').eq('id', cleanRef).maybeSingle()
+        : supabase.from('users').select('id').eq('telegram_id', cleanRef).maybeSingle()
+      );
+      if (promoterUser?.id) {
+        resolvedInviterUuid = promoterUser.id;
+      }
+    }
+
+    // 5. Check if user already exists
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('*')
+      .or(`telegram_id.eq.${telegramId},phone_number.eq.${fullPhone}`)
+      .maybeSingle();
+
+    if (existingUser) {
+      if (existingUser.status === 'inactive') {
+        res.status(403).json({ error: 'Your account has been deactivated. Please contact support.' });
+        return;
+      }
+      if (existingUser.password_hash) {
+        res.status(409).json({ error: 'This phone number is already registered. Please login with your password.' });
+        return;
+      }
+
+      // Existing user without password (e.g. registered via Telegram bot before): set password and phone
+      const updateData: any = {
+        phone_number: fullPhone,
+        password_hash: hashPassword(safePassword),
+        first_name: safeName || existingUser.first_name,
+      };
+      if (room_id) updateData.room_id = room_id;
+      if (!existingUser.inviter_id && resolvedInviterUuid) updateData.inviter_id = resolvedInviterUuid;
+
+      const { data: updated, error: updateErr } = await supabase
+        .from('users')
+        .update(updateData)
+        .eq('id', existingUser.id)
+        .select()
+        .single();
+
+      if (updateErr) {
+        res.status(500).json({ error: updateErr.message });
+        return;
+      }
+
+      const token = generatePwaToken({ telegram_id: updated.telegram_id, id: updated.id });
+      res.json({ success: true, user: updated, token });
+      return;
+    }
+
+    // 6. Fetch welcome bonus setting
+    const { data: settingRow } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'welcome_bonus_amount')
+      .maybeSingle();
+    const welcomeBonus = settingRow && !isNaN(Number(settingRow.value)) ? Number(settingRow.value) : 0;
+
+    // 7. Insert new user
+    const insertPayload: any = {
+      telegram_id: telegramId,
+      phone_number: fullPhone,
+      password_hash: hashPassword(safePassword),
+      first_name: safeName,
+      username: `user_${cleanPhone}`,
+      main_balance: 0,
+      bonus_balance: welcomeBonus,
+      role: 'user',
+    };
+    if (room_id) insertPayload.room_id = room_id;
+    if (resolvedInviterUuid) insertPayload.inviter_id = resolvedInviterUuid;
+
+    const { data: newUser, error: insertErr } = await supabase
+      .from('users')
+      .insert(insertPayload)
+      .select()
+      .single();
+
+    if (insertErr) {
+      // If column does not exist yet in Supabase schema, notify user clearly
+      if (insertErr.code === '42703' || insertErr.message?.includes('phone_number') || insertErr.message?.includes('password_hash')) {
+        res.status(500).json({
+          error: 'Database migration pending: please execute supabase/add_pwa_auth_columns.sql in Supabase SQL editor.'
+        });
+        return;
+      }
+      res.status(500).json({ error: insertErr.message });
+      return;
+    }
+
+    const token = generatePwaToken({ telegram_id: newUser.telegram_id, id: newUser.id });
+    res.json({ success: true, user: newUser, token });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Registration failed' });
+  }
+});
+
+// ── POST /api/auth/login — PWA & Web Visitor Login ────────────────────────────
+router.post('/login', async (req, res) => {
+  try {
+    const { phone_number, password } = req.body || {};
+
+    const cleanPhone = normalizeEthiopianPhone(phone_number);
+    if (!cleanPhone) {
+      res.status(400).json({
+        error: 'Invalid Ethiopian phone number. Must be 9 digits starting with 9 or 7.'
+      });
+      return;
+    }
+
+    const safePassword = (password || '').toString();
+    if (!safePassword) {
+      res.status(400).json({ error: 'Please enter your password.' });
+      return;
+    }
+
+    const fullPhone = `+251${cleanPhone}`;
+    const telegramId = `251${cleanPhone}`;
+
+    // Lookup user by telegram_id or phone_number
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .or(`telegram_id.eq.${telegramId},phone_number.eq.${fullPhone}`)
+      .maybeSingle();
+
+    if (error || !user) {
+      res.status(401).json({ error: 'Account not found. Please register first.' });
+      return;
+    }
+
+    if (user.status === 'inactive') {
+      res.status(403).json({ error: 'Your account has been deactivated. Please contact support.' });
+      return;
+    }
+
+    if (!user.password_hash) {
+      res.status(400).json({
+        error: 'No password has been set for this account yet. Please register to create your password.'
+      });
+      return;
+    }
+
+    const isMatch = verifyPassword(safePassword, user.password_hash);
+    if (!isMatch) {
+      res.status(401).json({ error: 'Incorrect password. Please try again.' });
+      return;
+    }
+
+    const token = generatePwaToken({ telegram_id: user.telegram_id, id: user.id });
+    res.json({ success: true, user, token });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Login failed' });
+  }
+});
+
+// ── POST /api/auth/verify — Legacy & Telegram WebApp User Verification ────────
 router.post('/verify', validateTelegramAuth, async (req: AuthRequest, res) => {
   const user = req.telegramUser!;
   const rawRoomId = req.body?.room_id || req.body?.start_param || null;

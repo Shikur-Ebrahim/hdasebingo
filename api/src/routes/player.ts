@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { AuthRequest, validateTelegramAuth } from '../middleware/auth';
+import { AuthRequest, validateTelegramAuth, verifyPwaToken } from '../middleware/auth';
 import { supabase } from '../services/supabase';
 import { uploadToR2 } from '../services/r2';
 
@@ -434,15 +434,27 @@ router.get('/audit', validateTelegramAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// Helper to safely extract user from initData without failing if unauthenticated
+// Helper to safely extract user from initData or PWA token without failing if unauthenticated
 function extractTelegramUser(req: any) {
   const initData = req.headers['x-telegram-init-data'] as string;
-  if (!initData) return null;
-  try {
-    const params = new URLSearchParams(initData);
-    const userData = params.get('user');
-    if (userData) return JSON.parse(decodeURIComponent(userData));
-  } catch {}
+  if (initData) {
+    try {
+      const params = new URLSearchParams(initData);
+      const userData = params.get('user');
+      if (userData) return JSON.parse(decodeURIComponent(userData));
+    } catch {}
+  }
+  let pwaToken = req.headers['x-pwa-auth'] as string;
+  if (!pwaToken && req.headers['authorization']) {
+    const authHeader = req.headers['authorization'] as string;
+    if (authHeader.startsWith('Bearer ')) pwaToken = authHeader.slice(7).trim();
+  }
+  if (pwaToken) {
+    const payload = verifyPwaToken(pwaToken);
+    if (payload?.telegram_id) {
+      return { id: payload.telegram_id };
+    }
+  }
   return null;
 }
 

@@ -3,6 +3,8 @@ export interface User {
   telegram_id: string;
   username: string;
   first_name: string;
+  phone_number?: string;
+  room_id?: string;
   main_balance: number;
   bonus_balance: number;
   role: 'admin' | 'worker' | 'agent' | 'promoter' | 'user';

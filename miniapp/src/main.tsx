@@ -3,6 +3,32 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 
+// ── Global PWA Fetch Interceptor ───────────────────────────────────────────
+// Automatically attaches PWA auth token when outside Telegram Mini App
+if (typeof window !== 'undefined' && window.fetch) {
+  const originalFetch = window.fetch;
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    try {
+      const pwaToken = localStorage.getItem('hdase_pwa_token');
+      if (pwaToken) {
+        init = init || {};
+        const headers = new Headers(init.headers || {});
+        const tgInit = headers.get('x-telegram-init-data');
+        if (!tgInit || tgInit.trim() === '') {
+          if (!headers.has('x-pwa-auth')) {
+            headers.set('x-pwa-auth', pwaToken);
+          }
+          if (!headers.has('authorization')) {
+            headers.set('authorization', `Bearer ${pwaToken}`);
+          }
+        }
+        init.headers = headers;
+      }
+    } catch (_) {}
+    return originalFetch(input, init);
+  };
+}
+
 const BACKGROUND_THRESHOLD_MS = 15_000; // 15 seconds away = force fresh remount
 
 function Root() {

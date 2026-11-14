@@ -3,9 +3,15 @@ import { getInitData } from './telegram';
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3002/api';
 
 async function req<T>(path: string, opts: RequestInit = {}): Promise<T> {
+  const pwaToken = typeof window !== 'undefined' ? localStorage.getItem('hdase_pwa_token') : null;
   const res = await fetch(`${BASE}${path}`, {
     ...opts,
-    headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': getInitData(), ...opts.headers },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-telegram-init-data': getInitData(),
+      ...(pwaToken ? { 'x-pwa-auth': pwaToken, 'authorization': `Bearer ${pwaToken}` } : {}),
+      ...opts.headers,
+    },
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Request failed');

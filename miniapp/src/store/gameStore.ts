@@ -46,6 +46,10 @@ interface GameStore {
   isDarkMode: boolean;
   language: 'en' | 'am';
   rooms: Room[];
+  isAuthModalOpen: boolean;
+  setAuthModalOpen: (isOpen: boolean) => void;
+  loginPwa: (user: User, token: string) => void;
+  logoutPwa: () => void;
   setLanguage: (lang: 'en' | 'am') => void;
   setProfileOpen: (isOpen: boolean) => void;
   toggleDarkMode: () => void;
@@ -68,7 +72,21 @@ export const useGameStore = create<GameStore>()(
       isDarkMode: false,
       language: 'en',
       rooms: [],
+      isAuthModalOpen: false,
 
+      setAuthModalOpen: (isOpen: boolean) => set({ isAuthModalOpen: isOpen }),
+      loginPwa: (user: User, token: string) => {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('hdase_pwa_token', token);
+        }
+        set({ user, loading: false, isBlocked: false, isAuthModalOpen: false });
+      },
+      logoutPwa: () => {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('hdase_pwa_token');
+        }
+        set({ user: null, loading: false, isAuthModalOpen: false });
+      },
       setLanguage: (lang) => set({ language: lang }),
       setProfileOpen: (isOpen: boolean) => set({ isProfileOpen: isOpen }),
       toggleDarkMode: () => set((state) => {
@@ -226,20 +244,45 @@ export const useGameStore = create<GameStore>()(
           const promoterRef = typeof window !== 'undefined' ? localStorage.getItem('hdase_promoter_ref') : null;
           
           // Silently fetch real data in background
-          const response = await fetch(`${API_URL}/auth/verify`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-telegram-init-data': initData,
-            },
-            body: JSON.stringify({ room_id: invitedRoomId, promoter_ref: promoterRef }),
-          });
+          if (initData) {
+            const response = await fetch(`${API_URL}/auth/verify`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-telegram-init-data': initData,
+              },
+              body: JSON.stringify({ room_id: invitedRoomId, promoter_ref: promoterRef }),
+            });
 
-          if (response.ok) {
-            const data = await response.json();
-            set({ user: data.user, loading: false, isBlocked: false });
-          } else if (response.status === 403) {
-            set({ loading: false, isBlocked: true, user: null });
+            if (response.ok) {
+              const data = await response.json();
+              set({ user: data.user, loading: false, isBlocked: false });
+            } else if (response.status === 403) {
+              set({ loading: false, isBlocked: true, user: null });
+            }
+          } else {
+            // Outside Telegram Mini App: check stored PWA token
+            const pwaToken = typeof window !== 'undefined' ? localStorage.getItem('hdase_pwa_token') : null;
+            if (pwaToken) {
+              const response = await fetch(`${API_URL}/auth/me`, {
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-pwa-auth': pwaToken,
+                },
+              });
+              if (response.ok) {
+                const data = await response.json();
+                set({ user: data.user, loading: false, isBlocked: false, isAuthModalOpen: false });
+              } else if (response.status === 403) {
+                set({ loading: false, isBlocked: true, user: null });
+              } else {
+                if (typeof window !== 'undefined') localStorage.removeItem('hdase_pwa_token');
+                set({ user: null, loading: false, isAuthModalOpen: true });
+              }
+            } else {
+              // Visitor without account in PWA: open auth modal
+              set({ user: null, loading: false, isAuthModalOpen: true });
+            }
           }
         } catch (error: any) {
           console.error('Error fetching user:', error);

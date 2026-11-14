@@ -28,7 +28,7 @@ const ROOM_GRADIENTS = [
 ];
 
 export default function Home() {
-  const { user, language, rooms, fetchRooms, subscribeToRooms } = useGameStore();
+  const { user, language, rooms, fetchRooms, subscribeToRooms, setAuthModalOpen } = useGameStore();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -209,9 +209,10 @@ export default function Home() {
         if (data?.support_phone_eth) setSupportPhoneEth(data.support_phone_eth);
         if (data?.username) setSupportUsername(data.username);
 
-        // Check for Home Video Guide Popup
+        // Check for Home Video Guide Popup (only if authed; PWA auth modal handles guests)
         let isVideoShowing = false;
-        if (data?.home_popup_video && data.home_popup_video.video_url) {
+        const isTelegramOrAuthed = Boolean(initData || localStorage.getItem('hdase_pwa_token'));
+        if (isTelegramOrAuthed && data?.home_popup_video && data.home_popup_video.video_url) {
           const vid = data.home_popup_video;
           const vidKey = `home_vid_views_${vid.id}`;
           const currentViews = parseInt(localStorage.getItem(vidKey) || '0', 10);
@@ -413,11 +414,29 @@ export default function Home() {
 
       {/* ACTION BUTTONS */}
       <div className="px-4 grid grid-cols-4 gap-2">
-        <Link to="/deposit" className="flex flex-col items-center justify-center space-y-1 bg-yellow-400 hover:bg-yellow-500 text-yellow-950 py-2.5 rounded-xl font-bold text-[11px] shadow-sm transition-colors">
+        <Link
+          to="/deposit"
+          onClick={(e) => {
+            if (!user && !WebApp?.initData) {
+              e.preventDefault();
+              setAuthModalOpen(true);
+            }
+          }}
+          className="flex flex-col items-center justify-center space-y-1 bg-yellow-400 hover:bg-yellow-500 text-yellow-950 py-2.5 rounded-xl font-bold text-[11px] shadow-sm transition-colors"
+        >
           <PlusCircle size={18} />
           <span>{t[language].home.deposit}</span>
         </Link>
-        <Link to="/withdraw" className="flex flex-col items-center justify-center space-y-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 py-2.5 rounded-xl font-bold text-[11px] shadow-sm transition-colors">
+        <Link
+          to="/withdraw"
+          onClick={(e) => {
+            if (!user && !WebApp?.initData) {
+              e.preventDefault();
+              setAuthModalOpen(true);
+            }
+          }}
+          className="flex flex-col items-center justify-center space-y-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 py-2.5 rounded-xl font-bold text-[11px] shadow-sm transition-colors"
+        >
           <ArrowDownToLine size={18} />
           <span>{t[language].home.withdraw}</span>
         </Link>
@@ -457,7 +476,16 @@ export default function Home() {
 
       {/* LIVE BINGO BANNER */}
       <div className="px-4">
-        <Link to="/bingo/live" className="block relative rounded-2xl overflow-hidden shadow-md h-52 flex flex-col items-center justify-center border border-amber-100">
+        <Link
+          to="/bingo/live"
+          onClick={(e) => {
+            if (!user && !WebApp?.initData) {
+              e.preventDefault();
+              setAuthModalOpen(true);
+            }
+          }}
+          className="block relative rounded-2xl overflow-hidden shadow-md h-52 flex flex-col items-center justify-center border border-amber-100"
+        >
           {/* Light gradient background — matches loading screen */}
           <div className="absolute inset-0" style={{
             background: 'linear-gradient(135deg, #fffbf0 0%, #fef3c7 40%, #fff8e8 70%, #fffbf0 100%)',
@@ -765,6 +793,10 @@ export default function Home() {
                   <div
                     key={room.id}
                     onClick={() => {
+                      if (!user && !WebApp?.initData) {
+                        setAuthModalOpen(true);
+                        return;
+                      }
                       fetch(`${API_URL}/player/rooms/${room.id}/enter`, { method: 'POST' }).catch(() => {});
                       navigate(`/bingo/live?room=${room.id}`);
                     }}

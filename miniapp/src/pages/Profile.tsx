@@ -4,7 +4,7 @@ import { t } from '../lib/translations';
 import { 
   Wallet, Gift, PlusCircle, ArrowDownToLine, Share2, 
   ArrowRightLeft, History, Users, Globe, Headphones, Megaphone,
-  ChevronRight, X, Moon, BarChart2, Copy, Check, BookOpen, Bot, Sparkles, Download
+  ChevronRight, X, Moon, BarChart2, Copy, Check, BookOpen, Bot, Sparkles, Download, LogOut
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
@@ -13,7 +13,7 @@ import { triggerPWAInstall } from '../components/PWAInstallPrompt';
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 export default function Profile() {
-  const { user, isProfileOpen, setProfileOpen, isDarkMode, toggleDarkMode, language, setLanguage } = useGameStore();
+  const { user, isProfileOpen, setProfileOpen, isDarkMode, toggleDarkMode, language, setLanguage, logoutPwa, setAuthModalOpen } = useGameStore();
   const [showLangDropdown, setShowLangDropdown] = useState(false);
   const [supportUsername, setSupportUsername] = useState('hdasebingo_admin');
   const [channelLink, setChannelLink] = useState('https://t.me/hdasebingo');
@@ -257,6 +257,34 @@ export default function Profile() {
               <span className="flex-1 font-bold text-slate-700 dark:text-slate-200 text-[10px]">{t[language].profile.channel}</span>
               <ChevronRight size={11} className="text-slate-300" />
             </button>
+
+            {/* PWA Auth Switch or Logout */}
+            {user ? (
+              <button
+                onClick={() => {
+                  logoutPwa();
+                  setProfileOpen(false);
+                  setAuthModalOpen(true);
+                }}
+                className={row}
+              >
+                <div className={icon('bg-rose-50 text-rose-500')}><LogOut size={12} /></div>
+                <span className="flex-1 font-bold text-rose-600 dark:text-rose-400 text-[10px]">Log Out • ውጣ</span>
+                <ChevronRight size={11} className="text-slate-300" />
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setProfileOpen(false);
+                  setAuthModalOpen(true);
+                }}
+                className={row}
+              >
+                <div className={icon('bg-amber-50 text-amber-500')}><Sparkles size={12} /></div>
+                <span className="flex-1 font-bold text-amber-600 dark:text-amber-400 text-[10px]">Register / Login • ተመዝገብ</span>
+                <ChevronRight size={11} className="text-slate-300" />
+              </button>
+            )}
 
           </div>
         </div>
