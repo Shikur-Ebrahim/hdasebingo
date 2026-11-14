@@ -68,7 +68,6 @@ router.post('/register', async (req, res) => {
       return;
     }
 
-    const fullPhone = `+251${cleanPhone}`;
     const telegramId = `251${cleanPhone}`; // Direct phone number representation in telegram_id column
 
     // 4. Resolve promoter/inviter if provided
@@ -89,7 +88,7 @@ router.post('/register', async (req, res) => {
     const { data: existingUser } = await supabase
       .from('users')
       .select('*')
-      .or(`telegram_id.eq.${telegramId},phone_number.eq.${fullPhone}`)
+      .eq('telegram_id', telegramId)
       .maybeSingle();
 
     if (existingUser) {
@@ -102,9 +101,8 @@ router.post('/register', async (req, res) => {
         return;
       }
 
-      // Existing user without password (e.g. registered via Telegram bot before): set password and phone
+      // Existing user without password (e.g. registered via Telegram bot before): set password
       const updateData: any = {
-        phone_number: fullPhone,
         password_hash: hashPassword(safePassword),
         first_name: safeName || existingUser.first_name,
       };
@@ -136,10 +134,9 @@ router.post('/register', async (req, res) => {
       .maybeSingle();
     const welcomeBonus = settingRow && !isNaN(Number(settingRow.value)) ? Number(settingRow.value) : 0;
 
-    // 7. Insert new user
+    // 7. Insert new user (phone number stored directly in telegram_id)
     const insertPayload: any = {
       telegram_id: telegramId,
-      phone_number: fullPhone,
       password_hash: hashPassword(safePassword),
       first_name: safeName,
       username: `user_${cleanPhone}`,
@@ -157,13 +154,6 @@ router.post('/register', async (req, res) => {
       .single();
 
     if (insertErr) {
-      // If column does not exist yet in Supabase schema, notify user clearly
-      if (insertErr.code === '42703' || insertErr.message?.includes('phone_number') || insertErr.message?.includes('password_hash')) {
-        res.status(500).json({
-          error: 'Database migration pending: please execute supabase/add_pwa_auth_columns.sql in Supabase SQL editor.'
-        });
-        return;
-      }
       res.status(500).json({ error: insertErr.message });
       return;
     }
@@ -194,14 +184,13 @@ router.post('/login', async (req, res) => {
       return;
     }
 
-    const fullPhone = `+251${cleanPhone}`;
     const telegramId = `251${cleanPhone}`;
 
-    // Lookup user by telegram_id or phone_number
+    // Lookup user by phone number stored in telegram_id
     const { data: user, error } = await supabase
       .from('users')
       .select('*')
-      .or(`telegram_id.eq.${telegramId},phone_number.eq.${fullPhone}`)
+      .eq('telegram_id', telegramId)
       .maybeSingle();
 
     if (error || !user) {
