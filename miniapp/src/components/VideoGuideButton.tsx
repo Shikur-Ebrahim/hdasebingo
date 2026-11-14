@@ -6,7 +6,7 @@ import { useGameStore } from '../store/gameStore';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
-export type VideoCategory = 'deposit' | 'withdraw' | 'transfer' | 'invite' | 'how_to_use' | 'how_to_play';
+export type VideoCategory = 'deposit' | 'withdraw' | 'transfer' | 'invite' | 'how_to_use' | 'how_to_play' | 'welcome';
 
 interface SupportVideo {
   id: string;
@@ -100,6 +100,17 @@ const CATEGORY_META: Record<VideoCategory, {
     badgeBg: 'bg-emerald-500/20 border-emerald-500/40',
     badgeText: 'text-emerald-400',
     emoji: '🎮',
+  },
+  welcome: {
+    enTitle: 'Welcome Video',
+    amTitle: 'የእንኳን ደህና መጡ ቪዲዮ',
+    enLabel: 'Welcome Video',
+    amLabel: 'እንኳን ደህና መጡ',
+    gradient: 'from-amber-500 via-yellow-500 to-orange-500 hover:from-amber-400 hover:to-orange-400',
+    shadow: 'shadow-amber-500/25',
+    badgeBg: 'bg-amber-500/20 border-amber-500/40',
+    badgeText: 'text-amber-400',
+    emoji: '🎬',
   },
 };
 

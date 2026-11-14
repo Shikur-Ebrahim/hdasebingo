@@ -72,22 +72,26 @@ export function PWAAuthModal() {
     return () => { isMounted = false; };
   }, []);
 
-  // 2. Fetch guide / tutorial video for the top of the modal
+  // 2. Fetch Welcome Video for the top of the modal (NOT how_to_use)
   useEffect(() => {
     let isMounted = true;
-    fetch(`${API_URL}/player/support-contact`)
+    fetch(`${API_URL}/player/support-videos?category=welcome`)
       .then(r => r.json())
       .then(data => {
         if (!isMounted) return;
-        if (data?.home_popup_video?.video_url) {
-          setVideoData(data.home_popup_video);
+        if (Array.isArray(data?.videos) && data.videos.length > 0) {
+          setVideoData(data.videos[0]);
         } else {
-          // Fallback to active how_to_use video
-          fetch(`${API_URL}/player/support-videos?category=how_to_use`)
+          // Check all active support videos for one in welcome category or with welcome in title
+          fetch(`${API_URL}/player/support-videos?category=all`)
             .then(res => res.json())
-            .then(vidData => {
-              if (isMounted && Array.isArray(vidData?.videos) && vidData.videos.length > 0) {
-                setVideoData(vidData.videos[0]);
+            .then(allData => {
+              if (!isMounted) return;
+              const found = (allData?.videos || []).find((v: any) =>
+                v.category === 'welcome' || v.title?.toLowerCase().includes('welcome')
+              );
+              if (found) {
+                setVideoData(found);
               }
             })
             .catch(() => {});
@@ -238,36 +242,36 @@ export function PWAAuthModal() {
             <X size={18} />
           </button>
 
-          {/* ── TOP SECTION: Video Header / Guide (Light Framed) ────────────── */}
-          <div className="relative w-full bg-slate-100 border-b border-amber-100 shrink-0 overflow-hidden">
+          {/* ── TOP SECTION: Welcome Video (Horizontal Clean Player) ───────── */}
+          <div className="relative w-full bg-slate-950 border-b border-amber-100 shrink-0 overflow-hidden flex items-center justify-center">
             {videoData?.video_url ? (
-              <div className="relative w-full aspect-video bg-black flex items-center justify-center">
+              <div className="relative w-full flex items-center justify-center bg-black" style={{ minHeight: '190px', maxHeight: '230px' }}>
                 <video
                   ref={videoRef}
                   src={videoData.video_url}
                   poster={videoData.thumbnail_url || undefined}
                   controls
                   playsInline
-                  className="w-full h-full object-cover"
+                  className="w-full max-h-[230px] object-contain mx-auto"
                 />
-                <div className="absolute top-2 left-2 z-10 bg-white/90 backdrop-blur-sm border border-amber-300 px-2.5 py-0.5 rounded-full flex items-center space-x-1.5 shadow-sm">
-                  <Video size={11} className="text-amber-600" />
-                  <span className="text-[10px] font-black tracking-wider text-amber-800 uppercase">
-                    {videoData.title || 'Video Guide • አጫዋች ቪዲዮ'}
+                <div className="absolute top-2.5 left-2.5 z-10 bg-white/95 backdrop-blur-sm border border-amber-300 px-2.5 py-0.5 rounded-full flex items-center space-x-1.5 shadow-md">
+                  <Sparkles size={11} className="text-amber-600" />
+                  <span className="text-[10px] font-black tracking-wider text-amber-900 uppercase">
+                    Welcome Video • እንኳን ደህና መጡ
                   </span>
                 </div>
               </div>
             ) : (
-              <div className="relative p-5 pb-4 text-center bg-gradient-to-b from-amber-50 via-yellow-50/50 to-white">
-                <div className="w-16 h-16 mx-auto mb-2.5 rounded-2xl p-1 bg-gradient-to-tr from-amber-400 via-yellow-300 to-amber-500 shadow-lg shadow-amber-400/20 flex items-center justify-center">
+              <div className="relative p-5 pb-4 text-center bg-gradient-to-b from-amber-50 via-yellow-50/50 to-white w-full">
+                <div className="w-16 h-16 mx-auto mb-2 rounded-2xl p-1 bg-gradient-to-tr from-amber-400 via-yellow-300 to-amber-500 shadow-lg shadow-amber-400/20 flex items-center justify-center">
                   <img src="/app-icon.png" alt="Hdase Bingo" className="w-full h-full object-cover rounded-xl" />
                 </div>
                 <div className="flex items-center justify-center space-x-1.5">
                   <span className="text-xl font-black text-slate-900 tracking-tight">HDASE</span>
                   <span className="text-xl font-black text-orange-500 tracking-tight">BINGO</span>
                 </div>
-                <p className="text-xs text-amber-700 font-medium mt-0.5">
-                  Ethiopia's #1 Live Multiplayer Bingo Platform
+                <p className="text-xs text-amber-700 font-bold mt-0.5">
+                  Welcome to Ethiopia's #1 Live Bingo Platform • እንኳን ደህና መጡ!
                 </p>
               </div>
             )}
