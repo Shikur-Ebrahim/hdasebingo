@@ -24,6 +24,7 @@ import {
 interface PromotedRoom {
   id: string;
   room_name: string;
+  room_number?: number;
   agent_id?: string;
   agent_name?: string;
   status: 'active' | 'inactive' | 'paused';
@@ -50,6 +51,7 @@ interface PromoterUser {
 interface AvailableRoom {
   id: string;
   room_name: string;
+  room_number?: number;
   agent_name?: string;
   status: string;
   promoter_id?: string | null;
@@ -353,7 +355,7 @@ export default function AdminPromoters() {
                   >
                     {availableRooms.map((r) => (
                       <option key={r.id} value={r.id}>
-                        {r.room_name} ({r.agent_name || 'Agent'}) — Status: {r.status}
+                        {r.room_number ? `#${r.room_number} ` : ''}{r.room_name} ({r.agent_name || 'Agent'}) — Status: {r.status}
                       </option>
                     ))}
                   </select>
@@ -493,7 +495,7 @@ export default function AdminPromoters() {
                         >
                           <div className="flex items-center space-x-1.5 truncate mr-2">
                             <Building2 size={11} className="text-violet-600 shrink-0" />
-                            <span className="font-bold text-slate-800 truncate">{rm.room_name}</span>
+                            <span className="font-bold text-slate-800 truncate">{rm.room_number ? `#${rm.room_number} ` : ''}{rm.room_name}</span>
                           </div>
                           <div className="flex items-center space-x-2 shrink-0">
                             <span className="font-black text-violet-700 bg-white px-1.5 py-0.5 rounded-md border border-violet-200">
@@ -528,7 +530,9 @@ export default function AdminPromoters() {
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 shrink-0">
               <div className="flex items-center space-x-2">
                 <Building2 size={16} className="text-violet-600" />
-                <h3 className="text-sm font-black text-slate-900">{editingRoom.room_name}</h3>
+                <h3 className="text-sm font-black text-slate-900">
+                  {editingRoom.room_number ? `#${editingRoom.room_number} ` : ''}{editingRoom.room_name}
+                </h3>
               </div>
               <button
                 onClick={() => setEditingRoom(null)}

@@ -1827,10 +1827,27 @@ router.post('/agents/assign-room', async (req, res) => {
       if (uErr) throw uErr;
       roomResult = updated;
     } else {
+      // Calculate next sequential room_number (1, 2, 3...)
+      let nextRoomNumber = 1;
+      try {
+        const { data: maxRoom } = await supabase
+          .from('rooms')
+          .select('room_number')
+          .order('room_number', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (maxRoom?.room_number) {
+          nextRoomNumber = Number(maxRoom.room_number) + 1;
+        }
+      } catch (e) {
+        console.warn('Could not determine max room_number:', e);
+      }
+
       // Insert new room with user.id (UUID) as agent_id
       const insertRoomPayload: any = {
         agent_id: user.id, // Store users.id UUID!
         room_name: assignedRoomName,
+        room_number: nextRoomNumber,
         agent_name: user.first_name || user.username || 'Agent',
         total_games: 0,
         status: roomStatus,
@@ -1841,12 +1858,27 @@ router.post('/agents/assign-room', async (req, res) => {
         updated_at: new Date().toISOString(),
       };
       if (promoterId !== null) insertRoomPayload.promoter_id = promoterId;
-      const { data: inserted, error: iErr } = await supabase
+
+      let inserted = null;
+      const { data: iData, error: iErr } = await supabase
         .from('rooms')
         .insert(insertRoomPayload)
         .select()
         .single();
-      if (iErr) throw iErr;
+
+      if (iErr) {
+        // Fallback in case room_number column is not in DB yet
+        delete insertRoomPayload.room_number;
+        const { data: fbData, error: fbErr } = await supabase
+          .from('rooms')
+          .insert(insertRoomPayload)
+          .select()
+          .single();
+        if (fbErr) throw fbErr;
+        inserted = fbData;
+      } else {
+        inserted = iData;
+      }
       roomResult = inserted;
     }
 
@@ -1925,12 +1957,15 @@ router.get('/rooms', async (_req, res) => {
       })
     );
 
-    // Pinned rooms ALWAYS come first
+    // Pinned rooms ALWAYS come first, then sequential room_number (1, 2, 3...)
     enriched.sort((a, b) => {
       if (Boolean(b.is_pinned) !== Boolean(a.is_pinned)) {
         return b.is_pinned ? 1 : -1;
       }
-      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+      if (a.room_number !== undefined && b.room_number !== undefined && a.room_number !== b.room_number) {
+        return Number(a.room_number) - Number(b.room_number);
+      }
+      return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
     });
 
     res.json({ rooms: enriched });
@@ -1944,6 +1979,7 @@ router.put('/rooms/:id', async (req, res) => {
   try {
     const updates: any = { updated_at: new Date().toISOString() };
     if (req.body.room_name !== undefined) updates.room_name = req.body.room_name;
+    if (req.body.room_number !== undefined) updates.room_number = Number(req.body.room_number);
     if (req.body.status !== undefined) updates.status = req.body.status;
     if (req.body.total_games !== undefined) updates.total_games = Number(req.body.total_games);
     if (req.body.commission_rate !== undefined) updates.commission_rate = Number(req.body.commission_rate);

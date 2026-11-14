@@ -31,6 +31,7 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 interface AgentRoom {
   id: string;
   room_name: string;
+  room_number?: number;
   agent_id: string;
   agent_telegram_id?: string;
   agent_name?: string;
@@ -89,6 +90,7 @@ export default function AdminAgents() {
   // Edit room modal state
   const [editingRoom, setEditingRoom] = useState<AgentRoom | null>(null);
   const [editRoomName, setEditRoomName] = useState('');
+  const [editRoomNumber, setEditRoomNumber] = useState<number | ''>('');
   const [editRoomStatus, setEditRoomStatus] = useState<'active' | 'inactive' | 'paused'>('active');
   const [editCommissionRate, setEditCommissionRate] = useState<number>(7);
   const [editIsPinned, setEditIsPinned] = useState(false);
@@ -304,6 +306,7 @@ export default function AdminAgents() {
   const openEditRoomModal = (room: AgentRoom) => {
     setEditingRoom(room);
     setEditRoomName(room.room_name);
+    setEditRoomNumber(room.room_number !== undefined && room.room_number !== null ? Number(room.room_number) : '');
     setEditRoomStatus(room.status);
     setEditCommissionRate(room.commission_rate ?? 7);
     setEditIsPinned(Boolean(room.is_pinned));
@@ -321,6 +324,7 @@ export default function AdminAgents() {
         headers: getHeaders(),
         body: JSON.stringify({
           room_name: editRoomName.trim(),
+          room_number: editRoomNumber !== '' ? Number(editRoomNumber) : undefined,
           status: editRoomStatus,
           commission_rate: Number(editCommissionRate) || 7,
           is_pinned: Boolean(editIsPinned),
@@ -493,6 +497,11 @@ export default function AdminAgents() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-1.5 text-emerald-700 flex-wrap gap-y-1">
                       <DoorOpen size={16} />
+                      {searchedRoom.room_number ? (
+                        <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-black px-1.5 py-0.5 rounded-md">
+                          #{searchedRoom.room_number}
+                        </span>
+                      ) : null}
                       <span className="text-xs font-black">{searchedRoom.room_name}</span>
                       {searchedRoom.is_pinned && <span className="text-xs">📌</span>}
                       {searchedRoom.is_private ? (
@@ -575,6 +584,22 @@ export default function AdminAgents() {
                   <div className="flex items-center space-x-1.5 text-slate-800">
                     <Sparkles size={15} className="text-sky-600" />
                     <p className="text-xs font-black">Configure & Assign New Room</p>
+                  </div>
+
+                  {/* Auto Room Number preview */}
+                  <div className="flex items-center justify-between bg-amber-50/70 border border-amber-200/80 p-2.5 rounded-xl">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-6 h-6 rounded-lg bg-amber-500 text-white flex items-center justify-center font-black text-xs">
+                        #
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-800">Room Number</p>
+                        <p className="text-[9px] text-slate-400 font-medium">Auto-incremented sequential ID</p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-black text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300">
+                      Auto: #{allRooms.reduce((max, r) => Math.max(max, r.room_number || 0), 0) + 1}
+                    </span>
                   </div>
 
                   {/* Room Name */}
@@ -768,6 +793,11 @@ export default function AdminAgents() {
                   <div className="flex items-start justify-between">
                     <div className="space-y-0.5 flex-1 min-w-0 mr-2">
                       <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
+                        {room.room_number ? (
+                          <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[9px] font-black px-1.5 py-0.5 rounded-md">
+                            #{room.room_number}
+                          </span>
+                        ) : null}
                         <span className="text-xs font-black text-slate-800 truncate">{room.room_name}</span>
                         {room.is_pinned && (
                           <span className="inline-flex items-center space-x-0.5 bg-amber-500/90 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-2xs">
@@ -911,15 +941,28 @@ export default function AdminAgents() {
 
             {/* Scrollable Modal Content */}
             <div className="overflow-y-auto space-y-3.5 pr-1 -mr-1 flex-1 py-1">
-              {/* Room Name */}
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase">Room Name</label>
-                <input
-                  type="text"
-                  value={editRoomName}
-                  onChange={e => setEditRoomName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-sky-500"
-                />
+              {/* Room Number & Room Name */}
+              <div className="grid grid-cols-4 gap-2">
+                <div className="col-span-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Room #</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editRoomNumber}
+                    onChange={e => setEditRoomNumber(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="1"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs font-black text-amber-700 outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div className="col-span-3">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Room Name</label>
+                  <input
+                    type="text"
+                    value={editRoomName}
+                    onChange={e => setEditRoomName(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-sky-500"
+                  />
+                </div>
               </div>
 
               {/* Commission Rate (%) - Clean Mobile Card */}

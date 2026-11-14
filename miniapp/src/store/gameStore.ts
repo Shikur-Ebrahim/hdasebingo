@@ -25,6 +25,7 @@ if (typeof window !== 'undefined' && window.localStorage) {
 export interface Room {
   id: string;
   room_name: string;
+  room_number?: number;
   agent_id?: string;
   agent_name?: string;
   total_players: number;
@@ -133,6 +134,7 @@ export const useGameStore = create<GameStore>()(
               loadedRooms = dbRooms.map((r: any) => ({
                 id: r.id,
                 room_name: r.room_name,
+                room_number: r.room_number !== undefined && r.room_number !== null ? Number(r.room_number) : undefined,
                 agent_id: r.agent_id,
                 agent_name: r.agent_name,
                 total_games: Number(r.total_games || 0),
@@ -143,10 +145,13 @@ export const useGameStore = create<GameStore>()(
                 created_at: r.created_at,
               }));
 
-              // Pinned rooms ALWAYS come first
+              // Pinned rooms ALWAYS come first, then room_number ascending
               loadedRooms.sort((a, b) => {
                 if (Boolean(b.is_pinned) !== Boolean(a.is_pinned)) {
                   return b.is_pinned ? 1 : -1;
+                }
+                if (a.room_number !== undefined && b.room_number !== undefined && a.room_number !== b.room_number) {
+                  return Number(a.room_number) - Number(b.room_number);
                 }
                 return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
               });

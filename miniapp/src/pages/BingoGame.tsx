@@ -1241,6 +1241,11 @@ export default function BingoGame() {
                             <span className="text-xs">📌</span>
                           </div>
                         ) : null}
+                        {room.room_number ? (
+                          <span className="absolute bottom-1.5 left-2 bg-amber-400/90 text-slate-950 text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-xs">
+                            #{room.room_number}
+                          </span>
+                        ) : null}
                         <div className="absolute top-2 right-2 flex items-center space-x-1 bg-white/10 px-1.5 py-0.5 rounded-full">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                           <span className="text-[7px] font-black text-white uppercase tracking-wider">LIVE</span>
@@ -1343,7 +1348,7 @@ export default function BingoGame() {
                   </span>
                 </div>
                 <h3 className="font-black text-sm text-slate-800 leading-tight">
-                  {selectedRoom?.room_name || 'Active Room'}
+                  {selectedRoom ? `${selectedRoom.room_number ? `#${selectedRoom.room_number} ` : ''}${selectedRoom.room_name}` : 'Active Room'}
                 </h3>
                 <p className="text-[9px] text-slate-500 font-semibold mt-0.5">
                   <Users size={11} className="inline mr-1 text-slate-400 -mt-0.5" />{selectedRoom?.total_players || 0} {language === 'am' ? '\u1270\u132b\u12cb\u127e\u127d' : 'players'} • <Gamepad2 size={11} className="inline mr-1 ml-1.5 text-slate-400 -mt-0.5" />{selectedRoom?.total_games || 0} {language === 'am' ? '\u1328\u12cb\u1273\u12c8\u127d' : 'games'}
