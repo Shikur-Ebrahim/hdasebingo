@@ -186,12 +186,15 @@ export default function Profile() {
               <ChevronRight size={11} className="text-slate-300" />
             </button>
 
-            <button onClick={() => { setProfileOpen(false); triggerPWAInstall(); }} className={`${row} bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/30`}>
-              <div className={icon('bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300')}><Download size={12} /></div>
-              <span className="flex-1 font-black text-amber-900 dark:text-amber-300 text-[10px]">መተግበሪያውን ጫን • Install App</span>
-              <span className="text-[7.5px] font-black bg-amber-500 text-slate-950 px-1.5 py-0.5 rounded-full mr-1 shadow-xs">PWA</span>
-              <ChevronRight size={11} className="text-amber-400" />
-            </button>
+            {/* Install App - only visible when visiting via external browser and not yet installed */}
+            {typeof window !== 'undefined' && !window.matchMedia('(display-mode: standalone)').matches && !(window.navigator as any).standalone && !(window as any).Telegram?.WebApp?.initData && localStorage.getItem('hdase_pwa_installed') !== 'true' && (
+              <button onClick={() => { setProfileOpen(false); triggerPWAInstall(); }} className={`${row} bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/30`}>
+                <div className={icon('bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300')}><Download size={12} /></div>
+                <span className="flex-1 font-black text-amber-900 dark:text-amber-300 text-[10px]">መተግበሪያውን ጫን • Install App</span>
+                <span className="text-[7.5px] font-black bg-amber-500 text-slate-950 px-1.5 py-0.5 rounded-full mr-1 shadow-xs">PWA</span>
+                <ChevronRight size={11} className="text-amber-400" />
+              </button>
+            )}
 
             <button onClick={() => navigateTo('/rules')} className={row}>
               <div className={icon('bg-yellow-50 text-yellow-500')}><BookOpen size={12} /></div>
