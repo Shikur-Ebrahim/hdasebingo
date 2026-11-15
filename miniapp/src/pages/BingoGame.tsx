@@ -1410,29 +1410,20 @@ export default function BingoGame() {
 
     const renderCartelaCard = (card: { cartela_number: number; card_matrix: number[][] }, isSingle: boolean) => {
       return (
-        <div className="w-full rounded-xl overflow-hidden bg-gradient-to-b from-white via-[#fffdfa] to-[#f8f3ea] border-2 border-amber-400/90 shadow-[0_3px_8px_-1px_rgba(180,83,9,0.2),0_1.5px_3px_-1px_rgba(0,0,0,0.08),inset_0_1px_1px_rgba(255,255,255,1)] ring-1 ring-amber-500/20">
-          {/* Embossed Card Header: HDASE #number */}
-          <div className="px-1.5 py-0.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 flex items-center justify-between shadow-[0_1px_2px_rgba(180,83,9,0.3),inset_0_1px_0_rgba(255,255,255,0.7)] border-b border-amber-300">
-            <span className="text-[8px] font-black tracking-wider text-amber-950 drop-shadow-[0_0.5px_0_rgba(255,255,255,0.7)]">
-              HDASE
-            </span>
-            <span className="text-[7.5px] font-black bg-amber-950/85 text-amber-100 px-1.5 py-0.2 rounded shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">
-              #{card.cartela_number}
-            </span>
-          </div>
-
-          {/* B I N G O Color Bar */}
+        <div className="w-full rounded-xl overflow-hidden bg-white border border-amber-300/90 shadow-[0_2px_6px_rgba(180,83,9,0.12),inset_0_1px_0_rgba(255,255,255,0.9)] flex flex-col">
+          {/* B I N G O Header Row - Starts directly here, NO orange HDASE header bar */}
           <div className="grid grid-cols-5 gap-[1px]">
             {[
-              { l: 'B', bg: 'from-blue-500 via-blue-600 to-blue-700', bdr: 'border-blue-400' },
-              { l: 'I', bg: 'from-purple-500 via-purple-600 to-purple-700', bdr: 'border-purple-400' },
-              { l: 'N', bg: 'from-pink-500 via-pink-600 to-pink-700', bdr: 'border-pink-400' },
-              { l: 'G', bg: 'from-emerald-500 via-emerald-600 to-emerald-700', bdr: 'border-emerald-400' },
-              { l: 'O', bg: 'from-sky-500 via-sky-600 to-sky-700', bdr: 'border-sky-400' },
+              { l: 'B', bg: '#2563eb' },
+              { l: 'I', bg: '#7c3aed' },
+              { l: 'N', bg: '#ec4899' },
+              { l: 'G', bg: '#16a34a' },
+              { l: 'O', bg: '#0284c7' },
             ].map(c => (
               <div
                 key={c.l}
-                className={`bg-gradient-to-b ${c.bg} ${c.bdr} border-t py-0.5 text-center font-black text-white text-[9px] leading-tight shadow-[0_1px_2px_rgba(0,0,0,0.2),inset_0_0.5px_0_rgba(255,255,255,0.5)]`}
+                className="py-0.5 text-center font-black text-white text-[8.5px] sm:text-[9.5px] leading-tight shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]"
+                style={{ backgroundColor: c.bg }}
               >
                 {c.l}
               </div>
@@ -1440,7 +1431,7 @@ export default function BingoGame() {
           </div>
 
           {/* 5x5 Matrix */}
-          <div className="grid grid-cols-5 gap-[1.5px] p-[1.5px] bg-amber-50/70">
+          <div className="grid grid-cols-5 gap-[1px] p-[1px] bg-amber-50/40">
             {Array.from({ length: 5 }).flatMap((_, r) =>
               Array.from({ length: 5 }, (_, c) => {
                 const num = card.card_matrix[r][c];
@@ -1465,8 +1456,8 @@ export default function BingoGame() {
                         WebApp.HapticFeedback.selectionChanged();
                       }
                     }}
-                    className={`aspect-square flex items-center justify-center font-black rounded-[2.5px] select-none transition-all duration-150 ${
-                      isSingle ? 'text-xs' : 'text-[9.5px] sm:text-[10px]'
+                    className={`aspect-square flex items-center justify-center font-black rounded-[2px] select-none transition-all duration-150 ${
+                      isSingle ? 'text-xs' : 'text-[9px] sm:text-[10px]'
                     } ${
                       isFree
                         ? 'bg-gradient-to-b from-amber-300 via-yellow-400 to-amber-500 text-amber-950 font-black shadow-[0_1px_2px_rgba(217,119,6,0.35),inset_0_0.5px_0.5px_rgba(255,255,255,0.9)] text-[11px]'
@@ -1476,7 +1467,7 @@ export default function BingoGame() {
                         ? 'bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-600 text-white font-black shadow-[0_1.5px_3px_rgba(16,185,129,0.4),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_-1px_1px_rgba(5,150,105,0.5)] border border-emerald-400'
                         : canTap
                         ? 'bg-white text-blue-900 font-black border-2 border-blue-400 ring-2 ring-blue-300/80 shadow-[0_0_6px_rgba(59,130,246,0.5),inset_0_1px_1px_rgba(255,255,255,1)] animate-pulse active:scale-90 cursor-pointer'
-                        : 'bg-gradient-to-b from-white via-[#fafbfe] to-[#ebeff8] text-slate-800 font-bold border border-slate-200/90 shadow-[0_1px_1.5px_rgba(0,0,0,0.06),inset_0_0.5px_0_rgba(255,255,255,0.95)]'
+                        : 'bg-gradient-to-b from-white via-[#fafbfe] to-[#ebeff8] text-slate-800 font-bold border border-slate-200/80 shadow-[0_1px_1.5px_rgba(0,0,0,0.06),inset_0_0.5px_0_rgba(255,255,255,0.95)]'
                     }`}
                   >
                     {isFree ? '★' : num}
@@ -1486,41 +1477,42 @@ export default function BingoGame() {
             )}
           </div>
 
-          {/* Card Footer: CARTELA #{num} */}
-          <div className="py-0.5 px-1 flex items-center justify-center bg-white border-t border-amber-200/70">
-            <p className="text-amber-800 font-black text-[8px] tracking-wider uppercase flex items-center gap-1 leading-none">
-              <LayoutGrid size={9} className="text-amber-500 shrink-0" />
-              <span>CARTELA #{card.cartela_number}</span>
-            </p>
+          {/* Ultra-slim Footer: #number on left, CARTELA on right */}
+          <div className="py-0.5 px-1.5 flex items-center justify-between bg-white border-t border-amber-200/60 leading-none">
+            <span className="text-slate-500 font-black text-[7.5px]">#{card.cartela_number}</span>
+            <span className="text-amber-800 font-black text-[7.5px] uppercase tracking-wider flex items-center gap-0.5">
+              <LayoutGrid size={8} className="text-amber-500 inline" />
+              <span>CARTELA</span>
+            </span>
           </div>
         </div>
       );
     };
 
     return (
-      <div className="h-full flex flex-col px-1 pt-1 pb-1 gap-1 overflow-hidden select-none">
+      <div className="h-full flex flex-col px-1 pt-1 pb-0.5 gap-1 overflow-hidden select-none">
 
         {/* Top Info Bar */}
-        <div className="flex items-center justify-between bg-gradient-to-r from-white via-amber-50/60 to-white px-2.5 py-1.5 rounded-xl border border-amber-200/80 shadow-[0_2px_4px_rgba(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.9)] shrink-0">
-          <div className="text-slate-600 text-[9px] font-black">ID: {formatGameId(game.id)}</div>
-          <div className="flex items-center gap-1 text-amber-700 text-[9px] font-black"><Trophy size={10} className="text-amber-500"/> {game.prize_pool} ETB</div>
-          <div className="flex items-center gap-1 text-blue-700 text-[9px] font-black"><LayoutGrid size={10} className="text-blue-500"/> {taken.length}</div>
-          <div className="flex items-center gap-1 text-emerald-700 text-[9px] font-black"><Clock size={10} className="text-emerald-500"/> {called.length}/75</div>
-          <div className="text-[8px] bg-red-500/10 text-red-600 px-2 py-0.5 rounded-full font-black animate-pulse border border-red-200">LIVE</div>
+        <div className="flex items-center justify-between bg-gradient-to-r from-white via-amber-50/60 to-white px-2.5 py-1 rounded-xl border border-amber-200/80 shadow-[0_2px_4px_rgba(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.9)] shrink-0">
+          <div className="text-slate-600 text-[8.5px] font-black">ID: {formatGameId(game.id)}</div>
+          <div className="flex items-center gap-1 text-amber-700 text-[8.5px] font-black"><Trophy size={9.5} className="text-amber-500"/> {game.prize_pool} ETB</div>
+          <div className="flex items-center gap-1 text-blue-700 text-[8.5px] font-black"><LayoutGrid size={9.5} className="text-blue-500"/> {taken.length}</div>
+          <div className="flex items-center gap-1 text-emerald-700 text-[8.5px] font-black"><Clock size={9.5} className="text-emerald-500"/> {called.length}/75</div>
+          <div className="text-[7.5px] bg-red-500/10 text-red-600 px-2 py-0.2 rounded-full font-black animate-pulse border border-red-200">LIVE</div>
         </div>
 
         {/* 1-75 Tracker Board with 3D tactile tiles */}
-        <div className="bg-white/95 rounded-2xl px-2 py-1.5 border-2 border-amber-200/90 shadow-[0_2px_8px_rgba(180,83,9,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] shrink-0">
-          <div className="flex flex-col gap-[2.5px]">
+        <div className="bg-white/95 rounded-xl px-1.5 py-1 border border-amber-200/90 shadow-[0_2px_6px_rgba(180,83,9,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] shrink-0">
+          <div className="flex flex-col gap-[2px]">
             {BINGO_LETTERS.map((letter, rowIndex) => (
               <div key={letter} className="flex items-center gap-1">
                 <div
-                  className="w-3.5 flex-shrink-0 flex items-center justify-center font-black text-[9.5px] leading-none"
+                  className="w-3 flex-shrink-0 flex items-center justify-center font-black text-[9px] leading-none"
                   style={{ color: LETTER_COLOR[letter] }}
                 >
                   {letter}
                 </div>
-                <div className="flex-1 grid gap-[2px]" style={{ gridTemplateColumns: 'repeat(15, minmax(0, 1fr))' }}>
+                <div className="flex-1 grid gap-[1.5px]" style={{ gridTemplateColumns: 'repeat(15, minmax(0, 1fr))' }}>
                   {Array.from({ length: 15 }, (_, i) => {
                     const num = rowIndex * 15 + i + 1;
                     const isCalled = called.includes(num);
@@ -1528,12 +1520,12 @@ export default function BingoGame() {
                     return (
                       <div
                         key={num}
-                        className={`h-[17px] rounded-[3px] flex items-center justify-center text-[7.5px] sm:text-[8px] font-black transition-all duration-150 select-none ${
+                        className={`h-[13px] sm:h-[14px] rounded-[2.5px] flex items-center justify-center text-[7px] sm:text-[7.5px] font-black transition-all duration-150 select-none ${
                           isLatest
-                            ? 'bg-gradient-to-b from-yellow-300 via-amber-400 to-yellow-500 text-amber-950 font-black shadow-[0_0_8px_rgba(245,158,11,0.9),0_2px_3px_rgba(0,0,0,0.2),inset_0_1px_1px_rgba(255,255,255,0.95)] border border-amber-200 ring-2 ring-orange-500 animate-pulse scale-110 z-20'
+                            ? 'bg-gradient-to-b from-yellow-300 via-amber-400 to-yellow-500 text-amber-950 font-black shadow-[0_0_8px_rgba(245,158,11,0.9),0_1.5px_2px_rgba(0,0,0,0.2),inset_0_1px_1px_rgba(255,255,255,0.95)] border border-amber-200 ring-2 ring-orange-500 animate-pulse scale-110 z-20'
                             : isCalled
-                            ? 'bg-gradient-to-b from-amber-400 via-orange-500 to-amber-600 text-white font-black shadow-[0_1.5px_2.5px_rgba(234,88,12,0.4),inset_0_1px_0.5px_rgba(255,255,255,0.8),inset_0_-1px_1px_rgba(180,83,9,0.4)] border border-amber-300'
-                            : 'bg-gradient-to-b from-white via-[#fafbfe] to-[#ebeff8] text-slate-500 font-bold border border-slate-200/80 shadow-[0_1px_1px_rgba(0,0,0,0.05),inset_0_0.5px_0_rgba(255,255,255,0.95)]'
+                            ? 'bg-gradient-to-b from-amber-400 via-orange-500 to-amber-600 text-white font-black shadow-[0_1px_2px_rgba(234,88,12,0.4),inset_0_0.5px_0.5px_rgba(255,255,255,0.8),inset_0_-0.5px_0.5px_rgba(180,83,9,0.4)] border border-amber-300'
+                            : 'bg-gradient-to-b from-white via-[#fafbfe] to-[#ebeff8] text-slate-500 font-bold border border-slate-200/80 shadow-[0_0.5px_1px_rgba(0,0,0,0.05),inset_0_0.5px_0_rgba(255,255,255,0.95)]'
                         }`}
                       >
                         {num}
@@ -1546,36 +1538,36 @@ export default function BingoGame() {
           </div>
         </div>
 
-        {/* 3D Calling Ball Row + Amharic Text + Past 3 Balls + Sound & Manual Controls */}
-        <div className="shrink-0 bg-white/95 rounded-2xl border-2 border-amber-200/90 shadow-[0_2px_8px_rgba(180,83,9,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] px-2.5 py-1.5 w-full max-w-[420px] mx-auto">
+        {/* 3D Calling Ball Row with Black Ball & White Number + Past 3 Balls + Controls */}
+        <div className="shrink-0 bg-white/95 rounded-xl border border-amber-200/90 shadow-[0_2px_6px_rgba(180,83,9,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] px-2 py-1 w-full max-w-[420px] mx-auto">
           <div className="flex items-center justify-between gap-1.5">
             {/* Calling Ball & Amharic Text */}
-            <div className="flex items-center gap-2 min-w-0">
-              {/* 3D Big Glossy Calling Ball */}
-              <div className="w-11 h-11 rounded-full flex flex-col items-center justify-center font-black relative overflow-hidden bg-gradient-to-br from-[#ffffff] via-[#fff3d4] to-[#f59e0b] border-2 border-amber-300 shadow-[0_3px_8px_rgba(180,83,9,0.35),inset_0_1.5px_2px_rgba(255,255,255,1),inset_0_-1.5px_2px_rgba(180,83,9,0.4)] shrink-0">
-                <div className="absolute top-0.5 left-1.5 w-3 h-1.5 rounded-full bg-white/80 blur-[0.4px] pointer-events-none transform -rotate-12" />
-                <span className="text-[8px] leading-none font-black text-amber-950/80 drop-shadow-[0_0.5px_0_rgba(255,255,255,0.8)]">
+            <div className="flex items-center gap-1.5 min-w-0">
+              {/* 3D Black Calling Ball with White Number */}
+              <div className="w-9.5 h-9.5 sm:w-10 sm:h-10 rounded-full flex flex-col items-center justify-center font-black relative overflow-hidden bg-radial from-[#374151] via-[#18181b] to-[#09090b] border-2 border-slate-700 shadow-[0_3px_8px_rgba(0,0,0,0.6),inset_0_1.5px_2px_rgba(255,255,255,0.35),inset_0_-2px_3px_rgba(0,0,0,0.9)] shrink-0">
+                <div className="absolute top-0.5 left-1.5 w-2.5 h-1.5 rounded-full bg-white/35 blur-[0.3px] pointer-events-none transform -rotate-12" />
+                <span className="text-[7px] sm:text-[7.5px] leading-none font-black text-amber-400 drop-shadow-[0_1px_1px_rgba(0,0,0,1)]">
                   {lastNum ? currentLetter : 'BINGO'}
                 </span>
-                <span className="text-slate-950 text-base leading-none font-black drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)]">
+                <span className="text-white text-sm sm:text-base leading-none font-black drop-shadow-[0_1.5px_3px_rgba(0,0,0,1)]">
                   {lastNum ?? '?'}
                 </span>
               </div>
 
               {/* Amharic Voice Word */}
-              <span className="text-amber-900 font-black text-xs sm:text-sm tracking-wide drop-shadow-[0_0.5px_0_rgba(255,255,255,0.8)] truncate max-w-[95px]">
+              <span className="text-amber-900 font-black text-xs tracking-wide drop-shadow-[0_0.5px_0_rgba(255,255,255,0.8)] truncate max-w-[90px]">
                 {lastNum ? (AMHARIC_NUM[lastNum] || '') : 'በመጠባበቅ ላይ...'}
               </span>
 
-              {/* Past 3 Called Mini 3D Balls */}
+              {/* Past 3 Called Mini 3D Black Balls */}
               <div className="flex items-center gap-1 shrink-0">
                 {recent.slice(1, 4).map((num, idx) => (
                   <div
                     key={`${num}-${idx}`}
-                    className="w-6 h-6 rounded-full flex flex-col items-center justify-center font-black relative overflow-hidden bg-gradient-to-br from-white via-amber-50 to-amber-200 border border-amber-300 shadow-[0_1.5px_3px_rgba(180,83,9,0.2),inset_0_1px_1px_rgba(255,255,255,0.9)] shrink-0"
+                    className="w-5.5 h-5.5 rounded-full flex flex-col items-center justify-center font-black relative overflow-hidden bg-radial from-[#374151] via-[#18181b] to-[#09090b] border border-slate-600 shadow-[0_1.5px_3px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.3)] shrink-0"
                   >
-                    <span className="text-[6px] leading-none font-black text-amber-900">{getLetter(num)}</span>
-                    <span className="text-[9px] leading-none font-black text-slate-800">{num}</span>
+                    <span className="text-[5px] leading-none font-black text-amber-400">{getLetter(num)}</span>
+                    <span className="text-[8px] leading-none font-black text-white">{num}</span>
                   </div>
                 ))}
               </div>
@@ -1586,20 +1578,20 @@ export default function BingoGame() {
               {/* 3D Sound Toggle Button */}
               <button
                 onClick={toggleSound}
-                className={`h-6 px-2 rounded-lg border flex items-center justify-center gap-1 active:scale-90 transition-all cursor-pointer ${
+                className={`h-5.5 px-2 rounded-lg border flex items-center justify-center gap-1 active:scale-90 transition-all cursor-pointer ${
                   soundEnabled
                     ? 'bg-gradient-to-b from-blue-400 via-blue-500 to-blue-600 text-white border-blue-300 shadow-[0_2px_4px_rgba(37,99,235,0.35),inset_0_1px_0_rgba(255,255,255,0.8)]'
                     : 'bg-gradient-to-b from-slate-100 to-slate-200 text-slate-400 border-slate-300 shadow-[inset_0_1px_1px_rgba(0,0,0,0.1)]'
                 }`}
                 title={soundEnabled ? 'Mute audio' : 'Unmute audio'}
               >
-                {soundEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
+                {soundEnabled ? <Volume2 size={11} /> : <VolumeX size={11} />}
               </button>
 
               {/* 3D Manual / Auto Toggle Pill */}
               <button
                 onClick={toggleAutoMark}
-                className={`h-5 px-2 rounded-full border flex items-center gap-1 font-black text-[7.5px] tracking-wider uppercase active:scale-90 transition-all cursor-pointer ${
+                className={`h-5 px-1.5 rounded-full border flex items-center gap-1 font-black text-[7px] tracking-wider uppercase active:scale-90 transition-all cursor-pointer ${
                   !autoMark
                     ? 'bg-gradient-to-b from-amber-400 via-orange-500 to-amber-600 text-white border-amber-300 shadow-[0_2px_3px_rgba(234,88,12,0.35),inset_0_1px_0_rgba(255,255,255,0.8)]'
                     : 'bg-gradient-to-b from-slate-700 via-slate-800 to-slate-900 text-emerald-300 border-slate-600 shadow-[inset_0_1px_1px_rgba(0,0,0,0.3)]'
@@ -1613,15 +1605,15 @@ export default function BingoGame() {
           </div>
         </div>
 
-        {/* Cartelas Section - NO HEADER as explicitly requested, compact 3D styling */}
+        {/* Cartelas Section - NO HEADER, compact height, all 4 cartelas fit cleanly without cut-off */}
         <div className="flex-1 min-h-0 overflow-y-auto px-0.5 py-0.5 scrollbar-none flex flex-col justify-start">
           {myCartelas.length > 0 ? (
             myCartelas.length === 1 ? (
-              <div className="w-full max-w-[260px] mx-auto py-1">
+              <div className="w-full max-w-[240px] mx-auto py-0.5">
                 {renderCartelaCard(myCartelas[0], true)}
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-1.5 w-full max-w-[420px] mx-auto">
+              <div className="grid grid-cols-2 gap-1 w-full max-w-[420px] mx-auto">
                 {myCartelas.map(card => (
                   <div key={card.cartela_number} className="w-full">
                     {renderCartelaCard(card, false)}
@@ -1630,7 +1622,7 @@ export default function BingoGame() {
               </div>
             )
           ) : (
-            <div className="w-full max-w-[260px] mx-auto relative mt-2 pointer-events-none">
+            <div className="w-full max-w-[250px] mx-auto relative mt-2 pointer-events-none">
               <div className="rounded-2xl overflow-hidden border-2 border-amber-300 bg-white shadow-md">
                 <div className="grid grid-cols-5">
                   {BINGO_LETTERS.map(l => (
