@@ -328,7 +328,7 @@ export default function Home() {
   const formatMoney = (amount: number | undefined) => (amount || 0).toLocaleString('en-US');
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-64px)] max-h-[calc(100dvh-64px)] overflow-hidden space-y-2 pb-1">
+    <div className="flex flex-col min-h-screen pb-20 space-y-2.5">
 
       {/* HOME VIDEO GUIDE FULLSCREEN POPUP (CLEAN WHITE THEME) */}
       {showVideoPopup && homePopupVideo && (
@@ -611,9 +611,9 @@ export default function Home() {
       </div>
 
       {/* ══════════ LIVE STAKE TABLES SECTION (SELECT MEDEB) ══════════ */}
-      <div className="px-3 flex-1 flex flex-col min-h-0 justify-between pb-1">
-        {/* Section title */}
-        <div className="flex items-center justify-between mb-1 px-0.5 shrink-0">
+      <div className="px-3 pb-2">
+        {/* Section title: SELECT MEDEB */}
+        <div className="flex items-center justify-between mb-2 px-0.5">
           <h2 className="text-xs font-black text-slate-800 tracking-wider uppercase">
             SELECT MEDEB
           </h2>
@@ -626,8 +626,8 @@ export default function Home() {
           </button>
         </div>
 
-        {/* 4 Live Stake Tables Grid - Fits perfectly without scrolling */}
-        <div className="grid grid-cols-2 gap-2 flex-1 min-h-0">
+        {/* 4 Live Stake Tables Grid - Snug, compact, exactly matches reference screenshot */}
+        <div className="grid grid-cols-2 gap-2.5">
           {activeStakes.map((stake, idx) => {
             const hg = homeGames[stake];
             const pool = hg?.pool || 0;
@@ -657,52 +657,50 @@ export default function Home() {
             return (
               <div
                 key={stake}
-                className="bg-white rounded-2xl shadow-xs border border-slate-100 overflow-hidden flex flex-col justify-between"
+                className="bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] border border-slate-100/90 overflow-hidden flex flex-col"
               >
-                {/* Header with rounded-t-2xl and bright gradient */}
+                {/* Header with vibrant gradient (exact height ~64px, snug & centered) */}
                 <div
                   onClick={handleJoin}
-                  className={`h-14 sm:h-16 bg-gradient-to-r ${theme.gradient} flex items-center justify-center relative rounded-t-2xl cursor-pointer active:opacity-95 transition-opacity`}
+                  className={`h-16 bg-gradient-to-r ${theme.gradient} flex items-center justify-center relative rounded-t-2xl cursor-pointer active:opacity-95 transition-opacity`}
                 >
-                  {/* Big bold centered number */}
-                  <span className="text-white font-black text-2xl sm:text-3xl tracking-tight drop-shadow-xs select-none">
+                  <span className="text-white font-black text-3xl tracking-tight drop-shadow-xs select-none">
                     {stake}
                   </span>
-                  {/* Top-right translucent "ETB" pill */}
-                  <div className="absolute top-1.5 right-1.5 bg-white/25 backdrop-blur-xs text-white text-[8px] font-black px-1.5 py-0.2 rounded tracking-wider select-none">
+                  <div className="absolute top-2 right-2 bg-white/25 backdrop-blur-xs text-white text-[8.5px] font-black px-1.5 py-0.5 rounded tracking-wider select-none">
                     ETB
                   </div>
                 </div>
 
-                {/* 3-Column Stats Row */}
-                <div className="px-1 py-1.5 flex items-center justify-between text-center border-b border-slate-50 bg-white select-none">
+                {/* 3-Column Stats Row (snug, no empty vertical gap) */}
+                <div className="px-2 py-2 flex items-center justify-between text-center border-b border-slate-50 bg-white select-none">
                   <div className="flex-1 flex flex-col items-center">
-                    <span className="text-[7.5px] font-bold text-slate-400 uppercase tracking-wider">DERASH</span>
-                    <span className="text-[9.5px] font-black text-[#e5a000] mt-0.5">{pool} ETB</span>
+                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">DERASH</span>
+                    <span className="text-[10px] font-black text-amber-500 mt-0.5">{pool} ETB</span>
                   </div>
                   <div className="flex-1 flex flex-col items-center">
-                    <span className="text-[7.5px] font-bold text-slate-400 uppercase tracking-wider">PLAYERS</span>
-                    <span className="text-[9.5px] font-black text-[#00c853] mt-0.5">{players}</span>
+                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">PLAYERS</span>
+                    <span className="text-[10px] font-black text-emerald-500 mt-0.5">{players}</span>
                   </div>
                   <div className="flex-1 flex flex-col items-center">
-                    <span className="text-[7.5px] font-bold text-slate-400 uppercase tracking-wider">STATUS</span>
-                    <span className={`text-[9.5px] font-black mt-0.5 ${
+                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">STATUS</span>
+                    <span className={`text-[10px] font-black mt-0.5 ${
                       isCalling
                         ? 'text-emerald-500 animate-pulse'
                         : isCountingDown
                         ? 'text-amber-500'
-                        : 'text-[#e67e22]'
+                        : 'text-orange-400'
                     }`}>
                       {isCalling ? 'Calling...' : isCountingDown ? `${timeLeft}s...` : 'Waiting...'}
                     </span>
                   </div>
                 </div>
 
-                {/* Bottom Action Button: Join Room */}
-                <div className="p-2 pt-0.5 bg-white">
+                {/* Bottom Action Button: Join Room (neatly placed right below stats) */}
+                <div className="p-2 pt-1.5 bg-white">
                   <button
                     onClick={handleJoin}
-                    className="w-full bg-[#eef3f9] hover:bg-[#e2eaf5] active:scale-95 text-slate-700 font-extrabold py-1.5 rounded-xl text-[11px] transition-all shadow-2xs border border-slate-200/50 flex items-center justify-center cursor-pointer"
+                    className="w-full bg-[#eef3f9] hover:bg-[#e2eaf5] active:scale-95 text-slate-700 font-extrabold py-2 rounded-xl text-xs transition-all shadow-2xs border border-slate-200/60 flex items-center justify-center cursor-pointer"
                   >
                     Join Room
                   </button>
