@@ -526,28 +526,30 @@ export default function Home() {
       {/* HERO LIVE BINGO BANNER (Spacious Image 2 design) */}
       <div className="px-4 shrink-0">
         <Link
-          to={`/bingo/live?stake=${activeStakes[0]}&room=${activeRoomId}`}
+          to={`/bingo/live?stake=${activeStakes[0] || 5}&room=${activeRoomId}`}
           onClick={(e) => {
             if (!user && !WebApp?.initData) {
               e.preventDefault();
               setAuthModalOpen(true);
+              return;
             }
+            if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
           }}
-          className="block relative rounded-2xl overflow-hidden shadow-md h-48 sm:h-52 flex flex-col items-center justify-center border border-amber-100"
+          className="block relative rounded-2xl overflow-hidden shadow-md h-48 sm:h-52 flex flex-col items-center justify-center border border-amber-100 cursor-pointer active:scale-[0.99] transition-transform"
         >
           {/* Light gradient background — matches loading screen */}
-          <div className="absolute inset-0" style={{
+          <div className="absolute inset-0 pointer-events-none" style={{
             background: 'linear-gradient(135deg, #fffbf0 0%, #fef3c7 40%, #fff8e8 70%, #fffbf0 100%)',
           }} />
           {/* Subtle radial glow in center */}
-          <div className="absolute inset-0" style={{
+          <div className="absolute inset-0 pointer-events-none" style={{
             background: 'radial-gradient(ellipse at 50% 60%, rgba(251,191,36,0.18) 0%, transparent 70%)',
           }} />
           {/* Top border accent */}
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-400" />
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-400 pointer-events-none" />
 
           {/* Scrolling marquee strip — live room names */}
-          <div className="absolute top-1 left-0 right-0 overflow-hidden py-1.5 bg-amber-50/80 border-b border-amber-200/60" style={{ top: '4px' }}>
+          <div className="absolute top-1 left-0 right-0 overflow-hidden py-1.5 bg-amber-50/80 border-b border-amber-200/60 pointer-events-none" style={{ top: '4px' }}>
             {(() => {
               const publicOrUserRooms = rooms.filter(r => !r.is_private || (userInvitedRoomId && r.id === userInvitedRoomId));
               return publicOrUserRooms.length > 0 ? (

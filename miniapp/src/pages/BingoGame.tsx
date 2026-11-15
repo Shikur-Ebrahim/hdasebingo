@@ -191,8 +191,12 @@ export default function BingoGame() {
     return () => { unsub(); };
   }, [fetchRooms, subscribeToRooms, rooms.length]);
 
-  // Keep selectedRoomId in sync if URL query changes or when rooms load
+  // Keep selectedStake and selectedRoomId in sync if URL query changes or when rooms load
   useEffect(() => {
+    const s = searchParams.get("stake");
+    if (s && !isNaN(Number(s))) {
+      setSelectedStake(Number(s));
+    }
     const r = searchParams.get("room");
     if (r) {
       setSelectedRoomId(r);
@@ -1072,7 +1076,7 @@ export default function BingoGame() {
           ))}
         </div>
 
-        <div className="relative z-10 flex flex-col h-full">
+        <div className="relative z-10 flex flex-col h-full overflow-y-auto pb-4">
           {/* Header */}
           <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white shadow-2xs">
             <div className="flex items-center space-x-2.5">
@@ -1130,63 +1134,83 @@ export default function BingoGame() {
             {t[language].bingo.selectStakeWinBig}
           </p>
           
-          {/* Stakes Grid (Dynamic per Room) */}
-          <div className="flex-1 grid grid-cols-2 gap-3 px-4 pb-2 min-h-0">
-            {dynamicStakeOptions.map((opt: { value: number; label: string; color: string }) => {
+          {/* Stakes Grid (Dynamic per Room) - Matching Home Page Design */}
+          <div className="grid grid-cols-2 gap-2.5 px-3 pb-2">
+            {dynamicStakeOptions.map((opt: { value: number; label: string; color: string }, idx: number) => {
               const hg = homeGames[opt.value];
               const pool = hg?.pool || 0;
               const players = hg?.players || 0;
-              const hasGame = pool > 0;
-              const isWaiting = hg?.status === 'waiting';
               const isCalling = hg?.status === 'calling';
               const tl = homeTimeLeft[opt.value] || 0;
-              
-              let statusTxt = "Waiting...";
-              let statusCls = "text-orange-500";
-              if (isWaiting && players > 0 && tl > 0 && tl <= 120) {
-                statusTxt = `${tl}s`;
-              } else if (isCalling) {
-                statusTxt = "Active";
-                statusCls = "text-emerald-500";
-              }
+              const isCountingDown = hg?.status === 'waiting' && players > 0 && tl > 0 && tl <= 120;
+
+              const THEMES = [
+                { gradient: 'from-[#2979ff] to-[#1565c0]' }, // Blue
+                { gradient: 'from-[#00c853] to-[#009624]' }, // Green
+                { gradient: 'from-[#ab47bc] to-[#7b1fa2]' }, // Purple
+                { gradient: 'from-[#ff2a55] to-[#d50000]' }, // Red
+              ];
+              const theme = THEMES[idx % THEMES.length];
+
+              const handleSelect = () => {
+                if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
+                initWebAudio();
+                setSelectedStake(opt.value);
+                setSearchParams(params => {
+                  params.set('stake', String(opt.value));
+                  return params;
+                });
+              };
 
               return (
-                <button key={opt.value} onClick={() => { setSelectedStake(opt.value); initWebAudio(); }}
-                  className="relative overflow-hidden bg-white border border-slate-200 rounded-2xl flex flex-col active:scale-95 transition-all duration-300 shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
-                  <div className={`absolute inset-0 bg-gradient-to-br ${opt.color} opacity-10`}></div>
-                  
-                  {/* Top: STAKE */}
-                  <div className="flex-1 flex flex-col items-center justify-center w-full relative z-10 pt-2">
-                    <span className="text-slate-500 font-bold text-[8px] uppercase tracking-widest">{t[language].bingo.stake}</span>
-                    <span className="text-slate-800 font-black text-4xl leading-none mt-1">{opt.value}</span>
-                    <span className="text-slate-500 font-bold text-[8px] uppercase tracking-widest mt-1">ETB</span>
-                  </div>
-
-                  {/* Middle: Derash | Players | Status - 3 columns */}
-                  <div className="w-full bg-slate-50 border-t border-b border-slate-100 flex h-[35px] shrink-0 relative z-10">
-                    <div className="flex-1 flex flex-col items-center justify-center border-r border-slate-100">
-                      <span className="text-slate-400 text-[7px] font-bold uppercase tracking-wider">{t[language].bingo.derash}</span>
-                      <span className={`text-[10px] font-black text-yellow-600 ${hasGame ? 'animate-pulse' : ''}`}>{pool} ETB</span>
-                    </div>
-                    <div className="flex-1 flex flex-col items-center justify-center border-r border-slate-100">
-                      <span className="text-slate-400 text-[7px] font-bold uppercase tracking-wider">{t[language].bingo.players}</span>
-                      <span className="text-[10px] font-black text-emerald-500">{players}</span>
-                    </div>
-                    <div className="flex-1 flex flex-col items-center justify-center">
-                      <span className="text-slate-400 text-[7px] font-bold uppercase tracking-wider">{t[language].bingo.status}</span>
-                      <span className={`text-[10px] font-black ${statusCls}`}>{statusTxt}</span>
+                <div
+                  key={opt.value}
+                  onClick={handleSelect}
+                  className="bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] border border-slate-100/90 overflow-hidden flex flex-col cursor-pointer active:scale-[0.98] transition-all"
+                >
+                  {/* Header with vibrant gradient (exact height ~64px, snug & centered) - Displays DERASH */}
+                  <div
+                    className={`h-16 bg-gradient-to-r ${theme.gradient} flex items-center justify-center relative rounded-t-2xl`}
+                  >
+                    <span className="text-white font-black text-3xl tracking-tight drop-shadow-xs select-none">
+                      {pool || 0}
+                    </span>
+                    <div className="absolute top-2 right-2 bg-white/25 backdrop-blur-xs text-white text-[8.5px] font-black px-1.5 py-0.5 rounded tracking-wider select-none">
+                      ETB
                     </div>
                   </div>
 
-                  {/* Bottom: Action */}
-                  <div className="w-full h-[30px] flex items-center justify-center relative z-10 bg-white">
-                    {isWaiting ? (
-                      <span className="text-orange-500 text-[9px] font-black uppercase tracking-wider flex items-center gap-1"><Flame size={12} className="inline text-orange-500" /> {t[language].bingo.joinNow}</span>
-                    ) : (
-                      <span className="text-slate-400 text-[9px] font-bold uppercase tracking-wider">{t[language].bingo.startMatch}</span>
-                    )}
+                  {/* 2-Column Stats Row: PLAYERS and STATUS (Clickable as part of the card) */}
+                  <div className="px-3 py-2 flex items-center justify-around text-center border-b border-slate-50 bg-white select-none">
+                    <div className="flex-1 flex flex-col items-center">
+                      <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider">{t[language].bingo.players}</span>
+                      <span className="text-[11px] font-black text-emerald-500 mt-0.5">{players}</span>
+                    </div>
+                    <div className="w-px h-6 bg-slate-100" />
+                    <div className="flex-1 flex flex-col items-center">
+                      <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider">{t[language].bingo.status}</span>
+                      <span className={`text-[11px] font-black mt-0.5 ${
+                        isCalling
+                          ? 'text-emerald-500 animate-pulse'
+                          : isCountingDown
+                          ? 'text-amber-500'
+                          : 'text-orange-400'
+                      }`}>
+                        {isCalling ? 'Calling...' : isCountingDown ? `${tl}s...` : 'Waiting...'}
+                      </span>
+                    </div>
                   </div>
-                </button>
+
+                  {/* Bottom Action Button: Displays STAKE amount */}
+                  <div className="p-2 pt-1.5 bg-white">
+                    <button
+                      type="button"
+                      className="w-full bg-[#eef3f9] hover:bg-[#e2eaf5] text-slate-800 font-black py-2 rounded-xl text-xs transition-all shadow-2xs border border-slate-200/60 flex items-center justify-center pointer-events-none"
+                    >
+                      {opt.value} ETB
+                    </button>
+                  </div>
+                </div>
               );
             })}
           </div>
