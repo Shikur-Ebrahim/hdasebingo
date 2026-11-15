@@ -6,7 +6,7 @@ import { useGameStore } from '../store/gameStore';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
-export type VideoCategory = 'deposit' | 'withdraw' | 'transfer' | 'invite' | 'how_to_use' | 'how_to_play' | 'welcome';
+export type VideoCategory = 'deposit' | 'withdraw' | 'transfer' | 'invite' | 'how_to_use' | 'how_to_play' | 'welcome' | 'system_player';
 
 interface SupportVideo {
   id: string;
@@ -22,6 +22,7 @@ interface VideoGuideButtonProps {
   buttonLabel?: string;
   className?: string;
   compact?: boolean;
+  autoOpenOnceKey?: string;
 }
 
 const CATEGORY_META: Record<VideoCategory, {
@@ -35,6 +36,17 @@ const CATEGORY_META: Record<VideoCategory, {
   badgeText: string;
   emoji: string;
 }> = {
+  system_player: {
+    enTitle: 'System Player (AI Bots) Guide',
+    amTitle: 'የሲስተም ተጫዋች ቪዲዮ መመሪያ',
+    enLabel: 'Video Guide',
+    amLabel: 'የቪዲዮ መመሪያ',
+    gradient: 'from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400',
+    shadow: 'shadow-amber-500/25',
+    badgeBg: 'bg-amber-500/20 border-amber-500/40',
+    badgeText: 'text-amber-600',
+    emoji: '🤖',
+  },
   deposit: {
     enTitle: 'How to Deposit',
     amTitle: 'እንዴት ማስገባት ይቻላል?',
@@ -119,6 +131,7 @@ export default function VideoGuideButton({
   buttonLabel,
   className = '',
   compact = false,
+  autoOpenOnceKey,
 }: VideoGuideButtonProps) {
   const { language } = useGameStore();
   const [videos, setVideos] = useState<SupportVideo[]>([]);
@@ -139,7 +152,15 @@ export default function VideoGuideButton({
         if (res.ok) {
           const data = await res.json();
           if (isMounted) {
-            setVideos(data.videos || []);
+            const list = data.videos || [];
+            setVideos(list);
+            if (autoOpenOnceKey && list.length > 0) {
+              const alreadySeen = typeof window !== 'undefined' ? localStorage.getItem(autoOpenOnceKey) : null;
+              if (!alreadySeen) {
+                setIsOpen(true);
+                localStorage.setItem(autoOpenOnceKey, 'true');
+              }
+            }
           }
         }
       } catch (err) {
@@ -151,7 +172,7 @@ export default function VideoGuideButton({
     return () => {
       isMounted = false;
     };
-  }, [category]);
+  }, [category, autoOpenOnceKey]);
 
   const openModal = (e?: React.MouseEvent) => {
     if (e) {

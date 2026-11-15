@@ -2168,6 +2168,12 @@ router.post('/support-videos', async (req, res) => {
       .single();
 
     if (error) {
+      if (error.code === '23514') {
+        res.status(400).json({
+          error: `Category '${category}' is blocked by database check constraint. Please run migration 037 to enable '${category}' in public.support_videos.`,
+        });
+        return;
+      }
       // If error is missing column (e.g. 42703), retry without show_on_home & popup_max_views
       if (error.code === '42703' || String(error.message).includes('column')) {
         delete insertData.show_on_home;
@@ -2215,6 +2221,12 @@ router.put('/support-videos/:id', async (req, res) => {
       .single();
 
     if (error) {
+      if (error.code === '23514') {
+        res.status(400).json({
+          error: `Category update blocked by database check constraint. Please run migration 037 in Supabase SQL editor.`,
+        });
+        return;
+      }
       if (error.code === '42703' || String(error.message).includes('column')) {
         delete updates.show_on_home;
         delete updates.popup_max_views;

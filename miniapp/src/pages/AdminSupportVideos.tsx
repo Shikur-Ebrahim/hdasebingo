@@ -21,13 +21,14 @@ interface SupportVideo {
 }
 
 const CATEGORIES = [
-  { id: 'welcome',      label: '🎬 Welcome Video',  color: 'bg-amber-100 text-amber-700 border-amber-200' },
-  { id: 'how_to_use',   label: '📱 How to Use',     color: 'bg-blue-100 text-blue-700 border-blue-200' },
-  { id: 'how_to_play',  label: '🎮 How to Play',     color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
-  { id: 'deposit',      label: '💰 Deposit',          color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-  { id: 'withdraw',     label: '💸 Withdraw',         color: 'bg-rose-100 text-rose-700 border-rose-200' },
-  { id: 'invite',       label: '🤝 How to Invite',   color: 'bg-purple-100 text-purple-700 border-purple-200' },
-  { id: 'transfer',     label: '🔄 How to Transfer', color: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
+  { id: 'welcome',       label: '🎬 Welcome Video',        color: 'bg-amber-100 text-amber-700 border-amber-200' },
+  { id: 'system_player',  label: '🤖 System Player Guide',   color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  { id: 'how_to_use',    label: '📱 How to Use',           color: 'bg-blue-100 text-blue-700 border-blue-200' },
+  { id: 'how_to_play',   label: '🎮 How to Play',           color: 'bg-teal-100 text-teal-700 border-teal-200' },
+  { id: 'deposit',       label: '💰 Deposit',              color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+  { id: 'withdraw',      label: '💸 Withdraw',             color: 'bg-rose-100 text-rose-700 border-rose-200' },
+  { id: 'invite',        label: '🤝 How to Invite',         color: 'bg-purple-100 text-purple-700 border-purple-200' },
+  { id: 'transfer',      label: '🔄 How to Transfer',       color: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
 ];
 
 const categoryLabel = (id: string) => CATEGORIES.find(c => c.id === id)?.label ?? id;

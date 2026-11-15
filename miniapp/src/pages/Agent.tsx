@@ -8,6 +8,7 @@ import AgentWithdrawModal from '../components/AgentWithdrawModal';
 import AgentLiveGameViewer from '../components/AgentLiveGameViewer';
 import AgentStakeConfigModal from '../components/AgentStakeConfigModal';
 import AgentSystemPlayerModal from '../components/AgentSystemPlayerModal';
+import VideoGuideButton from '../components/VideoGuideButton';
 import {
   Bot,
   Users,
@@ -1144,21 +1145,32 @@ export default function Agent() {
         {/* ─── SYSTEM PRO NOTIFICATION (Only visible if room is NOT Pro) ─── */}
         {room && (!room.system_players_pro_level || (room.system_players_pro_expires_at && new Date(room.system_players_pro_expires_at).getTime() <= Date.now())) && (
           <div
-            onClick={() => {
-              triggerHaptic('medium');
-              setShowSystemPlayerModal(true);
-            }}
-            className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border border-amber-300/60 cursor-pointer active:scale-[0.99] transition-all"
+            className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border border-amber-300/60 transition-all shadow-2xs"
           >
-            <div className="flex items-center space-x-2">
+            <div
+              onClick={() => {
+                triggerHaptic('medium');
+                setShowSystemPlayerModal(true);
+              }}
+              className="flex items-center space-x-2 cursor-pointer flex-1 min-w-0 pr-2"
+            >
               <Bot size={15} className="text-amber-600 shrink-0" />
-              <p className="text-[11px] font-black text-amber-900">
+              <p className="text-[11px] font-black text-amber-900 truncate">
                 ⚡ Upgrade room to Pro Level 1 for 24/7 AI System Players
               </p>
             </div>
-            <span className="text-[10px] font-black bg-amber-500 text-white px-2 py-0.5 rounded-lg shadow-2xs shrink-0">
-              Upgrade →
-            </span>
+            <div className="flex items-center space-x-1.5 shrink-0">
+              <VideoGuideButton category="system_player" compact={true} />
+              <span
+                onClick={() => {
+                  triggerHaptic('medium');
+                  setShowSystemPlayerModal(true);
+                }}
+                className="text-[10px] font-black bg-amber-500 hover:bg-amber-600 text-white px-2 py-0.5 rounded-lg shadow-2xs cursor-pointer active:scale-95 transition-all"
+              >
+                Upgrade →
+              </span>
+            </div>
           </div>
         )}
 

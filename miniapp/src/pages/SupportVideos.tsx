@@ -19,6 +19,7 @@ interface SupportVideo {
 }
 
 const CATEGORIES = [
+  { id: 'system_player', label: 'System Player',  emoji: '🤖', gradient: 'from-amber-500 to-orange-600',   bg: 'bg-amber-50 border-amber-200',      text: 'text-amber-700' },
   { id: 'how_to_play', label: 'How to Play',     emoji: '🎮', gradient: 'from-emerald-500 to-teal-600',   bg: 'bg-emerald-50 border-emerald-200',  text: 'text-emerald-700' },
   { id: 'deposit',     label: 'Deposit',          emoji: '💰', gradient: 'from-yellow-400 to-amber-500',   bg: 'bg-yellow-50 border-yellow-200',    text: 'text-yellow-700' },
   { id: 'withdraw',    label: 'Withdraw',         emoji: '💸', gradient: 'from-rose-500 to-pink-600',      bg: 'bg-rose-50 border-rose-200',         text: 'text-rose-700' },

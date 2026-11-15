@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import WebApp from '@twa-dev/sdk';
+import VideoGuideButton from './VideoGuideButton';
 import {
   X,
   Bot,
@@ -495,12 +496,19 @@ export default function AgentSystemPlayerModal({
             </p>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 active:scale-90 transition-all border border-slate-200"
-        >
-          <X size={18} />
-        </button>
+        <div className="flex items-center space-x-2">
+          <VideoGuideButton
+            category="system_player"
+            autoOpenOnceKey="hdase_system_player_video_seen"
+            compact={true}
+          />
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 active:scale-90 transition-all border border-slate-200 shrink-0"
+          >
+            <X size={18} />
+          </button>
+        </div>
       </div>
 
       {/* ── TOP TABS (Bright Clean Light Style - No Slate-900) ── */}
@@ -559,6 +567,20 @@ export default function AgentSystemPlayerModal({
         {/* ──────────────── TAB 1: SETTINGS ──────────────── */}
         {activeTab === 'settings' && (
           <div className="space-y-4 max-w-md mx-auto">
+            {/* System Player Video Guide Banner */}
+            <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border border-amber-300/60 flex items-center justify-between shadow-2xs">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-600 flex items-center justify-center text-sm font-black">
+                  🎬
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-slate-800">Video Guidance</h4>
+                  <p className="text-[10px] text-slate-500 font-bold">Watch tutorial on AI bots & schedule</p>
+                </div>
+              </div>
+              <VideoGuideButton category="system_player" compact={true} />
+            </div>
+
             {/* Pro Lock Notice if not upgraded */}
             {!isProActive && (
               <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 flex items-start gap-3">
