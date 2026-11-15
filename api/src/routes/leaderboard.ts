@@ -5,190 +5,170 @@ import { supabase } from '../services/supabase';
 const router = Router();
 router.use(optionalTelegramAuth);
 
-// Helper to calculate fromDate based on period in Ethiopian Time (EAT = UTC+3)
-function getPeriodFromDate(period: string): string | null {
-  const now = new Date();
-  const eatNow = new Date(now.getTime() + 3 * 3600 * 1000);
+// In-memory cache for ultra-fast pagination and minimal DB load (TTL: 15s)
+let playersCache: { data: any[]; timestamp: number } | null = null;
+let invitersCache: { data: any[]; timestamp: number } | null = null;
+const CACHE_TTL_MS = 15000;
 
-  if (period === 'daily') {
-    // Start of today in East Africa Time (00:00:00 EAT -> UTC)
-    const eatMidnight = new Date(Date.UTC(eatNow.getUTCFullYear(), eatNow.getUTCMonth(), eatNow.getUTCDate(), 0, 0, 0));
-    return new Date(eatMidnight.getTime() - 3 * 3600 * 1000).toISOString();
-  } else if (period === 'weekly') {
-    // Rolling 7 days
-    const d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    return d.toISOString();
-  } else if (period === 'monthly') {
-    // Start of current month in EAT (1st day 00:00:00 EAT -> UTC)
-    const eatMonthStart = new Date(Date.UTC(eatNow.getUTCFullYear(), eatNow.getUTCMonth(), 1, 0, 0, 0));
-    return new Date(eatMonthStart.getTime() - 3 * 3600 * 1000).toISOString();
-  } else if (period === 'yearly') {
-    // Start of current year in EAT (Jan 1 00:00:00 EAT -> UTC)
-    const eatYearStart = new Date(Date.UTC(eatNow.getUTCFullYear(), 0, 1, 0, 0, 0));
-    return new Date(eatYearStart.getTime() - 3 * 3600 * 1000).toISOString();
-  }
-  return null; // 'all'
-}
-
-// GET /api/leaderboard/players?period=all|daily|weekly|monthly|yearly
+// GET /api/leaderboard/players?page=1&limit=50
 router.get('/players', async (req: AuthRequest, res) => {
-  const period = (req.query.period as string) || 'all';
-  const telegramId = req.telegramUser?.id ? req.telegramUser.id.toString() : null;
+  try {
+    const telegramId = req.telegramUser?.id ? req.telegramUser.id.toString() : null;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
 
-  const fromDate = getPeriodFromDate(period);
-  let topPlayers: any[] = [];
+    if (!playersCache || Date.now() - playersCache.timestamp > CACHE_TTL_MS) {
+      // Fetch real users and system players in parallel
+      const [usersRes, systemRes] = await Promise.all([
+        supabase.from('users').select('id, telegram_id, first_name, username, total_wins, created_at'),
+        supabase.from('system_players').select('id, first_name, total_won, created_at')
+      ]);
 
-  // Query finished games within period
-  let q = supabase
-    .from('bingo_games')
-    .select('winner_telegram_id, winner_first_name, winner_prize, finished_at')
-    .eq('status', 'finished')
-    .not('winner_telegram_id', 'is', null);
+      const unified: any[] = [];
 
-  if (fromDate) {
-    q = q.gte('finished_at', fromDate);
-  }
-
-  const { data: games, error } = await q.limit(5000);
-  if (error) {
-    console.error('Error fetching games for leaderboard:', error);
-  }
-
-  // Aggregate wins & total prizes per player
-  const map: Record<string, { first_name: string; wins: number; total_prize: number }> = {};
-  for (const g of games || []) {
-    if (!g.winner_telegram_id) continue;
-    if (!map[g.winner_telegram_id]) {
-      map[g.winner_telegram_id] = { first_name: g.winner_first_name || 'User', wins: 0, total_prize: 0 };
-    }
-    map[g.winner_telegram_id].wins++;
-    map[g.winner_telegram_id].total_prize += Number(g.winner_prize) || 0;
-  }
-
-  // If period is 'all', also check users table so no historical total_wins are missed
-  if (period === 'all') {
-    const { data: usersData } = await supabase
-      .from('users')
-      .select('telegram_id, first_name, username, total_wins')
-      .gt('total_wins', 0);
-
-    for (const u of usersData || []) {
-      if (!map[u.telegram_id]) {
-        map[u.telegram_id] = { first_name: u.first_name || 'User', wins: Number(u.total_wins) || 0, total_prize: 0 };
-      } else {
-        map[u.telegram_id].wins = Math.max(map[u.telegram_id].wins, Number(u.total_wins) || 0);
+      // 1. Real Users: score from total_wins
+      for (const u of usersRes.data || []) {
+        unified.push({
+          id: u.id,
+          telegram_id: u.telegram_id,
+          first_name: u.first_name || 'User',
+          username: u.username || '',
+          wins: Number(u.total_wins || 0),
+          is_system: false,
+          created_at: u.created_at,
+        });
       }
+
+      // 2. System Players: score from total_won
+      for (const sp of systemRes.data || []) {
+        unified.push({
+          id: sp.id,
+          telegram_id: `bot_${sp.id}`,
+          first_name: sp.first_name || 'System Player',
+          username: '',
+          wins: Number(sp.total_won || 0),
+          is_system: true,
+          created_at: sp.created_at,
+        });
+      }
+
+      // 3. Sort descending by wins; tie-break by created_at ascending
+      unified.sort((a, b) => {
+        if (b.wins !== a.wins) return b.wins - a.wins;
+        return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+      });
+
+      // 4. Assign overall global ranks
+      unified.forEach((p, idx) => {
+        p.rank = idx + 1;
+      });
+
+      playersCache = { data: unified, timestamp: Date.now() };
     }
+
+    const list = playersCache.data;
+    const total = list.length;
+    const total_pages = Math.ceil(total / limit) || 1;
+    const offset = (page - 1) * limit;
+    const paginated = list.slice(offset, offset + limit);
+
+    const myRank = telegramId ? (list.findIndex(p => p.telegram_id === telegramId) + 1) : null;
+
+    res.json({
+      players: paginated,
+      my_rank: myRank || null,
+      total,
+      page,
+      limit,
+      total_pages,
+    });
+  } catch (err: any) {
+    console.error('Leaderboard players error:', err);
+    res.status(500).json({ error: err.message });
   }
-
-  // Fetch clean profile names and usernames for all candidates
-  const allTgIds = Object.keys(map);
-  const userProfiles: Record<string, { first_name: string; username: string }> = {};
-  if (allTgIds.length > 0) {
-    const { data: profiles } = await supabase
-      .from('users')
-      .select('telegram_id, first_name, username')
-      .in('telegram_id', allTgIds);
-
-    for (const p of profiles || []) {
-      userProfiles[p.telegram_id] = {
-        first_name: p.first_name || 'User',
-        username: p.username || '',
-      };
-    }
-  }
-
-  topPlayers = Object.entries(map)
-    .sort((a, b) => b[1].wins - a[1].wins)
-    .slice(0, 50)
-    .map(([tid, v], i) => ({
-      rank: i + 1,
-      telegram_id: tid,
-      first_name: userProfiles[tid]?.first_name || v.first_name.replace(/^[🚀\s]*EARLY\s+BINGO:\s*/i, ''),
-      username: userProfiles[tid]?.username || '',
-      wins: v.wins,
-      total_prize: v.total_prize,
-    }));
-
-  // Find current user's rank
-  const myRank = telegramId ? (topPlayers.findIndex(p => p.telegram_id === telegramId) + 1) : null;
-
-  res.json({ players: topPlayers, my_rank: myRank || null });
 });
 
-// GET /api/leaderboard/inviters?period=all|daily|weekly|monthly|yearly
+// GET /api/leaderboard/inviters?page=1&limit=50
 router.get('/inviters', async (req: AuthRequest, res) => {
-  const period = (req.query.period as string) || 'all';
-  const telegramId = req.telegramUser?.id ? req.telegramUser.id.toString() : null;
-  const fromDate = getPeriodFromDate(period);
+  try {
+    const telegramId = req.telegramUser?.id ? req.telegramUser.id.toString() : null;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
 
-  // Get all users with inviter_id set
-  let invQuery = supabase
-    .from('users')
-    .select('inviter_id, created_at')
-    .not('inviter_id', 'is', null);
+    if (!invitersCache || Date.now() - invitersCache.timestamp > CACHE_TTL_MS) {
+      // Get all users with inviter_id set
+      const { data: invited } = await supabase
+        .from('users')
+        .select('inviter_id')
+        .not('inviter_id', 'is', null);
 
-  if (fromDate) {
-    invQuery = invQuery.gte('created_at', fromDate);
+      const countMap: Record<string, number> = {};
+      for (const row of invited || []) {
+        if (!row.inviter_id) continue;
+        countMap[row.inviter_id] = (countMap[row.inviter_id] || 0) + 1;
+      }
+
+      const sortedIds = Object.entries(countMap)
+        .sort((a, b) => b[1] - a[1])
+        .map(([id]) => id);
+
+      const topUuids = sortedIds.filter(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+      const topTgIds = sortedIds.filter(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+
+      let users: any[] = [];
+      if (topUuids.length > 0) {
+        const { data: u1 } = await supabase.from('users').select('id, telegram_id, first_name, username').in('id', topUuids);
+        if (u1) users = users.concat(u1);
+      }
+      if (topTgIds.length > 0) {
+        const { data: u2 } = await supabase.from('users').select('id, telegram_id, first_name, username').in('telegram_id', topTgIds);
+        if (u2) users = users.concat(u2);
+      }
+
+      const nameMap: Record<string, { first_name: string; username: string; telegram_id: string }> = {};
+      for (const u of users || []) {
+        const info = { first_name: u.first_name || 'User', username: u.username || '', telegram_id: u.telegram_id };
+        if (u.id) nameMap[u.id] = info;
+        if (u.telegram_id) nameMap[u.telegram_id] = info;
+      }
+
+      const invList = sortedIds.map((id, i) => ({
+        rank: i + 1,
+        id,
+        telegram_id: nameMap[id]?.telegram_id || id,
+        first_name: nameMap[id]?.first_name || 'User',
+        username: nameMap[id]?.username || '',
+        invites: countMap[id] || 0,
+      }));
+
+      invitersCache = { data: invList, timestamp: Date.now() };
+    }
+
+    const list = invitersCache.data;
+    const total = list.length;
+    const total_pages = Math.ceil(total / limit) || 1;
+    const offset = (page - 1) * limit;
+    const paginated = list.slice(offset, offset + limit);
+
+    let myRank: number | null = null;
+    if (telegramId) {
+      const { data: curU } = await supabase.from('users').select('id').eq('telegram_id', telegramId).maybeSingle();
+      const rankIdx = list.findIndex(p => p.telegram_id === telegramId || (curU?.id && p.id === curU.id));
+      myRank = rankIdx >= 0 ? rankIdx + 1 : null;
+    }
+
+    res.json({
+      inviters: paginated,
+      my_rank: myRank || null,
+      total,
+      page,
+      limit,
+      total_pages,
+    });
+  } catch (err: any) {
+    console.error('Leaderboard inviters error:', err);
+    res.status(500).json({ error: err.message });
   }
-
-  const { data: invited } = await invQuery;
-
-  // Count invites per inviter
-  const countMap: Record<string, number> = {};
-  for (const row of invited || []) {
-    if (!row.inviter_id) continue;
-    countMap[row.inviter_id] = (countMap[row.inviter_id] || 0) + 1;
-  }
-
-  if (Object.keys(countMap).length === 0) {
-    res.json({ inviters: [], my_rank: null });
-    return;
-  }
-
-  // Fetch names for top inviters (supporting both UUID and telegram_id)
-  const topIds = Object.entries(countMap)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 50)
-    .map(([id]) => id);
-
-  const topUuids = topIds.filter(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
-  const topTgIds = topIds.filter(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
-
-  let users: any[] = [];
-  if (topUuids.length > 0) {
-    const { data: u1 } = await supabase.from('users').select('id, telegram_id, first_name, username').in('id', topUuids);
-    if (u1) users = users.concat(u1);
-  }
-  if (topTgIds.length > 0) {
-    const { data: u2 } = await supabase.from('users').select('id, telegram_id, first_name, username').in('telegram_id', topTgIds);
-    if (u2) users = users.concat(u2);
-  }
-
-  const nameMap: Record<string, { first_name: string; username: string; telegram_id: string }> = {};
-  for (const u of users || []) {
-    const info = { first_name: u.first_name || 'User', username: u.username || '', telegram_id: u.telegram_id };
-    if (u.id) nameMap[u.id] = info;
-    if (u.telegram_id) nameMap[u.telegram_id] = info;
-  }
-
-  const inviters = topIds.map((id, i) => ({
-    rank: i + 1,
-    id,
-    telegram_id: nameMap[id]?.telegram_id || id,
-    first_name: nameMap[id]?.first_name || 'User',
-    username: nameMap[id]?.username || '',
-    invites: countMap[id] || 0,
-  }));
-
-  let myRank: number | null = null;
-  if (telegramId) {
-    const { data: curU } = await supabase.from('users').select('id').eq('telegram_id', telegramId).maybeSingle();
-    const rankIdx = inviters.findIndex(p => p.telegram_id === telegramId || (curU?.id && p.id === curU.id));
-    myRank = rankIdx >= 0 ? rankIdx + 1 : null;
-  }
-
-  res.json({ inviters, my_rank: myRank });
 });
 
 export default router;

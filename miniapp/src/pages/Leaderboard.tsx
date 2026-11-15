@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Trophy, Users, Medal, RefreshCw, Crown, UserPlus } from 'lucide-react';
+import { Trophy, RefreshCw, Crown, UserPlus, ChevronLeft, ChevronRight, Bot } from 'lucide-react';
 import WebApp from '@twa-dev/sdk';
 import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
-type Period = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'all';
 type Tab = 'players' | 'inviters';
 
 interface Player {
@@ -15,8 +14,7 @@ interface Player {
   first_name: string;
   username: string;
   wins: number;
-  games?: number;
-  total_prize?: number;
+  is_system?: boolean;
 }
 
 interface Inviter {
@@ -26,8 +24,6 @@ interface Inviter {
   username: string;
   invites: number;
 }
-
-
 
 const MEDAL_COLORS = ['#F59E0B', '#94A3B8', '#D97706'];
 const PODIUM_BG = [
@@ -39,6 +35,7 @@ const PODIUM_HEIGHTS = ['h-24', 'h-16', 'h-12'];
 const RANK_PODIUM_ORDER = [1, 0, 2]; // silver left, gold center, bronze right
 
 function getInitials(name: string) {
+  if (!name) return '??';
   return name.slice(0, 2).toUpperCase();
 }
 
@@ -48,21 +45,16 @@ function getAvatarColor(id: string) {
     'bg-orange-500', 'bg-teal-500', 'bg-indigo-500', 'bg-pink-500',
   ];
   let hash = 0;
-  for (const c of id) hash = (hash + c.charCodeAt(0)) % colors.length;
+  for (const c of (id || 'default')) hash = (hash + c.charCodeAt(0)) % colors.length;
   return colors[hash];
 }
 
 export default function Leaderboard() {
   const { user, language } = useGameStore();
-  const PERIODS: { key: Period; label: string }[] = [
-    { key: 'daily', label: t[language].leaderboard.periodDaily },
-    { key: 'weekly', label: t[language].leaderboard.periodWeekly },
-    { key: 'monthly', label: t[language].leaderboard.periodMonthly },
-    { key: 'yearly', label: t[language].leaderboard.periodYearly },
-    { key: 'all', label: t[language].leaderboard.periodAll },
-  ];
   const [tab, setTab] = useState<Tab>('players');
-  const [period, setPeriod] = useState<Period>('weekly');
+  const [page, setPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [totalCount, setTotalCount] = useState<number>(0);
   const [players, setPlayers] = useState<Player[]>([]);
   const [inviters, setInviters] = useState<Inviter[]>([]);
   const [myRank, setMyRank] = useState<number | null>(null);
@@ -74,50 +66,60 @@ export default function Leaderboard() {
     'x-telegram-init-data': typeof WebApp !== 'undefined' ? WebApp.initData : '',
   }), []);
 
-  const fetchPlayers = useCallback(async (p: Period) => {
-    const res = await fetch(`${API_URL}/leaderboard/players?period=${p}`, { headers: headers() });
+  const fetchPlayers = useCallback(async (targetPage: number) => {
+    const res = await fetch(`${API_URL}/leaderboard/players?page=${targetPage}&limit=50`, { headers: headers() });
     if (res.ok) {
       const data = await res.json();
       setPlayers(data.players || []);
       setMyRank(data.my_rank);
+      setTotalPages(data.total_pages || 1);
+      setTotalCount(data.total || 0);
     }
   }, [headers]);
 
-  const fetchInviters = useCallback(async (p: Period) => {
-    const res = await fetch(`${API_URL}/leaderboard/inviters?period=${p}`, { headers: headers() });
+  const fetchInviters = useCallback(async (targetPage: number) => {
+    const res = await fetch(`${API_URL}/leaderboard/inviters?page=${targetPage}&limit=50`, { headers: headers() });
     if (res.ok) {
       const data = await res.json();
       setInviters(data.inviters || []);
       setMyRank(data.my_rank);
+      setTotalPages(data.total_pages || 1);
+      setTotalCount(data.total || 0);
     }
   }, [headers]);
 
-  const load = useCallback(async (t: Tab, p: Period, showRefresh = false) => {
+  const load = useCallback(async (t: Tab, targetPage: number, showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      if (t === 'players') await fetchPlayers(p);
-      else await fetchInviters(p);
+      if (t === 'players') await fetchPlayers(targetPage);
+      else await fetchInviters(targetPage);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, [fetchPlayers, fetchInviters]);
 
-  useEffect(() => { load(tab, period); }, [tab, period]);
+  useEffect(() => {
+    load(tab, page);
+  }, [tab, page, load]);
 
-  const handleTab = (t: Tab) => { setTab(t); setMyRank(null); };
-  const handlePeriod = (p: Period) => { setPeriod(p); };
-  const handleRefresh = () => load(tab, period, true);
+  const handleTab = (newTab: Tab) => {
+    setTab(newTab);
+    setPage(1);
+    setMyRank(null);
+  };
+
+  const handleRefresh = () => {
+    load(tab, page, true);
+  };
 
   const list = tab === 'players' ? players : inviters;
-  const top3 = list.slice(0, 3);
-  const rest = list.slice(3);
+  const top3 = page === 1 ? list.slice(0, 3) : [];
   const myTelegramId = user?.telegram_id;
 
   return (
     <div className="min-h-screen bg-white pb-24">
-
       {/* ── HEADER ── */}
       <div className="bg-white px-4 pt-5 pb-3 border-b border-gray-100">
         <div className="flex items-center justify-between mb-4">
@@ -127,12 +129,15 @@ export default function Leaderboard() {
             </div>
             <div>
               <h1 className="text-lg font-black text-slate-800">{t[language].leaderboard.title}</h1>
-              <p className="text-xs text-slate-400 font-medium">{t[language].leaderboard.subtitle}</p>
+              <p className="text-xs text-slate-400 font-medium">
+                {totalCount > 0 ? `${totalCount} All-Time Ranked Players` : t[language].leaderboard.subtitle}
+              </p>
             </div>
           </div>
           <button
             onClick={handleRefresh}
-            className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center active:scale-90 transition-all"
+            className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center active:scale-90 transition-all hover:bg-slate-100"
+            title="Refresh Leaderboard"
           >
             <RefreshCw size={16} className={`text-slate-500 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
@@ -145,41 +150,24 @@ export default function Leaderboard() {
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
               tab === 'players'
                 ? 'bg-white text-yellow-600 shadow-sm'
-                : 'text-slate-400'
+                : 'text-slate-400 hover:text-slate-600'
             }`}
           >
             <Trophy size={13} />
             {t[language].leaderboard.topPlayers}
-            </button>
+          </button>
           <button
             onClick={() => handleTab('inviters')}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
               tab === 'inviters'
                 ? 'bg-white text-purple-600 shadow-sm'
-                : 'text-slate-400'
+                : 'text-slate-400 hover:text-slate-600'
             }`}
           >
             <UserPlus size={13} />
             {t[language].leaderboard.topInviters}
-            </button>
-        </div>
-      </div>
-
-      {/* ── PERIOD FILTER ── */}
-      <div className="px-3 pt-3 pb-1 grid grid-cols-5 gap-1.5">
-        {PERIODS.map(p => (
-          <button
-            key={p.key}
-            onClick={() => handlePeriod(p.key)}
-            className={`py-1.5 rounded-lg text-[10.5px] sm:text-[11px] font-bold transition-all text-center truncate ${
-              period === p.key
-                ? 'bg-yellow-400 text-white shadow-sm'
-                : 'bg-slate-100 text-slate-400 hover:text-slate-600'
-            }`}
-          >
-            {p.label}
           </button>
-        ))}
+        </div>
       </div>
 
       {loading ? (
@@ -197,8 +185,8 @@ export default function Leaderboard() {
         </div>
       ) : (
         <>
-          {/* ── PODIUM TOP 3 ── */}
-          {top3.length >= 2 && (
+          {/* ── PODIUM TOP 3 (Only displayed on Page 1) ── */}
+          {page === 1 && top3.length >= 2 && (
             <div className="px-4 pt-5 pb-2">
               <div className="flex items-end justify-center gap-3">
                 {RANK_PODIUM_ORDER.map(ri => {
@@ -218,17 +206,21 @@ export default function Leaderboard() {
                           {getInitials(p.first_name)}
                         </span>
                         {/* Medal badge */}
-                        <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white shadow`}
-                          style={{ background: MEDAL_COLORS[ri] }}>
+                        <div
+                          className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white shadow"
+                          style={{ background: MEDAL_COLORS[ri] }}
+                        >
                           {ri + 1}
                         </div>
                       </div>
                       {/* Name */}
-                      <p className={`font-black text-slate-800 text-center leading-tight ${isCenter ? 'text-xs' : 'text-[10px]'} max-w-[70px] truncate`}>
+                      <p className={`font-black text-slate-800 text-center leading-tight ${isCenter ? 'text-xs' : 'text-[10px]'} max-w-[80px] truncate`}>
                         {p.first_name}
                       </p>
                       <p className={`font-bold text-center mt-0.5 ${isCenter ? 'text-yellow-600 text-xs' : 'text-slate-500 text-[10px]'}`}>
-                        {tab === 'players' ? `${(p as Player).wins} ${t[language].leaderboard.wins}` : `${(p as Inviter).invites} ${t[language].leaderboard.invites}`}
+                        {tab === 'players'
+                          ? `${(p as Player).wins} ${t[language].leaderboard.wins}`
+                          : `${(p as Inviter).invites} ${t[language].leaderboard.invites}`}
                       </p>
                       {/* Podium bar */}
                       <div className={`w-full mt-2 ${PODIUM_HEIGHTS[ri]} bg-gradient-to-b ${PODIUM_BG[ri]} rounded-t-xl opacity-80`} />
@@ -241,14 +233,14 @@ export default function Leaderboard() {
 
           {/* ── MY RANK BANNER ── */}
           {myRank && myRank > 3 && (
-            <div className="mx-4 mb-3 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-2.5 flex items-center justify-between">
+            <div className="mx-4 my-3 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-2.5 flex items-center justify-between shadow-2xs">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-full bg-yellow-400 flex items-center justify-center">
+                <div className="w-7 h-7 rounded-full bg-yellow-400 flex items-center justify-center shadow-xs">
                   <span className="text-white font-black text-xs">#{myRank}</span>
                 </div>
                 <span className="text-yellow-700 font-bold text-sm">{t[language].leaderboard.yourRank}</span>
               </div>
-              <span className="text-yellow-600 text-xs font-bold">
+              <span className="text-yellow-600 text-xs font-black">
                 {tab === 'players'
                   ? `${players.find(p => p.telegram_id === myTelegramId)?.wins || 0} ${t[language].leaderboard.wins}`
                   : `${inviters.find(p => p.telegram_id === myTelegramId)?.invites || 0} ${t[language].leaderboard.invites}`}
@@ -256,77 +248,118 @@ export default function Leaderboard() {
             </div>
           )}
 
-          {/* ── FULL LIST ── */}
-          <div className="mx-4 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          {/* ── FULL 50-ROW RANKED LIST ── */}
+          <div className="mx-4 mt-3 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             {/* Header */}
             <div className="flex items-center px-4 py-2.5 bg-slate-50 border-b border-gray-100">
-              <span className="w-8 text-[10px] font-black text-slate-400 uppercase">{t[language].leaderboard.rank}</span>
+              <span className="w-10 text-[10px] font-black text-slate-400 uppercase">{t[language].leaderboard.rank}</span>
               <span className="flex-1 text-[10px] font-black text-slate-400 uppercase">{t[language].leaderboard.player}</span>
-              <span className="text-[10px] font-black text-slate-400 uppercase">
+              <span className="text-[10px] font-black text-slate-400 uppercase text-right">
                 {tab === 'players' ? t[language].leaderboard.wins : t[language].leaderboard.invites}
               </span>
             </div>
 
-            {/* Top 3 rows */}
-            {top3.map((p, i) => {
+            {/* Rows for the current page (up to 50 players) */}
+            {list.map((p) => {
               const isMine = p.telegram_id === myTelegramId;
-              return (
-                <div key={p.telegram_id}
-                  className={`flex items-center px-4 py-3 border-b border-gray-50 ${isMine ? 'bg-yellow-50' : ''}`}
-                >
-                  <div className="w-8">
-                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black text-white"
-                      style={{ background: MEDAL_COLORS[i] }}>
-                      {i + 1}
-                    </div>
-                  </div>
-                  <div className={`w-7 h-7 rounded-full ${getAvatarColor(p.telegram_id)} flex items-center justify-center mr-2.5 shrink-0`}>
-                    <span className="text-white font-black text-[10px]">{getInitials(p.first_name)}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`font-bold text-sm truncate ${isMine ? 'text-yellow-700' : 'text-slate-800'}`}>
-                      {p.first_name} {isMine && <span className="text-[10px] text-yellow-500">{t[language].leaderboard.you}</span>}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className={`font-black text-sm ${i === 0 ? 'text-yellow-500' : 'text-slate-600'}`}>
-                      {tab === 'players' ? (p as Player).wins : (p as Inviter).invites}
-                    </p>
-                    <p className="text-[10px] text-slate-400">{tab === 'players' ? t[language].leaderboard.wins : t[language].leaderboard.invites}</p>
-                  </div>
-                </div>
-              );
-            })}
+              const isTop3OnPage1 = page === 1 && p.rank <= 3;
+              const medalIndex = p.rank - 1;
 
-            {/* Rest of the list */}
-            {rest.map((p) => {
-              const isMine = p.telegram_id === myTelegramId;
               return (
-                <div key={p.telegram_id}
-                  className={`flex items-center px-4 py-3 border-b border-gray-50 last:border-0 ${isMine ? 'bg-yellow-50' : ''}`}
+                <div
+                  key={`${p.telegram_id}_${p.rank}`}
+                  className={`flex items-center px-4 py-3 border-b border-gray-50 last:border-0 transition-colors ${
+                    isMine ? 'bg-yellow-50/80' : 'hover:bg-slate-50/50'
+                  }`}
                 >
-                  <div className="w-8">
-                    <span className="text-xs font-black text-slate-400">#{p.rank}</span>
+                  {/* Rank badge */}
+                  <div className="w-10 shrink-0">
+                    {isTop3OnPage1 ? (
+                      <div
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black text-white shadow-xs"
+                        style={{ background: MEDAL_COLORS[medalIndex] }}
+                      >
+                        {p.rank}
+                      </div>
+                    ) : (
+                      <span className="text-xs font-black text-slate-400">#{p.rank}</span>
+                    )}
                   </div>
-                  <div className={`w-7 h-7 rounded-full ${getAvatarColor(p.telegram_id)} flex items-center justify-center mr-2.5 shrink-0`}>
-                    <span className="text-white font-black text-[10px]">{getInitials(p.first_name)}</span>
+
+                  {/* Avatar */}
+                  <div className={`w-8 h-8 rounded-full ${getAvatarColor(p.telegram_id)} flex items-center justify-center mr-3 shrink-0 shadow-2xs`}>
+                    <span className="text-white font-black text-[11px]">{getInitials(p.first_name)}</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`font-bold text-sm truncate ${isMine ? 'text-yellow-700' : 'text-slate-800'}`}>
-                      {p.first_name} {isMine && <span className="text-[10px] text-yellow-500">(You)</span>}
+
+                  {/* Name */}
+                  <div className="flex-1 min-w-0 pr-2">
+                    <p className={`font-black text-xs truncate flex items-center gap-1.5 ${isMine ? 'text-yellow-700' : 'text-slate-800'}`}>
+                      <span>{p.first_name}</span>
+                      {isMine && (
+                        <span className="text-[9px] font-black bg-yellow-200 text-yellow-800 px-1.5 py-0.2 rounded">
+                          {t[language].leaderboard.you}
+                        </span>
+                      )}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-black text-sm text-slate-600">
+
+                  {/* Wins / Invites count */}
+                  <div className="text-right shrink-0">
+                    <p className={`font-black text-sm ${isTop3OnPage1 ? 'text-yellow-600' : 'text-slate-700'}`}>
                       {tab === 'players' ? (p as Player).wins : (p as Inviter).invites}
                     </p>
-                    <p className="text-[10px] text-slate-400">{tab === 'players' ? 'wins' : 'invites'}</p>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase">
+                      {tab === 'players' ? t[language].leaderboard.wins : t[language].leaderboard.invites}
+                    </p>
                   </div>
                 </div>
               );
             })}
           </div>
-          <div className="h-4" />
+
+          {/* ── PAGINATION CONTROLS (Next / Prev) ── */}
+          {totalPages > 1 && (
+            <div className="mx-4 mt-4 mb-4 flex items-center justify-between p-3 rounded-2xl bg-white border border-gray-100 shadow-sm">
+              <button
+                type="button"
+                onClick={() => {
+                  if (page > 1) {
+                    setPage(prev => prev - 1);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
+                }}
+                disabled={page <= 1}
+                className="flex items-center gap-1 px-3.5 py-2 rounded-xl text-xs font-black bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 transition-all"
+              >
+                <ChevronLeft size={16} />
+                <span>Previous</span>
+              </button>
+
+              <div className="text-center">
+                <span className="text-xs font-black text-slate-800">
+                  Page <span className="text-yellow-600">{page}</span> of {totalPages}
+                </span>
+                <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                  Showing {(page - 1) * 50 + 1} - {Math.min(page * 50, totalCount)} of {totalCount}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (page < totalPages) {
+                    setPage(prev => prev + 1);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
+                }}
+                disabled={page >= totalPages}
+                className="flex items-center gap-1 px-3.5 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-white shadow-xs disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 transition-all"
+              >
+                <span>Next</span>
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>
