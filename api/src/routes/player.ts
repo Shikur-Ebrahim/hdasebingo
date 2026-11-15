@@ -623,6 +623,27 @@ router.post('/rooms/:id/enter', async (_req, res) => {
   res.json({ success: true });
 });
 
+// POST /player/room/select — update player's assigned room
+router.post('/room/select', validateTelegramAuth, async (req: AuthRequest, res) => {
+  try {
+    const telegramId = req.telegramUser!.id.toString();
+    const { room_id } = req.body || {};
+    if (!room_id) {
+      res.status(400).json({ error: 'room_id is required' });
+      return;
+    }
+    const { data: room, error: roomErr } = await supabase.from('rooms').select('id, room_name').eq('id', room_id).maybeSingle();
+    if (roomErr || !room) {
+      res.status(404).json({ error: 'Room not found' });
+      return;
+    }
+    await supabase.from('users').update({ room_id: room.id }).eq('telegram_id', telegramId);
+    res.json({ success: true, room });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /player/support-videos?category=<cat> — public: active videos for users
 router.get('/support-videos', async (req, res) => {
   try {

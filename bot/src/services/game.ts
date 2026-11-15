@@ -47,6 +47,8 @@ export async function upsertUser(telegramId: string, username: string, firstName
     const updatePayload: any = { username, first_name: firstName };
     if (roomId) {
       updatePayload.room_id = roomId;
+    } else if (!existing.room_id) {
+      updatePayload.room_id = 'd7c9114a-e112-426f-8f9b-13c00050279c';
     }
     if (!existing.inviter_id && resolvedInviterUuid) {
       updatePayload.inviter_id = resolvedInviterUuid;
@@ -76,10 +78,8 @@ export async function upsertUser(telegramId: string, username: string, firstName
       inviter_id: resolvedInviterUuid || null, // Store promoter UUID!
       main_balance: 0,
       bonus_balance: welcomeBonus,
+      room_id: roomId || 'd7c9114a-e112-426f-8f9b-13c00050279c',
     };
-    if (roomId) {
-      insertPayload.room_id = roomId;
-    }
 
     const { data, error } = await supabase
       .from('users')

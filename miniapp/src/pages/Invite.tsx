@@ -44,9 +44,13 @@ export default function Invite() {
   const [highlightGuideBtn, setHighlightGuideBtn] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
 
+  const isTg = Boolean(typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.initData);
   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'hdasebingo_bot';
   const refCode = `ref_${user?.telegram_id || 'player'}`;
-  const inviteLink = `https://t.me/${botUsername}?start=${refCode}`;
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://hdasebingo.com';
+  const friendRoomParam = (user as any)?.room_id ? `&room=${(user as any).room_id}` : '';
+  const pwaInviteLink = `${origin}/?ref=${user?.telegram_id || 'player'}${friendRoomParam}`;
+  const inviteLink = isTg ? `https://t.me/${botUsername}?start=${refCode}` : pwaInviteLink;
 
   // Fetch real invite reward % from admin settings + invite videos
   useEffect(() => {

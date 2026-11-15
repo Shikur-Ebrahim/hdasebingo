@@ -97,11 +97,13 @@ router.post('/register', async (req, res) => {
         const { data: defRoom } = await supabase
           .from('rooms')
           .select('id')
-          .ilike('room_name', '%hdase%')
+          .or('id.eq.d7c9114a-e112-426f-8f9b-13c00050279c,room_name.ilike.%hdase%')
           .limit(1)
           .maybeSingle();
-        if (defRoom?.id) effectiveRoomId = defRoom.id;
-      } catch {}
+        effectiveRoomId = defRoom?.id || 'd7c9114a-e112-426f-8f9b-13c00050279c';
+      } catch {
+        effectiveRoomId = 'd7c9114a-e112-426f-8f9b-13c00050279c';
+      }
     }
 
     // 5. Check if user already exists
@@ -333,11 +335,13 @@ router.post('/verify', validateTelegramAuth, async (req: AuthRequest, res) => {
       const { data: defRoom } = await supabase
         .from('rooms')
         .select('id')
-        .ilike('room_name', '%hdase%')
+        .or('id.eq.d7c9114a-e112-426f-8f9b-13c00050279c,room_name.ilike.%hdase%')
         .limit(1)
         .maybeSingle();
-      if (defRoom?.id) invitedRoomId = defRoom.id;
-    } catch {}
+      invitedRoomId = defRoom?.id || 'd7c9114a-e112-426f-8f9b-13c00050279c';
+    } catch {
+      invitedRoomId = 'd7c9114a-e112-426f-8f9b-13c00050279c';
+    }
   }
   
   // Check if user already exists

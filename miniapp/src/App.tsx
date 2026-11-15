@@ -15,8 +15,6 @@ import BingoGame from './pages/BingoGame';
 import AdminBingoGames from './pages/AdminBingoGames';
 import AdminUserAudit from './pages/AdminUserAudit';
 import Leaderboard from './pages/Leaderboard';
-import GamesReport from './pages/GamesReport';
-import Audit from './pages/Audit';
 import Rules from './pages/Rules';
 import Support from './pages/Support';
 import AdminHdaseQr from './pages/AdminHdaseQr';
@@ -207,13 +205,25 @@ function App() {
       }
       if (!detectedRoomId && !detectedPromoterRef && typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
-        let qStart = params.get('room') || params.get('startapp') || params.get('start') || params.get('tgWebAppStartParam');
-        if (!qStart && window.location.hash) {
+        let qStart = params.get('room') || params.get('startapp') || params.get('start') || params.get('tgWebAppStartParam') || params.get('ref');
+        const qRef = params.get('ref') || params.get('promoter');
+        const qRoom = params.get('room');
+        if (qRoom) {
+          detectedRoomId = qRoom.replace('room_', '');
+        }
+        if (qRef) {
+          detectedPromoterRef = qRef.startsWith('ref_') ? qRef : `ref_${qRef}`;
+        }
+        if (!detectedRoomId && !detectedPromoterRef && window.location.hash) {
           const hashStr = window.location.hash.startsWith('#') ? window.location.hash.substring(1) : window.location.hash;
           const hashParams = new URLSearchParams(hashStr);
-          qStart = hashParams.get('tgWebAppStartParam') || hashParams.get('room') || hashParams.get('startapp') || hashParams.get('start');
+          qStart = hashParams.get('tgWebAppStartParam') || hashParams.get('room') || hashParams.get('startapp') || hashParams.get('start') || hashParams.get('ref');
+          const hRef = hashParams.get('ref') || hashParams.get('promoter');
+          const hRoom = hashParams.get('room');
+          if (hRoom) detectedRoomId = hRoom.replace('room_', '');
+          if (hRef) detectedPromoterRef = hRef.startsWith('ref_') ? hRef : `ref_${hRef}`;
         }
-        if (qStart) {
+        if (qStart && !detectedRoomId && !detectedPromoterRef) {
           if (qStart.startsWith('room_')) {
             detectedRoomId = qStart.replace('room_', '');
           } else if (qStart.startsWith('ref_')) {
@@ -440,8 +450,6 @@ function App() {
           <Route path="/invited" element={<InvitedPeople />} />
           <Route path="/withdraw" element={<Withdraw />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
-          <Route path="/games-report" element={<GamesReport />} />
-          <Route path="/audit" element={<Audit />} />
           <Route path="/rules" element={<Rules />} />
           <Route path="/support" element={<Support />} />
           <Route path="/admin" element={<Admin />} />

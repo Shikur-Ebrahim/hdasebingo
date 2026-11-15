@@ -140,6 +140,7 @@ export function PWAAuthModal() {
 
     setLoading(true);
     try {
+      const invitedRoom = typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null;
       const promoterRef = typeof window !== 'undefined' ? localStorage.getItem('hdase_promoter_ref') : null;
       const res = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
@@ -148,7 +149,7 @@ export function PWAAuthModal() {
           first_name: fullName.trim(),
           phone_number: phone,
           password,
-          room_id: selectedRoomId || undefined,
+          room_id: invitedRoom || selectedRoomId || undefined,
           promoter_ref: promoterRef || undefined,
         }),
       });
@@ -156,6 +157,10 @@ export function PWAAuthModal() {
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || 'Registration failed');
+      }
+
+      if (data.user?.room_id) {
+        localStorage.setItem('hdase_invited_room_id', data.user.room_id);
       }
 
       setSuccessMsg('Account created successfully! Welcome to Hdase Bingo.');
@@ -402,26 +407,6 @@ export function PWAAuthModal() {
                   </div>
                 </div>
 
-                {/* 4. Room Selection: Mobile Screen First Drawer, NO ROOM NUMBERS (WHITE THEME) */}
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1 ml-1">
-                    Select Room • የሚጫወቱበት ክፍል
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowRoomPicker(true)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 hover:border-amber-400 hover:bg-amber-50/40 rounded-xl text-left flex items-center justify-between text-slate-900 text-sm transition-all shadow-sm active:scale-[0.99]"
-                  >
-                    <div className="flex items-center space-x-2.5 min-w-0">
-                      <Building2 size={16} className="text-amber-500 shrink-0" />
-                      <span className="font-bold truncate text-slate-900">
-                        {selectedRoom ? selectedRoom.room_name : 'Select Room • ክፍል ይምረጡ'}
-                      </span>
-                    </div>
-                    <ChevronDown size={16} className="text-slate-400 shrink-0 ml-2" />
-                  </button>
-                </div>
-
                 {/* Submit Register */}
                 <button
                   type="submit"
@@ -543,115 +528,6 @@ export function PWAAuthModal() {
         </div>
       </div>
 
-      {/* ── CUSTOM MOBILE ROOM PICKER MODAL (NO ROOM NUMBERS, CLEAN WHITE THEME) ── */}
-      {showRoomPicker && (
-        <div 
-          className="fixed inset-0 z-[60] flex flex-col justify-end sm:justify-center items-center bg-slate-900/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200"
-          onClick={() => setShowRoomPicker(false)}
-        >
-          <div
-            className="w-full max-w-[420px] bg-white border-t sm:border border-amber-300 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden animate-in slide-in-from-bottom duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="px-4 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Building2 size={18} className="text-amber-600" />
-                <h3 className="text-sm font-black text-slate-900">Select Bingo Room • ክፍል ይምረጡ</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowRoomPicker(false)}
-                className="w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 flex items-center justify-center transition-colors"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Live Search bar */}
-            <div className="p-3 border-b border-slate-100 bg-white">
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Search size={14} />
-                </div>
-                <input
-                  type="text"
-                  value={roomSearch}
-                  onChange={(e) => setRoomSearch(e.target.value)}
-                  placeholder="Search hotel / room name • ስም ፈልግ..."
-                  className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 focus:bg-white focus:border-amber-500 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 outline-none"
-                  autoFocus
-                />
-                {roomSearch && (
-                  <button
-                    type="button"
-                    onClick={() => setRoomSearch('')}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-700"
-                  >
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Rooms List (ONLY ROOM NAMES, NO NUMBERS, WHITE CLEAN THEME) */}
-            <div className="p-3 overflow-y-auto space-y-2 flex-1 bg-white">
-              {filteredRooms.length > 0 ? (
-                filteredRooms.map((room) => {
-                  const isSelected = room.id === selectedRoomId;
-                  return (
-                    <button
-                      key={room.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedRoomId(room.id);
-                        setShowRoomPicker(false);
-                        setRoomSearch('');
-                      }}
-                      className={`w-full p-3 rounded-2xl flex items-center justify-between text-left transition-all ${
-                        isSelected
-                          ? 'bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-500 shadow-sm'
-                          : 'bg-slate-50/70 border border-slate-200 hover:border-amber-300 hover:bg-amber-50/30'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3 truncate">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                          isSelected ? 'bg-amber-500 text-slate-950 font-black shadow-sm' : 'bg-slate-200/70 text-amber-600'
-                        }`}>
-                          <Building2 size={18} />
-                        </div>
-                        <div className="truncate">
-                          {/* ONLY ROOM NAME AS REQUESTED! */}
-                          <p className={`text-xs font-black truncate ${isSelected ? 'text-amber-900' : 'text-slate-900'}`}>
-                            {room.room_name}
-                          </p>
-                          <p className="text-[10px] text-slate-500 mt-0.5">
-                            {room.is_pinned ? '⭐ Featured Room' : 'Public Room'}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="shrink-0 ml-2">
-                        {isSelected ? (
-                          <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center text-slate-950">
-                            <CheckCircle2 size={16} className="text-slate-950 font-black" />
-                          </div>
-                        ) : (
-                          <div className="w-5 h-5 rounded-full border-2 border-slate-300" />
-                        )}
-                      </div>
-                    </button>
-                  );
-                })
-              ) : (
-                <div className="py-8 text-center text-slate-400 text-xs">
-                  No rooms match "{roomSearch}"
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

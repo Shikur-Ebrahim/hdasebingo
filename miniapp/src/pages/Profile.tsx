@@ -4,8 +4,8 @@ import { t } from '../lib/translations';
 import { 
   Wallet, Gift, PlusCircle, ArrowDownToLine, Share2, 
   ArrowRightLeft, History, Users, Globe, Headphones, Megaphone,
-  ChevronRight, X, Moon, BarChart2, Copy, Check, BookOpen, Bot, Sparkles, Download, LogOut,
-  KeyRound, Lock, Eye, EyeOff, AlertCircle, CheckCircle2
+  ChevronRight, X, Moon, Copy, Check, BookOpen, Bot, Sparkles, Download, LogOut,
+  KeyRound, Lock, Eye, EyeOff, AlertCircle, CheckCircle2, DoorOpen, Search
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
@@ -14,12 +14,60 @@ import { triggerPWAInstall } from '../components/PWAInstallPrompt';
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 export default function Profile() {
-  const { user, isProfileOpen, setProfileOpen, isDarkMode, toggleDarkMode, language, setLanguage, logoutPwa, setAuthModalOpen } = useGameStore();
+  const { user, isProfileOpen, setProfileOpen, isDarkMode, toggleDarkMode, language, setLanguage, logoutPwa, setAuthModalOpen, rooms, fetchRooms } = useGameStore();
   const [showLangDropdown, setShowLangDropdown] = useState(false);
   const [supportUsername, setSupportUsername] = useState('hdasebingo_admin');
   const [channelLink, setChannelLink] = useState('https://t.me/hdasebingo');
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
+
+  // Room Selection states
+  const [showRoomModal, setShowRoomModal] = useState(false);
+  const [roomSearch, setRoomSearch] = useState('');
+  const [selectingRoom, setSelectingRoom] = useState(false);
+  const [roomSuccessMsg, setRoomSuccessMsg] = useState<string | null>(null);
+
+  const userRoomId = (user as any)?.room_id || (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null);
+  const currentRoom = rooms.find(r => r.id === userRoomId) || rooms.find(r => r.room_name?.toUpperCase().includes('HDASE')) || rooms[0];
+  const currentRoomName = currentRoom?.room_name || 'HDASE BINGO';
+
+  const filteredRooms = rooms
+    .filter(r => !r.is_private || (userRoomId && r.id === userRoomId))
+    .filter(r => !roomSearch.trim() || r.room_name.toLowerCase().includes(roomSearch.toLowerCase()));
+
+  const handleSelectRoom = async (roomId: string) => {
+    setSelectingRoom(true);
+    try {
+      if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
+      localStorage.setItem('hdase_invited_room_id', roomId);
+      
+      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+      const pwaToken = typeof window !== 'undefined' ? localStorage.getItem('hdase_pwa_token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (initData) headers['x-telegram-init-data'] = initData;
+      if (pwaToken) headers['x-pwa-token'] = pwaToken;
+
+      await fetch(`${API_URL}/player/room/select`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ room_id: roomId }),
+      }).catch(() => {});
+
+      if (user) {
+        useGameStore.setState({ user: { ...user, room_id: roomId } });
+      }
+      await fetchRooms();
+
+      const selected = rooms.find(r => r.id === roomId);
+      setRoomSuccessMsg(selected?.room_name ? `Switched to ${selected.room_name}` : 'Room selected successfully');
+      setTimeout(() => {
+        setRoomSuccessMsg(null);
+        setShowRoomModal(false);
+      }, 700);
+    } finally {
+      setSelectingRoom(false);
+    }
+  };
 
   // Change password states
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -229,15 +277,13 @@ export default function Profile() {
               <ChevronRight size={11} className="text-slate-300" />
             </button>
 
-            <button onClick={() => navigateTo('/games-report')} className={row}>
-              <div className={icon('bg-teal-50 text-teal-500')}><BarChart2 size={12} /></div>
-              <span className="flex-1 font-bold text-slate-700 dark:text-slate-200 text-[10px]">{t[language].profile.gamesReport}</span>
-              <ChevronRight size={11} className="text-slate-300" />
-            </button>
-
-            <button onClick={() => navigateTo('/audit')} className={row}>
-              <div className={icon('bg-indigo-50 text-indigo-500')}><History size={12} /></div>
-              <span className="flex-1 font-bold text-slate-700 dark:text-slate-200 text-[10px]">{t[language].profile.fullAudit}</span>
+            {/* Room Selection */}
+            <button onClick={() => { fetchRooms(); setShowRoomModal(true); }} className={row}>
+              <div className={icon('bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400')}><DoorOpen size={12} /></div>
+              <span className="flex-1 font-bold text-slate-700 dark:text-slate-200 text-[10px]">{language === 'am' ? 'ክፍል ምረጥ' : 'Room Selection'}</span>
+              <span className="text-[8.5px] font-black text-amber-700 dark:text-amber-400 bg-amber-100/80 dark:bg-amber-900/40 px-2 py-0.5 rounded-full mr-1 truncate max-w-[100px]">
+                {currentRoomName}
+              </span>
               <ChevronRight size={11} className="text-slate-300" />
             </button>
 
@@ -483,6 +529,112 @@ export default function Profile() {
                 )}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── ROOM SELECTION MODAL ── */}
+      {showRoomModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl max-h-[85vh] flex flex-col shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600">
+                  <DoorOpen size={18} />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-800 dark:text-white">
+                    {language === 'am' ? 'ክፍል ምረጥ' : 'Room Selection'}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-bold">
+                    {language === 'am' ? 'የሚጫወቱበትን ክፍል ይምረጡ' : 'Choose which room you want to play in'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowRoomModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-90 transition-all"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Search */}
+            <div className="p-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={roomSearch}
+                  onChange={(e) => setRoomSearch(e.target.value)}
+                  placeholder={language === 'am' ? 'ክፍል ፈልግ...' : 'Search room by name...'}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800/80 rounded-xl text-xs font-bold text-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+            </div>
+
+            {/* Feedback message */}
+            {roomSuccessMsg && (
+              <div className="mx-3 mt-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center gap-2 text-emerald-700 dark:text-emerald-300 text-xs font-black animate-in fade-in">
+                <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                <span>{roomSuccessMsg}</span>
+              </div>
+            )}
+
+            {/* Room List */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              {filteredRooms.map((r) => {
+                const isSelected = r.id === userRoomId;
+                return (
+                  <button
+                    key={r.id}
+                    disabled={selectingRoom}
+                    onClick={() => handleSelectRoom(r.id)}
+                    className={`w-full p-3 rounded-2xl border text-left flex items-center justify-between transition-all active:scale-[0.98] ${
+                      isSelected
+                        ? 'bg-amber-500/10 border-amber-400 dark:border-amber-500/50 shadow-xs'
+                        : 'bg-white dark:bg-slate-800/70 border-slate-100 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3 min-w-0">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                        isSelected
+                          ? 'bg-amber-500 text-white shadow-xs'
+                          : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                      }`}>
+                        <DoorOpen size={18} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-black text-xs text-slate-800 dark:text-white truncate">
+                            {r.room_name}
+                          </p>
+                          {r.is_pinned && (
+                            <span className="text-[8px] bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-black px-1.5 py-0.2 rounded-full uppercase">
+                              Official
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold mt-0.5">
+                          <Users size={10} className="inline mr-1 -mt-0.5" />
+                          {r.total_players || 0} {language === 'am' ? 'ተጫዋቾች' : 'players'}
+                        </p>
+                      </div>
+                    </div>
+                    {isSelected ? (
+                      <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs shrink-0">
+                        <Check size={14} />
+                      </div>
+                    ) : (
+                      <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 hover:text-amber-600 shrink-0">
+                        {language === 'am' ? 'ምረጥ' : 'Select'}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
