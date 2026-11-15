@@ -1405,13 +1405,13 @@ export default function BingoGame() {
   );
 
   const renderCallingBoard = () => {
-    const recent = [...called].reverse().slice(0, 4);
+    const recent = [...called].reverse().slice(0, 6);
     const currentLetter = lastNum ? getLetter(lastNum) : null;
 
     const renderCartelaCard = (card: { cartela_number: number; card_matrix: number[][] }, isSingle: boolean) => {
       return (
         <div className="w-full rounded-xl overflow-hidden bg-white border border-amber-300/90 shadow-[0_2px_6px_rgba(180,83,9,0.12),inset_0_1px_0_rgba(255,255,255,0.9)] flex flex-col">
-          {/* B I N G O Header Row - Starts directly here, NO orange HDASE header bar */}
+          {/* B I N G O Header Row */}
           <div className="grid grid-cols-5 gap-[1px]">
             {[
               { l: 'B', bg: '#2563eb' },
@@ -1430,7 +1430,7 @@ export default function BingoGame() {
             ))}
           </div>
 
-          {/* 5x5 Matrix - Reduced compact height so all 4 cartelas fit 100% on screen */}
+          {/* 5x5 Matrix - Compact height so cartelas never hide behind bottom button */}
           <div className="grid grid-cols-5 gap-[1px] p-[1px] bg-amber-50/40">
             {Array.from({ length: 5 }).flatMap((_, r) =>
               Array.from({ length: 5 }, (_, c) => {
@@ -1456,7 +1456,7 @@ export default function BingoGame() {
                         WebApp.HapticFeedback.selectionChanged();
                       }
                     }}
-                    className={`h-[21px] sm:h-[23px] flex items-center justify-center font-black rounded-[2px] select-none transition-all duration-150 ${
+                    className={`h-[22px] sm:h-[23.5px] flex items-center justify-center font-black rounded-[2px] select-none transition-all duration-150 ${
                       isSingle ? 'text-xs' : 'text-[9px] sm:text-[10px]'
                     } ${
                       isFree
@@ -1490,7 +1490,7 @@ export default function BingoGame() {
     };
 
     return (
-      <div className="h-full flex flex-col px-1 pt-0.5 pb-0 gap-1 overflow-hidden select-none">
+      <div className="h-full flex flex-col px-1 pt-0.5 pb-0 gap-0.5 overflow-hidden select-none justify-between">
 
         {/* Top Info Bar */}
         <div className="flex items-center justify-between bg-gradient-to-r from-white via-amber-50/60 to-white px-2 py-0.5 rounded-lg border border-amber-200/80 shadow-[0_1.5px_3px_rgba(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.9)] shrink-0">
@@ -1538,88 +1538,93 @@ export default function BingoGame() {
           </div>
         </div>
 
-        {/* 3D Calling Ball Row with Authentic Black 3D Sphere & White Number */}
-        <div className="shrink-0 bg-white/95 rounded-xl border border-amber-200/90 shadow-[0_2px_6px_rgba(180,83,9,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] px-2 py-1 w-full max-w-[420px] mx-auto">
-          <div className="flex items-center justify-between gap-1.5">
-            {/* Calling Ball & Amharic Text */}
-            <div className="flex items-center gap-2 min-w-0">
-              {/* 3D Black Sphere Calling Ball with White Number */}
+        {/* 3D Calling Ball Row - Increased Height, Big 3D Black Sphere, Amharic Text ABOVE, 5 Mini Balls BELOW! */}
+        <div className="shrink-0 bg-gradient-to-b from-white via-amber-50/20 to-white rounded-2xl border-2 border-amber-300/80 shadow-[0_3px_10px_rgba(180,83,9,0.1),inset_0_1px_0_rgba(255,255,255,0.9)] px-2.5 py-1.5 w-full max-w-[420px] mx-auto">
+          <div className="flex items-center justify-between gap-2">
+            {/* LEFT: Large 3D Black Calling Sphere with Bold White Number */}
+            <div
+              className="rounded-full flex flex-col items-center justify-center font-black relative overflow-hidden shrink-0 border-2 border-slate-700/80 shadow-[0_5px_14px_rgba(0,0,0,0.7),inset_0_2.5px_4px_rgba(255,255,255,0.5),inset_0_-3.5px_6px_rgba(0,0,0,0.95)]"
+              style={{
+                width: '48px',
+                height: '48px',
+                minWidth: '48px',
+                minHeight: '48px',
+                background: 'radial-gradient(circle at 30% 25%, #64748b 0%, #1e293b 25%, #0f172a 55%, #020617 85%, #000000 100%)'
+              }}
+            >
+              {/* Specular glass highlight reflection arc */}
               <div
-                className="rounded-full flex flex-col items-center justify-center font-black relative overflow-hidden shrink-0 border border-slate-600/70 shadow-[0_4px_10px_rgba(0,0,0,0.65),inset_0_2px_3px_rgba(255,255,255,0.45),inset_0_-3px_5px_rgba(0,0,0,0.95)]"
-                style={{
-                  width: '38px',
-                  height: '38px',
-                  minWidth: '38px',
-                  minHeight: '38px',
-                  background: 'radial-gradient(circle at 30% 25%, #64748b 0%, #1e293b 25%, #0f172a 55%, #020617 85%, #000000 100%)'
-                }}
-              >
-                {/* Curved specular glass highlight */}
-                <div
-                  className="absolute top-1 left-1.5 w-3.5 h-1.5 rounded-full pointer-events-none transform -rotate-25"
-                  style={{ background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0) 80%)' }}
-                />
-                <span className="text-[7.5px] leading-none font-black text-amber-300 drop-shadow-[0_1px_1px_rgba(0,0,0,1)] tracking-wider">
-                  {lastNum ? currentLetter : 'BINGO'}
-                </span>
-                <span className="text-white text-base leading-none font-black drop-shadow-[0_2px_3px_rgba(0,0,0,1)] tracking-tight">
-                  {lastNum ?? '?'}
+                className="absolute top-1 left-1.5 w-3.5 h-2 rounded-full pointer-events-none transform -rotate-25"
+                style={{ background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0) 80%)' }}
+              />
+              <span className="text-[8px] leading-none font-black text-amber-300 drop-shadow-[0_1px_1px_rgba(0,0,0,1)] tracking-widest uppercase">
+                {lastNum ? currentLetter : 'BINGO'}
+              </span>
+              <span className="text-white text-lg leading-none font-black drop-shadow-[0_2px_4px_rgba(0,0,0,1)] tracking-tight">
+                {lastNum ?? '?'}
+              </span>
+            </div>
+
+            {/* MIDDLE: Amharic Text ABOVE, and up to 5 Mini 3D Black Balls BELOW! */}
+            <div className="flex-1 min-w-0 flex flex-col justify-center items-start gap-1">
+              {/* Amharic Voice Word - Positioned ABOVE the 5 mini balls */}
+              <div className="w-full">
+                <span className="text-amber-950 font-black text-xs sm:text-sm tracking-wide drop-shadow-[0_0.5px_0_rgba(255,255,255,0.9)] truncate block leading-tight">
+                  {lastNum ? (AMHARIC_NUM[lastNum] || '') : 'በመጠባበቅ ላይ...'}
                 </span>
               </div>
 
-              {/* Amharic Voice Word */}
-              <span className="text-amber-900 font-black text-xs sm:text-sm tracking-wide drop-shadow-[0_0.5px_0_rgba(255,255,255,0.8)] truncate max-w-[95px]">
-                {lastNum ? (AMHARIC_NUM[lastNum] || '') : 'በመጠባበቅ ላይ...'}
-              </span>
-
-              {/* Past 3 Called Mini 3D Black Balls */}
-              <div className="flex items-center gap-1 shrink-0">
-                {recent.slice(1, 4).map((num, idx) => (
+              {/* Up to 5 Past Called Mini 3D Black Balls - directly BELOW the Amharic text! */}
+              <div className="flex items-center gap-1">
+                {recent.slice(1, 6).map((num, idx) => (
                   <div
                     key={`${num}-${idx}`}
-                    className="rounded-full flex flex-col items-center justify-center font-black relative overflow-hidden shrink-0 border border-slate-600/60 shadow-[0_2px_4px_rgba(0,0,0,0.5),inset_0_1px_1.5px_rgba(255,255,255,0.35)]"
+                    className="rounded-full flex flex-col items-center justify-center font-black relative overflow-hidden shrink-0 border border-slate-700/80 shadow-[0_2px_5px_rgba(0,0,0,0.55),inset_0_1px_1.5px_rgba(255,255,255,0.4)]"
                     style={{
-                      width: '22px',
-                      height: '22px',
-                      minWidth: '22px',
-                      minHeight: '22px',
+                      width: '23px',
+                      height: '23px',
+                      minWidth: '23px',
+                      minHeight: '23px',
                       background: 'radial-gradient(circle at 30% 25%, #64748b 0%, #1e293b 30%, #0f172a 70%, #000000 100%)'
                     }}
                   >
                     <div
-                      className="absolute top-0.5 left-0.5 w-2 h-1 rounded-full pointer-events-none transform -rotate-20"
-                      style={{ background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 80%)' }}
+                      className="absolute top-0.5 left-0.5 w-1.5 h-1 rounded-full pointer-events-none transform -rotate-20"
+                      style={{ background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.65) 0%, rgba(255,255,255,0) 80%)' }}
                     />
                     <span className="text-[5px] leading-none font-black text-amber-300 drop-shadow-[0_0.5px_0.5px_rgba(0,0,0,1)]">
                       {getLetter(num)}
                     </span>
-                    <span className="text-white text-[8.5px] leading-none font-black drop-shadow-[0_1px_1px_rgba(0,0,0,1)]">
+                    <span className="text-white text-[9px] leading-none font-black drop-shadow-[0_1px_1px_rgba(0,0,0,1)]">
                       {num}
                     </span>
                   </div>
                 ))}
+                {recent.length <= 1 && (
+                  <span className="text-slate-400 text-[10px] font-semibold italic">...</span>
+                )}
               </div>
             </div>
 
-            {/* Sound & Manual / Auto Mode Controls */}
-            <div className="flex flex-col items-end gap-1 shrink-0">
+            {/* RIGHT: Controls (Sound button top, Mode pill bottom) */}
+            <div className="flex flex-col items-end gap-1.5 shrink-0">
               {/* 3D Sound Toggle Button */}
               <button
                 onClick={toggleSound}
-                className={`h-5.5 px-2 rounded-lg border flex items-center justify-center gap-1 active:scale-90 transition-all cursor-pointer ${
+                className={`h-6.5 px-2.5 rounded-xl border flex items-center justify-center gap-1 active:scale-90 transition-all cursor-pointer ${
                   soundEnabled
                     ? 'bg-gradient-to-b from-blue-400 via-blue-500 to-blue-600 text-white border-blue-300 shadow-[0_2px_4px_rgba(37,99,235,0.35),inset_0_1px_0_rgba(255,255,255,0.8)]'
                     : 'bg-gradient-to-b from-slate-100 to-slate-200 text-slate-400 border-slate-300 shadow-[inset_0_1px_1px_rgba(0,0,0,0.1)]'
                 }`}
                 title={soundEnabled ? 'Mute audio' : 'Unmute audio'}
               >
-                {soundEnabled ? <Volume2 size={11} /> : <VolumeX size={11} />}
+                {soundEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
               </button>
 
               {/* 3D Manual / Auto Toggle Pill */}
               <button
                 onClick={toggleAutoMark}
-                className={`h-5 px-1.5 rounded-full border flex items-center gap-1 font-black text-[7px] tracking-wider uppercase active:scale-90 transition-all cursor-pointer ${
+                className={`h-5.5 px-2 rounded-full border flex items-center gap-1 font-black text-[7.5px] tracking-wider uppercase active:scale-90 transition-all cursor-pointer ${
                   !autoMark
                     ? 'bg-gradient-to-b from-amber-400 via-orange-500 to-amber-600 text-white border-amber-300 shadow-[0_2px_3px_rgba(234,88,12,0.35),inset_0_1px_0_rgba(255,255,255,0.8)]'
                     : 'bg-gradient-to-b from-slate-700 via-slate-800 to-slate-900 text-emerald-300 border-slate-600 shadow-[inset_0_1px_1px_rgba(0,0,0,0.3)]'
@@ -1633,22 +1638,16 @@ export default function BingoGame() {
           </div>
         </div>
 
-        {/* Cartelas Section - NO HEADER, reduced height, ALL 4 CARTELAS NEVER HIDDEN */}
-        <div className="flex-1 min-h-0 flex flex-col justify-center overflow-hidden px-0.5 py-0">
+        {/* Cartelas Section - NO GAP with caller section, NO GAP with bottom button, all cartelas 100% visible */}
+        <div className="flex-1 min-h-0 flex flex-col justify-start overflow-hidden px-0.5 mt-0.5">
           {myCartelas.length > 0 ? (
-            myCartelas.length === 1 ? (
-              <div className="w-full max-w-[240px] mx-auto py-0.5">
-                {renderCartelaCard(myCartelas[0], true)}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-1 w-full max-w-[400px] mx-auto">
-                {myCartelas.map(card => (
-                  <div key={card.cartela_number} className="w-full">
-                    {renderCartelaCard(card, false)}
-                  </div>
-                ))}
-              </div>
-            )
+            <div className={`grid ${myCartelas.length === 1 ? 'grid-cols-1 max-w-[240px]' : 'grid-cols-2 max-w-[400px]'} gap-1 w-full mx-auto`}>
+              {myCartelas.map(card => (
+                <div key={card.cartela_number} className="w-full">
+                  {renderCartelaCard(card, myCartelas.length === 1)}
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="w-full max-w-[250px] mx-auto relative mt-2 pointer-events-none">
               <div className="rounded-2xl overflow-hidden border-2 border-amber-300 bg-white shadow-md">
@@ -1684,7 +1683,7 @@ export default function BingoGame() {
           )}
         </div>
 
-        {/* Bottom Action Bar: AUTO BINGO ACTIVE bar or MANUAL BINGO Claim Button */}
+        {/* Bottom Action Bar: AUTO BINGO ACTIVE bar or MANUAL BINGO Claim Button - ALMOST ZERO GAP */}
         <div className="shrink-0 pt-0 pb-0.5 px-1 w-full max-w-[400px] mx-auto">
           {autoMark ? (
             <div className="w-full py-1.5 px-3 rounded-xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border border-amber-400/50 shadow-[0_2px_8px_rgba(0,0,0,0.25),inset_0_1px_0_rgba(255,255,255,0.15)] flex items-center justify-center gap-2 text-amber-300 font-black text-[11px] tracking-wider uppercase select-none">
