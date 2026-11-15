@@ -2248,50 +2248,49 @@ export default function Agent() {
               )}
             </button>
 
-            {/* ─── PWA WEB APP SHARE & INSTALL (MAIN PRIORITY) ─── */}
-            <div className="bg-gradient-to-br from-emerald-950 via-slate-900 to-emerald-950 border-2 border-emerald-500/50 rounded-3xl p-4.5 text-white shadow-lg space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">
-                    <Sparkles size={10} />
-                    <span>Web Application (PWA) • Main Priority</span>
+            {/* ─── PWA WEB APP SHARE & INSTALL (CLEAN CARD) ─── */}
+            <div className="bg-white rounded-3xl p-4.5 border border-slate-200 shadow-2xs space-y-3">
+              <div className="flex items-start justify-between">
+                <div className="space-y-0.5">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                    Mobile Web Application (PWA)
                   </span>
-                  <h4 className="text-sm font-black text-white">
-                    Share Application With Players
+                  <h4 className="text-xs font-black uppercase text-slate-800 tracking-wide">
+                    Share Mobile Application Link
                   </h4>
-                  <p className="text-[11px] text-slate-300 leading-relaxed">
-                    Players can install directly to their phone screen without Telegram. When they install & create an account, your room is automatically their home room!
+                  <p className="text-[10px] text-slate-400">
+                    Players open in Chrome to install app directly to home screen.
                   </p>
                 </div>
-                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400 shrink-0">
-                  <Smartphone size={18} />
+                <div className="w-9 h-9 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+                  <Smartphone size={17} />
                 </div>
               </div>
 
               {/* PWA Link box & copy */}
-              <div className="w-full p-2.5 bg-black/40 rounded-2xl border border-emerald-500/30 flex items-center justify-between text-xs">
-                <span className="font-mono text-[11px] text-emerald-200 truncate mr-2 select-all">
+              <div className="w-full p-2.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between text-xs">
+                <span className="font-mono text-[11px] text-slate-600 truncate mr-2 select-all">
                   {pwaJoinLink}
                 </span>
                 <button
                   type="button"
                   onClick={handleCopyPwaLink}
                   className={`px-3 py-1.5 rounded-xl text-xs font-black shrink-0 transition-all active:scale-95 ${
-                    copiedPwaLink ? 'bg-emerald-500 text-white' : 'bg-white/15 hover:bg-white/20 text-white border border-white/20'
+                    copiedPwaLink ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-white'
                   }`}
                 >
                   {copiedPwaLink ? 'Copied!' : 'Copy'}
                 </button>
               </div>
 
-              {/* Share Application Button */}
+              {/* Share Application Link Button */}
               <button
                 type="button"
                 onClick={handleSharePwaApp}
-                className="w-full py-3 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:opacity-95 text-white rounded-2xl font-black text-xs shadow-md transition-all active:scale-98 flex items-center justify-center space-x-2"
+                className="w-full py-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:opacity-95 text-white rounded-2xl font-black text-xs shadow-md transition-all active:scale-98 flex items-center justify-center space-x-2"
               >
                 <Share2 size={15} />
-                <span>Share Application (PWA)</span>
+                <span>Share Application Link (PWA)</span>
               </button>
 
               {/* Preview Landing Page button */}
@@ -2301,7 +2300,7 @@ export default function Agent() {
                   triggerHaptic('light');
                   navigate(`/join?room=${room.id}`);
                 }}
-                className="w-full py-2 px-3 rounded-xl text-[11px] font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 transition flex items-center justify-center space-x-1"
+                className="w-full py-1.5 px-3 rounded-xl text-[11px] font-bold text-slate-400 hover:text-slate-700 transition flex items-center justify-center space-x-1"
               >
                 <span>Preview Join & Install Page</span>
                 <ArrowRight size={12} />
