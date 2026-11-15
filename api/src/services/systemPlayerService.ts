@@ -1,12 +1,12 @@
 import { supabase } from './supabase';
 import { generateBingoCard } from './BingoEngine';
 
-// Default stake target ranges if not configured
+// Default stake target ranges: 1st & 2nd stakes ON, 3rd & 4th stakes default OFF (Waiter Player Mode)
 export const DEFAULT_STAKE_CONFIGS = {
-  stake_1: { min: 4, max: 15 },
-  stake_2: { min: 3, max: 9 },
-  stake_3: { min: 2, max: 5 },
-  stake_4: { min: 2, max: 4 },
+  stake_1: { min: 4, max: 15, enabled: true },
+  stake_2: { min: 3, max: 9, enabled: true },
+  stake_3: { min: 2, max: 5, enabled: false }, // Default OFF: Waiter Mode (2-4 bots join only if real player joins)
+  stake_4: { min: 2, max: 4, enabled: false }, // Default OFF: Waiter Mode (2-4 bots join only if real player joins)
 };
 
 // Modern authentic player handles pool (featuring @, $, %, ., emojis, gaming tags, and non-repeated Ethiopian nicknames)
@@ -210,15 +210,31 @@ export class SystemPlayerService {
   }
 
   /**
-   * Check if the current time falls within the room's configured 24h schedule
+   * Get schedule ramp info for smooth realistic transition:
+   * - Ramp-up (first 30m of schedule): starts at min player amount and scales up
+   * - Ramp-down (last 30m of schedule): tapers down gradually to 1 and becomes 0 at end time
    * (Uses UTC+3 East Africa Time / Ethiopia)
    */
-  isScheduleActive(scheduleStart?: string, scheduleEnd?: string): boolean {
+  getScheduleRampInfo(scheduleStart?: string, scheduleEnd?: string): {
+    isActive: boolean;
+    is24h: boolean;
+    isRampingUp: boolean;
+    isRampingDown: boolean;
+    remainingMinutes: number;
+    elapsedMinutes: number;
+  } {
     const start = scheduleStart || '00:00';
     const end = scheduleEnd || '24:00';
 
     if (start === '00:00' && (end === '24:00' || end === '23:59')) {
-      return true; // 24/7 active
+      return {
+        isActive: true,
+        is24h: true,
+        isRampingUp: false,
+        isRampingDown: false,
+        remainingMinutes: 1440,
+        elapsedMinutes: 1440,
+      };
     }
 
     const now = new Date();
@@ -236,52 +252,116 @@ export class SystemPlayerService {
       endMinutes = (eH || 0) * 60 + (eM || 0);
     }
 
+    let isActive = false;
+    let elapsedMinutes = 0;
+    let remainingMinutes = 0;
+
     if (startMinutes <= endMinutes) {
-      return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+      // Normal day window e.g. 08:00 to 22:00
+      isActive = currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+      if (isActive) {
+        elapsedMinutes = currentMinutes - startMinutes;
+        remainingMinutes = endMinutes - currentMinutes;
+      }
     } else {
-      // Overnight schedule (e.g. 22:00 to 06:00)
-      return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+      // Overnight window e.g. 20:00 to 04:00
+      isActive = currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+      if (isActive) {
+        if (currentMinutes >= startMinutes) {
+          elapsedMinutes = currentMinutes - startMinutes;
+          remainingMinutes = (24 * 60 - currentMinutes) + endMinutes;
+        } else {
+          elapsedMinutes = (24 * 60 - startMinutes) + currentMinutes;
+          remainingMinutes = endMinutes - currentMinutes;
+        }
+      }
     }
+
+    return {
+      isActive,
+      is24h: false,
+      isRampingUp: isActive && elapsedMinutes <= 30, // First 30 mins after start
+      isRampingDown: isActive && remainingMinutes <= 30, // Last 30 mins before end
+      remainingMinutes,
+      elapsedMinutes,
+    };
   }
 
   /**
-   * Get target number of bots for this game based on stake index:
-   * 1st stake: 4-15
-   * 2nd stake: 3-9
-   * 3rd stake: 2-5
-   * 4th stake: 2-4
+   * Check if the current time falls within the room's configured 24h schedule
    */
-  getTargetBotsForGame(game: any, room: any): number {
+  isScheduleActive(scheduleStart?: string, scheduleEnd?: string): boolean {
+    return this.getScheduleRampInfo(scheduleStart, scheduleEnd).isActive;
+  }
+
+  /**
+   * Get target number of bots for this game:
+   * 1st stake: 4-15 (default ON)
+   * 2nd stake: 3-9  (default ON)
+   * 3rd stake: 2-5  (default OFF - Waiter Mode: 2-4 bots)
+   * 4th stake: 2-4  (default OFF - Waiter Mode: 2-4 bots)
+   *
+   * Advanced Schedule Transitions:
+   * - Ramp-Up: starts from minimum player count and ramps up
+   * - Ramp-Down: gradually decreases towards 1 and becomes 0 at end time
+   */
+  getTargetBotsForGame(
+    game: any,
+    room: any,
+    isWaiterMode = false,
+    tierConfig?: { min: number; max: number; enabled?: boolean },
+    rampInfo?: { is24h: boolean; isRampingUp: boolean; isRampingDown: boolean; remainingMinutes: number; elapsedMinutes: number }
+  ): number {
     if (gameBotTargets.has(game.id)) {
       return gameBotTargets.get(game.id)!;
     }
 
-    const roomStakes: number[] = Array.isArray(room.stakes) && room.stakes.length === 4
-      ? room.stakes.map(Number)
-      : [5, 10, 20, 35];
+    // Waiter Mode: 2 to 4 waiter bots join
+    if (isWaiterMode) {
+      const target = Math.floor(Math.random() * 3) + 2; // 2, 3, or 4
+      gameBotTargets.set(game.id, target);
+      return target;
+    }
 
-    const stakeIndex = roomStakes.indexOf(Number(game.stake));
-    const tier = stakeIndex >= 0 ? `stake_${stakeIndex + 1}` : 'stake_1';
+    const min = Math.max(1, Number(tierConfig?.min ?? 2));
+    const max = Math.max(min, Number(tierConfig?.max ?? 5));
 
-    const configs = room.system_players_stake_configs || DEFAULT_STAKE_CONFIGS;
-    const tierConfig = configs[tier] || DEFAULT_STAKE_CONFIGS[tier as keyof typeof DEFAULT_STAKE_CONFIGS] || { min: 2, max: 5 };
+    let target = Math.floor(Math.random() * (max - min + 1)) + min;
 
-    const min = Math.max(1, Number(tierConfig.min ?? 2));
-    const max = Math.max(min, Number(tierConfig.max ?? 5));
+    // Advanced Ramp Schedule transitions
+    if (rampInfo && !rampInfo.is24h) {
+      if (rampInfo.isRampingDown) {
+        // Approaching schedule end: gradually decrease up to 1 and become 0
+        if (rampInfo.remainingMinutes <= 5) {
+          target = 1; // Last 5 mins: 1 bot
+        } else if (rampInfo.remainingMinutes <= 15) {
+          target = Math.min(2, min); // 15 to 5 mins: max 2 bots
+        } else {
+          // 30 to 15 mins: scale down to min
+          const factor = Math.max(0, rampInfo.remainingMinutes / 30);
+          target = Math.max(min, Math.round(min + (max - min) * factor * 0.4));
+        }
+      } else if (rampInfo.isRampingUp) {
+        // Start time reached: start from min player amount and ramp up
+        const factor = Math.min(1, rampInfo.elapsedMinutes / 30);
+        target = Math.min(max, Math.round(min + (max - min) * factor * 0.5));
+      }
+    }
 
-    const target = Math.floor(Math.random() * (max - min + 1)) + min;
     gameBotTargets.set(game.id, target);
     return target;
   }
 
   /**
-   * Distribution of cartelas per system player:
-   * 90% -> 1 cartela
-   * 8%  -> 2 cartelas
-   * 2%  -> 3 cartelas
+   * Distribution of cartelas:
+   * Normal bots: 90% -> 1 cartela, 8% -> 2 cartelas, 2% -> 3 cartelas
+   * Waiter bots: 95% -> 1 cartela, 5% -> 2 cartelas
    */
-  decideCartelaCount(): number {
+  decideCartelaCount(isWaiterMode = false): number {
     const r = Math.random();
+    if (isWaiterMode) {
+      return r < 0.95 ? 1 : 2;
+    }
     if (r < 0.90) return 1;
     if (r < 0.98) return 2;
     return 3;
@@ -294,14 +374,49 @@ export class SystemPlayerService {
   async tickWaitingGame(game: any, room: any, cfg: any): Promise<void> {
     if (!room || !room.system_players_enabled) return;
     if (!this.isRoomProActive(room)) return;
-    if (!this.isScheduleActive(room.system_players_schedule_start, room.system_players_schedule_end)) return;
+
+    const ramp = this.getScheduleRampInfo(room.system_players_schedule_start, room.system_players_schedule_end);
+    if (!ramp.isActive) return;
+
+    // Resolve stake tier and whether it is enabled (3rd & 4th stakes are default OFF)
+    const roomStakes: number[] = Array.isArray(room.stakes) && room.stakes.length === 4
+      ? room.stakes.map(Number)
+      : [5, 10, 20, 35];
+
+    const stakeIndex = roomStakes.indexOf(Number(game.stake));
+    const tier = stakeIndex >= 0 ? `stake_${stakeIndex + 1}` : 'stake_1';
+
+    const configs = room.system_players_stake_configs || DEFAULT_STAKE_CONFIGS;
+    const tierConfig = configs[tier] || DEFAULT_STAKE_CONFIGS[tier as keyof typeof DEFAULT_STAKE_CONFIGS] || {
+      min: 2,
+      max: 5,
+      enabled: tier === 'stake_1' || tier === 'stake_2',
+    };
+
+    const defaultEnabled = (tier === 'stake_1' || tier === 'stake_2');
+    const isStakeEnabled = tierConfig.enabled !== undefined ? Boolean(tierConfig.enabled) : defaultEnabled;
 
     const startTime = new Date(game.start_at).getTime();
     const now = Date.now();
 
-    // If game start_at is in the far future (no player had joined yet),
-    // kickstart the 30-second waiting countdown so bots can start joining!
+    // Fetch current players in this game
+    const { data: currentPlayers, error: pErr } = await supabase
+      .from('bingo_players')
+      .select('id, telegram_id, is_system, cartela_number, system_player_id')
+      .eq('game_id', game.id);
+
+    if (pErr) return;
+
+    const players = currentPlayers || [];
+    const initialRealPlayers = players.filter(p => !p.is_system);
+    const initialRealUnique = new Set(initialRealPlayers.map(p => p.telegram_id)).size;
+
+    // If game start_at is in the far future (no player had joined yet):
     if (startTime > now + 86400000) {
+      // If this stake is OFF and no real players have joined: DO NOT KICKSTART!
+      if (!isStakeEnabled) return;
+
+      // Enabled stake: kickstart 30-second waiting countdown to keep table bustling
       const waitingSec = Math.min(30, cfg.waiting_period_s || 30);
       const newStartAt = new Date(now + waitingSec * 1000).toISOString();
       await supabase.from('bingo_games').update({
@@ -317,23 +432,26 @@ export class SystemPlayerService {
     // Don't join in the final 2.5 seconds to lock the board before calling
     if (remainingSec <= 2.5 || remainingSec > 35) return;
 
+    // Check Waiter Player logic if stake is OFF:
+    let isWaiterMode = false;
+    if (!isStakeEnabled) {
+      // If no real players bought tickets on this disabled stake, no bots join!
+      if (initialRealUnique === 0) return;
+
+      // Real player bought ticket on disabled stake -> WAITER PLAYER MODE ACTIVATES!
+      // Waiter bots wait 10 seconds before joining (remainingSec <= 20s):
+      if (remainingSec > 20) return;
+      isWaiterMode = true;
+    }
+
     // Throttle joins: join at natural intervals (every 2.5 to 4 seconds)
     const lastJoin = gameLastBotJoinTime.get(game.id) || 0;
     const timeSinceLastJoin = now - lastJoin;
     if (timeSinceLastJoin < 2500) return;
 
     // Check how many bots should join this game
-    const targetBots = this.getTargetBotsForGame(game, room);
+    const targetBots = this.getTargetBotsForGame(game, room, isWaiterMode, tierConfig, ramp);
 
-    // Fetch current players in this game
-    const { data: currentPlayers, error: pErr } = await supabase
-      .from('bingo_players')
-      .select('id, telegram_id, is_system, cartela_number, system_player_id')
-      .eq('game_id', game.id);
-
-    if (pErr) return;
-
-    const players = currentPlayers || [];
     const existingSystemPlayerIds = new Set<string>();
     const takenSeats = new Set<number>();
 
@@ -347,9 +465,8 @@ export class SystemPlayerService {
     const currentBotCount = existingSystemPlayerIds.size;
     if (currentBotCount >= targetBots) return;
 
-    // Check if we should join now based on remaining time and remaining bots
+    // Smoothly distribute remaining bots over remaining seconds
     const remainingBots = targetBots - currentBotCount;
-    // Probability per tick: smoothly distribute remaining bots over remaining seconds
     const intervalSec = Math.max(1, remainingSec - 2.5);
     const joinProbability = Math.min(1, (remainingBots * 2.5) / intervalSec);
 
@@ -374,7 +491,7 @@ export class SystemPlayerService {
     if (availableBots.length === 0) return;
 
     const chosenBot = availableBots[Math.floor(Math.random() * availableBots.length)];
-    const cartelaCount = this.decideCartelaCount();
+    const cartelaCount = this.decideCartelaCount(isWaiterMode);
 
     // Find available seats (1 to 300)
     const maxSeat = Math.min(300, cfg.max_players || 300);
@@ -387,7 +504,7 @@ export class SystemPlayerService {
 
     if (availableSeats.length === 0) return;
 
-    // Pick random seats for this bot
+    // Pick random seats for this bot uniformly across the 1-300 board
     const chosenSeats: number[] = [];
     for (let i = 0; i < cartelaCount && availableSeats.length > 0; i++) {
       const idx = Math.floor(Math.random() * availableSeats.length);

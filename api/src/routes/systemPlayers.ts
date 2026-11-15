@@ -78,6 +78,14 @@ router.get('/status', validateTelegramAuth, async (req: AuthRequest, res: Respon
       .limit(1)
       .maybeSingle();
 
+    const rawConfigs = room.system_players_stake_configs || {};
+    const mergedStakeConfigs = {
+      stake_1: { ...DEFAULT_STAKE_CONFIGS.stake_1, ...(rawConfigs.stake_1 || {}) },
+      stake_2: { ...DEFAULT_STAKE_CONFIGS.stake_2, ...(rawConfigs.stake_2 || {}) },
+      stake_3: { ...DEFAULT_STAKE_CONFIGS.stake_3, ...(rawConfigs.stake_3 || {}) },
+      stake_4: { ...DEFAULT_STAKE_CONFIGS.stake_4, ...(rawConfigs.stake_4 || {}) },
+    };
+
     res.json({
       room_id: room.id,
       room_name: room.room_name,
@@ -88,7 +96,7 @@ router.get('/status', validateTelegramAuth, async (req: AuthRequest, res: Respon
       days_remaining: daysRemaining,
       schedule_start: room.system_players_schedule_start || '00:00',
       schedule_end: room.system_players_schedule_end || '24:00',
-      stake_configs: room.system_players_stake_configs || DEFAULT_STAKE_CONFIGS,
+      stake_configs: mergedStakeConfigs,
       risk_percent: Number(room.system_players_risk_percent ?? 25),
       monthly_price: Number(room.system_players_monthly_price ?? 1000),
       total_bots_in_pool: totalBots,

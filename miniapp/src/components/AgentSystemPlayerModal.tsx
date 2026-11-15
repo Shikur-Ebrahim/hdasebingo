@@ -36,6 +36,7 @@ interface ManagerAccount {
 interface StakeTierConfig {
   min: number;
   max: number;
+  enabled?: boolean;
 }
 
 interface StakeConfigs {
@@ -77,12 +78,12 @@ export default function AgentSystemPlayerModal({
   const [managerAccounts, setManagerAccounts] = useState<ManagerAccount[]>([]);
   const [pendingRequest, setPendingRequest] = useState<any | null>(null);
 
-  // Stake configs
+  // Stake configs (1st & 2nd stakes ON, 3rd & 4th stakes default OFF)
   const [stakeConfigs, setStakeConfigs] = useState<StakeConfigs>({
-    stake_1: { min: 4, max: 15 },
-    stake_2: { min: 3, max: 9 },
-    stake_3: { min: 2, max: 5 },
-    stake_4: { min: 2, max: 4 },
+    stake_1: { min: 4, max: 15, enabled: true },
+    stake_2: { min: 3, max: 9, enabled: true },
+    stake_3: { min: 2, max: 5, enabled: false },
+    stake_4: { min: 2, max: 4, enabled: false },
   });
 
   // Action states
@@ -157,7 +158,12 @@ export default function AgentSystemPlayerModal({
       }
 
       if (data.stake_configs) {
-        setStakeConfigs(data.stake_configs);
+        setStakeConfigs({
+          stake_1: { min: 4, max: 15, enabled: true, ...data.stake_configs.stake_1 },
+          stake_2: { min: 3, max: 9, enabled: true, ...data.stake_configs.stake_2 },
+          stake_3: { min: 2, max: 5, enabled: false, ...data.stake_configs.stake_3 },
+          stake_4: { min: 2, max: 4, enabled: false, ...data.stake_configs.stake_4 },
+        });
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Error loading status');
@@ -706,137 +712,111 @@ export default function AgentSystemPlayerModal({
               </p>
 
               <div className="space-y-2.5">
-                {/* Stake 1 */}
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-black text-slate-800">1st Stake (Lowest)</p>
-                    <p className="text-[9px] text-slate-400 font-bold">Default: 4 - 15 bots</p>
-                  </div>
-                  <div className="flex items-center space-x-1.5">
-                    <input
-                      type="number"
-                      min="1"
-                      max="50"
-                      value={stakeConfigs.stake_1.min}
-                      onChange={(e) => setStakeConfigs(prev => ({
-                        ...prev,
-                        stake_1: { ...prev.stake_1, min: Number(e.target.value) }
-                      }))}
-                      className="w-12 text-center py-1 bg-white border border-slate-200 rounded-lg text-xs font-black text-slate-800"
-                    />
-                    <span className="text-xs text-slate-400">-</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max="50"
-                      value={stakeConfigs.stake_1.max}
-                      onChange={(e) => setStakeConfigs(prev => ({
-                        ...prev,
-                        stake_1: { ...prev.stake_1, max: Number(e.target.value) }
-                      }))}
-                      className="w-12 text-center py-1 bg-white border border-slate-200 rounded-lg text-xs font-black text-slate-800"
-                    />
-                  </div>
-                </div>
+                {[
+                  { key: 'stake_1' as const, label: '1st Stake (Lowest)', defRange: '4 - 15' },
+                  { key: 'stake_2' as const, label: '2nd Stake (Medium)', defRange: '3 - 9' },
+                  { key: 'stake_3' as const, label: '3rd Stake (High)', defRange: '2 - 5' },
+                  { key: 'stake_4' as const, label: '4th Stake (VIP)', defRange: '2 - 4' },
+                ].map(({ key, label, defRange }) => {
+                  const cfg = stakeConfigs[key];
+                  const isEnabled = cfg.enabled !== false;
+                  return (
+                    <div
+                      key={key}
+                      className={`p-3 rounded-xl border transition-all ${
+                        isEnabled
+                          ? 'bg-slate-50 border-slate-200'
+                          : 'bg-amber-50/50 border-amber-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-black text-slate-800">{label}</p>
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-black tracking-wide ${
+                                isEnabled
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                  : 'bg-amber-100 text-amber-800 border border-amber-300'
+                              }`}
+                            >
+                              {isEnabled ? 'ON • AUTO-BUSTLE' : 'OFF • WAITER MODE'}
+                            </span>
+                          </div>
+                          <p className="text-[9px] text-slate-500 font-bold mt-0.5">
+                            {isEnabled
+                              ? `Auto-bustle active (default: ${defRange} bots)`
+                              : 'Waiter Mode: 2-4 bots wait 10s if real player joins'}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            triggerHaptic('light');
+                            setStakeConfigs(prev => ({
+                              ...prev,
+                              [key]: { ...prev[key], enabled: !isEnabled }
+                            }));
+                          }}
+                          className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                            isEnabled
+                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
+                              : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                          }`}
+                        >
+                          {isEnabled ? 'ON' : 'OFF'}
+                        </button>
+                      </div>
 
-                {/* Stake 2 */}
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-black text-slate-800">2nd Stake (Medium)</p>
-                    <p className="text-[9px] text-slate-400 font-bold">Default: 3 - 9 bots</p>
-                  </div>
-                  <div className="flex items-center space-x-1.5">
-                    <input
-                      type="number"
-                      min="1"
-                      max="50"
-                      value={stakeConfigs.stake_2.min}
-                      onChange={(e) => setStakeConfigs(prev => ({
-                        ...prev,
-                        stake_2: { ...prev.stake_2, min: Number(e.target.value) }
-                      }))}
-                      className="w-12 text-center py-1 bg-white border border-slate-200 rounded-lg text-xs font-black text-slate-800"
-                    />
-                    <span className="text-xs text-slate-400">-</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max="50"
-                      value={stakeConfigs.stake_2.max}
-                      onChange={(e) => setStakeConfigs(prev => ({
-                        ...prev,
-                        stake_2: { ...prev.stake_2, max: Number(e.target.value) }
-                      }))}
-                      className="w-12 text-center py-1 bg-white border border-slate-200 rounded-lg text-xs font-black text-slate-800"
-                    />
-                  </div>
-                </div>
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                        <span className="text-[10px] text-slate-500 font-bold">
+                          {isEnabled ? 'Bot target range:' : 'Custom range (when turned ON):'}
+                        </span>
+                        <div className="flex items-center space-x-1.5">
+                          <input
+                            type="number"
+                            min="1"
+                            max="50"
+                            value={cfg.min}
+                            onChange={(e) => setStakeConfigs(prev => ({
+                              ...prev,
+                              [key]: { ...prev[key], min: Number(e.target.value) }
+                            }))}
+                            className="w-12 text-center py-1 bg-white border border-slate-200 rounded-lg text-xs font-black text-slate-800"
+                          />
+                          <span className="text-xs text-slate-400 font-bold">-</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max="50"
+                            value={cfg.max}
+                            onChange={(e) => setStakeConfigs(prev => ({
+                              ...prev,
+                              [key]: { ...prev[key], max: Number(e.target.value) }
+                            }))}
+                            className="w-12 text-center py-1 bg-white border border-slate-200 rounded-lg text-xs font-black text-slate-800"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
 
-                {/* Stake 3 */}
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-black text-slate-800">3rd Stake (High)</p>
-                    <p className="text-[9px] text-slate-400 font-bold">Default: 2 - 5 bots</p>
-                  </div>
-                  <div className="flex items-center space-x-1.5">
-                    <input
-                      type="number"
-                      min="1"
-                      max="50"
-                      value={stakeConfigs.stake_3.min}
-                      onChange={(e) => setStakeConfigs(prev => ({
-                        ...prev,
-                        stake_3: { ...prev.stake_3, min: Number(e.target.value) }
-                      }))}
-                      className="w-12 text-center py-1 bg-white border border-slate-200 rounded-lg text-xs font-black text-slate-800"
-                    />
-                    <span className="text-xs text-slate-400">-</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max="50"
-                      value={stakeConfigs.stake_3.max}
-                      onChange={(e) => setStakeConfigs(prev => ({
-                        ...prev,
-                        stake_3: { ...prev.stake_3, max: Number(e.target.value) }
-                      }))}
-                      className="w-12 text-center py-1 bg-white border border-slate-200 rounded-lg text-xs font-black text-slate-800"
-                    />
-                  </div>
+              {/* Waiter Mode & Schedule Ramp Information */}
+              <div className="p-3.5 rounded-2xl bg-indigo-50 border border-indigo-200/80 space-y-1.5">
+                <div className="flex items-center gap-1.5 text-indigo-900">
+                  <Bot size={15} />
+                  <h4 className="text-xs font-black uppercase tracking-wide">Waiter Player & Smart Schedule Ramp</h4>
                 </div>
-
-                {/* Stake 4 */}
-                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-black text-slate-800">4th Stake (VIP)</p>
-                    <p className="text-[9px] text-slate-400 font-bold">Default: 2 - 4 bots</p>
-                  </div>
-                  <div className="flex items-center space-x-1.5">
-                    <input
-                      type="number"
-                      min="1"
-                      max="50"
-                      value={stakeConfigs.stake_4.min}
-                      onChange={(e) => setStakeConfigs(prev => ({
-                        ...prev,
-                        stake_4: { ...prev.stake_4, min: Number(e.target.value) }
-                      }))}
-                      className="w-12 text-center py-1 bg-white border border-slate-200 rounded-lg text-xs font-black text-slate-800"
-                    />
-                    <span className="text-xs text-slate-400">-</span>
-                    <input
-                      type="number"
-                      min="1"
-                      max="50"
-                      value={stakeConfigs.stake_4.max}
-                      onChange={(e) => setStakeConfigs(prev => ({
-                        ...prev,
-                        stake_4: { ...prev.stake_4, max: Number(e.target.value) }
-                      }))}
-                      className="w-12 text-center py-1 bg-white border border-slate-200 rounded-lg text-xs font-black text-slate-800"
-                    />
-                  </div>
-                </div>
+                <ul className="text-[11px] text-indigo-950 font-medium leading-relaxed space-y-1">
+                  <li>
+                    • <b>Waiter Player Mode (Default for 3rd & 4th Stake)</b>: When a stake is OFF, bots do NOT auto-fill empty tables. When at least 1 real player buys a cartela, <b>2 to 4 Waiter Players</b> wait 10s and join the game, buying 1–2 cartelas (95% 1 cartela, 5% 2 cartelas).
+                  </li>
+                  <li>
+                    • <b>Smart Schedule Ramp-Up & Ramp-Down</b>: When your schedule starts, bots join gradually starting from the minimum player count. When approaching schedule end, bots taper down smoothly to 1 bot, then reach 0 at the end time without sudden drops.
+                  </li>
+                </ul>
               </div>
             </div>
 
