@@ -91,7 +91,7 @@ router.get('/current', validateTelegramAuth, async (req: AuthRequest, res) => {
     }
   }
 
-  if (!game) { res.json({ game: null, taken_cartelas: [], my_card: null, my_cartelas: [], max_players: 150, max_cartelas_per_user: 2 }); return; }
+  if (!game) { res.json({ game: null, taken_cartelas: [], my_card: null, my_cartelas: [], max_players: 150, max_cartelas_per_user: 4 }); return; }
 
   const { data: rows } = await supabase
     .from('bingo_players')
@@ -339,6 +339,86 @@ router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
     start_at: newStartAt,
     prize_pool: prizePool,
     total_players: unique_players,
+  });
+});
+
+// ── POST /api/bingo/leave ────────────────────────────────────────────────────
+router.post('/leave', validateTelegramAuth, async (req: AuthRequest, res) => {
+  const telegramId = req.telegramUser!.id.toString();
+  const { cartela_number, game_id } = req.body || {};
+  const seat = Number(cartela_number);
+
+  if (!seat || !game_id) {
+    res.status(400).json({ error: 'cartela_number and game_id required' });
+    return;
+  }
+
+  // Check if game is still waiting
+  const { data: game } = await supabase.from('bingo_games').select('*').eq('id', game_id).maybeSingle();
+  if (!game || game.status !== 'waiting') {
+    res.status(400).json({ error: 'Cannot cancel cartela after game starts' });
+    return;
+  }
+
+  // Find player row
+  const { data: playerRow } = await supabase
+    .from('bingo_players')
+    .select('*')
+    .eq('game_id', game.id)
+    .eq('telegram_id', telegramId)
+    .eq('cartela_number', seat)
+    .maybeSingle();
+
+  if (!playerRow) {
+    res.status(404).json({ error: 'Cartela not found' });
+    return;
+  }
+
+  // Refund user balance
+  const refundMain = Number(playerRow.main_used ?? game.stake ?? 0);
+  const refundBonus = Number(playerRow.bonus_used ?? 0);
+
+  const { data: user } = await supabase.from('users').select('main_balance, bonus_balance').eq('telegram_id', telegramId).single();
+  if (user) {
+    await supabase.from('users').update({
+      main_balance: Number(user.main_balance || 0) + refundMain,
+      bonus_balance: Number(user.bonus_balance || 0) + refundBonus,
+    }).eq('telegram_id', telegramId);
+  }
+
+  // Delete from bingo_players
+  await supabase.from('bingo_players').delete().eq('id', playerRow.id);
+
+  // Re-calculate game pool & players
+  const { data: remainingPlayers } = await supabase.from('bingo_players').select('telegram_id').eq('game_id', game.id);
+  const unique_players = new Set((remainingPlayers || []).map((r: any) => r.telegram_id)).size;
+  const total_cartelas = remainingPlayers?.length ?? 0;
+
+  const cfg = await getSettings();
+  const rawPool = total_cartelas * Number(game.stake);
+  const prizePool = unique_players < 3
+    ? rawPool
+    : Math.floor(rawPool * cfg.prize_percent / 100);
+
+  // If no cartelas remaining, reset countdown
+  let newStartAt = game.start_at;
+  if (total_cartelas === 0) {
+    newStartAt = new Date(Date.now() + 86400000 * 365).toISOString();
+  }
+
+  await supabase.from('bingo_games').update({
+    prize_pool: prizePool,
+    total_players: unique_players,
+    start_at: newStartAt,
+    updated_at: new Date().toISOString()
+  }).eq('id', game.id);
+
+  res.json({
+    success: true,
+    cartela_number: seat,
+    unique_players,
+    prize_pool: prizePool,
+    start_at: newStartAt,
   });
 });
 

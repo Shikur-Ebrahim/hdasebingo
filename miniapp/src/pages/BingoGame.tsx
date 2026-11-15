@@ -170,11 +170,10 @@ export default function BingoGame() {
   const [showStakeDropdown, setShowStakeDropdown] = useState(false);
   const [showRoomDropdown, setShowRoomDropdown] = useState(false);
   const [maxPlayers, setMaxPlayers] = useState<number>(150);
-  const [maxCartelasPerUser, setMaxCartelasPerUser] = useState<number>(2);
+  const [maxCartelasPerUser, setMaxCartelasPerUser] = useState<number>(4);
   const [myCartelas, setMyCartelas] = useState<Array<{ cartela_number: number; card_matrix: number[][] }>>([]);
   const [activeCartelaIdx, setActiveCartelaIdx] = useState(0);
   const [uniquePlayers, setUniquePlayers] = useState<number>(0);
-  const [previewCartela, setPreviewCartela] = useState<{ seat: number; matrix: number[][] } | null>(null);
   const [homeGames, setHomeGames] = useState<Record<number, { pool: number; start_at?: string; status: string; players: number }>>({});
   const [homeTimeLeft, setHomeTimeLeft] = useState<Record<number, number>>({});
   const [soundEnabled, setSoundEnabled] = useState(true); // default ON
@@ -934,15 +933,65 @@ export default function BingoGame() {
     return card;
   };
 
-  const openPreview = (seat: number) => {
-    if (myCartelas.length >= maxCartelasPerUser) { setErrMsg(`Max ${maxCartelasPerUser} cartela${maxCartelasPerUser > 1 ? 's' : ''} per game`); return; }
-    if (taken.includes(seat)) { setErrMsg("Taken! Pick another."); return; }
+  const handleQuickBuy = (seat: number) => {
+    if (myCartelas.length >= maxCartelasPerUser) {
+      setErrMsg(`Max ${maxCartelasPerUser} cartela${maxCartelasPerUser > 1 ? 's' : ''} per game • በጨዋታ ቢበዛ ${maxCartelasPerUser} ካርቴላ`);
+      return;
+    }
+    if (taken.includes(seat)) {
+      setErrMsg(language === 'am' ? 'ይህ ቁጥር ተይዟል!' : 'Taken! Pick another.');
+      return;
+    }
     const matrix = generateBingoCard();
-    setPreviewCartela({ seat, matrix });
+    joinGame(seat, matrix);
+  };
+
+  const handleCancelCartela = async (seat: number) => {
+    if (!game || game.status !== 'waiting') return;
+    if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
+
+    const existing = myCartelas.find(c => c.cartela_number === seat);
+    if (!existing) return;
+
+    setMyCartelas(prev => prev.filter(c => c.cartela_number !== seat));
+    setTaken(prev => prev.filter(n => n !== seat));
+
+    const stakeAmt = game.stake || 0;
+    useGameStore.setState(s => ({
+      user: s.user ? { ...s.user, main_balance: Number(s.user.main_balance || 0) + stakeAmt } : s.user
+    }));
+
+    try {
+      const res = await fetch(`${API}/bingo/leave`, {
+        method: 'POST',
+        headers: hdrs(),
+        body: JSON.stringify({
+          cartela_number: seat,
+          game_id: game.id,
+        })
+      });
+      if (res.ok) {
+        refreshUser();
+        fetchState();
+      } else {
+        setMyCartelas(prev => [...prev, existing]);
+        setTaken(prev => [...prev, seat]);
+        useGameStore.setState(s => ({
+          user: s.user ? { ...s.user, main_balance: Math.max(0, Number(s.user.main_balance || 0) - stakeAmt) } : s.user
+        }));
+        setErrMsg('Could not cancel cartela');
+      }
+    } catch {
+      setMyCartelas(prev => [...prev, existing]);
+      setTaken(prev => [...prev, seat]);
+      useGameStore.setState(s => ({
+        user: s.user ? { ...s.user, main_balance: Math.max(0, Number(s.user.main_balance || 0) - stakeAmt) } : s.user
+      }));
+      setErrMsg('Network error');
+    }
   };
 
   const joinGame = async (seat: number, matrix: number[][]) => {
-    setPreviewCartela(null);
     initWebAudio();
     if (!game || game.status !== "waiting") return;
     if (myCartelas.length >= maxCartelasPerUser) { setErrMsg(`Max ${maxCartelasPerUser} cartela${maxCartelasPerUser > 1 ? 's' : ''} per game`); return; }
@@ -1509,61 +1558,153 @@ export default function BingoGame() {
   const renderCartelaPicker = () => {
     const myNums = myCartelas.map(c => c.cartela_number);
     const canPickMore = myCartelas.length < maxCartelasPerUser;
+
     return (
-    <div className="flex-1 overflow-y-auto relative p-3 pb-16">
-      <div className="flex items-center justify-between mb-2.5">
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <p className="text-xs text-slate-700 font-black uppercase tracking-wider">
-            {canPickMore ? `TAP TO PICK - ${taken.length}/${maxPlayers} TAKEN` : `ALL CARTELAS SELECTED ✓`}
-          </p>
-        </div>
-        <span className="text-[11px] bg-amber-100 text-amber-800 border border-amber-300/80 px-2.5 py-0.5 rounded-full font-black shadow-2xs">
-          {myCartelas.length}/{maxCartelasPerUser} PICKED
-        </span>
-      </div>
-      {/* My Cartelas chips */}
-      {myNums.length > 0 && (
-        <div className="flex gap-2 mb-2.5 flex-wrap">
-          {myNums.map(n => (
-            <span key={n} className="px-3 py-1 bg-emerald-500 text-white text-xs font-black rounded-full ring-2 ring-amber-300 flex items-center gap-1.5 shadow-sm">
-              <LayoutGrid size={12} className="text-amber-200 shrink-0" />
-              <span>{t[language].bingo.cartelaNum.trim()} {n} ✓</span>
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
+        {/* Top Status & Scrollable Number Grid */}
+        <div className="flex-1 overflow-y-auto p-3">
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <p className="text-xs text-slate-800 font-black uppercase tracking-wider">
+                {canPickMore ? `TAP TO PICK - ${taken.length}/${maxPlayers} TAKEN` : `ALL CARTELAS SELECTED ✓`}
+              </p>
+            </div>
+            <span className="text-[11px] bg-amber-100 text-amber-900 border border-amber-300/80 px-2.5 py-0.5 rounded-full font-black shadow-2xs">
+              {myCartelas.length}/{maxCartelasPerUser} PICKED
             </span>
-          ))}
+          </div>
+
+          <div className="rounded-2xl border-2 border-amber-300/90 overflow-hidden bg-white/90 backdrop-blur-sm shadow-md p-1 mb-2">
+            <div className="grid gap-[3px] p-[2px]" style={{ gridTemplateColumns: "repeat(10, 1fr)" }}>
+              {Array.from({ length: maxPlayers }, (_, i) => {
+                const n = i + 1;
+                const isTaken = taken.includes(n), isMine = myNums.includes(n), isBuying = buying === n;
+                if (isMine) {
+                  return (
+                    <button
+                      key={n}
+                      onClick={() => handleCancelCartela(n)}
+                      className="aspect-square flex flex-col items-center justify-center rounded-[8px] text-[9.5px] font-black bg-emerald-500 text-white ring-2 ring-emerald-300 shadow-sm active:scale-95 transition-transform z-10 cursor-pointer"
+                      title={language === 'am' ? 'ለመሰረዝ ይጫኑ' : 'Tap to cancel'}
+                    >
+                      <span className="leading-none">{n}</span>
+                      <span className="text-[7.5px] leading-none opacity-90">✓</span>
+                    </button>
+                  );
+                }
+                if (isTaken) {
+                  return (
+                    <div key={n} className="aspect-square flex items-center justify-center rounded-[8px] text-[10px] font-bold bg-slate-100 text-slate-300 border border-slate-200/50">✕</div>
+                  );
+                }
+                return (
+                  <button
+                    key={n}
+                    disabled={buying !== null || !canPickMore}
+                    onClick={() => handleQuickBuy(n)}
+                    className={`aspect-square flex items-center justify-center rounded-[8px] text-xs font-black transition-all duration-150 border ${
+                      !canPickMore 
+                        ? 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed' 
+                        : isBuying 
+                        ? 'bg-amber-100 border-amber-300 opacity-60 scale-90' 
+                        : 'bg-white text-slate-800 border-slate-200/80 hover:border-amber-400 hover:bg-amber-50/50 shadow-2xs active:scale-90 cursor-pointer'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
-      )}
-      <div className="rounded-2xl border-2 border-amber-300/90 overflow-hidden bg-white/90 backdrop-blur-sm shadow-md p-1">
-        <div className="grid gap-[3px] p-[2px]" style={{ gridTemplateColumns: "repeat(10, 1fr)" }}>
-          {Array.from({ length: maxPlayers }, (_, i) => {
-            const n = i + 1;
-            const isTaken = taken.includes(n), isMine = myNums.includes(n), isBuying = buying === n;
-            if (isMine) {
-              return (
-                <div key={n} className="aspect-square flex items-center justify-center rounded-[8px] text-[10px] font-black bg-emerald-500 text-white ring-2 ring-amber-400 z-10 shadow-xs">✓</div>
-              );
-            }
-            if (isTaken) {
-              return (
-                <div key={n} className="aspect-square flex items-center justify-center rounded-[8px] text-[10px] font-bold bg-slate-100 text-slate-300 border border-slate-200/50">✕</div>
-              );
-            }
-            return (
-              <button key={n} disabled={buying !== null || !canPickMore} onClick={() => openPreview(n)}
-                className={`aspect-square flex items-center justify-center rounded-[8px] text-xs font-black transition-all duration-150 border ${
-                  !canPickMore 
-                    ? 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed' 
-                    : isBuying 
-                    ? 'bg-amber-100 border-amber-300 opacity-60 scale-90' 
-                    : 'bg-white text-slate-800 border-slate-200/80 hover:border-amber-400 hover:bg-amber-50/50 shadow-2xs active:scale-90 cursor-pointer'
-                }`}>
-                {n}
-              </button>
-            );
-          })}
+
+        {/* BOTTOM FIXED PANEL: YOUR SELECTED CARTELAS */}
+        <div className="bg-white/95 backdrop-blur-md border-t-2 border-amber-200/80 p-2.5 shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] z-20">
+          <div className="flex items-center justify-between mb-2 px-1">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-800">
+                {language === 'am' ? 'የተመረጡ ካርቴላዎች' : 'YOUR SELECTED CARTELAS'}
+              </span>
+            </div>
+            <span className="text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full shadow-2xs">
+              {myCartelas.length} / {maxCartelasPerUser}
+            </span>
+          </div>
+
+          {/* Mini Cartelas Horizontal Row */}
+          <div className="flex gap-2 overflow-x-auto pb-1 px-1 scrollbar-none items-stretch">
+            {myCartelas.map((c) => (
+              <div
+                key={c.cartela_number}
+                className="relative w-[84px] sm:w-[92px] shrink-0 bg-white rounded-xl border-2 border-amber-300 shadow-sm overflow-visible flex flex-col"
+              >
+                {/* Red Circular Cancel Button at Top-Right */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCancelCartela(c.cartela_number);
+                  }}
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 hover:bg-red-600 active:scale-90 text-white rounded-full flex items-center justify-center text-[10px] font-black shadow-md border-2 border-white z-30 cursor-pointer"
+                  title={language === 'am' ? 'ሰርዝ' : 'Cancel cartela'}
+                >
+                  ✕
+                </button>
+
+                {/* Card Brand & Number Header */}
+                <div className="px-1.5 py-0.5 bg-amber-50/90 border-b border-amber-200 flex items-center justify-between rounded-t-[10px]">
+                  <span className="text-[8px] font-black text-amber-700 tracking-wider">HDASE</span>
+                  <span className="text-[8.5px] font-black text-slate-800 mr-2">#{c.cartela_number}</span>
+                </div>
+
+                {/* B I N G O Header Row with Col Colors */}
+                <div className="grid grid-cols-5 text-[7px] font-black text-white text-center leading-tight">
+                  <div style={{ background: '#2563eb' }}>B</div>
+                  <div style={{ background: '#dc2626' }}>I</div>
+                  <div style={{ background: '#ea580c' }}>N</div>
+                  <div style={{ background: '#16a34a' }}>G</div>
+                  <div style={{ background: '#ca8a04' }}>O</div>
+                </div>
+
+                {/* 5x5 Number Grid */}
+                <div className="grid grid-cols-5 gap-[1px] bg-slate-200/80 p-[1px] rounded-b-[10px] overflow-hidden">
+                  {Array.from({ length: 5 }).flatMap((_, r) =>
+                    Array.from({ length: 5 }, (_, col) => {
+                      const num = c.card_matrix[r]?.[col];
+                      const isFree = (r === 2 && col === 2) || num === 0;
+                      return (
+                        <div
+                          key={`${r}-${col}`}
+                          className={`aspect-square flex items-center justify-center text-[7.5px] font-black leading-none ${
+                            isFree ? 'bg-amber-400 text-amber-950 font-black' : 'bg-white text-slate-800'
+                          }`}
+                        >
+                          {isFree ? '★' : num}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* Empty slots placeholders up to maxCartelasPerUser */}
+            {Array.from({ length: Math.max(0, maxCartelasPerUser - myCartelas.length) }).map((_, idx) => (
+              <div
+                key={`empty-${idx}`}
+                className="w-[84px] sm:w-[92px] shrink-0 min-h-[95px] rounded-xl border-2 border-dashed border-amber-200/90 bg-amber-50/30 flex flex-col items-center justify-center text-amber-400 select-none p-2"
+              >
+                <span className="text-xl font-bold leading-none mb-1 text-amber-300">+</span>
+                <span className="text-[8px] font-black uppercase text-amber-600/80 tracking-wider text-center">
+                  {language === 'am' ? `ካርቴላ ${myCartelas.length + idx + 1}` : `Slot ${myCartelas.length + idx + 1}`}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
     );
   };
 
@@ -1735,7 +1876,7 @@ export default function BingoGame() {
         </div>
       )}
 
-      <div className={`flex-1 min-h-0 ${game.status === 'calling' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {game.status === 'calling' ? renderCallingBoard() : renderCartelaPicker()}
       </div>
 
@@ -1892,43 +2033,6 @@ export default function BingoGame() {
         </div>
       )}
 
-      {/* Preview Modal */}
-      {previewCartela && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setPreviewCartela(null)}>
-          <div className="bg-white border-2 border-amber-300 rounded-3xl p-5 w-full max-w-[320px] shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-xl font-black text-slate-800 text-center mb-1 flex items-center justify-center gap-2"><LayoutGrid size={18} className="text-amber-500 shrink-0" /> {t[language].bingo.cartelaNum.trim()} {previewCartela.seat}</h3>
-            <p className="text-amber-600 text-[10px] uppercase font-black text-center tracking-widest mb-4">{t[language].bingo.previewNumbers}</p>
-            
-            <div className="rounded-2xl overflow-hidden border border-amber-200 shadow-md mb-5">
-              <div className="grid grid-cols-5">
-                {BINGO_LETTERS.map(l => (
-                  <div key={l} className="flex items-center justify-center py-1.5 font-black text-white text-sm" style={{ background: LETTER_BG[l] }}>{l}</div>
-                ))}
-              </div>
-              <div className="grid grid-cols-5 gap-[2px] p-[2px] bg-amber-50/50">
-                {Array.from({ length: 5 }).flatMap((_, r) =>
-                  Array.from({ length: 5 }, (_, c) => {
-                    const num = previewCartela.matrix[r][c];
-                    const isFree = num === 0;
-                    return (
-                      <div key={`${r}-${c}`} className={`aspect-square flex items-center justify-center font-black text-sm rounded-md transition-all duration-300 ${
-                        isFree ? 'bg-amber-400 text-amber-950 shadow-xs' : 'bg-white text-slate-800 border border-slate-100 shadow-xs'
-                      }`}>{isFree ? '\u2605' : num}</div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <button onClick={() => setPreviewCartela(null)} className="flex-1 py-3 rounded-xl bg-slate-100 text-slate-700 font-black active:scale-95 transition-transform border border-slate-200">{t[language].bingo.cancel}</button>
-              <button onClick={() => joinGame(previewCartela.seat, previewCartela.matrix)} className="flex-1 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-black active:scale-95 transition-transform shadow-[0_4px_16px_rgba(16,185,129,0.4)] border border-emerald-400">
-                {t[language].bingo.buy.replace('{stake}', String(game?.stake || 0))}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
