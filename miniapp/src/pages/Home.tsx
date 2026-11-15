@@ -328,7 +328,7 @@ export default function Home() {
   const formatMoney = (amount: number | undefined) => (amount || 0).toLocaleString('en-US');
 
   return (
-    <div className="flex flex-col min-h-screen pb-20 space-y-4">
+    <div className="flex flex-col h-[calc(100dvh-64px)] max-h-[calc(100dvh-64px)] overflow-hidden space-y-2 pb-1">
 
       {/* HOME VIDEO GUIDE FULLSCREEN POPUP (CLEAN WHITE THEME) */}
       {showVideoPopup && homePopupVideo && (
@@ -440,36 +440,38 @@ export default function Home() {
       )}
 
       {/* HEADER */}
-      <div className="bg-white dark:bg-slate-900 px-4 py-4 rounded-b-2xl shadow-sm border-b border-gray-100 dark:border-slate-800 flex items-center justify-between transition-colors">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+      <div className="bg-white dark:bg-slate-900 px-3.5 py-1.5 shadow-2xs border-b border-gray-100 dark:border-slate-800 flex items-center justify-between shrink-0 transition-colors">
+        <div className="flex items-center space-x-2.5">
+          <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-black text-sm shadow-xs">
             {initial}
           </div>
           <div>
-            <p className="font-bold text-sm uppercase tracking-wider text-slate-700 dark:text-slate-200">{user?.first_name || 'USER'}</p>
+            <p className="font-black text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200 leading-tight">
+              {user?.first_name || 'USER'}
+            </p>
             {user?.role !== 'user' && (
-              <span className="text-[10px] bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded-full font-semibold">
+              <span className="text-[9px] bg-blue-100 text-blue-600 px-1.5 py-0.2 rounded-full font-bold">
                 {user?.role}
               </span>
             )}
           </div>
         </div>
-        <div className="flex items-center space-x-4 text-right">
+        <div className="flex items-center space-x-3 text-right">
           <div className="flex flex-col items-center">
-            <div className="flex items-center space-x-1 text-purple-500 dark:text-purple-400 mb-0.5">
-              <Gift size={14} />
+            <div className="flex items-center space-x-0.5 text-purple-500 mb-0.2">
+              <Gift size={12} />
             </div>
-            <p className="text-xs font-bold text-slate-700 dark:text-slate-300">{formatMoney(user?.bonus_balance)} ETB</p>
+            <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{formatMoney(user?.bonus_balance)} ETB</p>
           </div>
           <div className="flex flex-col items-end">
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">{t[language].home.wallet}</p>
-            <p className="text-sm font-bold text-green-600 dark:text-green-400">{formatMoney(user?.main_balance)} ETB</p>
+            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{t[language].home.wallet}</p>
+            <p className="text-xs font-black text-emerald-600 dark:text-emerald-400">{formatMoney(user?.main_balance)} ETB</p>
           </div>
         </div>
       </div>
 
       {/* ACTION BUTTONS */}
-      <div className="px-4 grid grid-cols-4 gap-2">
+      <div className="px-3 grid grid-cols-4 gap-2 shrink-0">
         <Link
           to="/deposit"
           onClick={(e) => {
@@ -478,9 +480,9 @@ export default function Home() {
               setAuthModalOpen(true);
             }
           }}
-          className="flex flex-col items-center justify-center space-y-1 bg-yellow-400 hover:bg-yellow-500 text-yellow-950 py-2.5 rounded-xl font-bold text-[11px] shadow-sm transition-colors"
+          className="flex flex-col items-center justify-center space-y-0.5 bg-yellow-400 hover:bg-yellow-500 active:scale-95 text-yellow-950 py-1.5 rounded-xl font-black text-[10.5px] shadow-2xs transition-transform"
         >
-          <PlusCircle size={18} />
+          <PlusCircle size={16} />
           <span>{t[language].home.deposit}</span>
         </Link>
         <Link
@@ -491,47 +493,34 @@ export default function Home() {
               setAuthModalOpen(true);
             }
           }}
-          className="flex flex-col items-center justify-center space-y-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 py-2.5 rounded-xl font-bold text-[11px] shadow-sm transition-colors"
+          className="flex flex-col items-center justify-center space-y-0.5 bg-white border border-gray-200 hover:bg-gray-50 active:scale-95 text-slate-700 py-1.5 rounded-xl font-black text-[10.5px] shadow-2xs transition-transform"
         >
-          <ArrowDownToLine size={18} />
+          <ArrowDownToLine size={16} />
           <span>{t[language].home.withdraw}</span>
         </Link>
         <button
           onClick={handleInvite}
-          className="flex flex-col items-center justify-center space-y-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 py-2.5 rounded-xl font-bold text-[11px] shadow-sm transition-colors"
+          className="flex flex-col items-center justify-center space-y-0.5 bg-white border border-gray-200 hover:bg-gray-50 active:scale-95 text-slate-700 py-1.5 rounded-xl font-black text-[10.5px] shadow-2xs transition-transform"
         >
-          <Share2 size={18} />
+          <Share2 size={16} />
           <span>{t[language].home.invite}</span>
         </button>
         <div className="relative">
-          {highlightGuideBtn && (
-            <div className="absolute -top-7 right-0 z-30 whitespace-nowrap bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-[9.5px] font-black px-2.5 py-0.5 rounded-full shadow-lg shadow-violet-500/50 flex items-center space-x-1 animate-bounce">
-              <Sparkles size={10} className="text-amber-300" />
-              <span>Rewatch here!</span>
-            </div>
-          )}
           <Link
             to="/help-videos"
-            className={`relative group flex flex-col items-center justify-center space-y-1 bg-black hover:bg-slate-900 text-white py-2.5 rounded-xl font-bold text-[11px] shadow-sm active:scale-95 transition-all overflow-hidden border border-slate-800 ${
-              highlightGuideBtn ? 'ring-4 ring-violet-500 ring-offset-2 scale-105 shadow-xl shadow-violet-500/40 animate-pulse' : ''
-            }`}
+            className="relative flex flex-col items-center justify-center space-y-0.5 bg-black hover:bg-slate-900 active:scale-95 text-white py-1.5 rounded-xl font-black text-[10.5px] shadow-2xs transition-transform border border-slate-800"
           >
-            {/* Subtle animated shimmer highlight */}
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full duration-1000 transition-transform pointer-events-none" />
-            
-            {/* Attention-seeker badge */}
-            <span className="absolute -top-1 -right-1 bg-gradient-to-r from-amber-400 to-rose-500 text-white text-[7.5px] font-black px-1.5 py-0.5 rounded-full shadow-sm animate-pulse tracking-wider uppercase border border-white/40">
+            <span className="absolute -top-1 -right-1 bg-gradient-to-r from-amber-400 to-rose-500 text-white text-[7px] font-black px-1 rounded-full shadow-2xs tracking-wider uppercase">
               Guide
             </span>
-
-            <Clapperboard size={18} className="text-white drop-shadow-sm" />
-            <span className="tracking-wide">Videos</span>
+            <Clapperboard size={16} className="text-white" />
+            <span>Videos</span>
           </Link>
         </div>
       </div>
 
-      {/* LIVE BINGO BANNER */}
-      <div className="px-4">
+      {/* COMPACT LIVE BINGO BANNER */}
+      <div className="px-3 shrink-0">
         <Link
           to={`/bingo/live?stake=${activeStakes[0]}&room=${activeRoomId}`}
           onClick={(e) => {
@@ -540,63 +529,37 @@ export default function Home() {
               setAuthModalOpen(true);
             }
           }}
-          className="block relative rounded-2xl overflow-hidden shadow-md h-52 flex flex-col items-center justify-center border border-amber-100"
+          className="block relative rounded-2xl overflow-hidden shadow-xs h-[100px] flex flex-col justify-between border border-amber-200/60 p-2"
         >
-          {/* Light gradient background — matches loading screen */}
-          <div className="absolute inset-0" style={{
-            background: 'linear-gradient(135deg, #fffbf0 0%, #fef3c7 40%, #fff8e8 70%, #fffbf0 100%)',
-          }} />
-          {/* Subtle radial glow in center */}
-          <div className="absolute inset-0" style={{
-            background: 'radial-gradient(ellipse at 50% 60%, rgba(251,191,36,0.18) 0%, transparent 70%)',
-          }} />
-          {/* Top border accent */}
+          {/* Light gradient background */}
+          <div className="absolute inset-0 bg-gradient-to-br from-[#fffbf0] via-[#fef3c7] to-[#fff8e8]" />
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-400" />
 
-          {/* Scrolling marquee strip — live room names */}
-          <div className="absolute top-1 left-0 right-0 overflow-hidden py-1.5 bg-amber-50/80 border-b border-amber-200/60" style={{ top: '4px' }}>
-            {(() => {
-              const userInvitedRoomId = (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null) || (user as any)?.room_id || null;
-              const publicOrUserRooms = rooms.filter(r => !r.is_private || (userInvitedRoomId && r.id === userInvitedRoomId));
-              return publicOrUserRooms.length > 0 ? (
-                <div className="flex whitespace-nowrap animate-marquee">
-                  {[...publicOrUserRooms, ...publicOrUserRooms].map((room, i) => (
-                    <span key={i} className="text-amber-700 font-black text-[10px] uppercase tracking-[0.2em] px-4 shrink-0 flex items-center gap-1">
-                      🚪 {room.room_name} &nbsp;·&nbsp;
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex whitespace-nowrap animate-marquee">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <span key={i} className="text-amber-700 font-black text-[10px] uppercase tracking-[0.25em] px-5 shrink-0">
-                      🚪 HDASE BINGO &nbsp;·&nbsp; 🏆 Live Rooms &nbsp;·&nbsp; 🔥 Play Now &nbsp;·&nbsp;
-                    </span>
-                  ))}
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* Main content */}
-          <div className="relative z-10 flex flex-col items-center text-center px-4">
-            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          {/* Top strip */}
+          <div className="relative z-10 flex items-center justify-between px-1">
+            <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wider flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               LIVE BINGO
             </span>
-            {/* Split color title: HDASE dark, BINGO orange */}
-            <div className="mb-5 flex items-baseline gap-2">
-              <span className="text-slate-900 font-black text-4xl tracking-wide leading-none drop-shadow-sm">HDASE</span>
-              <span className="text-orange-500 font-black text-4xl tracking-wide leading-none drop-shadow-sm">BINGO</span>
+            <span className="text-[9px] font-black text-amber-700 uppercase tracking-wider">
+              {activeRoom?.room_name || 'HDASE BINGO'}
+            </span>
+          </div>
+
+          {/* Center: HDASE BINGO + PLAY NOW button */}
+          <div className="relative z-10 flex items-center justify-between px-2">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-slate-900 font-black text-2xl tracking-tight leading-none">HDASE</span>
+              <span className="text-orange-500 font-black text-2xl tracking-tight leading-none">BINGO</span>
             </div>
-            <div className="bg-orange-500 hover:bg-orange-600 text-white px-10 py-2.5 rounded-full font-black text-sm shadow-[0_4px_16px_rgba(249,115,22,0.4)] active:scale-95 transition-all">
-              PLAY NOW →
+            <div className="bg-orange-500 hover:bg-orange-600 active:scale-95 text-white px-4 py-1.5 rounded-full font-black text-xs shadow-sm shadow-orange-500/30 flex items-center gap-1">
+              <span>PLAY NOW</span>
+              <span>→</span>
             </div>
           </div>
 
-          {/* ── Phone numbers & Support indicator — bottom corners ── */}
-          <div className="absolute bottom-1 left-1.5 right-1.5 flex justify-between items-center pointer-events-none z-20">
-            {/* USA — bottom left */}
+          {/* Bottom corners: phone numbers & support */}
+          <div className="relative z-10 flex justify-between items-center px-1 pt-0.5 border-t border-amber-200/40">
             <button
               type="button"
               onClick={e => {
@@ -605,13 +568,12 @@ export default function Home() {
                 if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
                 window.location.href = `tel:${supportPhoneUsa.replace(/[\s()\-]/g, '')}`;
               }}
-              className="pointer-events-auto flex items-center gap-1 p-0.5 rounded text-black active:scale-95 active:opacity-75 transition-all shrink-0"
+              className="flex items-center gap-1 text-slate-800 active:scale-95 text-[9.5px] font-bold"
             >
-              <span className="text-[15px] leading-none" role="img" aria-label="USA">🇺🇸</span>
-              <span className="text-[11px] font-black leading-none tracking-tight">{supportPhoneUsa}</span>
+              <span>🇺🇸</span>
+              <span>{supportPhoneUsa}</span>
             </button>
 
-            {/* Center "SUPPORT" badge with arrows pointing toward USA & Ethiopia */}
             <button
               type="button"
               onClick={e => {
@@ -626,16 +588,11 @@ export default function Home() {
                   window.open(tgUrl, '_blank');
                 }
               }}
-              className="pointer-events-auto flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-cyan-400 via-cyan-400 to-teal-400 text-slate-900 border border-cyan-200/90 shadow-sm active:scale-95 transition-all select-none"
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-cyan-400 to-teal-400 text-slate-900 text-[8.5px] font-black tracking-wider uppercase active:scale-95"
             >
-              <span className="text-xs font-black text-slate-900 leading-none">←</span>
-              <span className="text-[9.5px] font-black tracking-widest uppercase leading-none">
-                SUPPORT
-              </span>
-              <span className="text-xs font-black text-slate-900 leading-none">→</span>
+              ← SUPPORT →
             </button>
 
-            {/* Ethiopia — bottom right */}
             <button
               type="button"
               onClick={e => {
@@ -644,33 +601,33 @@ export default function Home() {
                 if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
                 window.location.href = `tel:${formatEthPhone(supportPhoneEth).replace(/[\s()\-]/g, '')}`;
               }}
-              className="pointer-events-auto flex items-center gap-1 p-0.5 rounded text-black active:scale-95 active:opacity-75 transition-all shrink-0"
+              className="flex items-center gap-1 text-slate-800 active:scale-95 text-[9.5px] font-bold"
             >
-              <span className="text-[15px] leading-none" role="img" aria-label="Ethiopia">🇪🇹</span>
-              <span className="text-[11px] font-black leading-none tracking-tight">{formatEthPhone(supportPhoneEth)}</span>
+              <span>🇪🇹</span>
+              <span>{formatEthPhone(supportPhoneEth)}</span>
             </button>
           </div>
         </Link>
       </div>
 
       {/* ══════════ LIVE STAKE TABLES SECTION (SELECT MEDEB) ══════════ */}
-      <div className="px-4 flex-1 pb-6">
-        {/* Section title: Exactly SELECT MEDEB matching reference design */}
-        <div className="flex items-center justify-between mb-3 px-0.5">
-          <h2 className="text-sm font-black text-slate-800 tracking-wider uppercase">
+      <div className="px-3 flex-1 flex flex-col min-h-0 justify-between pb-1">
+        {/* Section title */}
+        <div className="flex items-center justify-between mb-1 px-0.5 shrink-0">
+          <h2 className="text-xs font-black text-slate-800 tracking-wider uppercase">
             SELECT MEDEB
           </h2>
           <button
             onClick={() => handleManualRefresh()}
-            className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200/60 text-slate-500 flex items-center justify-center active:scale-95 transition-all"
+            className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 border border-slate-200/60 text-slate-500 flex items-center justify-center active:scale-95 transition-all"
             title="Refresh"
           >
-            <RefreshCw size={12} className={manualRefreshing ? 'animate-spin text-amber-500' : ''} />
+            <RefreshCw size={11} className={manualRefreshing ? 'animate-spin text-amber-500' : ''} />
           </button>
         </div>
 
-        {/* 4 Live Stake Tables Grid - Exact replica of the reference design */}
-        <div className="grid grid-cols-2 gap-3.5">
+        {/* 4 Live Stake Tables Grid - Fits perfectly without scrolling */}
+        <div className="grid grid-cols-2 gap-2 flex-1 min-h-0">
           {activeStakes.map((stake, idx) => {
             const hg = homeGames[stake];
             const pool = hg?.pool || 0;
@@ -679,20 +636,11 @@ export default function Home() {
             const timeLeft = homeTimeLeft[stake] || 0;
             const isCountingDown = hg?.status === 'waiting' && timeLeft > 0;
 
-            // 4 exact gradient themes from reference screenshot: Blue, Green, Purple, Red
             const THEMES = [
-              {
-                gradient: 'from-[#2979ff] to-[#1565c0]', // Vivid Blue
-              },
-              {
-                gradient: 'from-[#00c853] to-[#009624]', // Vivid Green
-              },
-              {
-                gradient: 'from-[#ab47bc] to-[#7b1fa2]', // Vivid Purple
-              },
-              {
-                gradient: 'from-[#ff2a55] to-[#d50000]', // Vivid Red
-              },
+              { gradient: 'from-[#2979ff] to-[#1565c0]' }, // Blue
+              { gradient: 'from-[#00c853] to-[#009624]' }, // Green
+              { gradient: 'from-[#ab47bc] to-[#7b1fa2]' }, // Purple
+              { gradient: 'from-[#ff2a55] to-[#d50000]' }, // Red
             ];
 
             const theme = THEMES[idx % THEMES.length];
@@ -709,36 +657,36 @@ export default function Home() {
             return (
               <div
                 key={stake}
-                className="bg-white rounded-3xl shadow-[0_4px_16px_rgba(0,0,0,0.06)] border border-slate-100 overflow-hidden flex flex-col justify-between"
+                className="bg-white rounded-2xl shadow-xs border border-slate-100 overflow-hidden flex flex-col justify-between"
               >
-                {/* Header with rounded-t-3xl and bright gradient */}
+                {/* Header with rounded-t-2xl and bright gradient */}
                 <div
                   onClick={handleJoin}
-                  className={`h-24 bg-gradient-to-r ${theme.gradient} flex items-center justify-center relative rounded-t-3xl cursor-pointer active:opacity-95 transition-opacity`}
+                  className={`h-14 sm:h-16 bg-gradient-to-r ${theme.gradient} flex items-center justify-center relative rounded-t-2xl cursor-pointer active:opacity-95 transition-opacity`}
                 >
                   {/* Big bold centered number */}
-                  <span className="text-white font-black text-4xl tracking-tight drop-shadow-xs select-none">
+                  <span className="text-white font-black text-2xl sm:text-3xl tracking-tight drop-shadow-xs select-none">
                     {stake}
                   </span>
                   {/* Top-right translucent "ETB" pill */}
-                  <div className="absolute top-2.5 right-2.5 bg-white/25 backdrop-blur-xs text-white text-[9.5px] font-black px-2 py-0.5 rounded-md tracking-wider select-none">
+                  <div className="absolute top-1.5 right-1.5 bg-white/25 backdrop-blur-xs text-white text-[8px] font-black px-1.5 py-0.2 rounded tracking-wider select-none">
                     ETB
                   </div>
                 </div>
 
                 {/* 3-Column Stats Row */}
-                <div className="px-2 py-2.5 flex items-center justify-between text-center border-b border-slate-50 bg-white select-none">
+                <div className="px-1 py-1.5 flex items-center justify-between text-center border-b border-slate-50 bg-white select-none">
                   <div className="flex-1 flex flex-col items-center">
-                    <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider">DERASH</span>
-                    <span className="text-[10.5px] font-black text-[#e5a000] mt-0.5">{pool} ETB</span>
+                    <span className="text-[7.5px] font-bold text-slate-400 uppercase tracking-wider">DERASH</span>
+                    <span className="text-[9.5px] font-black text-[#e5a000] mt-0.5">{pool} ETB</span>
                   </div>
                   <div className="flex-1 flex flex-col items-center">
-                    <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider">PLAYERS</span>
-                    <span className="text-[10.5px] font-black text-[#00c853] mt-0.5">{players}</span>
+                    <span className="text-[7.5px] font-bold text-slate-400 uppercase tracking-wider">PLAYERS</span>
+                    <span className="text-[9.5px] font-black text-[#00c853] mt-0.5">{players}</span>
                   </div>
                   <div className="flex-1 flex flex-col items-center">
-                    <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider">STATUS</span>
-                    <span className={`text-[10.5px] font-black mt-0.5 ${
+                    <span className="text-[7.5px] font-bold text-slate-400 uppercase tracking-wider">STATUS</span>
+                    <span className={`text-[9.5px] font-black mt-0.5 ${
                       isCalling
                         ? 'text-emerald-500 animate-pulse'
                         : isCountingDown
@@ -751,10 +699,10 @@ export default function Home() {
                 </div>
 
                 {/* Bottom Action Button: Join Room */}
-                <div className="p-3 pt-1 bg-white">
+                <div className="p-2 pt-0.5 bg-white">
                   <button
                     onClick={handleJoin}
-                    className="w-full bg-[#eef3f9] hover:bg-[#e2eaf5] active:scale-95 text-slate-700 font-black py-2.5 rounded-2xl text-xs transition-all shadow-2xs border border-slate-200/50 flex items-center justify-center cursor-pointer"
+                    className="w-full bg-[#eef3f9] hover:bg-[#e2eaf5] active:scale-95 text-slate-700 font-extrabold py-1.5 rounded-xl text-[11px] transition-all shadow-2xs border border-slate-200/50 flex items-center justify-center cursor-pointer"
                   >
                     Join Room
                   </button>
@@ -764,7 +712,6 @@ export default function Home() {
           })}
         </div>
       </div>
-      {/* ═══════════════════════════════════════════════ */}
 
     </div>
   );
