@@ -495,7 +495,35 @@ router.post('/init-pool', validateTelegramAuth, async (req: AuthRequest, res: Re
 
     res.json({
       success: true,
-      message: `System player pool verified/initialized with ${totalBots} Ethiopian bots`,
+      message: `System player pool verified/initialized with ${totalBots} stylized bots`,
+      total_bots: totalBots,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/system-players/reseed (Regenerate 1,000 stylized unique handles) ─
+router.post('/reseed', validateTelegramAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const telegramId = req.telegramUser!.id.toString();
+    const { roomId, room_id } = req.body;
+    const targetRoomId = roomId || room_id;
+
+    if (!targetRoomId) {
+      return res.status(400).json({ error: 'Room ID is required' });
+    }
+
+    const { authorized, error } = await verifyRoomOwnerOrAdmin(telegramId, targetRoomId);
+    if (!authorized) {
+      return res.status(403).json({ error: error || 'Unauthorized' });
+    }
+
+    const totalBots = await systemPlayerService.reseedSystemPlayersPool(targetRoomId, 1000);
+
+    res.json({
+      success: true,
+      message: `Pool refreshed with ${totalBots} unique stylized handles (@, $, %, ., emojis)`,
       total_bots: totalBots,
     });
   } catch (err: any) {

@@ -9,68 +9,87 @@ export const DEFAULT_STAKE_CONFIGS = {
   stake_4: { min: 2, max: 4 },
 };
 
-// Curated authentic Ethiopian names pool (first names + patronymic family names)
-const ETHIOPIAN_FIRST_NAMES = [
-  'Abebe', 'Almaz', 'Dawit', 'Tigist', 'Biruk', 'Selam', 'Chala', 'Yohannes', 'Ermias', 'Hiwot',
-  'Bethlehem', 'Natnael', 'Yared', 'Meron', 'Samuel', 'Tsion', 'Nahom', 'Sara', 'Henok', 'Hana',
-  'Abel', 'Eden', 'Eyob', 'Helen', 'Daniel', 'Marta', 'Fitsum', 'Rahel', 'Kibrom', 'Genet',
-  'Bereket', 'Senait', 'Robel', 'Lemlem', 'Surafel', 'Mahlet', 'Tamirat', 'Eyerusalem', 'Mikiyas', 'Kalkidan',
-  'Tewodros', 'Roman', 'Biniyam', 'Aster', 'Desta', 'Meseret', 'Solomon', 'Fasika', 'Haile', 'Martha',
-  'Girma', 'Kidist', 'Muluken', 'Danayit', 'Tesfaye', 'Hawi', 'Getachew', 'Melat', 'Ashenafi', 'Betty',
-  'Tadesse', 'Ruta', 'Kassahun', 'Sosina', 'Fikadu', 'Samrawit', 'Mulugeta', 'Saron', 'Worku', 'Feven',
-  'Dereje', 'Lensa', 'Negash', 'Ruth', 'Endale', 'Hermela', 'Amanuel', 'Selamawit', 'Fisseha', 'Mekdes',
-  'Yohana', 'Senay', 'Rediet', 'Beza', 'Bisrat', 'Frehiwot', 'Birhanu', 'Blen', 'Eskinder', 'Birtukan',
-  'Tilahun', 'Misgana', 'Yeabsira', 'Helina', 'Tariku', 'Rahwa', 'Elias', 'Yordanos', 'Tesfalem', 'Makeda',
-  'Berihun', 'Liya', 'Melaku', 'Maryam', 'Abiy', 'Nardos', 'Tedros', 'Haset', 'Nebiyu', 'Kidan',
-  'Kaleb', 'Lidia', 'Dagim', 'Samra', 'Naty', 'Segen', 'Robi', 'Tsigereda', 'Yonatan', 'Weyni',
-  'Samson', 'Yabsera', 'Temesgen', 'Zeineb', 'Wondwosen', 'Biftu', 'Zelalem', 'Bontu', 'Zeleke', 'Chaltu',
-  'Alemayehu', 'Ayantu', 'Fanta', 'Obsi', 'Gashaw', 'Sena', 'Belay', 'Toltu', 'Belete', 'Amensisa',
-  'Seyoum', 'Hawine', 'Yonas', 'Lalise', 'Brook', 'Gudina', 'Anteneh', 'Bikila', 'Fanuel', 'Derartu',
-  'Minase', 'Fatuma', 'Birhane', 'Meseret', 'Hailu', 'Kenisa', 'Petros', 'Haile', 'Markos', 'Tirunesh'
+// Modern authentic player handles pool (featuring @, $, %, ., emojis, gaming tags, and non-repeated Ethiopian nicknames)
+const BOT_ROOTS = [
+  'miki', 'dani', 'alex', 'robel', 'natty', 'sami', 'yoni', 'teddy', 'bini', 'abdu',
+  'kaleb', 'dagi', 'aman', 'fasil', 'henok', 'ermias', 'nahom', 'brook', 'dawit', 'biruk',
+  'beti', 'hanna', 'sara', 'marta', 'tsion', 'liyu', 'helen', 'eden', 'ruth', 'feven',
+  'blen', 'genet', 'sosina', 'kalki', 'mimi', 'tigist', 'hiwi', 'mahlet', 'saron', 'ruta',
+  'hermela', 'nardos', 'meron', 'rediet', 'haset', 'lensa', 'bontu', 'hawine', 'chaltu', 'biftu',
+  'zeineb', 'rahwa', 'weyni', 'selam', 'abebe', 'kebede', 'almaz', 'chala', 'yared', 'abel',
+  'eyob', 'kibrom', 'bereket', 'surafel', 'tamirat', 'mikiyas', 'tewodros', 'desta', 'haile', 'girma',
+  'muluken', 'tesfaye', 'getachew', 'ashenafi', 'tadesse', 'kassahun', 'fikadu', 'mulugeta', 'worku', 'dereje',
+  'negash', 'endale', 'amanuel', 'fisseha', 'senay', 'bisrat', 'eskinder', 'tilahun', 'tariku', 'elias',
+  'tedros', 'nebiyu', 'dagim', 'samson', 'temesgen', 'zelalem', 'zelek', 'belay', 'belete', 'yonas'
 ];
 
-const ETHIOPIAN_PATRONYMICS = [
-  'Kebede', 'Tadesse', 'Haile', 'Girma', 'Tesfaye', 'Bekele', 'Desta', 'Solomon', 'Worku', 'Assefa',
-  'Berhanu', 'Fikadu', 'Mulugeta', 'Negash', 'Abebe', 'Alemu', 'Tefera', 'Mekonnen', 'Demisse', 'Wolde',
-  'Kassaye', 'Mengistu', 'Lemma', 'Araya', 'Belachew', 'Kifle', 'Tsegaye', 'Gebre', 'Admasu', 'Wondimu',
-  'Ayele', 'Getachew', 'Bogale', 'Cherinet', 'Derbew', 'Engida', 'Fantaye', 'Gashaw', 'Habte', 'Jemberu'
-];
+const BOT_TAGS = ['pro', 'win', 'king', 'queen', 'star', 'lucky', 'boss', 'gold', 'cash', 'vip', 'fast', 'top', 'tiger', 'lion', 'speed', 'addis', 'ethio', 'habesha', 'bingo', 'money'];
+const BOT_EMOJIS = ['💎', '⚡', '🔥', '👑', '✨', '⭐', '🎯', '🚀', '🦁', '🏆', '💰', '🍀', '🌟', '💫', '🦅', '🎲', '💥', '🤍', '🌹', '🕊️', '💸', '🧨', '🥇', '🔮', '🎮'];
+const BOT_NUMS = ['01', '07', '10', '11', '21', '24', '77', '88', '99', '100', '777', '007', '1', '2', '3', '7', '9'];
 
-export function generateEthiopianNames(count = 1000): string[] {
-  const names: string[] = [];
+function cap(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/**
+ * Generate 1,000 completely unique stylized system player handles
+ * using characters like @, $, %, ., emojis, gaming nicknames, and numbers.
+ * Zero duplicate names guaranteed.
+ */
+export function generateStylizedSystemNames(count = 1000): string[] {
   const set = new Set<string>();
+  const list: string[] = [];
 
-  // 1. Single first names
-  for (const fn of ETHIOPIAN_FIRST_NAMES) {
-    if (!set.has(fn) && names.length < count) {
-      set.add(fn);
-      names.push(fn);
+  const add = (name: string) => {
+    if (!set.has(name) && list.length < count) {
+      set.add(name);
+      list.push(name);
     }
-  }
+  };
 
-  // 2. First name + Patronymic Initial (e.g. "Abebe K.", "Tigist M.")
-  for (const fn of ETHIOPIAN_FIRST_NAMES) {
-    for (const ln of ETHIOPIAN_PATRONYMICS) {
-      const name = `${fn} ${ln[0]}.`;
-      if (!set.has(name) && names.length < count) {
-        set.add(name);
-        names.push(name);
+  let cycle = 0;
+  while (list.length < count && cycle < 300) {
+    for (let i = 0; i < BOT_ROOTS.length && list.length < count; i++) {
+      const r = BOT_ROOTS[i];
+      const em = BOT_EMOJIS[(i + cycle * 3) % BOT_EMOJIS.length];
+      const tag = BOT_TAGS[(i + cycle * 5) % BOT_TAGS.length];
+      const num = BOT_NUMS[(i + cycle * 7) % BOT_NUMS.length];
+
+      const pType = (i + cycle) % 25;
+      let name = '';
+      switch (pType) {
+        case 0: name = `@${r}_${num}`; break;
+        case 1: name = `${em}${cap(r)}$`; break;
+        case 2: name = `${cap(r)}%${num}`; break;
+        case 3: name = `@${r}.${tag}`; break;
+        case 4: name = `${em}${cap(r)}${em}`; break;
+        case 5: name = `${cap(r)}.x$`; break;
+        case 6: name = `@${tag}_${r}`; break;
+        case 7: name = `${cap(r)}.et%`; break;
+        case 8: name = `${cap(r)}$$`; break;
+        case 9: name = `${cap(r)}@${num}`; break;
+        case 10: name = `${tag}_${cap(r)}%`; break;
+        case 11: name = `${em} ${cap(r)}`; break;
+        case 12: name = `${cap(r)}_${num}%`; break;
+        case 13: name = `@${r}_${tag}${num}`; break;
+        case 14: name = `${cap(r)}${em}$`; break;
+        case 15: name = `★${cap(r)}★`; break;
+        case 16: name = `${cap(r)}.pro$`; break;
+        case 17: name = `🎯${cap(r)}🎯`; break;
+        case 18: name = `@${r}_win${num}`; break;
+        case 19: name = `${cap(r)}#${num}`; break;
+        case 20: name = `${em}${r}_${num}%`; break;
+        case 21: name = `@${tag}.${r}$`; break;
+        case 22: name = `${cap(r)}.win%`; break;
+        case 23: name = `💎${r}@${num}`; break;
+        case 24: name = `${cap(r)}${num}$$`; break;
       }
+      add(name);
     }
+    cycle++;
   }
 
-  // 3. First name + Full Patronymic (e.g. "Abebe Kebede")
-  for (const fn of ETHIOPIAN_FIRST_NAMES) {
-    for (const ln of ETHIOPIAN_PATRONYMICS) {
-      const name = `${fn} ${ln}`;
-      if (!set.has(name) && names.length < count) {
-        set.add(name);
-        names.push(name);
-      }
-    }
-  }
-
-  return names.slice(0, count);
+  return list;
 }
 
 // In-memory tracking of assigned target bot count per active game
@@ -81,7 +100,7 @@ const gameLastBotJoinTime = new Map<string, number>();
 
 export class SystemPlayerService {
   /**
-   * Seed / Ensure 1,000 system players exist for a given room
+   * Seed / Ensure 1,000 stylized system players exist for a given room
    */
   async seedSystemPlayersPool(roomId: string, targetCount = 1000): Promise<number> {
     try {
@@ -97,11 +116,23 @@ export class SystemPlayerService {
 
       const existingCount = count || 0;
       if (existingCount >= targetCount) {
+        // Check if existing pool contains old non-stylized names (e.g. "Haile L.")
+        const { data: sample } = await supabase
+          .from('system_players')
+          .select('first_name')
+          .eq('room_id', roomId)
+          .limit(10);
+
+        const hasOldStyle = sample?.some(b => /\b[A-Z]\.$/.test(b.first_name || ''));
+        if (hasOldStyle) {
+          console.log(`🤖 Detected old non-stylized names in room ${roomId}. Auto-refreshing to stylized handles...`);
+          return await this.reseedSystemPlayersPool(roomId, targetCount);
+        }
         return existingCount;
       }
 
       const needed = targetCount - existingCount;
-      const allNames = generateEthiopianNames(targetCount);
+      const allNames = generateStylizedSystemNames(targetCount);
       const namesToInsert = allNames.slice(existingCount, existingCount + needed);
 
       const batchSize = 100;
@@ -122,10 +153,45 @@ export class SystemPlayerService {
         inserted += batch.length;
       }
 
-      console.log(`🤖 Seeded ${inserted} system players for room ${roomId} (total pool: ${existingCount + inserted})`);
+      console.log(`🤖 Seeded ${inserted} stylized system players for room ${roomId} (total pool: ${existingCount + inserted})`);
       return existingCount + inserted;
     } catch (e) {
       console.error(`Failed to seed system players for room ${roomId}:`, e);
+      return 0;
+    }
+  }
+
+  /**
+   * Reseed 1,000 fresh stylized system players with creative symbols (@, $, %, emojis)
+   * Guaranteed 100% unique names.
+   */
+  async reseedSystemPlayersPool(roomId: string, targetCount = 1000): Promise<number> {
+    try {
+      // Clear old bot names for this room
+      await supabase.from('system_players').delete().eq('room_id', roomId);
+
+      const allNames = generateStylizedSystemNames(targetCount);
+      const batchSize = 100;
+      let inserted = 0;
+      for (let i = 0; i < allNames.length; i += batchSize) {
+        const batch = allNames.slice(i, i + batchSize).map(name => ({
+          room_id: roomId,
+          first_name: name,
+          total_won: 0,
+        }));
+
+        const { error: insErr } = await supabase.from('system_players').insert(batch);
+        if (insErr) {
+          console.error(`Batch insert error during reseed for room ${roomId}:`, insErr);
+          break;
+        }
+        inserted += batch.length;
+      }
+
+      console.log(`🤖 Reseeded ${inserted} fresh unique stylized system players for room ${roomId}`);
+      return inserted;
+    } catch (e) {
+      console.error(`Failed to reseed system players for room ${roomId}:`, e);
       return 0;
     }
   }
@@ -296,7 +362,7 @@ export class SystemPlayerService {
       .from('system_players')
       .select('id, first_name')
       .eq('room_id', room.id)
-      .limit(200);
+      .limit(1000);
 
     if (poolErr || !poolBots || poolBots.length === 0) {
       // Pool empty? Auto-seed the 1,000 pool in the background!

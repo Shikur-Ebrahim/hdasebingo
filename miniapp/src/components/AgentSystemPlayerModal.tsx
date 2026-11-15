@@ -434,48 +434,83 @@ export default function AgentSystemPlayerModal({
     }
   };
 
+  const [reseedingPool, setReseedingPool] = useState(false);
+
+  const handleReseedPool = async () => {
+    if (!roomId) return;
+    const confirmed = window.confirm(
+      'Refresh 1,000 system player handles with unique creative symbols (@, $, %, emojis)? This will replace default handles with fresh non-repeated usernames.'
+    );
+    if (!confirmed) return;
+
+    setReseedingPool(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      const initData = WebApp?.initData || '';
+      const res = await fetch(`${API}/system-players/reseed`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-init-data': initData,
+        },
+        body: JSON.stringify({ roomId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to reseed pool');
+      setSuccessMsg('1,000 stylized creative handles (@, $, %, emojis) refreshed successfully!');
+      setBotPage(1);
+      fetchPool(1, '');
+      fetchStatus();
+    } catch (e: any) {
+      setErrorMsg(e.message || 'Error refreshing pool');
+    } finally {
+      setReseedingPool(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col w-full h-full bg-slate-50 overflow-hidden animate-in fade-in duration-200">
-      {/* ── MOBILE-FIRST FULLSCREEN HEADER ── */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white px-4 pt-4 pb-3 flex items-center justify-between border-b border-white/10 shrink-0 shadow-md">
+      {/* ── MOBILE-FIRST FULLSCREEN HEADER (Clean Light Theme - No Dark Colors) ── */}
+      <div className="bg-white text-slate-900 px-4 pt-4 pb-3 flex items-center justify-between border-b border-slate-200/80 shrink-0 shadow-2xs">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-inner">
+          <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600 shadow-xs">
             <Bot size={22} />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-black text-sm tracking-wide text-white">System Player (AI Bots)</h3>
+              <h3 className="font-black text-sm tracking-wide text-slate-900">System Player (AI Bots)</h3>
               {isProActive ? (
                 <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500 text-white shadow-xs">
                   PRO LEVEL 1
                 </span>
               ) : (
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/30 text-amber-300 border border-amber-400/40">
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300">
                   Pro Needed
                 </span>
               )}
             </div>
-            <p className="text-[10px] text-slate-300 font-medium">
+            <p className="text-[10px] text-slate-500 font-bold">
               {roomName} • {isProActive ? `Active (${daysRemaining}d remaining)` : '1,000 ETB / month'}
             </p>
           </div>
         </div>
         <button
           onClick={onClose}
-          className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white active:scale-90 transition-all"
+          className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 active:scale-90 transition-all border border-slate-200"
         >
           <X size={18} />
         </button>
       </div>
 
-      {/* ── TOP TABS ── */}
-      <div className="flex items-center border-b border-slate-200 bg-white px-3 py-2 shrink-0 gap-1.5 shadow-2xs">
+      {/* ── TOP TABS (Bright Clean Light Style - No Slate-900) ── */}
+      <div className="flex items-center border-b border-slate-200 bg-slate-50/80 px-3 py-2 shrink-0 gap-1.5 shadow-2xs">
         <button
           onClick={() => { triggerHaptic('light'); setActiveTab('settings'); }}
           className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
             activeTab === 'settings'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+              ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200/80'
           }`}
         >
           <Sliders size={13} />
@@ -485,19 +520,19 @@ export default function AgentSystemPlayerModal({
           onClick={() => { triggerHaptic('light'); setActiveTab('upgrade'); }}
           className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
             activeTab === 'upgrade'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+              ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200/80'
           }`}
         >
-          <Zap size={13} className={isProActive ? 'text-emerald-400' : 'text-amber-500'} />
+          <Zap size={13} className={activeTab === 'upgrade' ? 'text-white' : 'text-amber-500'} />
           <span>Pro & Pay</span>
         </button>
         <button
           onClick={() => { triggerHaptic('light'); setActiveTab('pool'); }}
           className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
             activeTab === 'pool'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+              ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200/80'
           }`}
         >
           <Users size={13} />
@@ -832,33 +867,33 @@ export default function AgentSystemPlayerModal({
         {/* ──────────────── TAB 2: PRO UPGRADE & PAYMENT ──────────────── */}
         {activeTab === 'upgrade' && (
           <div className="space-y-4 max-w-md mx-auto">
-            {/* Pro Status Card */}
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white shadow-md relative overflow-hidden">
+            {/* Pro Status Card (Clean Warm Amber Gold Gradient - No Dark Slate) */}
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-500 via-amber-600 to-orange-500 text-white shadow-md relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] uppercase font-black tracking-wider text-amber-400">
+                  <span className="text-[10px] uppercase font-black tracking-wider text-amber-100">
                     Monthly Room Subscription
                   </span>
                   <h3 className="text-lg font-black text-white mt-0.5">PRO Level 1</h3>
-                  <p className="text-xs text-slate-300 mt-1">
+                  <p className="text-xs text-amber-100/90 mt-1 font-medium">
                     Enables 24/7 AI System Players & automated table bustling.
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-2xl font-black text-amber-400">{monthlyPrice}</p>
-                  <p className="text-[10px] text-slate-300 font-bold">ETB / Month</p>
+                  <p className="text-2xl font-black text-white">{monthlyPrice}</p>
+                  <p className="text-[10px] text-amber-100 font-bold">ETB / Month</p>
                 </div>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-xs font-bold">
+              <div className="mt-4 pt-3 border-t border-white/20 flex items-center justify-between text-xs font-bold">
                 <span>Current Status:</span>
                 {isProActive ? (
-                  <span className="text-emerald-400 flex items-center gap-1 font-black">
-                    <CheckCircle2 size={14} /> ACTIVE ({daysRemaining} days remaining)
+                  <span className="bg-white/20 px-2 py-0.5 rounded-full text-white flex items-center gap-1 font-black shadow-2xs">
+                    <CheckCircle2 size={13} /> ACTIVE ({daysRemaining} days remaining)
                   </span>
                 ) : (
-                  <span className="text-amber-400 flex items-center gap-1 font-black">
-                    <AlertCircle size={14} /> EXPIRED / NOT UPGRADED
+                  <span className="bg-white/20 px-2 py-0.5 rounded-full text-white flex items-center gap-1 font-black shadow-2xs">
+                    <AlertCircle size={13} /> EXPIRED / NOT UPGRADED
                   </span>
                 )}
               </div>
@@ -1066,22 +1101,34 @@ export default function AgentSystemPlayerModal({
           <div className="space-y-3 max-w-md mx-auto">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-xs font-black text-slate-800">1,000 Ethiopian System Players</h4>
+                <h4 className="text-xs font-black text-slate-800">1,000 System Players</h4>
                 <p className="text-[10px] text-slate-400 font-bold">
-                  Saved exclusively for "{roomName}"
+                  Unique handles with @, $, %, emojis • "{roomName}"
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setNewBotName('');
-                  setShowAddBotModal(true);
-                }}
-                className="px-2.5 py-1.5 rounded-xl bg-indigo-600 text-white text-[10px] font-black flex items-center gap-1 shadow-xs active:scale-95"
-              >
-                <Plus size={12} />
-                <span>Add Bot</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={reseedingPool}
+                  onClick={handleReseedPool}
+                  className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-black flex items-center gap-1 shadow-xs active:scale-95 disabled:opacity-50 transition-all"
+                  title="Refresh all 1,000 bots with fresh unique creative handles"
+                >
+                  <Sparkles size={12} className={reseedingPool ? 'animate-spin' : ''} />
+                  <span>{reseedingPool ? 'Refreshing...' : 'Reset Handles'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewBotName('');
+                    setShowAddBotModal(true);
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black flex items-center gap-1 shadow-xs active:scale-95"
+                >
+                  <Plus size={12} />
+                  <span>Add Bot</span>
+                </button>
+              </div>
             </div>
 
             {/* Search Bar */}
@@ -1089,19 +1136,19 @@ export default function AgentSystemPlayerModal({
               <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search Ethiopian player name (e.g. Abebe, Almaz)..."
+                placeholder="Search handle (e.g. @miki, Dani$, 💎Sara, %)..."
                 value={botSearch}
                 onChange={(e) => {
                   setBotSearch(e.target.value);
                   fetchPool(1, e.target.value);
                 }}
-                className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500 shadow-xs"
+                className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500 shadow-xs"
               />
             </div>
 
             {/* Bot List */}
             {loadingPool ? (
-              <div className="py-16 text-center text-xs font-bold text-slate-400">Loading Ethiopian bots pool...</div>
+              <div className="py-16 text-center text-xs font-bold text-slate-400">Loading system player pool...</div>
             ) : botList.length === 0 ? (
               <div className="py-16 text-center text-xs font-bold text-slate-400 space-y-2 bg-white rounded-2xl p-6 border border-slate-100">
                 <Bot size={28} className="mx-auto text-slate-300" />
@@ -1109,7 +1156,7 @@ export default function AgentSystemPlayerModal({
                 <button
                   type="button"
                   onClick={() => fetchPool(1, '')}
-                  className="px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-black shadow-xs"
+                  className="px-3 py-1.5 rounded-xl bg-amber-500 text-white text-xs font-black shadow-xs"
                 >
                   Clear Search
                 </button>
@@ -1119,7 +1166,7 @@ export default function AgentSystemPlayerModal({
                 {botList.map((bot, index) => (
                   <div
                     key={bot.id}
-                    className="p-3 rounded-2xl bg-white border border-slate-200/70 hover:border-indigo-300 flex items-center justify-between text-xs shadow-2xs"
+                    className="p-3 rounded-2xl bg-white border border-slate-200/70 hover:border-amber-300 flex items-center justify-between text-xs shadow-2xs transition-all"
                   >
                     <div className="flex items-center space-x-2.5">
                       <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-600">
@@ -1127,20 +1174,20 @@ export default function AgentSystemPlayerModal({
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5">
-                          <p className="font-black text-slate-900 text-xs">{bot.first_name}</p>
+                          <p className="font-black text-slate-900 text-xs tracking-wide">{bot.first_name}</p>
                           <button
                             type="button"
                             onClick={() => {
                               setEditingBot(bot);
                               setEditBotName(bot.first_name);
                             }}
-                            className="p-1 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 active:scale-90 transition-all"
+                            className="p-1 rounded-md text-slate-400 hover:text-amber-600 hover:bg-amber-50 active:scale-90 transition-all"
                             title="Edit name"
                           >
                             <Edit2 size={11} />
                           </button>
                         </div>
-                        <p className="text-[9px] text-slate-400 font-bold">Simulated Ethiopian Player</p>
+                        <p className="text-[9px] text-slate-400 font-bold">Verified System Player</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -1182,40 +1229,40 @@ export default function AgentSystemPlayerModal({
 
       {/* ── EDIT BOT NAME MODAL ── */}
       {editingBot && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/35 backdrop-blur-xs animate-in fade-in">
           <div className="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-slate-800">Edit System Player Name</h3>
+              <h3 className="text-sm font-black text-slate-800">Edit System Player Handle</h3>
               <button
                 onClick={() => setEditingBot(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500"
+                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200"
               >
                 <X size={16} />
               </button>
             </div>
             <p className="text-xs text-slate-500">
-              Customize the name of this bot for <b>{roomName}</b>:
+              Customize the handle of this bot for <b>{roomName}</b> (use @, $, %, ., emojis):
             </p>
             <input
               type="text"
               value={editBotName}
               onChange={(e) => setEditBotName(e.target.value)}
-              placeholder="e.g. Abebe Kebede, Almaz Tadesse..."
-              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500"
+              placeholder="e.g. @miki_21, 💎Sara, Dani$, Robel%..."
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
             />
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setEditingBot(null)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-100 font-black text-xs text-slate-600"
+                className="flex-1 py-2.5 rounded-xl bg-slate-100 font-black text-xs text-slate-600 hover:bg-slate-200"
               >
                 Cancel
               </button>
               <button
                 disabled={savingBotName || !editBotName.trim()}
                 onClick={handleSaveBotName}
-                className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-black text-xs shadow-xs"
+                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-xs shadow-xs hover:from-amber-600 active:scale-95 transition-all"
               >
-                {savingBotName ? 'Saving...' : 'Save Name'}
+                {savingBotName ? 'Saving...' : 'Save Handle'}
               </button>
             </div>
           </div>
@@ -1224,38 +1271,38 @@ export default function AgentSystemPlayerModal({
 
       {/* ── ADD NEW BOT MODAL ── */}
       {showAddBotModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/35 backdrop-blur-xs animate-in fade-in">
           <div className="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-black text-slate-800">Add New System Player</h3>
               <button
                 onClick={() => setShowAddBotModal(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500"
+                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200"
               >
                 <X size={16} />
               </button>
             </div>
             <p className="text-xs text-slate-500">
-              Enter a name to register a new system player in <b>{roomName}</b>'s pool:
+              Enter a handle with @, $, %, ., or emojis to add to <b>{roomName}</b>'s pool:
             </p>
             <input
               type="text"
               value={newBotName}
               onChange={(e) => setNewBotName(e.target.value)}
-              placeholder="e.g. Dawit Haile, Tigist Girma..."
-              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-500"
+              placeholder="e.g. @dani_07, ★Robel★, Alex$..."
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
             />
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowAddBotModal(false)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-100 font-black text-xs text-slate-600"
+                className="flex-1 py-2.5 rounded-xl bg-slate-100 font-black text-xs text-slate-600 hover:bg-slate-200"
               >
                 Cancel
               </button>
               <button
                 disabled={addingBot || !newBotName.trim()}
                 onClick={handleAddBot}
-                className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-black text-xs shadow-xs"
+                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-xs shadow-xs hover:from-amber-600 active:scale-95 transition-all"
               >
                 {addingBot ? 'Adding...' : 'Add to Pool'}
               </button>
