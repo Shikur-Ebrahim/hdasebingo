@@ -774,7 +774,7 @@ export default function BingoGame() {
       if (r.ok) {
         const d = await r.json();
         if (d.max_players) setMaxPlayers(Number(d.max_players));
-        if (d.max_cartelas_per_user) setMaxCartelasPerUser(Number(d.max_cartelas_per_user));
+        if (d.max_cartelas_per_user) setMaxCartelasPerUser(Math.min(4, Number(d.max_cartelas_per_user) || 4));
         if (d.my_cartelas) setMyCartelas(d.my_cartelas);
         if (d.unique_players !== undefined) setUniquePlayers(Number(d.unique_players));
         if (d.cartela_matrices) {
@@ -1619,91 +1619,95 @@ export default function BingoGame() {
           </div>
         </div>
 
-        {/* BOTTOM FIXED PANEL: YOUR SELECTED CARTELAS */}
-        <div className="bg-white/95 backdrop-blur-md border-t-2 border-amber-200/80 p-2.5 shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] z-20">
-          <div className="flex items-center justify-between mb-2 px-1">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-800">
-                {language === 'am' ? 'የተመረጡ ካርቴላዎች' : 'YOUR SELECTED CARTELAS'}
-              </span>
-            </div>
-            <span className="text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full shadow-2xs">
-              {myCartelas.length} / {maxCartelasPerUser}
-            </span>
-          </div>
-
-          {/* Mini Cartelas Horizontal Row */}
-          <div className="flex gap-2 overflow-x-auto pb-1 px-1 scrollbar-none items-stretch">
-            {myCartelas.map((c) => (
-              <div
-                key={c.cartela_number}
-                className="relative w-[84px] sm:w-[92px] shrink-0 bg-white rounded-xl border-2 border-amber-300 shadow-sm overflow-visible flex flex-col"
-              >
-                {/* Red Circular Cancel Button at Top-Right */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleCancelCartela(c.cartela_number);
-                  }}
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 hover:bg-red-600 active:scale-90 text-white rounded-full flex items-center justify-center text-[10px] font-black shadow-md border-2 border-white z-30 cursor-pointer"
-                  title={language === 'am' ? 'ሰርዝ' : 'Cancel cartela'}
-                >
-                  ✕
-                </button>
-
-                {/* Card Brand & Number Header */}
-                <div className="px-1.5 py-0.5 bg-amber-50/90 border-b border-amber-200 flex items-center justify-between rounded-t-[10px]">
-                  <span className="text-[8px] font-black text-amber-700 tracking-wider">HDASE</span>
-                  <span className="text-[8.5px] font-black text-slate-800 mr-2">#{c.cartela_number}</span>
-                </div>
-
-                {/* B I N G O Header Row with Col Colors */}
-                <div className="grid grid-cols-5 text-[7px] font-black text-white text-center leading-tight">
-                  <div style={{ background: '#2563eb' }}>B</div>
-                  <div style={{ background: '#dc2626' }}>I</div>
-                  <div style={{ background: '#ea580c' }}>N</div>
-                  <div style={{ background: '#16a34a' }}>G</div>
-                  <div style={{ background: '#ca8a04' }}>O</div>
-                </div>
-
-                {/* 5x5 Number Grid */}
-                <div className="grid grid-cols-5 gap-[1px] bg-slate-200/80 p-[1px] rounded-b-[10px] overflow-hidden">
-                  {Array.from({ length: 5 }).flatMap((_, r) =>
-                    Array.from({ length: 5 }, (_, col) => {
-                      const num = c.card_matrix[r]?.[col];
-                      const isFree = (r === 2 && col === 2) || num === 0;
-                      return (
-                        <div
-                          key={`${r}-${col}`}
-                          className={`aspect-square flex items-center justify-center text-[7.5px] font-black leading-none ${
-                            isFree ? 'bg-amber-400 text-amber-950 font-black' : 'bg-white text-slate-800'
-                          }`}
-                        >
-                          {isFree ? '★' : num}
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            ))}
-
-            {/* Empty slots placeholders up to maxCartelasPerUser */}
-            {Array.from({ length: Math.max(0, maxCartelasPerUser - myCartelas.length) }).map((_, idx) => (
-              <div
-                key={`empty-${idx}`}
-                className="w-[84px] sm:w-[92px] shrink-0 min-h-[95px] rounded-xl border-2 border-dashed border-amber-200/90 bg-amber-50/30 flex flex-col items-center justify-center text-amber-400 select-none p-2"
-              >
-                <span className="text-xl font-bold leading-none mb-1 text-amber-300">+</span>
-                <span className="text-[8px] font-black uppercase text-amber-600/80 tracking-wider text-center">
-                  {language === 'am' ? `ካርቴላ ${myCartelas.length + idx + 1}` : `Slot ${myCartelas.length + idx + 1}`}
+        {/* BOTTOM FIXED PANEL: YOUR SELECTED CARTELAS (Only displayed when at least 1 cartela is selected) */}
+        {myCartelas.length > 0 && (
+          <div className="bg-white/95 backdrop-blur-md border-t-2 border-amber-300/80 p-2.5 shrink-0 shadow-[0_-6px_20px_rgba(0,0,0,0.08)] z-20 animate-in fade-in slide-in-from-bottom-3 duration-200">
+            <div className="flex items-center justify-between mb-2 px-1">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-800">
+                  {language === 'am' ? 'የተመረጡ ካርቴላዎች' : 'YOUR SELECTED CARTELAS'}
                 </span>
               </div>
-            ))}
+              <span className="text-[10px] font-black bg-gradient-to-r from-amber-100 to-amber-200 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded-full shadow-2xs">
+                {myCartelas.length} / {maxCartelasPerUser}
+              </span>
+            </div>
+
+            {/* 3D Mini Cartelas Horizontal Row - ONLY selected cards, NO placeholder slots */}
+            <div className="flex gap-3 overflow-x-auto pb-1 px-1 scrollbar-none items-stretch">
+              {myCartelas.map((c) => (
+                <div
+                  key={c.cartela_number}
+                  className="relative w-[114px] sm:w-[124px] shrink-0 rounded-2xl overflow-visible flex flex-col bg-gradient-to-b from-[#ffffff] via-[#fffdfa] to-[#f7f0e3] p-1.5 border-2 border-amber-400/90 shadow-[0_12px_24px_-4px_rgba(180,83,9,0.22),0_6px_12px_-2px_rgba(0,0,0,0.12),inset_0_2px_1px_rgba(255,255,255,1),inset_0_-3px_4px_rgba(217,119,6,0.15)] ring-1 ring-amber-500/30 transition-all duration-200 transform hover:-translate-y-1"
+                >
+                  {/* 3D Floating Raised Cancel Button at Top-Right */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCancelCartela(c.cartela_number);
+                    }}
+                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-gradient-to-b from-red-400 via-red-500 to-red-600 text-white font-black flex items-center justify-center text-[11px] shadow-[0_4px_8px_rgba(220,38,38,0.5),inset_0_1.5px_1px_rgba(255,255,255,0.7)] border-2 border-white hover:scale-110 active:scale-90 active:translate-y-0.5 transition-all cursor-pointer z-30"
+                    title={language === 'am' ? 'ሰርዝ' : 'Cancel cartela'}
+                  >
+                    ✕
+                  </button>
+
+                  {/* 3D Embossed Card Header */}
+                  <div className="px-2 py-1 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-xl mb-1 flex items-center justify-between shadow-[0_2px_4px_rgba(180,83,9,0.3),inset_0_1px_1px_rgba(255,255,255,0.7)] border border-amber-300">
+                    <span className="text-[9.5px] font-black tracking-wider text-amber-950 drop-shadow-[0_1px_0_rgba(255,255,255,0.7)]">
+                      HDASE
+                    </span>
+                    <span className="text-[9px] font-black bg-amber-950/80 text-amber-100 px-1.5 py-0.5 rounded-md shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">
+                      #{c.cartela_number}
+                    </span>
+                  </div>
+
+                  {/* 3D B-I-N-G-O Columns Bar */}
+                  <div className="grid grid-cols-5 gap-[1.5px] mb-1">
+                    {[
+                      { l: 'B', bg: 'from-blue-500 via-blue-600 to-blue-700', bdr: 'border-blue-400' },
+                      { l: 'I', bg: 'from-rose-500 via-red-600 to-red-700', bdr: 'border-rose-400' },
+                      { l: 'N', bg: 'from-orange-400 via-amber-500 to-orange-600', bdr: 'border-orange-300' },
+                      { l: 'G', bg: 'from-emerald-500 via-green-600 to-emerald-700', bdr: 'border-emerald-400' },
+                      { l: 'O', bg: 'from-amber-400 via-yellow-500 to-amber-600', bdr: 'border-yellow-300' },
+                    ].map(item => (
+                      <div
+                        key={item.l}
+                        className={`h-4 flex items-center justify-center font-black text-white text-[8.5px] rounded-[4px] bg-gradient-to-b ${item.bg} border-t ${item.bdr} shadow-[0_1.5px_2px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.6)] drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]`}
+                      >
+                        {item.l}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 3D Matrix Grid & Tactile Number Tiles */}
+                  <div className="bg-gradient-to-b from-amber-200/70 via-slate-200 to-amber-100/80 p-[2px] rounded-xl shadow-[inset_0_2px_4px_rgba(0,0,0,0.18)] grid grid-cols-5 gap-[2px]">
+                    {Array.from({ length: 5 }).flatMap((_, r) =>
+                      Array.from({ length: 5 }, (_, col) => {
+                        const num = c.card_matrix[r]?.[col];
+                        const isFree = (r === 2 && col === 2) || num === 0;
+                        return (
+                          <div
+                            key={`${r}-${col}`}
+                            className={`aspect-square flex items-center justify-center font-black rounded-[4px] text-[8.5px] sm:text-[9.5px] leading-none transition-transform ${
+                              isFree
+                                ? 'bg-gradient-to-b from-amber-300 via-yellow-400 to-amber-500 text-amber-950 font-black border border-amber-300 shadow-[0_2px_4px_rgba(217,119,6,0.4),inset_0_1px_1px_rgba(255,255,255,0.9)] text-[11px]'
+                                : 'bg-gradient-to-b from-white via-[#fafbfe] to-[#ebeff8] text-slate-800 border-t border-white shadow-[0_1.5px_2.5px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.95)]'
+                            }`}
+                          >
+                            {isFree ? '★' : num}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   };
