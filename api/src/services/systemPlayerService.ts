@@ -1,12 +1,20 @@
 import { supabase } from './supabase';
 import { generateBingoCard } from './BingoEngine';
 
-// Default stake target ranges: 1st & 2nd stakes ON, 3rd & 4th stakes default OFF (Waiter Player Mode)
+// Default stake target ranges: 1st & 2nd stakes ON, 3rd & 4th stakes default OFF
 export const DEFAULT_STAKE_CONFIGS = {
   stake_1: { min: 4, max: 15, enabled: true },
   stake_2: { min: 3, max: 9, enabled: true },
-  stake_3: { min: 2, max: 5, enabled: false }, // Default OFF: Waiter Mode (2-4 bots join only if real player joins)
-  stake_4: { min: 2, max: 4, enabled: false }, // Default OFF: Waiter Mode (2-4 bots join only if real player joins)
+  stake_3: { min: 2, max: 5, enabled: false },
+  stake_4: { min: 2, max: 4, enabled: false },
+};
+
+// Default Waiter Player configs: all stakes default OFF, 1-2 bots each, 1 cartela each (backed by Agent Balance)
+export const DEFAULT_WAITER_STAKE_CONFIGS = {
+  stake_1: { enabled: false, min: 1, max: 2 },
+  stake_2: { enabled: false, min: 1, max: 2 },
+  stake_3: { enabled: false, min: 1, max: 2 },
+  stake_4: { enabled: false, min: 1, max: 2 },
 };
 
 // Modern authentic player handles pool (featuring @, $, %, ., emojis, gaming tags, and non-repeated Ethiopian nicknames)
@@ -355,15 +363,17 @@ export class SystemPlayerService {
   /**
    * Distribution of cartelas:
    * Normal bots: 90% -> 1 cartela, 8% -> 2 cartelas, 2% -> 3 cartelas
-   * Waiter bots: 95% -> 1 cartela, 5% -> 2 cartelas
+   * Waiter bots (Fixed platform standard): 95% -> 1 cartela, 4% -> 2 cartelas, 1% -> 3 cartelas
    */
   decideCartelaCount(isWaiterMode = false): number {
-    const r = Math.random();
+    const r = Math.random() * 100;
     if (isWaiterMode) {
-      return r < 0.95 ? 1 : 2;
+      if (r < 95) return 1;
+      if (r < 99) return 2; // 95% to 99% (4%)
+      return 3;             // 99% to 100% (1%)
     }
-    if (r < 0.90) return 1;
-    if (r < 0.98) return 2;
+    if (r < 90) return 1;
+    if (r < 98) return 2;
     return 3;
   }
 
@@ -372,11 +382,11 @@ export class SystemPlayerService {
    * Called on every tick of BingoEngine for waiting games.
    */
   async tickWaitingGame(game: any, room: any, cfg: any): Promise<void> {
-    if (!room || !room.system_players_enabled) return;
+    if (!room) return;
     if (!this.isRoomProActive(room)) return;
 
+    // Resolve schedule ramp & active window (UTC+3 East Africa Time)
     const ramp = this.getScheduleRampInfo(room.system_players_schedule_start, room.system_players_schedule_end);
-    if (!ramp.isActive) return;
 
     // Resolve stake tier and whether it is enabled (3rd & 4th stakes are default OFF)
     const roomStakes: number[] = Array.isArray(room.stakes) && room.stakes.length === 4
@@ -396,13 +406,29 @@ export class SystemPlayerService {
     const defaultEnabled = (tier === 'stake_1' || tier === 'stake_2');
     const isStakeEnabled = tierConfig.enabled !== undefined ? Boolean(tierConfig.enabled) : defaultEnabled;
 
+    // Check if normal Auto-Bustle is eligible:
+    // Room owner must have system_players_enabled = true, schedule must be active, and this specific stake must be enabled.
+    const isAutoBustleActive = Boolean(room.system_players_enabled) && ramp.isActive && isStakeEnabled;
+
+    // Check Waiter Player configuration for this room:
+    const waiterConfigs = room.waiter_players_stake_configs || DEFAULT_WAITER_STAKE_CONFIGS;
+    const waiterTierConfig = waiterConfigs[tier] || DEFAULT_WAITER_STAKE_CONFIGS[tier as keyof typeof DEFAULT_WAITER_STAKE_CONFIGS] || {
+      enabled: false,
+      min: 1,
+      max: 2,
+    };
+    const isWaiterActiveForStake = Boolean(waiterTierConfig.enabled) && (room.waiter_players_enabled !== false);
+
+    // If neither Auto-Bustle nor Waiter Player is active for this stake:
+    if (!isAutoBustleActive && !isWaiterActiveForStake) return;
+
     const startTime = new Date(game.start_at).getTime();
     const now = Date.now();
 
     // Fetch current players in this game
     const { data: currentPlayers, error: pErr } = await supabase
       .from('bingo_players')
-      .select('id, telegram_id, is_system, cartela_number, system_player_id')
+      .select('id, telegram_id, is_system, is_waiter, cartela_number, system_player_id')
       .eq('game_id', game.id);
 
     if (pErr) return;
@@ -413,10 +439,11 @@ export class SystemPlayerService {
 
     // If game start_at is in the far future (no player had joined yet):
     if (startTime > now + 86400000) {
-      // If this stake is OFF and no real players have joined: DO NOT KICKSTART!
-      if (!isStakeEnabled) return;
+      // If Auto-Bustle is NOT active: DO NOT KICKSTART!
+      // (Waiter bots only join after a real human buys a cartela, they never kickstart empty far-future tables)
+      if (!isAutoBustleActive) return;
 
-      // Enabled stake: kickstart 30-second waiting countdown to keep table bustling
+      // Auto-Bustle active: kickstart 30-second waiting countdown to keep table bustling
       const waitingSec = Math.min(30, cfg.waiting_period_s || 30);
       const newStartAt = new Date(now + waitingSec * 1000).toISOString();
       await supabase.from('bingo_games').update({
@@ -432,16 +459,18 @@ export class SystemPlayerService {
     // Don't join in the final 2.5 seconds to lock the board before calling
     if (remainingSec <= 2.5 || remainingSec > 35) return;
 
-    // Check Waiter Player logic if stake is OFF:
+    // Determine active mode for this tick:
     let isWaiterMode = false;
-    if (!isStakeEnabled) {
-      // If no real players bought tickets on this disabled stake, no bots join!
+    if (isAutoBustleActive) {
+      isWaiterMode = false;
+    } else if (isWaiterActiveForStake) {
+      // Waiter mode: only joins after at least 1 real player has bought a cartela!
       if (initialRealUnique === 0) return;
-
-      // Real player bought ticket on disabled stake -> WAITER PLAYER MODE ACTIVATES!
       // Waiter bots wait 10 seconds before joining (remainingSec <= 20s):
       if (remainingSec > 20) return;
       isWaiterMode = true;
+    } else {
+      return;
     }
 
     // Throttle joins: join at natural intervals (every 2.5 to 4 seconds)
@@ -450,7 +479,20 @@ export class SystemPlayerService {
     if (timeSinceLastJoin < 2500) return;
 
     // Check how many bots should join this game
-    const targetBots = this.getTargetBotsForGame(game, room, isWaiterMode, tierConfig, ramp);
+    let targetBots = 0;
+    if (isWaiterMode) {
+      const minW = Math.max(1, Number(waiterTierConfig.min || 1));
+      const maxW = Math.max(minW, Number(waiterTierConfig.max || 2));
+      const cached = gameBotTargets.get(game.id);
+      if (cached) {
+        targetBots = cached;
+      } else {
+        targetBots = Math.floor(Math.random() * (maxW - minW + 1)) + minW;
+        gameBotTargets.set(game.id, targetBots);
+      }
+    } else {
+      targetBots = this.getTargetBotsForGame(game, room, false, tierConfig, ramp);
+    }
 
     const existingSystemPlayerIds = new Set<string>();
     const takenSeats = new Set<number>();
@@ -491,7 +533,44 @@ export class SystemPlayerService {
     if (availableBots.length === 0) return;
 
     const chosenBot = availableBots[Math.floor(Math.random() * availableBots.length)];
-    const cartelaCount = this.decideCartelaCount(isWaiterMode);
+
+    // Waiter Player selects exactly 1 cartela by default; Auto-Bustle uses normal distribution
+    const cartelaCount = isWaiterMode ? 1 : this.decideCartelaCount(false);
+
+    // If Waiter Mode: verify Agent has sufficient main_balance to back this bot
+    let agentUserId: string | null = null;
+    const stakeAmt = Number(game.stake || 5);
+    const totalBotCost = stakeAmt * cartelaCount;
+
+    if (isWaiterMode) {
+      if (!room.agent_id) return;
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(room.agent_id);
+      const agentQuery = isUuid
+        ? supabase.from('users').select('id, main_balance').eq('id', room.agent_id)
+        : supabase.from('users').select('id, main_balance').eq('telegram_id', room.agent_id);
+
+      const { data: agentUser } = await agentQuery.maybeSingle();
+      if (!agentUser) {
+        console.warn(`[Waiter Player] Agent ${room.agent_id} not found.`);
+        return;
+      }
+
+      const agentBal = Number(agentUser.main_balance || 0);
+      if (agentBal < totalBotCost) {
+        console.warn(`[Waiter Player] Agent ${agentUser.id} balance insufficient (${agentBal} < ${totalBotCost} ETB). Waiter bot paused.`);
+        return;
+      }
+      agentUserId = agentUser.id;
+
+      // Deduct stake from agent's main_balance
+      const newBal = Math.max(0, agentBal - totalBotCost);
+      const { error: balErr } = await supabase.from('users').update({ main_balance: newBal }).eq('id', agentUserId);
+      if (balErr) {
+        console.error('[Waiter Player] Failed to deduct agent balance:', balErr);
+        return;
+      }
+      console.log(`💳 [Waiter Player Joined] Agent ${agentUserId} balance deducted -${totalBotCost} ETB (${agentBal} -> ${newBal} ETB) for bot "${chosenBot.first_name}"`);
+    }
 
     // Find available seats (1 to 300)
     const maxSeat = Math.min(300, cfg.max_players || 300);
@@ -520,9 +599,12 @@ export class SystemPlayerService {
       cartela_number: seat,
       card_matrix: generateBingoCard(),
       is_system: true,
+      is_waiter: isWaiterMode,
+      waiter_agent_id: agentUserId,
+      waiter_stake_deducted: isWaiterMode ? stakeAmt : 0,
       system_player_id: chosenBot.id,
       bonus_used: 0,
-      main_used: 0,
+      main_used: isWaiterMode ? stakeAmt : 0,
     }));
 
     const { error: insErr } = await supabase.from('bingo_players').insert(botRows);
@@ -536,7 +618,7 @@ export class SystemPlayerService {
     // Recalculate game pot and player counts
     const { data: updatedPlayers } = await supabase
       .from('bingo_players')
-      .select('telegram_id, is_system, cartela_number')
+      .select('telegram_id, is_system, is_waiter, cartela_number')
       .eq('game_id', game.id);
 
     const allP = updatedPlayers || [];
@@ -549,8 +631,10 @@ export class SystemPlayerService {
     const systemPlayers = allP.filter(p => p.is_system);
     const systemUnique = new Set(systemPlayers.map(p => p.telegram_id)).size;
 
+    const waiterPlayers = allP.filter((p: any) => p.is_waiter);
+    const waiterUnique = new Set(waiterPlayers.map((p: any) => p.telegram_id)).size;
+
     const totalUnique = realUnique + systemUnique;
-    const stakeAmt = Number(game.stake || 5);
 
     // Commission logic:
     // ONLY taken from REAL players if real unique >= 3
@@ -570,10 +654,11 @@ export class SystemPlayerService {
       total_players: totalUnique,
       real_players_count: realUnique,
       system_players_count: systemUnique,
+      waiter_players_count: waiterUnique,
       updated_at: new Date().toISOString(),
     }).eq('id', game.id);
 
-    console.log(`🤖 Bot "${chosenBot.first_name}" bought ${chosenSeats.length} cartela(s) [${chosenSeats.join(',')}] on Game #${game.id.slice(0, 8)} | Stake: ${stakeAmt} | Derash: ${prizePool} ETB | Players: ${realUnique} Real + ${systemUnique} Bots`);
+    console.log(`🤖 Bot "${chosenBot.first_name}" (${isWaiterMode ? 'WAITER [Agent Backed]' : 'AUTO-BUSTLE'}) bought ${chosenSeats.length} cartela(s) [${chosenSeats.join(',')}] on Game #${game.id.slice(0, 8)} | Stake: ${stakeAmt} | Derash: ${prizePool} ETB | Players: ${realUnique} Real + ${systemUnique} Bots (${waiterUnique} waiter)`);
   }
 
   /**

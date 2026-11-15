@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import { AuthRequest, validateTelegramAuth } from '../middleware/auth';
 import { supabase } from '../services/supabase';
-import { systemPlayerService, DEFAULT_STAKE_CONFIGS } from '../services/systemPlayerService';
+import { systemPlayerService, DEFAULT_STAKE_CONFIGS, DEFAULT_WAITER_STAKE_CONFIGS } from '../services/systemPlayerService';
 
 const router = Router();
 
@@ -86,10 +86,19 @@ router.get('/status', validateTelegramAuth, async (req: AuthRequest, res: Respon
       stake_4: { ...DEFAULT_STAKE_CONFIGS.stake_4, ...(rawConfigs.stake_4 || {}) },
     };
 
+    const rawWaiterConfigs = room.waiter_players_stake_configs || {};
+    const mergedWaiterConfigs = {
+      stake_1: { ...DEFAULT_WAITER_STAKE_CONFIGS.stake_1, ...(rawWaiterConfigs.stake_1 || {}) },
+      stake_2: { ...DEFAULT_WAITER_STAKE_CONFIGS.stake_2, ...(rawWaiterConfigs.stake_2 || {}) },
+      stake_3: { ...DEFAULT_WAITER_STAKE_CONFIGS.stake_3, ...(rawWaiterConfigs.stake_3 || {}) },
+      stake_4: { ...DEFAULT_WAITER_STAKE_CONFIGS.stake_4, ...(rawWaiterConfigs.stake_4 || {}) },
+    };
+
     res.json({
       room_id: room.id,
       room_name: room.room_name,
       enabled: Boolean(room.system_players_enabled),
+      waiter_enabled: room.waiter_players_enabled !== undefined ? Boolean(room.waiter_players_enabled) : false,
       pro_level: Number(room.system_players_pro_level || 0),
       pro_expires_at: room.system_players_pro_expires_at,
       is_pro_active: isPro,
@@ -97,6 +106,7 @@ router.get('/status', validateTelegramAuth, async (req: AuthRequest, res: Respon
       schedule_start: room.system_players_schedule_start || '00:00',
       schedule_end: room.system_players_schedule_end || '24:00',
       stake_configs: mergedStakeConfigs,
+      waiter_stake_configs: mergedWaiterConfigs,
       risk_percent: Number(room.system_players_risk_percent ?? 25),
       monthly_price: Number(room.system_players_monthly_price ?? 1000),
       total_bots_in_pool: totalBots,
@@ -292,7 +302,9 @@ router.post('/settings', validateTelegramAuth, async (req: AuthRequest, res: Res
       schedule_start,
       schedule_end,
       stake_configs,
-      risk_percent
+      risk_percent,
+      waiter_enabled,
+      waiter_stake_configs,
     } = req.body;
 
     const targetRoomId = roomId || room_id;
@@ -306,9 +318,10 @@ router.post('/settings', validateTelegramAuth, async (req: AuthRequest, res: Res
     }
 
     const wantsToEnable = Boolean(enabled);
-    if (wantsToEnable && !systemPlayerService.isRoomProActive(room)) {
+    const wantsToEnableWaiter = Boolean(waiter_enabled);
+    if ((wantsToEnable || wantsToEnableWaiter) && !systemPlayerService.isRoomProActive(room)) {
       return res.status(400).json({
-        error: 'Pro Level 1 upgrade required to activate System Players. Upgrade your room for 1,000 ETB/month.'
+        error: 'Pro Level 1 upgrade required to activate System Players or Waiter Players.'
       });
     }
 
@@ -321,6 +334,8 @@ router.post('/settings', validateTelegramAuth, async (req: AuthRequest, res: Res
     if (schedule_end !== undefined) updates.system_players_schedule_end = schedule_end;
     if (stake_configs !== undefined) updates.system_players_stake_configs = stake_configs;
     if (risk_percent !== undefined) updates.system_players_risk_percent = Number(risk_percent);
+    if (waiter_enabled !== undefined) updates.waiter_players_enabled = Boolean(waiter_enabled);
+    if (waiter_stake_configs !== undefined) updates.waiter_players_stake_configs = waiter_stake_configs;
 
     const { error: updErr } = await supabase
       .from('rooms')

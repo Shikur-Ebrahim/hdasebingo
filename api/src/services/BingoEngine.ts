@@ -87,7 +87,7 @@ class BingoEngine {
     // 1. Fetch all active rooms with their custom stakes & system player settings
     const { data: activeRooms } = await supabase
       .from('rooms')
-      .select('id, stakes, room_name, agent_id, commission_rate, promoter_id, promoter_commission_rate, system_players_enabled, system_players_pro_level, system_players_pro_expires_at, system_players_schedule_start, system_players_schedule_end, system_players_stake_configs, system_players_risk_percent')
+      .select('id, stakes, room_name, agent_id, commission_rate, promoter_id, promoter_commission_rate, system_players_enabled, system_players_pro_level, system_players_pro_expires_at, system_players_schedule_start, system_players_schedule_end, system_players_stake_configs, system_players_risk_percent, waiter_players_enabled, waiter_players_stake_configs')
       .eq('status', 'active');
 
     const rooms = activeRooms || [];
@@ -171,8 +171,9 @@ class BingoEngine {
   private async handleWaiting(game: any, room?: any) {
     const cfg = await getSettings();
 
-    // 🤖 System Player Simulation: trigger natural interval buying if room has Pro & active schedule
-    if (room && room.system_players_enabled) {
+    // 🤖 System Player Simulation & Waiter Player:
+    // If room has Pro Level 1, tick waiting game (handles auto-bustle if enabled & active, or waiter players if off/inactive)
+    if (room && systemPlayerService.isRoomProActive(room)) {
       await systemPlayerService.tickWaitingGame(game, room, cfg);
     }
 
@@ -279,6 +280,29 @@ class BingoEngine {
       }
     }
 
+    // Refund waiter players back to the Room Owner / Agent Balance
+    const waiterPlayers = (players || []).filter((p: any) => p.is_waiter && p.waiter_agent_id);
+    for (const wp of waiterPlayers) {
+      const stakeToRefund = Number(wp.waiter_stake_deducted || wp.main_used || stake || 0);
+      if (stakeToRefund > 0) {
+        try {
+          const { data: agent } = await supabase
+            .from('users')
+            .select('id, main_balance')
+            .eq('id', wp.waiter_agent_id)
+            .maybeSingle();
+
+          if (agent) {
+            const refundedBal = Number(agent.main_balance || 0) + stakeToRefund;
+            await supabase.from('users').update({ main_balance: refundedBal }).eq('id', agent.id);
+            console.log(`↩️ Refunded ${stakeToRefund} ETB to Agent ${agent.id} for cancelled Waiter Player cartela #${wp.cartela_number}`);
+          }
+        } catch (rfErr) {
+          console.error('Error refunding agent for waiter cartela:', rfErr);
+        }
+      }
+    }
+
     // Clean up players for this game and reset status
     await supabase.from('bingo_players').delete().eq('game_id', game.id);
     await supabase.from('bingo_games').update({
@@ -356,7 +380,7 @@ class BingoEngine {
   ) {
     const { data: players } = await supabase
       .from('bingo_players')
-      .select('id, telegram_id, cartela_number, card_matrix, first_name, is_system, system_player_id')
+      .select('id, telegram_id, cartela_number, card_matrix, first_name, is_system, is_waiter, waiter_agent_id, system_player_id')
       .eq('game_id', gameId);
 
     if (!players || players.length === 0) return;
@@ -398,6 +422,10 @@ class BingoEngine {
     const systemPlayers = players.filter(p => p.is_system);
     const systemPlayersCount = new Set(systemPlayers.map(p => p.telegram_id)).size;
 
+    const waiterPlayers = players.filter((p: any) => p.is_waiter);
+    const waiterPlayersCount = new Set(waiterPlayers.map((p: any) => p.telegram_id)).size;
+    const autoBustleBotsCount = systemPlayersCount - waiterPlayersCount;
+
     // ── CASE 1: Single winner ──────────────────────────────────────────────────
     if (winners.length === 1) {
       const w = winners[0];
@@ -420,9 +448,9 @@ class BingoEngine {
       let roomOwnerRiskAmount = 0;
 
       // Room owner 25% risk logic:
-      // Applies ONLY if real player won AND at least one system player was in this game!
-      // If 0 system players (all real players), 0% risk!
-      if (!isWinnerSystem && systemPlayersCount >= 1 && roomId) {
+      // Applies ONLY if real player won AND at least one unbacked auto-bustle bot was in this game!
+      // If only waiter players (backed by agent balance) were present, no 25% extra deduction!
+      if (!isWinnerSystem && autoBustleBotsCount >= 1 && roomId) {
         try {
           const { data: roomData } = await supabase
             .from('rooms')
@@ -443,7 +471,7 @@ class BingoEngine {
             if (agentUser) {
               const newBal = Math.max(0, Number(agentUser.main_balance || 0) - roomOwnerRiskAmount);
               await supabase.from('users').update({ main_balance: newBal }).eq('id', agentUser.id);
-              console.log(`⚠️ Room Owner Risk: Agent ${agentUser.id} deducted -${roomOwnerRiskAmount} ETB (25% risk on ${finalPrize} ETB won by real user with ${systemPlayersCount} bots)`);
+              console.log(`⚠️ Room Owner Risk: Agent ${agentUser.id} deducted -${roomOwnerRiskAmount} ETB (25% risk on ${finalPrize} ETB won by real user with ${autoBustleBotsCount} bots)`);
             }
           }
         } catch (riskErr) {
@@ -460,6 +488,7 @@ class BingoEngine {
         room_owner_risk_amount: roomOwnerRiskAmount,
         real_players_count: realUniqueCount,
         system_players_count: systemPlayersCount,
+        waiter_players_count: waiterPlayersCount,
         finished_at:        new Date().toISOString(),
         updated_at:         new Date().toISOString(),
       }).eq('id', gameId).eq('status', 'calling').select('id');
@@ -478,7 +507,28 @@ class BingoEngine {
             }
           } catch {}
         }
-        console.log(`🤖 System Bot "${w.first_name}" won Game #${formatGameId(gameId)}: ${finalPrize} ETB on Cartela #${w.cartela_number}`);
+
+        // If winner was a Waiter Player backed by the Agent Balance:
+        // Credit the entire Derash pot to the Agent's main_balance!
+        if ((w as any).is_waiter && (w as any).waiter_agent_id) {
+          try {
+            const { data: agentUser } = await supabase
+              .from('users')
+              .select('id, main_balance')
+              .eq('id', (w as any).waiter_agent_id)
+              .maybeSingle();
+
+            if (agentUser) {
+              const creditedBal = Number(agentUser.main_balance || 0) + finalPrize;
+              await supabase.from('users').update({ main_balance: creditedBal }).eq('id', agentUser.id);
+              console.log(`💰 Waiter Player Won: Agent ${agentUser.id} credited +${finalPrize} ETB (Derash pot) to main_balance!`);
+            }
+          } catch (agentCreditErr) {
+            console.error('Error crediting agent balance for waiter win:', agentCreditErr);
+          }
+        }
+
+        console.log(`🤖 ${(w as any).is_waiter ? 'Waiter Player' : 'System Bot'} "${w.first_name}" won Game #${formatGameId(gameId)}: ${finalPrize} ETB on Cartela #${w.cartela_number}`);
       } else {
         // Real user won: award full derash to wallet
         const { data: u } = await supabase.from('users')
@@ -550,6 +600,7 @@ class BingoEngine {
         room_owner_risk_amount: totalRoomOwnerRisk,
         real_players_count: realUniqueCount,
         system_players_count: systemPlayersCount,
+        waiter_players_count: waiterPlayersCount,
         finished_at:        new Date().toISOString(),
         updated_at:         new Date().toISOString(),
       }).eq('id', gameId).eq('status', 'calling').select('id');
@@ -567,6 +618,25 @@ class BingoEngine {
                 }).eq('id', w.system_player_id);
               }
             } catch {}
+          }
+
+          // If waiter bot tied: credit split prize to the Agent's main_balance!
+          if ((w as any).is_waiter && (w as any).waiter_agent_id) {
+            try {
+              const { data: agentUser } = await supabase
+                .from('users')
+                .select('id, main_balance')
+                .eq('id', (w as any).waiter_agent_id)
+                .maybeSingle();
+
+              if (agentUser) {
+                const creditedBal = Number(agentUser.main_balance || 0) + splitPrize;
+                await supabase.from('users').update({ main_balance: creditedBal }).eq('id', agentUser.id);
+                console.log(`💰 Waiter Player Split Won: Agent ${agentUser.id} credited +${splitPrize} ETB to main_balance!`);
+              }
+            } catch (agentCreditErr) {
+              console.error('Error crediting agent balance for waiter split win:', agentCreditErr);
+            }
           }
         } else {
           const { data: u } = await supabase.from('users')
@@ -801,7 +871,7 @@ class BingoEngine {
     // Fetch all players to evaluate real vs system counts & room owner risk
     const { data: allPlayers } = await supabase
       .from('bingo_players')
-      .select('telegram_id, is_system')
+      .select('telegram_id, is_system, is_waiter')
       .eq('game_id', gameId);
 
     const realPlayers = (allPlayers || []).filter(p => !p.is_system);
@@ -811,11 +881,15 @@ class BingoEngine {
     const systemPlayers = (allPlayers || []).filter(p => p.is_system);
     const systemPlayersCount = new Set(systemPlayers.map(p => p.telegram_id)).size;
 
+    const waiterPlayers = (allPlayers || []).filter((p: any) => p.is_waiter);
+    const waiterPlayersCount = new Set(waiterPlayers.map((p: any) => p.telegram_id)).size;
+    const autoBustleBotsCount = systemPlayersCount - waiterPlayersCount;
+
     // Room owner 25% risk logic:
-    // Applies ONLY if at least one system player was in this game!
-    // If 0 system players (all real), 0% risk!
+    // Applies ONLY if at least one unbacked auto-bustle bot was in this game!
+    // If only waiter players (backed by agent balance) were present, 0 ETB extra deduction!
     let roomOwnerRiskAmount = 0;
-    if (systemPlayersCount >= 1 && game.room_id) {
+    if (autoBustleBotsCount >= 1 && game.room_id) {
       try {
         const { data: roomData } = await supabase
           .from('rooms')
@@ -836,7 +910,7 @@ class BingoEngine {
           if (agentUser) {
             const newBal = Math.max(0, Number(agentUser.main_balance || 0) - roomOwnerRiskAmount);
             await supabase.from('users').update({ main_balance: newBal }).eq('id', agentUser.id);
-            console.log(`⚠️ Room Owner Risk: Agent ${agentUser.id} deducted -${roomOwnerRiskAmount} ETB (25% risk on ${finalPrize} ETB won by real player via manual claim with ${systemPlayersCount} bots)`);
+            console.log(`⚠️ Room Owner Risk: Agent ${agentUser.id} deducted -${roomOwnerRiskAmount} ETB (25% risk on ${finalPrize} ETB won by real player via manual claim with ${autoBustleBotsCount} bots)`);
           }
         }
       } catch (riskErr) {
@@ -853,6 +927,7 @@ class BingoEngine {
       room_owner_risk_amount: roomOwnerRiskAmount,
       real_players_count: realUniqueCount,
       system_players_count: systemPlayersCount,
+      waiter_players_count: waiterPlayersCount,
       finished_at:        new Date().toISOString(),
       updated_at:         new Date().toISOString(),
     }).eq('id', gameId).eq('status', 'calling').select('id');

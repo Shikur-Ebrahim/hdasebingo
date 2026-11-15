@@ -46,6 +46,19 @@ interface StakeConfigs {
   stake_4: StakeTierConfig;
 }
 
+interface WaiterStakeTierConfig {
+  min: number;
+  max: number;
+  enabled: boolean;
+}
+
+interface WaiterStakeConfigs {
+  stake_1: WaiterStakeTierConfig;
+  stake_2: WaiterStakeTierConfig;
+  stake_3: WaiterStakeTierConfig;
+  stake_4: WaiterStakeTierConfig;
+}
+
 interface Props {
   roomId: string;
   roomName: string;
@@ -85,6 +98,16 @@ export default function AgentSystemPlayerModal({
     stake_3: { min: 2, max: 5, enabled: false },
     stake_4: { min: 2, max: 4, enabled: false },
   });
+
+  // Waiter Player states (All stakes default OFF, backed by Agent Balance)
+  const [waiterEnabled, setWaiterEnabled] = useState(false);
+  const [waiterStakeConfigs, setWaiterStakeConfigs] = useState<WaiterStakeConfigs>({
+    stake_1: { min: 1, max: 2, enabled: false },
+    stake_2: { min: 1, max: 2, enabled: false },
+    stake_3: { min: 1, max: 2, enabled: false },
+    stake_4: { min: 1, max: 2, enabled: false },
+  });
+  const [waiterModalConfirmTier, setWaiterModalConfirmTier] = useState<keyof WaiterStakeConfigs | null>(null);
 
   // Action states
   const [saving, setSaving] = useState(false);
@@ -141,6 +164,7 @@ export default function AgentSystemPlayerModal({
 
       const data = await res.json();
       setEnabled(Boolean(data.enabled));
+      setWaiterEnabled(Boolean(data.waiter_enabled));
       setIsProActive(Boolean(data.is_pro_active));
       setDaysRemaining(Number(data.days_remaining || 0));
       setProExpiresAt(data.pro_expires_at);
@@ -163,6 +187,15 @@ export default function AgentSystemPlayerModal({
           stake_2: { min: 3, max: 9, enabled: true, ...data.stake_configs.stake_2 },
           stake_3: { min: 2, max: 5, enabled: false, ...data.stake_configs.stake_3 },
           stake_4: { min: 2, max: 4, enabled: false, ...data.stake_configs.stake_4 },
+        });
+      }
+
+      if (data.waiter_stake_configs) {
+        setWaiterStakeConfigs({
+          stake_1: { min: 1, max: 2, enabled: false, ...data.waiter_stake_configs.stake_1 },
+          stake_2: { min: 1, max: 2, enabled: false, ...data.waiter_stake_configs.stake_2 },
+          stake_3: { min: 1, max: 2, enabled: false, ...data.waiter_stake_configs.stake_3 },
+          stake_4: { min: 1, max: 2, enabled: false, ...data.waiter_stake_configs.stake_4 },
         });
       }
     } catch (err: any) {
@@ -240,6 +273,8 @@ export default function AgentSystemPlayerModal({
           schedule_end: scheduleEnd,
           stake_configs: stakeConfigs,
           risk_percent: riskPercent,
+          waiter_enabled: waiterEnabled,
+          waiter_stake_configs: waiterStakeConfigs,
         }),
       });
 
@@ -803,18 +838,18 @@ export default function AgentSystemPlayerModal({
                 })}
               </div>
 
-              {/* Waiter Mode & Schedule Ramp Information */}
+              {/* Schedule Ramp-Up & Ramp-Down Information */}
               <div className="p-3.5 rounded-2xl bg-indigo-50 border border-indigo-200/80 space-y-1.5">
                 <div className="flex items-center gap-1.5 text-indigo-900">
                   <Bot size={15} />
-                  <h4 className="text-xs font-black uppercase tracking-wide">Waiter Player & Smart Schedule Ramp</h4>
+                  <h4 className="text-xs font-black uppercase tracking-wide">Auto-Bustle Schedule Transitions</h4>
                 </div>
                 <ul className="text-[11px] text-indigo-950 font-medium leading-relaxed space-y-1">
                   <li>
-                    • <b>Waiter Player Mode (Default for 3rd & 4th Stake)</b>: When a stake is OFF, bots do NOT auto-fill empty tables. When at least 1 real player buys a cartela, <b>2 to 4 Waiter Players</b> wait 10s and join the game, buying 1–2 cartelas (95% 1 cartela, 5% 2 cartelas).
+                    • <b>Gradual Ramp-Up</b>: When your schedule starts, auto-bustle bots join smoothly starting from the minimum player count.
                   </li>
                   <li>
-                    • <b>Smart Schedule Ramp-Up & Ramp-Down</b>: When your schedule starts, bots join gradually starting from the minimum player count. When approaching schedule end, bots taper down smoothly to 1 bot, then reach 0 at the end time without sudden drops.
+                    • <b>Gradual Ramp-Down</b>: Approaching your schedule end time, bots taper down to minimum, then 1 bot in the final 5 minutes, and reach 0 at the end time without sudden drops.
                   </li>
                 </ul>
               </div>
@@ -830,13 +865,13 @@ export default function AgentSystemPlayerModal({
                 <li className="flex items-start gap-1.5">
                   <span className="text-amber-600 font-bold shrink-0">•</span>
                   <span>
-                    <b>25% Room Owner Risk</b>: When a real user wins against system players, <b>25% of the total Derash</b> is deducted from the room owner's balance.
+                    <b>25% Room Owner Risk</b>: When a real user wins against auto-bustle bots, <b>25% of the total Derash</b> is deducted from the room owner's balance.
                   </span>
                 </li>
                 <li className="flex items-start gap-1.5">
                   <span className="text-emerald-600 font-bold shrink-0">✓</span>
                   <span className="text-emerald-800">
-                    <b>Zero Risk when Real Only</b>: If a game has <b>0 system players</b> (all real users), your risk is <b>0 ETB (no deduction)</b>!
+                    <b>Zero Risk when Real Only</b>: If a game has <b>0 auto-bustle bots</b> (all real users), your risk is <b>0 ETB (no deduction)</b>!
                   </span>
                 </li>
                 <li className="flex items-start gap-1.5">
@@ -852,6 +887,164 @@ export default function AgentSystemPlayerModal({
                   </span>
                 </li>
               </ul>
+            </div>
+
+            {/* ──────── SECTION 2: WAITER PLAYERS (AGENT BALANCE BACKED) ──────── */}
+            <div className="p-4 rounded-2xl bg-white border border-amber-300/80 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                    <Bot size={18} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-slate-800">Waiter Players (Agent-Backed)</h4>
+                    <p className="text-[9px] text-amber-700 font-bold">Default: OFF for all stakes • 1 cartela each</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setWaiterEnabled(!waiterEnabled);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                    waiterEnabled
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                  }`}
+                >
+                  {waiterEnabled ? 'WAITER ON' : 'WAITER OFF'}
+                </button>
+              </div>
+
+              {/* Informational Callout */}
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200/90 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 flex items-center gap-1">
+                    <ShieldAlert size={12} className="text-amber-600" />
+                    Agent Balance Integration
+                  </span>
+                  <span className="text-[10px] font-black text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-md border border-emerald-300">
+                    Your Balance: {agentBalance} ETB
+                  </span>
+                </div>
+                <ul className="text-[10px] text-amber-950 font-medium leading-relaxed space-y-1">
+                  <li>
+                    • <b>When Joining</b>: Each waiter bot buys <b>1 cartela</b>, deducted directly from your <b>Agent Balance</b>.
+                  </li>
+                  <li>
+                    • <b>When Winning</b>: The <b>entire Derash pot won is added directly to your Agent Balance</b>!
+                  </li>
+                  <li>
+                    • <b>When Real Customer Wins</b>: Your ticket stake forms part of the pot won by the real customer (0% extra risk).
+                  </li>
+                  <li>
+                    • <b>Pool Player Names</b>: Random authentic Ethiopian names from your room's 1,000 pool are displayed.
+                  </li>
+                  <li>
+                    • <b>When Cancelled</b>: Ticket cost is 100% refunded back to your Agent Balance.
+                  </li>
+                </ul>
+              </div>
+
+              {/* 4 Stakes for Waiter Players */}
+              <div className="space-y-2.5">
+                {[
+                  { key: 'stake_1' as const, label: '1st Stake (Lowest)' },
+                  { key: 'stake_2' as const, label: '2nd Stake (Medium)' },
+                  { key: 'stake_3' as const, label: '3rd Stake (High)' },
+                  { key: 'stake_4' as const, label: '4th Stake (VIP)' },
+                ].map(({ key, label }) => {
+                  const cfg = waiterStakeConfigs[key];
+                  const isEnabled = Boolean(cfg.enabled);
+                  return (
+                    <div
+                      key={key}
+                      className={`p-3 rounded-xl border transition-all ${
+                        isEnabled
+                          ? 'bg-amber-500/10 border-amber-300'
+                          : 'bg-slate-50 border-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-black text-slate-800">{label}</p>
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-black tracking-wide ${
+                                isEnabled
+                                  ? 'bg-amber-500 text-white'
+                                  : 'bg-slate-200 text-slate-600'
+                              }`}
+                            >
+                              {isEnabled ? 'ACTIVE (WAITER ON)' : 'OFF (DEFAULT)'}
+                            </span>
+                          </div>
+                          <p className="text-[9px] text-slate-500 font-bold mt-0.5">
+                            {isEnabled
+                              ? '1-2 waiter bots join after 10s if real user buys (1 cartela each)'
+                              : 'Waiter Player OFF on this stake'}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            triggerHaptic('light');
+                            if (!isEnabled) {
+                              // Trigger notification & confirmation modal
+                              setWaiterModalConfirmTier(key);
+                            } else {
+                              setWaiterStakeConfigs(prev => ({
+                                ...prev,
+                                [key]: { ...prev[key], enabled: false }
+                              }));
+                            }
+                          }}
+                          className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                            isEnabled
+                              ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
+                              : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                          }`}
+                        >
+                          {isEnabled ? 'ON' : 'OFF'}
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                        <span className="text-[10px] text-slate-500 font-bold">
+                          Waiter bots range (default: 1 - 2 bots):
+                        </span>
+                        <div className="flex items-center space-x-1.5">
+                          <input
+                            type="number"
+                            min="1"
+                            max="10"
+                            value={cfg.min}
+                            onChange={(e) => setWaiterStakeConfigs(prev => ({
+                              ...prev,
+                              [key]: { ...prev[key], min: Number(e.target.value) }
+                            }))}
+                            className="w-12 text-center py-1 bg-white border border-slate-200 rounded-lg text-xs font-black text-slate-800"
+                          />
+                          <span className="text-xs text-slate-400 font-bold">-</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max="10"
+                            value={cfg.max}
+                            onChange={(e) => setWaiterStakeConfigs(prev => ({
+                              ...prev,
+                              [key]: { ...prev[key], max: Number(e.target.value) }
+                            }))}
+                            className="w-12 text-center py-1 bg-white border border-slate-200 rounded-lg text-xs font-black text-slate-800"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Save button */}
@@ -1307,6 +1500,70 @@ export default function AgentSystemPlayerModal({
                 className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-xs shadow-xs hover:from-amber-600 active:scale-95 transition-all"
               >
                 {addingBot ? 'Adding...' : 'Add to Pool'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── WAITER ACTIVATION CONFIRMATION MODAL ── */}
+      {waiterModalConfirmTier && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-5 space-y-4 shadow-2xl border border-amber-300 relative">
+            <div className="flex items-center gap-2 text-amber-700">
+              <ShieldAlert size={22} className="text-amber-600" />
+              <h3 className="text-base font-black uppercase tracking-tight">Enable Waiter Player</h3>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/80 space-y-2 text-xs text-slate-800">
+              <p className="font-bold text-amber-950">
+                Please confirm balance integration for <b>{waiterModalConfirmTier.replace('_', ' ').toUpperCase()}</b>:
+              </p>
+              <ul className="space-y-1.5 text-[11px] text-slate-700 leading-relaxed">
+                <li className="flex items-start gap-1.5">
+                  <span className="text-amber-600 font-black">•</span>
+                  <span><b>Deducted from Agent Balance</b>: Each waiter bot buys 1 cartela using your Agent Balance (Current: <b>{agentBalance} ETB</b>).</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-emerald-600 font-black">✓</span>
+                  <span className="text-emerald-900"><b>Winnings Credited to Balance</b>: If the waiter bot wins, the entire Derash pot is credited directly back to your balance!</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-indigo-600 font-black">•</span>
+                  <span><b>Real Customer Games</b>: If a real customer wins, your stake remains in the winning pot (no additional 25% risk).</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-purple-600 font-black">•</span>
+                  <span><b>Authentic Names</b>: Waiter bots display random Ethiopian nicknames from your 1,000 pool.</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic('light');
+                  setWaiterModalConfirmTier(null);
+                }}
+                className="w-full py-2.5 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic('heavy');
+                  const tier = waiterModalConfirmTier;
+                  setWaiterStakeConfigs(prev => ({
+                    ...prev,
+                    [tier]: { ...prev[tier], enabled: true }
+                  }));
+                  setWaiterEnabled(true);
+                  setWaiterModalConfirmTier(null);
+                }}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-black text-xs uppercase shadow-md shadow-amber-500/20 active:scale-95 transition-all"
+              >
+                I Understand & Enable
               </button>
             </div>
           </div>
