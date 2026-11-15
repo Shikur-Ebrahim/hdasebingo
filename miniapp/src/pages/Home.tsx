@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
 import { Gift, ArrowDownToLine, Share2, PlusCircle, Info, DoorOpen, Users, Gamepad2, RefreshCw, ChevronDown, Clapperboard, Play, X, Sparkles, Volume2, VolumeX } from 'lucide-react';
@@ -136,45 +136,100 @@ export default function Home() {
     setTimeout(() => setManualRefreshing(false), 500);
   };
 
+  // User's assigned/invited room (persisted during registration or friend invite)
+  const userInvitedRoomId = (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null) || (user as any)?.room_id || null;
+  const activeRoom = useMemo(() => {
+    if (userInvitedRoomId) {
+      const found = rooms.find(r => r.id === userInvitedRoomId);
+      if (found) return found;
+    }
+    const official = rooms.find(r => r.room_name === 'HDASE BINGO' || r.id === 'd7c9114a-e112-426f-8f9b-13c00050279c');
+    if (official) return official;
+    const pinned = rooms.find(r => r.is_pinned);
+    if (pinned) return pinned;
+    return rooms[0] || null;
+  }, [rooms, userInvitedRoomId]);
+
+  const activeRoomId = activeRoom?.id || 'd7c9114a-e112-426f-8f9b-13c00050279c';
+  const activeStakes = useMemo(() => {
+    if (activeRoom && Array.isArray(activeRoom.stakes) && activeRoom.stakes.length === 4) {
+      return activeRoom.stakes.map(Number);
+    }
+    return [5, 10, 20, 35];
+  }, [activeRoom]);
+
+
   useEffect(() => {
     let isMounted = true;
 
     const fetchPools = async () => {
-      const { data } = await supabase.from('bingo_games').select('id, stake, prize_pool, start_at, status').in('status', ['waiting', 'calling']);
-      if (data && isMounted) {
-        const p: Record<number, any> = {};
-        data.forEach(g => { p[g.stake] = { pool: g.prize_pool, start_at: g.start_at, status: g.status, players: 0, _id: g.id }; });
+      let loadedPools: any[] | null = null;
+      try {
+        const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+        const token = typeof window !== 'undefined' ? localStorage.getItem('hdase_pwa_token') : null;
+        const hdrs: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (initData) hdrs['x-telegram-init-data'] = initData;
+        if (token) hdrs['Authorization'] = `Bearer ${token}`;
 
-        const ids = data.map(g => g.id);
-        if (ids.length > 0) {
-          const { data: playerRows } = await supabase
-            .from('bingo_players')
-            .select('game_id, telegram_id')
-            .in('game_id', ids);
-          if (playerRows) {
-            const uniquePlayersMap: Record<string, Set<string>> = {};
-            playerRows.forEach((r: any) => {
-              if (!uniquePlayersMap[r.game_id]) uniquePlayersMap[r.game_id] = new Set();
-              uniquePlayersMap[r.game_id].add(r.telegram_id);
-            });
-            data.forEach(g => {
-              if (p[g.stake]) p[g.stake].players = uniquePlayersMap[g.id] ? uniquePlayersMap[g.id].size : 0;
-            });
-          }
+        const url = `${API_URL}/bingo/pools?room=${activeRoomId}`;
+        const r = await fetch(url, { headers: hdrs });
+        if (r.ok) {
+          const d = await r.json();
+          if (Array.isArray(d.pools)) loadedPools = d.pools;
+        }
+      } catch {}
+
+      if (!loadedPools) {
+        let q = supabase
+          .from('bingo_games')
+          .select('id, stake, prize_pool, total_players, start_at, status, room_id')
+          .in('status', ['waiting', 'calling'])
+          .eq('room_id', activeRoomId);
+
+        const { data: dbGames } = await q;
+        if (dbGames && dbGames.length > 0) {
+          loadedPools = dbGames.map(g => ({
+            stake: g.stake,
+            prize_pool: g.prize_pool,
+            start_at: g.start_at,
+            status: g.status,
+            unique_players: g.total_players || 0,
+          }));
+        }
+      }
+
+      if (isMounted) {
+        const p: Record<number, any> = {};
+        if (loadedPools) {
+          loadedPools.forEach((g: any) => {
+            p[Number(g.stake)] = {
+              pool: g.prize_pool || 0,
+              start_at: g.start_at,
+              status: g.status,
+              players: g.unique_players || 0,
+            };
+          });
         }
         setHomeGames(p);
       }
     };
+
     fetchPools();
 
-    const ch = supabase.channel('home_pools_root')
+    const ch = supabase.channel(`home_pools_${activeRoomId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bingo_games' }, () => {
+        if (isMounted) fetchPools();
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bingo_players' }, () => {
         if (isMounted) fetchPools();
       })
       .subscribe();
 
-    return () => { isMounted = false; supabase.removeChannel(ch); };
-  }, []);
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(ch);
+    };
+  }, [activeRoomId]);
 
   useEffect(() => {
     const update = () => {
@@ -478,7 +533,7 @@ export default function Home() {
       {/* LIVE BINGO BANNER */}
       <div className="px-4">
         <Link
-          to="/bingo/live"
+          to={`/bingo/live?stake=${activeStakes[0]}&room=${activeRoomId}`}
           onClick={(e) => {
             if (!user && !WebApp?.initData) {
               e.preventDefault();
@@ -598,265 +653,142 @@ export default function Home() {
         </Link>
       </div>
 
-      {/* ══════════ ROOMS SECTION ══════════ */}
-      <div className="px-4 flex-1" onClick={() => showHomeFilterDropdown && setShowHomeFilterDropdown(false)}>
-        {/* Section header */}
-        <div className="flex items-center justify-between mb-2">
-          {/* Left: icon + title */}
+      {/* ══════════ LIVE STAKE TABLES SECTION ══════════ */}
+      <div className="px-4 flex-1 pb-6">
+        {/* Section header: Active Room Stakes */}
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-2">
-            <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-sm">
-              <DoorOpen size={14} className="text-white" />
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white shadow-sm font-black">
+              <Sparkles size={16} />
             </div>
             <div>
-              <h2 className="font-black text-slate-800 dark:text-slate-100 text-sm leading-tight">BINGO ROOMS</h2>
-              <p className="text-[9px] text-slate-400 dark:text-slate-500 font-semibold leading-none">
-                {(() => {
-                  const userInvitedRoomId = (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null) || (user as any)?.room_id || null;
-                  const count = rooms.filter(r => !r.is_private || (userInvitedRoomId && r.id === userInvitedRoomId)).length;
-                  return count > 0 ? `${count} active room${count !== 1 ? 's' : ''} available` : 'No rooms yet';
-                })()}
+              <h2 className="font-black text-slate-800 text-sm leading-tight flex items-center gap-1.5">
+                <span>{language === 'am' ? 'የቢንጎ ጠረጴዛዎች' : 'BINGO TABLES'}</span>
+                <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[9px] font-black">
+                  {language === 'am' ? 'ቀጥታ' : 'LIVE'}
+                </span>
+              </h2>
+              <p className="text-[10px] text-slate-500 font-semibold leading-none mt-0.5">
+                {activeRoom?.room_name || 'HDASE BINGO'} • {language === 'am' ? 'መደብ ይምረጡና ይጫወቱ' : 'Choose a stake & win big'}
               </p>
             </div>
           </div>
 
-          {/* Right: Search icon + Filter button */}
-          <div className="flex items-center space-x-1.5">
-            {/* Search icon — parallel to BINGO ROOMS title */}
-            <button
-              onClick={e => { e.stopPropagation(); setShowHomeSearchBar(v => !v); if (showHomeSearchBar) setHomeRoomSearch(''); }}
-              className={`w-8 h-8 rounded-xl border flex items-center justify-center active:scale-95 transition-all shadow-sm ${
-                showHomeSearchBar || homeRoomSearch
-                  ? 'bg-indigo-500 border-indigo-500 text-white'
-                  : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <circle cx="11" cy="11" r="8" strokeWidth="2.5"/>
-                <path d="m21 21-4.35-4.35" strokeWidth="2.5" strokeLinecap="round"/>
-              </svg>
-            </button>
+          <button
+            onClick={() => handleManualRefresh()}
+            className="w-8 h-8 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center active:scale-95 transition-all hover:bg-slate-200"
+            title="Refresh"
+          >
+            <RefreshCw size={13} className={manualRefreshing ? 'animate-spin text-amber-500' : ''} />
+          </button>
+        </div>
 
-            {/* Advanced Filter Button */}
-            <div className="relative">
-              <button
-                onClick={e => { e.stopPropagation(); setShowHomeFilterDropdown(v => !v); }}
-                className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl border text-xs font-bold active:scale-95 transition-all shadow-sm ${
-                  homeRoomSortFilter !== 'all'
-                    ? 'bg-indigo-500 border-indigo-500 text-white'
-                    : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
+        {/* 4 Live Stake Tables Grid */}
+        <div className="grid grid-cols-2 gap-3">
+          {activeStakes.map((stake, idx) => {
+            const hg = homeGames[stake];
+            const pool = hg?.pool || 0;
+            const players = hg?.players || 0;
+            const isCalling = hg?.status === 'calling';
+            const timeLeft = homeTimeLeft[stake] || 0;
+            const isCountingDown = hg?.status === 'waiting' && timeLeft > 0;
+
+            const THEMES = [
+              {
+                bgGradient: 'from-emerald-50/70 via-teal-50/30 to-white',
+                badgeGradient: 'from-emerald-500 to-teal-600',
+                borderColor: 'border-emerald-200/90 hover:border-emerald-400',
+                btnClass: 'bg-emerald-600 hover:bg-emerald-700 text-white',
+              },
+              {
+                bgGradient: 'from-blue-50/70 via-indigo-50/30 to-white',
+                badgeGradient: 'from-blue-500 to-indigo-600',
+                borderColor: 'border-blue-200/90 hover:border-blue-400',
+                btnClass: 'bg-blue-600 hover:bg-blue-700 text-white',
+              },
+              {
+                bgGradient: 'from-purple-50/70 via-violet-50/30 to-white',
+                badgeGradient: 'from-purple-500 to-violet-600',
+                borderColor: 'border-purple-200/90 hover:border-purple-400',
+                btnClass: 'bg-purple-600 hover:bg-purple-700 text-white',
+              },
+              {
+                bgGradient: 'from-amber-50/70 via-orange-50/30 to-white',
+                badgeGradient: 'from-amber-500 to-orange-600',
+                borderColor: 'border-amber-200/90 hover:border-amber-400',
+                btnClass: 'bg-amber-600 hover:bg-orange-600 text-white',
+              },
+            ];
+
+            const theme = THEMES[idx % THEMES.length];
+
+            return (
+              <div
+                key={stake}
+                onClick={() => {
+                  if (!user && !WebApp?.initData) {
+                    setAuthModalOpen(true);
+                    return;
+                  }
+                  if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
+                  navigate(`/bingo/live?stake=${stake}&room=${activeRoomId}`);
+                }}
+                className={`relative rounded-2xl border ${theme.borderColor} bg-gradient-to-b ${theme.bgGradient} p-3 shadow-xs hover:shadow-md cursor-pointer active:scale-[0.98] transition-all flex flex-col justify-between overflow-hidden`}
               >
-                <span>
-                  {homeRoomSortFilter === 'all' ? '🔽' : homeRoomSortFilter === 'most_players' ? '👥' : homeRoomSortFilter === 'most_games' ? '🎮' : '✨'}
-                </span>
-                <span>{homeRoomSortFilter === 'all' ? 'Filter' : homeRoomSortFilter === 'most_players' ? 'Players' : homeRoomSortFilter === 'most_games' ? 'Games' : 'Newest'}</span>
-                <ChevronDown size={11} className={showHomeFilterDropdown ? 'rotate-180 transition-transform' : 'transition-transform'} />
-              </button>
-
-              {showHomeFilterDropdown && (
-                <div className="absolute right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200/80 dark:border-slate-700 overflow-hidden min-w-[175px]">
-                  <div className="px-3 pt-2.5 pb-1">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sort Rooms By</p>
+                {/* Top Row: Stake Badge + Status */}
+                <div className="flex items-center justify-between mb-2">
+                  <div className={`px-2.5 py-1 rounded-xl bg-gradient-to-r ${theme.badgeGradient} text-white font-black text-xs shadow-xs`}>
+                    {stake} ETB
                   </div>
-                  {[
-                    { key: 'all', label: 'All Rooms', icon: '🏠' },
-                    { key: 'most_players', label: 'Most Players', icon: '👥' },
-                    { key: 'most_games', label: 'Most Games', icon: '🎮' },
-                    { key: 'newest', label: 'Newest Rooms', icon: '✨' },
-                  ].map(opt => (
-                    <button
-                      key={opt.key}
-                      onClick={() => { setHomeRoomSortFilter(opt.key as typeof homeRoomSortFilter); setShowHomeFilterDropdown(false); }}
-                      className={`w-full flex items-center space-x-2.5 px-3 py-2.5 text-left transition-colors ${
-                        homeRoomSortFilter === opt.key
-                          ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
-                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                      }`}
-                    >
-                      <span className="text-base leading-none">{opt.icon}</span>
-                      <span className="text-xs font-bold">{opt.label}</span>
-                      {homeRoomSortFilter === opt.key && <span className="ml-auto text-indigo-500 text-xs font-black">✓</span>}
-                    </button>
-                  ))}
-                  <div className="border-t border-slate-100 dark:border-slate-800 px-3 py-2">
-                    <button
-                      onClick={() => { handleManualRefresh(); setShowHomeFilterDropdown(false); }}
-                      className="w-full flex items-center justify-center space-x-2 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300 text-xs font-bold active:scale-95 transition-all hover:bg-slate-200 dark:hover:bg-slate-700"
-                    >
-                      <RefreshCw size={12} className={manualRefreshing ? 'animate-spin text-indigo-500' : ''} />
-                      <span>Refresh Rooms</span>
-                    </button>
+                  {/* Status pill */}
+                  {isCalling ? (
+                    <div className="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-emerald-500 text-white text-[9px] font-black animate-pulse shadow-2xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+                      <span>{language === 'am' ? 'እየተጠራ ነው' : 'Calling'}</span>
+                    </div>
+                  ) : isCountingDown ? (
+                    <div className="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-amber-500 text-white text-[9px] font-black shadow-2xs">
+                      <span className="animate-spin text-[8px]">⏱</span>
+                      <span>{timeLeft}s</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-white text-slate-600 text-[9px] font-bold border border-slate-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      <span>{language === 'am' ? 'ክፍት ነው' : 'Open'}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Pot / Derash Display */}
+                <div className="my-1 bg-white/95 rounded-xl p-2.5 border border-slate-100 shadow-2xs text-center">
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                    {language === 'am' ? 'ደራሽ (POT)' : 'PRIZE POOL'}
+                  </p>
+                  <div className="flex items-baseline justify-center space-x-1 mt-0.5">
+                    <span className="text-xl font-black text-slate-900 leading-tight">
+                      {pool > 0 ? `${pool}` : '0'}
+                    </span>
+                    <span className="text-[10px] font-black text-amber-600">ETB</span>
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
 
-        {/* Collapsible search bar — shown only when search icon is tapped */}
-        {showHomeSearchBar && (
-          <div className="mb-2">
-            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl px-3 py-2 border border-slate-200 dark:border-slate-700 focus-within:border-indigo-400 focus-within:ring-1 focus-within:ring-indigo-200 transition-all">
-              <svg className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <circle cx="11" cy="11" r="8" strokeWidth="2.5"/>
-                <path d="m21 21-4.35-4.35" strokeWidth="2.5" strokeLinecap="round"/>
-              </svg>
-              <input
-                autoFocus
-                type="text"
-                value={homeRoomSearch}
-                onChange={e => setHomeRoomSearch(e.target.value)}
-                placeholder="Search rooms by name..."
-                className="flex-1 bg-transparent text-xs font-semibold text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none"
-              />
-              {homeRoomSearch && (
-                <button onClick={() => setHomeRoomSearch('')} className="text-slate-400 hover:text-slate-600 ml-1 text-sm leading-none">×</button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Filter chips row */}
-        <div className="flex space-x-1.5 overflow-x-auto mb-3" style={{ scrollbarWidth: 'none' }}>
-          {[
-            { key: 'all', label: 'All Rooms', icon: '🏠' },
-            { key: 'most_players', label: 'Most Players', icon: '👥' },
-            { key: 'most_games', label: 'Most Games', icon: '🎮' },
-            { key: 'newest', label: 'Newest', icon: '✨' },
-          ].map(opt => (
-            <button
-              key={opt.key}
-              onClick={() => setHomeRoomSortFilter(opt.key as typeof homeRoomSortFilter)}
-              className={`shrink-0 flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-bold border active:scale-95 transition-all ${
-                homeRoomSortFilter === opt.key
-                  ? 'bg-indigo-500 border-indigo-500 text-white shadow-sm'
-                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-indigo-300 hover:text-indigo-600'
-              }`}
-            >
-              <span>{opt.icon}</span>
-              <span>{opt.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Room cards — 2-column grid (only real rooms from DB, zero loading delay) */}
-        {(() => {
-          // localStorage always has the latest scanned room — prioritize it over DB value
-          const userInvitedRoomId = (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null) || (user as any)?.room_id || null;
-
-          const filteredHomeRooms = [...rooms]
-            .filter(r => !r.is_private || (userInvitedRoomId && r.id === userInvitedRoomId))
-            .filter(r => !homeRoomSearch.trim() || r.room_name.toLowerCase().includes(homeRoomSearch.trim().toLowerCase()))
-            .sort((a, b) => {
-              // 1. User's invited room gets TOP priority
-              const aInv = Boolean(userInvitedRoomId && a.id === userInvitedRoomId);
-              const bInv = Boolean(userInvitedRoomId && b.id === userInvitedRoomId);
-              if (aInv !== bInv) return aInv ? -1 : 1;
-
-              // 2. Pinned rooms next
-              const aPinned = Boolean(a.is_pinned);
-              const bPinned = Boolean(b.is_pinned);
-              if (aPinned !== bPinned) return aPinned ? -1 : 1;
-
-              // 3. Manual filter overrides if user picked one
-              if (homeRoomSortFilter === 'most_players') return (b.total_players || 0) - (a.total_players || 0);
-              if (homeRoomSortFilter === 'most_games') return (b.total_games || 0) - (a.total_games || 0);
-              if (homeRoomSortFilter === 'newest') return new Date((b as any).created_at || 0).getTime() - new Date((a as any).created_at || 0).getTime();
-
-              // 4. Smart auto-sort: highest 24h commission first
-              const commDiff = ((b as any).commission_24h || 0) - ((a as any).commission_24h || 0);
-              if (Math.abs(commDiff) > 0.001) return commDiff;
-
-              // 5. Then most active players
-              const playerDiff = (b.total_players || 0) - (a.total_players || 0);
-              if (playerDiff !== 0) return playerDiff;
-
-              // 6. Then most total games
-              return (b.total_games || 0) - (a.total_games || 0);
-            });
-          return filteredHomeRooms.length === 0 ? (
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 p-8 text-center space-y-2">
-              <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto">
-                <DoorOpen size={28} className="text-slate-300 dark:text-slate-600" />
-              </div>
-              <p className="text-xs font-black text-slate-500 dark:text-slate-400">
-                {homeRoomSearch.trim() ? `No rooms matching "${homeRoomSearch}"` : 'No active rooms yet'}
-              </p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                {homeRoomSearch.trim() ? 'Try a different search term' : 'Rooms will appear here once agents create them'}
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              {filteredHomeRooms.map((room) => {
-                const isInvitedRoom = Boolean(userInvitedRoomId && room.id === userInvitedRoomId);
-                return (
-                  <div
-                    key={room.id}
-                    onClick={() => {
-                      if (!user && !WebApp?.initData) {
-                        setAuthModalOpen(true);
-                        return;
-                      }
-                      fetch(`${API_URL}/player/rooms/${room.id}/enter`, { method: 'POST' }).catch(() => {});
-                      navigate(`/bingo/live?room=${room.id}`);
-                    }}
-                    className={`bg-white dark:bg-slate-900 rounded-xl shadow-sm border overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all ${
-                      isInvitedRoom
-                        ? 'border-orange-500 ring-2 ring-orange-400/50 shadow-orange-500/10'
-                        : 'border-gray-100 dark:border-slate-800'
-                    }`}
-                  >
-                    {/* Header for room card */}
-                    <div className="h-16 bg-black flex flex-col items-center justify-center relative px-2 text-center">
-                      <div className="absolute top-2 left-2 flex items-center space-x-1">
-                        {isInvitedRoom ? (
-                          <div className="flex items-center justify-center bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[10px] w-5 h-5 rounded-full shadow-sm">
-                            <span>⭐</span>
-                          </div>
-                        ) : room.is_pinned ? (
-                          <div className="flex items-center justify-center bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 text-[10px] w-5 h-5 rounded-full shadow-sm">
-                            <span>📌</span>
-                          </div>
-                        ) : null}
-                        {room.room_number ? (
-                          <span className="bg-amber-400/95 text-slate-950 text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-xs">
-                            #{room.room_number}
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-sm" />
-                      <span className="text-white font-black text-sm leading-tight line-clamp-2 px-1">
-                        {room.room_name}
-                      </span>
-                    </div>
-
-                    {/* Players / Total Games — 2 columns */}
-                    <div className="w-full bg-slate-50 dark:bg-slate-800/50 border-b border-gray-100 dark:border-slate-800 flex h-[38px] shrink-0">
-                      <div className="flex-1 flex flex-col items-center justify-center border-r border-gray-100 dark:border-slate-800">
-                        <span className="text-slate-400 dark:text-slate-500 text-[8px] font-bold uppercase tracking-wider">Players</span>
-                        <span className="text-[11px] font-black text-emerald-600 dark:text-emerald-400">{room.total_players}</span>
-                      </div>
-                      <div className="flex-1 flex flex-col items-center justify-center">
-                        <span className="text-slate-400 dark:text-slate-500 text-[8px] font-bold uppercase tracking-wider">Total Games</span>
-                        <span className="text-[11px] font-black text-violet-600 dark:text-violet-400">{room.total_games}</span>
-                      </div>
-                    </div>
-
-                    {/* Join Room button */}
-                    <div className="p-2 text-center">
-                      <div className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2 rounded-lg text-xs transition-colors flex items-center justify-center">
-                        Join Room
-                      </div>
-                    </div>
+                {/* Players Count & CTA */}
+                <div className="mt-2 pt-2 border-t border-slate-100/80 flex items-center justify-between">
+                  <div className="flex items-center space-x-1 text-slate-500 text-[10px] font-bold">
+                    <Users size={12} className="text-slate-400 shrink-0" />
+                    <span>{players} {language === 'am' ? 'ተጫዋች' : 'players'}</span>
                   </div>
-                );
-              })}
-            </div>
-          );
-        })()}
+                  <div className={`px-2.5 py-1 rounded-lg ${theme.btnClass} text-[10px] font-black shadow-2xs flex items-center space-x-1 active:scale-95 transition-transform`}>
+                    <span>{language === 'am' ? 'ተጫወቱ' : 'PLAY'}</span>
+                    <span className="text-xs">→</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
-      {/* ══════════════════════════════════ */}
+      {/* ═══════════════════════════════════════════════ */}
 
     </div>
   );

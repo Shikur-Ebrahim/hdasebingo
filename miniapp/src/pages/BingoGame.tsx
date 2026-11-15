@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ChevronDown, Gift, RefreshCw, Users, Clock, Trophy, Volume2, VolumeX, RotateCcw, LayoutGrid, Wand2, Hand, DoorOpen, Gamepad2, Flame, X, Star } from "lucide-react";
+import { ArrowLeft, ChevronDown, Gift, RefreshCw, Users, Clock, Trophy, Volume2, VolumeX, RotateCcw, LayoutGrid, Wand2, Hand, DoorOpen, Gamepad2, Flame, X, Star, Sparkles } from "lucide-react";
 import WebApp from "@twa-dev/sdk";
 import { supabase } from "../lib/supabase";
 import { useGameStore, Room } from "../store/gameStore";
@@ -157,7 +157,10 @@ export default function BingoGame() {
 
   const urlStake = searchParams.get("stake");
   const urlRoom = searchParams.get("room");
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(urlRoom || null);
+  const userRoomId = (user as any)?.room_id || (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null);
+  const defaultHdaseRoom = rooms.find(r => r.room_name?.toUpperCase().includes('HDASE')) || rooms.find(r => r.is_pinned) || rooms[0];
+  const effectiveRoomId = urlRoom || userRoomId || defaultHdaseRoom?.id || null;
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(effectiveRoomId);
   const [selectedStake, setSelectedStake] = useState<number | null>(urlStake ? Number(urlStake) : null);
   const [roomsRefreshing, setRoomsRefreshing] = useState(false);
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
@@ -188,13 +191,15 @@ export default function BingoGame() {
     return () => { unsub(); };
   }, [fetchRooms, subscribeToRooms, rooms.length]);
 
-  // Keep selectedRoomId in sync if URL query changes
+  // Keep selectedRoomId in sync if URL query changes or when rooms load
   useEffect(() => {
     const r = searchParams.get("room");
     if (r) {
       setSelectedRoomId(r);
+    } else if (effectiveRoomId && (!selectedRoomId || selectedRoomId === 'null')) {
+      setSelectedRoomId(effectiveRoomId);
     }
-  }, [searchParams]);
+  }, [searchParams, effectiveRoomId, selectedRoomId]);
 
   const handleRefreshRooms = async () => {
     setRoomsRefreshing(true);
@@ -1032,279 +1037,20 @@ export default function BingoGame() {
     </div>
   );
 
-  // -- 1. ROOMS SELECTION SCREEN (Shown before stake is chosen) --
+  // -- 1. CONNECTING / LOADING STATE (Room is automatically resolved; players never pick rooms) --
   if (!selectedRoomId) {
     return (
-      <div className="h-[calc(100dvh-80px)] w-full bg-white flex flex-col select-none overflow-hidden relative" onClick={initWebAudio}>
-        {/* Subtle background grid pattern */}
-        <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.03]" style={{ display: 'grid', gridTemplateColumns: 'repeat(15, minmax(0, 1fr))', gap: '2px', padding: '2px' }}>
-          {Array.from({ length: 150 }, (_, i) => (
-            <div key={i} className="flex items-center justify-center bg-black rounded-[3px] text-black font-black" style={{ fontSize: '6px' }}>{i + 1}</div>
-          ))}
-        </div>
-
-        <div className="relative z-10 flex flex-col h-full">
-          {/* Top user profile & wallet header */}
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white shadow-2xs">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-black text-lg shadow-xs">{initial}</div>
-              <div>
-                <p className="font-black text-sm uppercase tracking-wider text-slate-800 leading-tight">{user?.first_name || "USER"}</p>
-                <div className="flex items-center space-x-1 mt-0.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[10px] font-bold text-slate-400">Online</span>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4 text-right">
-              <div className="flex flex-col items-center">
-                <Gift size={14} className="text-purple-600 mb-0.5" />
-                <p className="text-xs font-bold text-slate-700">{fm(user?.bonus_balance)} ETB</p>
-              </div>
-              <div className="flex flex-col items-end">
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{t[language].bingo.wallet}</p>
-                <p className="text-sm font-black text-emerald-600">{fm(user?.main_balance)} ETB</p>
-              </div>
-            </div>
+      <div className="h-[calc(100dvh-80px)] w-full bg-white flex flex-col items-center justify-center select-none" onClick={initWebAudio}>
+        <div className="flex flex-col items-center space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-400 flex items-center justify-center animate-spin">
+            <Sparkles className="text-amber-500" size={24} />
           </div>
-
-          {/* Navigation Bar: Back | Title | Search + Filter */}
-          <div className="px-4 pt-3 pb-2 flex items-center justify-between shrink-0 bg-white">
-            <button
-              onClick={() => navigate('/')}
-              className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200/60 flex items-center justify-center text-slate-600 active:scale-95 transition-all shadow-2xs"
-            >
-              <ArrowLeft size={16} />
-            </button>
-            <div className="text-center">
-              <div className="flex items-center justify-center space-x-1.5">
-                <DoorOpen size={16} className="text-amber-500" />
-                <h2 className="font-black text-base text-slate-800 tracking-wide">
-                  {language === 'am' ? 'የቢንጎ ክፍሎች' : 'BINGO ROOMS'}
-                </h2>
-              </div>
-              <p className="text-[10px] text-amber-600 font-bold">
-                {language === 'am' ? 'ክፍል ይምረጡና ይጫወቱ' : 'Select an active room to play'}
-              </p>
-            </div>
-            {/* Search icon + Filter */}
-            <div className="flex items-center space-x-1.5">
-              <button
-                onClick={() => { setShowSearchBar(v => !v); if (showSearchBar) setRoomSearch(''); }}
-                className={`w-9 h-9 rounded-xl border flex items-center justify-center active:scale-95 transition-all shadow-2xs ${
-                  showSearchBar || roomSearch
-                    ? 'bg-amber-500 border-amber-500 text-white'
-                    : 'bg-slate-100 border-slate-200/60 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <circle cx="11" cy="11" r="8" strokeWidth="2.5"/>
-                  <path d="m21 21-4.35-4.35" strokeWidth="2.5" strokeLinecap="round"/>
-                </svg>
-              </button>
-              {/* Advanced Filter Button */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowFilterDropdown(v => !v)}
-                  className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-xl border text-xs font-bold active:scale-95 transition-all shadow-2xs ${
-                    roomSortFilter !== 'all'
-                      ? 'bg-amber-500 border-amber-500 text-white'
-                      : 'bg-slate-100 border-slate-200/60 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  <span>
-                    {BINGO_FILTER_OPTIONS.find(o => o.key === roomSortFilter)?.icon ?? '\ud83d\udd3d'}
-                  </span>
-                  <ChevronDown size={12} className={showFilterDropdown ? 'rotate-180 transition-transform' : 'transition-transform'} />
-                </button>
-
-                {/* Dropdown */}
-                {showFilterDropdown && (
-                  <div className="absolute right-0 top-full mt-1.5 z-50 bg-white rounded-2xl shadow-xl border border-slate-200/80 overflow-hidden min-w-[180px]">
-                    <div className="px-3 pt-2.5 pb-1">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                        {language === 'am' ? 'ክፍሎች ለይ' : 'Sort Rooms By'}
-                      </p>
-                    </div>
-                    {BINGO_FILTER_OPTIONS.map(opt => (
-                      <button
-                        key={opt.key}
-                        onClick={() => { setRoomSortFilter(opt.key); setShowFilterDropdown(false); }}
-                        className={`w-full flex items-center space-x-2.5 px-3 py-2.5 text-left active:bg-slate-50 transition-colors ${
-                          roomSortFilter === opt.key
-                            ? 'bg-amber-50 text-amber-700'
-                            : 'text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span className="text-base leading-none">{opt.icon}</span>
-                        <span className="text-xs font-bold leading-tight">{opt.label}</span>
-                        {roomSortFilter === opt.key && (
-                          <span className="ml-auto text-amber-500 text-xs font-black">✓</span>
-                        )}
-                      </button>
-                    ))}
-                    <div className="border-t border-slate-100 px-3 py-2">
-                      <button
-                        onClick={handleRefreshRooms}
-                        className="w-full flex items-center justify-center space-x-2 py-2 bg-slate-100 rounded-xl text-slate-600 text-xs font-bold active:scale-95 transition-all hover:bg-slate-200"
-                      >
-                        <RefreshCw size={12} className={roomsRefreshing ? 'animate-spin text-amber-500' : ''} />
-                        <span>{language === 'am' ? 'አድስ' : 'Refresh Rooms'}</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Expandable search bar */}
-          {showSearchBar && (
-            <div className="px-4 pb-2 shrink-0 bg-white">
-              <div className="flex items-center bg-slate-100 rounded-xl px-3 py-2 border border-slate-200 focus-within:border-amber-400 focus-within:ring-1 focus-within:ring-amber-200 transition-all">
-                <svg className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <circle cx="11" cy="11" r="8" strokeWidth="2.5"/>
-                  <path d="m21 21-4.35-4.35" strokeWidth="2.5" strokeLinecap="round"/>
-                </svg>
-                <input
-                  autoFocus
-                  type="text"
-                  value={roomSearch}
-                  onChange={e => setRoomSearch(e.target.value)}
-                  placeholder={language === 'am' ? 'ክፍል ፈልግ...' : 'Search rooms by name...'}
-                  className="flex-1 bg-transparent text-xs font-semibold text-slate-700 placeholder-slate-400 outline-none"
-                />
-                {roomSearch && (
-                  <button onClick={() => setRoomSearch('')} className="text-slate-400 hover:text-slate-600 ml-1 text-sm leading-none">×</button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Filter chips row (quick inline buttons, shows active filter) */}
-          <div className="px-4 pb-1 flex space-x-1.5 overflow-x-auto shrink-0" style={{ scrollbarWidth: 'none' }}>
-            {BINGO_FILTER_OPTIONS.map(opt => (
-              <button
-                key={opt.key}
-                onClick={() => setRoomSortFilter(opt.key)}
-                className={`shrink-0 flex items-center space-x-1 px-3 py-1 rounded-full text-[11px] font-bold border active:scale-95 transition-all ${
-                  roomSortFilter === opt.key
-                    ? 'bg-amber-500 border-amber-500 text-white shadow-sm'
-                    : 'bg-white border-slate-200 text-slate-500 hover:border-amber-300 hover:text-amber-600'
-                }`}
-              >
-                <span>{opt.icon}</span>
-                <span>{opt.label}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Rooms Grid (Mobile friendly, strictly real rooms from DB) */}
-          <div className="px-4 flex-1 overflow-y-auto pb-4 pt-2" style={{ scrollbarWidth: 'none' }}
-            onClick={() => showFilterDropdown && setShowFilterDropdown(false)}
-          >
-            <div className="flex items-center justify-between mb-2.5">
-              <div className="flex items-center space-x-1.5">
-                <span className="text-xs font-black text-slate-700 uppercase tracking-wide">
-                  {language === 'am' ? 'ክፍት ክፍሎች' : 'Available Rooms'}
-                </span>
-                <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold">
-                  {filteredRooms.length}
-                </span>
-              </div>
-              <span className="text-[10px] text-slate-400 font-bold">
-                {language === 'am' ? 'ይምረጡና ይግቡ' : 'Tap room to join'}
-              </span>
-            </div>
-
-            {filteredRooms.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-8 text-center space-y-2 mt-2">
-                <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
-                  <DoorOpen size={28} />
-                </div>
-                <p className="text-xs font-black text-slate-600">
-                  {roomSearch.trim()
-                    ? (language === 'am' ? `"${roomSearch}" አልተገኘም` : `No rooms matching "${roomSearch}"` )
-                    : (language === 'am' ? 'ምንም ክፍሎች የሉም' : 'No active rooms yet')}
-                </p>
-                <p className="text-[10px] text-slate-400">
-                  {roomSearch.trim()
-                    ? (language === 'am' ? 'ሌላ ቃል ይሞክሩ' : 'Try a different search term')
-                    : (language === 'am' ? 'ክፍሎች ሲዘጋጁ እዚህ ይታያሉ' : 'Rooms will appear here once agents create them')}
-                </p>
-                {!roomSearch.trim() && (
-                  <button
-                    onClick={handleRefreshRooms}
-                    className="mt-2 px-4 py-1.5 bg-amber-500 text-white rounded-xl text-xs font-black active:scale-95 shadow-sm"
-                  >
-                    {language === 'am' ? 'አድስ (Refresh)' : 'Refresh'}
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3 pb-2">
-                {filteredRooms.map((room) => {
-                  const isInvitedRoom = Boolean(userInvitedRoomId && room.id === userInvitedRoomId);
-                  return (
-                    <div
-                      key={room.id}
-                      onClick={() => handleSelectRoom(room)}
-                      className={`bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col cursor-pointer active:scale-95 transition-all duration-200 hover:shadow-md ${isInvitedRoom ? 'border-2 border-orange-500 ring-2 ring-orange-300/60' : 'border border-slate-200/90'}`}
-                    >
-                      {/* Same black header for all rooms */}
-                      <div className="h-20 bg-black flex flex-col items-center justify-center relative px-2.5 text-center">
-                        {isInvitedRoom ? (
-                          <div className="absolute top-2 left-2 flex items-center justify-center bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[10px] w-5 h-5 rounded-full shadow-sm">
-                            <Star size={12} className="text-amber-400 fill-amber-400" />
-                          </div>
-                        ) : room.is_pinned ? (
-                          <div className="absolute top-2 left-2 flex items-center justify-center bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 text-[10px] w-5 h-5 rounded-full shadow-sm">
-                            <span className="text-xs">📌</span>
-                          </div>
-                        ) : null}
-                        {room.room_number ? (
-                          <span className="absolute bottom-1.5 left-2 bg-amber-400/90 text-slate-950 text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-xs">
-                            #{room.room_number}
-                          </span>
-                        ) : null}
-                        <div className="absolute top-2 right-2 flex items-center space-x-1 bg-white/10 px-1.5 py-0.5 rounded-full">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          <span className="text-[7px] font-black text-white uppercase tracking-wider">LIVE</span>
-                        </div>
-                        <span className="text-white font-black text-base leading-tight line-clamp-2 px-1">
-                          {room.room_name}
-                        </span>
-                      </div>
-
-                      {/* Stats Row: Players | Total Games */}
-                      <div className="w-full bg-slate-50 border-b border-slate-100 flex h-[38px] shrink-0">
-                        <div className="flex-1 flex flex-col items-center justify-center border-r border-slate-100">
-                          <span className="text-slate-400 text-[8px] font-bold uppercase tracking-wider">
-                            {language === 'am' ? 'ተጫዋቾች' : 'Players'}
-                          </span>
-                          <span className="text-[11px] font-black text-emerald-600">{room.total_players}</span>
-                        </div>
-                        <div className="flex-1 flex flex-col items-center justify-center">
-                          <span className="text-slate-400 text-[8px] font-bold uppercase tracking-wider">
-                            {language === 'am' ? 'ጨዋታዎች' : 'Games'}
-                          </span>
-                          <span className="text-[11px] font-black text-violet-600">{room.total_games}</span>
-                        </div>
-                      </div>
-
-                      {/* Action Button */}
-                      <div className="p-2 text-center bg-white">
-                        <div className="w-full bg-slate-100 hover:bg-amber-500 hover:text-white text-slate-700 font-black py-2 rounded-xl text-[11px] transition-colors flex items-center justify-center space-x-1 shadow-2xs">
-                          <span>{language === 'am' ? 'ክፍል ይግቡ' : 'Join Room'}</span>
-                          <span className="font-bold">→</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <p className="text-sm font-black text-slate-700">
+            {language === 'am' ? 'ወደ ቢንጎ ጠረጴዛ በመግባት ላይ...' : 'Connecting to Bingo Table...'}
+          </p>
+          <p className="text-xs text-slate-400 font-semibold">
+            {language === 'am' ? 'እባክዎ ትንሽ ይጠብቁ' : 'Please wait a moment'}
+          </p>
         </div>
       </div>
     );
@@ -1327,16 +1073,9 @@ export default function BingoGame() {
           <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white shadow-2xs">
             <div className="flex items-center space-x-2.5">
               <button
-                onClick={() => {
-                  setSelectedRoomId(null);
-                  setSearchParams(params => {
-                    params.delete('room');
-                    params.delete('stake');
-                    return params;
-                  });
-                }}
+                onClick={() => navigate('/')}
                 className="h-9 w-9 flex items-center justify-center bg-white border border-slate-200 rounded-xl shrink-0 active:scale-95 transition-transform shadow-xs text-slate-700 hover:bg-slate-50"
-                title={language === 'am' ? 'ወደ ክፍሎች ተመለስ' : 'Back to rooms'}
+                title={language === 'am' ? 'ወደ ዋና ገጽ ተመለስ' : 'Back to Home'}
               >
                 <ArrowLeft size={16} className="text-slate-700" />
               </button>
@@ -1355,40 +1094,31 @@ export default function BingoGame() {
             </div>
           </div>
 
-          {/* Selected Room Banner Card with Change Room Action */}
+          {/* Active Table Banner (Live Bingo status) */}
           <div className="mx-4 mt-2.5 p-3 bg-gradient-to-r from-amber-500/10 via-yellow-400/15 to-indigo-500/10 border border-amber-300/40 rounded-2xl flex items-center justify-between shadow-xs shrink-0">
             <div className="flex items-center space-x-2.5">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-white shadow-md font-black">
-                <DoorOpen size={20} />
+                <Sparkles size={20} />
               </div>
               <div>
                 <div className="flex items-center space-x-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                   <span className="text-[9px] font-black text-amber-700 uppercase tracking-wider">
-                    {language === 'am' ? 'የተመረጠ ክፍል' : 'Selected Room'}
+                    {language === 'am' ? 'ቀጥታ ቢንጎ • LIVE BINGO' : 'LIVE BINGO TABLE'}
                   </span>
                 </div>
                 <h3 className="font-black text-sm text-slate-800 leading-tight">
                   {selectedRoom ? `${selectedRoom.room_number ? `#${selectedRoom.room_number} ` : ''}${selectedRoom.room_name}` : 'Active Room'}
                 </h3>
                 <p className="text-[9px] text-slate-500 font-semibold mt-0.5">
-                  <Users size={11} className="inline mr-1 text-slate-400 -mt-0.5" />{selectedRoom?.total_players || 0} {language === 'am' ? '\u1270\u132b\u12cb\u127e\u127d' : 'players'} • <Gamepad2 size={11} className="inline mr-1 ml-1.5 text-slate-400 -mt-0.5" />{selectedRoom?.total_games || 0} {language === 'am' ? '\u1328\u12cb\u1273\u12c8\u127d' : 'games'}
+                  <Users size={11} className="inline mr-1 text-slate-400 -mt-0.5" />{selectedRoom?.total_players || 0} {language === 'am' ? 'ተጫዋቾች' : 'players'} • <Gamepad2 size={11} className="inline mr-1 ml-1.5 text-slate-400 -mt-0.5" />{selectedRoom?.total_games || 0} {language === 'am' ? 'ጨዋታዎች' : 'games'}
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => {
-                setSelectedRoomId(null);
-                setSearchParams(params => {
-                  params.delete('room');
-                  return params;
-                });
-              }}
-              className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-slate-700 text-[11px] font-bold active:scale-95 transition-transform shadow-xs flex items-center space-x-1 hover:bg-slate-50"
-            >
-              <RotateCcw size={12} className="text-amber-600" />
-              <span>{language === 'am' ? 'ክፍል ቀይር' : 'Change Room'}</span>
-            </button>
+            <div className="px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-[11px] font-black shadow-xs flex items-center space-x-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>{language === 'am' ? 'ንቁ' : 'Active'}</span>
+            </div>
           </div>
 
           {/* Subtitle */}

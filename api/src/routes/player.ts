@@ -12,6 +12,46 @@ router.get('/profile', validateTelegramAuth, async (req: AuthRequest, res) => {
   res.json({ player: data });
 });
 
+// GET /player/resolve-invite — resolve inviter telegram_id or UUID to get their room_id
+router.get('/resolve-invite', async (req, res) => {
+  try {
+    const rawRef = (req.query.ref as string || '').replace('ref_', '').trim();
+    if (!rawRef) {
+      return res.json({ room_id: null, inviter_id: null });
+    }
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawRef);
+    const { data: inviterUser } = await (isUuid
+      ? supabase.from('users').select('id, telegram_id, room_id, first_name').eq('id', rawRef).maybeSingle()
+      : supabase.from('users').select('id, telegram_id, room_id, first_name').eq('telegram_id', rawRef).maybeSingle()
+    );
+
+    if (inviterUser?.room_id) {
+      return res.json({
+        room_id: inviterUser.room_id,
+        inviter_id: inviterUser.id,
+        inviter_name: inviterUser.first_name,
+      });
+    }
+
+    // Fallback to default HDASE room if inviter has no room_id
+    const { data: defRoom } = await supabase
+      .from('rooms')
+      .select('id, room_name')
+      .ilike('room_name', '%hdase%')
+      .limit(1)
+      .maybeSingle();
+
+    res.json({
+      room_id: defRoom?.id || null,
+      inviter_id: inviterUser?.id || null,
+      inviter_name: inviterUser?.first_name || null,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/player/invited — returns all users invited by the current user
 router.get('/invited', validateTelegramAuth, async (req: AuthRequest, res) => {
   const telegramId = req.telegramUser!.id.toString();

@@ -72,16 +72,36 @@ router.post('/register', async (req, res) => {
 
     // 4. Resolve promoter/inviter if provided
     let resolvedInviterUuid: string | null = null;
+    let inviterRoomId: string | null = null;
     if (typeof promoter_ref === 'string' && promoter_ref.trim()) {
       const cleanRef = promoter_ref.replace('ref_', '').trim();
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanRef);
       const { data: promoterUser } = await (isUuid
-        ? supabase.from('users').select('id').eq('id', cleanRef).maybeSingle()
-        : supabase.from('users').select('id').eq('telegram_id', cleanRef).maybeSingle()
+        ? supabase.from('users').select('id, room_id').eq('id', cleanRef).maybeSingle()
+        : supabase.from('users').select('id, room_id').eq('telegram_id', cleanRef).maybeSingle()
       );
       if (promoterUser?.id) {
         resolvedInviterUuid = promoterUser.id;
+        if (promoterUser.room_id) {
+          inviterRoomId = promoterUser.room_id;
+        }
       }
+    }
+
+    // Determine effective room_id:
+    // If invited by friend/promoter, inherit that friend's room!
+    // Else use selected room_id, or fall back to default HDASE BINGO room!
+    let effectiveRoomId = inviterRoomId || room_id || null;
+    if (!effectiveRoomId) {
+      try {
+        const { data: defRoom } = await supabase
+          .from('rooms')
+          .select('id')
+          .ilike('room_name', '%hdase%')
+          .limit(1)
+          .maybeSingle();
+        if (defRoom?.id) effectiveRoomId = defRoom.id;
+      } catch {}
     }
 
     // 5. Check if user already exists
@@ -106,7 +126,7 @@ router.post('/register', async (req, res) => {
         password_hash: hashPassword(safePassword),
         first_name: safeName || existingUser.first_name,
       };
-      if (room_id) updateData.room_id = room_id;
+      if (effectiveRoomId) updateData.room_id = effectiveRoomId;
       if (!existingUser.inviter_id && resolvedInviterUuid) updateData.inviter_id = resolvedInviterUuid;
 
       const { data: updated, error: updateErr } = await supabase
@@ -144,7 +164,7 @@ router.post('/register', async (req, res) => {
       bonus_balance: welcomeBonus,
       role: 'user',
     };
-    if (room_id) insertPayload.room_id = room_id;
+    if (effectiveRoomId) insertPayload.room_id = effectiveRoomId;
     if (resolvedInviterUuid) insertPayload.inviter_id = resolvedInviterUuid;
 
     const { data: newUser, error: insertErr } = await supabase
@@ -296,12 +316,28 @@ router.post('/verify', validateTelegramAuth, async (req: AuthRequest, res) => {
     const cleanRef = rawPromoterRef.replace('ref_', '').trim();
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanRef);
     const { data: promoterUser } = await (isUuid
-      ? supabase.from('users').select('id').eq('id', cleanRef).maybeSingle()
-      : supabase.from('users').select('id').eq('telegram_id', cleanRef).maybeSingle()
+      ? supabase.from('users').select('id, room_id').eq('id', cleanRef).maybeSingle()
+      : supabase.from('users').select('id, room_id').eq('telegram_id', cleanRef).maybeSingle()
     );
     if (promoterUser?.id) {
       resolvedInviterUuid = promoterUser.id;
+      if (!invitedRoomId && promoterUser.room_id) {
+        invitedRoomId = promoterUser.room_id;
+      }
     }
+  }
+
+  // Fallback to default HDASE BINGO room if no room specified
+  if (!invitedRoomId) {
+    try {
+      const { data: defRoom } = await supabase
+        .from('rooms')
+        .select('id')
+        .ilike('room_name', '%hdase%')
+        .limit(1)
+        .maybeSingle();
+      if (defRoom?.id) invitedRoomId = defRoom.id;
+    } catch {}
   }
   
   // Check if user already exists

@@ -8,14 +8,33 @@ export async function upsertUser(telegramId: string, username: string, firstName
     const cleanRef = inviterId.replace('ref_', '').trim();
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanRef);
     const { data: inviterUser } = await (isUuid
-      ? supabase.from('users').select('id').eq('id', cleanRef).maybeSingle()
-      : supabase.from('users').select('id').eq('telegram_id', cleanRef).maybeSingle()
+      ? supabase.from('users').select('id, room_id').eq('id', cleanRef).maybeSingle()
+      : supabase.from('users').select('id, room_id').eq('telegram_id', cleanRef).maybeSingle()
     );
     if (inviterUser?.id) {
       resolvedInviterUuid = inviterUser.id;
+      // Inherit the inviter's room so friends play in the same room!
+      if (!roomId && inviterUser.room_id) {
+        roomId = inviterUser.room_id;
+      }
     } else if (isUuid) {
       resolvedInviterUuid = cleanRef;
     }
+  }
+
+  // Fallback to default HDASE BINGO room if no room specified
+  if (!roomId) {
+    try {
+      const { data: defRoom } = await supabase
+        .from('rooms')
+        .select('id')
+        .ilike('room_name', '%hdase%')
+        .limit(1)
+        .maybeSingle();
+      if (defRoom?.id) {
+        roomId = defRoom.id;
+      }
+    } catch {}
   }
 
   const { data: existing } = await supabase.from('users').select('*').eq('telegram_id', telegramId).single();

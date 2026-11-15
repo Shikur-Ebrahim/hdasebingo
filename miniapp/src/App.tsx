@@ -228,6 +228,16 @@ function App() {
       }
       if (detectedPromoterRef) {
         localStorage.setItem('hdase_promoter_ref', detectedPromoterRef);
+        // Automatically resolve friend's room so user is automatically in friend's room
+        const apiUrl = import.meta.env.VITE_API_URL || '/api';
+        fetch(`${apiUrl}/player/resolve-invite?ref=${encodeURIComponent(detectedPromoterRef)}`)
+          .then(r => r.json())
+          .then(data => {
+            if (data?.room_id) {
+              localStorage.setItem('hdase_invited_room_id', data.room_id);
+            }
+          })
+          .catch(() => {});
       }
     } catch {}
 
