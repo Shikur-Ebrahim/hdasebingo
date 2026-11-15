@@ -348,7 +348,7 @@ export default function BingoGame() {
     return () => { isMounted = false; supabase.removeChannel(ch); };
   }, [selectedStake, selectedRoomId]);
 
-  // Tick timer for home screen
+  // Tick timer for stake screen
   useEffect(() => {
     if (selectedStake) return;
     const update = () => {
@@ -356,8 +356,12 @@ export default function BingoGame() {
       setHomeTimeLeft(prev => {
         const next: Record<number, number> = {};
         for (const [stake, g] of Object.entries(homeGames)) {
-          if (g.status === 'waiting' && g.start_at) {
-            next[Number(stake)] = Math.max(0, Math.ceil((new Date(g.start_at).getTime() - Date.now()) / 1000));
+          const pCount = Number(g.players || 0);
+          if (g.status === 'waiting' && g.start_at && pCount > 0) {
+            const diff = Math.ceil((new Date(g.start_at).getTime() - Date.now()) / 1000);
+            next[Number(stake)] = (diff > 0 && diff <= 120) ? diff : 0;
+          } else {
+            next[Number(stake)] = 0;
           }
         }
         return next;
@@ -1139,7 +1143,7 @@ export default function BingoGame() {
               
               let statusTxt = "Waiting...";
               let statusCls = "text-orange-500";
-              if (isWaiting && tl <= 86400 && tl > 0) {
+              if (isWaiting && players > 0 && tl > 0 && tl <= 120) {
                 statusTxt = `${tl}s`;
               } else if (isCalling) {
                 statusTxt = "Active";

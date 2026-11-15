@@ -237,8 +237,12 @@ export default function Home() {
       setHomeTimeLeft(prev => {
         const next: Record<number, number> = {};
         for (const [stake, g] of Object.entries(homeGames)) {
-          if (g.status === 'waiting' && g.start_at) {
-            next[Number(stake)] = Math.max(0, Math.ceil((new Date(g.start_at).getTime() - Date.now()) / 1000));
+          const pCount = Number(g.players || 0);
+          if (g.status === 'waiting' && g.start_at && pCount > 0) {
+            const diff = Math.ceil((new Date(g.start_at).getTime() - Date.now()) / 1000);
+            next[Number(stake)] = (diff > 0 && diff <= 120) ? diff : 0;
+          } else {
+            next[Number(stake)] = 0;
           }
         }
         return next;
@@ -665,7 +669,7 @@ export default function Home() {
             const players = hg?.players || 0;
             const isCalling = hg?.status === 'calling';
             const timeLeft = homeTimeLeft[stake] || 0;
-            const isCountingDown = hg?.status === 'waiting' && timeLeft > 0;
+            const isCountingDown = hg?.status === 'waiting' && players > 0 && timeLeft > 0 && timeLeft <= 120;
 
             const THEMES = [
               { gradient: 'from-[#2979ff] to-[#1565c0]' }, // Blue
