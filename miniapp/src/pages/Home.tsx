@@ -328,7 +328,7 @@ export default function Home() {
   const formatMoney = (amount: number | undefined) => (amount || 0).toLocaleString('en-US');
 
   return (
-    <div className="flex flex-col min-h-screen pb-20 space-y-2.5">
+    <div className="flex flex-col min-h-screen pb-4 space-y-3">
 
       {/* HOME VIDEO GUIDE FULLSCREEN POPUP (CLEAN WHITE THEME) */}
       {showVideoPopup && homePopupVideo && (
@@ -519,8 +519,8 @@ export default function Home() {
         </div>
       </div>
 
-      {/* COMPACT LIVE BINGO BANNER */}
-      <div className="px-3 shrink-0">
+      {/* HERO LIVE BINGO BANNER (Spacious Image 2 design) */}
+      <div className="px-4 shrink-0">
         <Link
           to={`/bingo/live?stake=${activeStakes[0]}&room=${activeRoomId}`}
           onClick={(e) => {
@@ -529,37 +529,62 @@ export default function Home() {
               setAuthModalOpen(true);
             }
           }}
-          className="block relative rounded-2xl overflow-hidden shadow-xs h-[100px] flex flex-col justify-between border border-amber-200/60 p-2"
+          className="block relative rounded-2xl overflow-hidden shadow-md h-48 sm:h-52 flex flex-col items-center justify-center border border-amber-100"
         >
-          {/* Light gradient background */}
-          <div className="absolute inset-0 bg-gradient-to-br from-[#fffbf0] via-[#fef3c7] to-[#fff8e8]" />
+          {/* Light gradient background — matches loading screen */}
+          <div className="absolute inset-0" style={{
+            background: 'linear-gradient(135deg, #fffbf0 0%, #fef3c7 40%, #fff8e8 70%, #fffbf0 100%)',
+          }} />
+          {/* Subtle radial glow in center */}
+          <div className="absolute inset-0" style={{
+            background: 'radial-gradient(ellipse at 50% 60%, rgba(251,191,36,0.18) 0%, transparent 70%)',
+          }} />
+          {/* Top border accent */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-400" />
 
-          {/* Top strip */}
-          <div className="relative z-10 flex items-center justify-between px-1">
-            <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wider flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          {/* Scrolling marquee strip — live room names */}
+          <div className="absolute top-1 left-0 right-0 overflow-hidden py-1.5 bg-amber-50/80 border-b border-amber-200/60" style={{ top: '4px' }}>
+            {(() => {
+              const publicOrUserRooms = rooms.filter(r => !r.is_private || (userInvitedRoomId && r.id === userInvitedRoomId));
+              return publicOrUserRooms.length > 0 ? (
+                <div className="flex whitespace-nowrap animate-marquee">
+                  {[...publicOrUserRooms, ...publicOrUserRooms].map((room, i) => (
+                    <span key={i} className="text-amber-700 font-black text-[10px] uppercase tracking-[0.2em] px-4 shrink-0 flex items-center gap-1">
+                      🚪 {room.room_name} &nbsp;·&nbsp;
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex whitespace-nowrap animate-marquee">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <span key={i} className="text-amber-700 font-black text-[10px] uppercase tracking-[0.25em] px-5 shrink-0">
+                      🚪 {activeRoom?.room_name || 'HDASE BINGO'} &nbsp;·&nbsp; 🏆 Live Rooms &nbsp;·&nbsp; 🔥 Play Now &nbsp;·&nbsp;
+                    </span>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Main content: LIVE BINGO, HDASE BINGO, PLAY NOW button */}
+          <div className="relative z-10 flex flex-col items-center text-center px-4 pt-6 pb-4">
+            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               LIVE BINGO
             </span>
-            <span className="text-[9px] font-black text-amber-700 uppercase tracking-wider">
-              {activeRoom?.room_name || 'HDASE BINGO'}
-            </span>
-          </div>
-
-          {/* Center: HDASE BINGO + PLAY NOW button */}
-          <div className="relative z-10 flex items-center justify-between px-2">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-slate-900 font-black text-2xl tracking-tight leading-none">HDASE</span>
-              <span className="text-orange-500 font-black text-2xl tracking-tight leading-none">BINGO</span>
+            {/* Split color title: HDASE dark, BINGO orange */}
+            <div className="mb-4 flex items-baseline gap-2">
+              <span className="text-slate-900 font-black text-4xl tracking-wide leading-none drop-shadow-xs">HDASE</span>
+              <span className="text-orange-500 font-black text-4xl tracking-wide leading-none drop-shadow-xs">BINGO</span>
             </div>
-            <div className="bg-orange-500 hover:bg-orange-600 active:scale-95 text-white px-4 py-1.5 rounded-full font-black text-xs shadow-sm shadow-orange-500/30 flex items-center gap-1">
-              <span>PLAY NOW</span>
-              <span>→</span>
+            <div className="bg-orange-500 hover:bg-orange-600 text-white px-9 py-2.5 rounded-full font-black text-sm shadow-[0_4px_16px_rgba(249,115,22,0.35)] active:scale-95 transition-all">
+              PLAY NOW →
             </div>
           </div>
 
-          {/* Bottom corners: phone numbers & support */}
-          <div className="relative z-10 flex justify-between items-center px-1 pt-0.5 border-t border-amber-200/40">
+          {/* ── Phone numbers & Support indicator — bottom corners ── */}
+          <div className="absolute bottom-1.5 left-2 right-2 flex justify-between items-center pointer-events-none z-20">
+            {/* USA — bottom left */}
             <button
               type="button"
               onClick={e => {
@@ -568,12 +593,13 @@ export default function Home() {
                 if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
                 window.location.href = `tel:${supportPhoneUsa.replace(/[\s()\-]/g, '')}`;
               }}
-              className="flex items-center gap-1 text-slate-800 active:scale-95 text-[9.5px] font-bold"
+              className="pointer-events-auto flex items-center gap-1 p-0.5 rounded text-black active:scale-95 active:opacity-75 transition-all shrink-0"
             >
-              <span>🇺🇸</span>
-              <span>{supportPhoneUsa}</span>
+              <span className="text-[14px] leading-none" role="img" aria-label="USA">🇺🇸</span>
+              <span className="text-[10.5px] font-black leading-none tracking-tight">{supportPhoneUsa}</span>
             </button>
 
+            {/* Center "SUPPORT" badge with arrows pointing toward USA & Ethiopia */}
             <button
               type="button"
               onClick={e => {
@@ -588,11 +614,16 @@ export default function Home() {
                   window.open(tgUrl, '_blank');
                 }
               }}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-cyan-400 to-teal-400 text-slate-900 text-[8.5px] font-black tracking-wider uppercase active:scale-95"
+              className="pointer-events-auto flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-cyan-400 via-cyan-400 to-teal-400 text-slate-900 border border-cyan-200/90 shadow-2xs active:scale-95 transition-all select-none"
             >
-              ← SUPPORT →
+              <span className="text-xs font-black text-slate-900 leading-none">←</span>
+              <span className="text-[9px] font-black tracking-widest uppercase leading-none">
+                SUPPORT
+              </span>
+              <span className="text-xs font-black text-slate-900 leading-none">→</span>
             </button>
 
+            {/* Ethiopia — bottom right */}
             <button
               type="button"
               onClick={e => {
@@ -601,10 +632,10 @@ export default function Home() {
                 if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
                 window.location.href = `tel:${formatEthPhone(supportPhoneEth).replace(/[\s()\-]/g, '')}`;
               }}
-              className="flex items-center gap-1 text-slate-800 active:scale-95 text-[9.5px] font-bold"
+              className="pointer-events-auto flex items-center gap-1 p-0.5 rounded text-black active:scale-95 active:opacity-75 transition-all shrink-0"
             >
-              <span>🇪🇹</span>
-              <span>{formatEthPhone(supportPhoneEth)}</span>
+              <span className="text-[14px] leading-none" role="img" aria-label="Ethiopia">🇪🇹</span>
+              <span className="text-[10.5px] font-black leading-none tracking-tight">{formatEthPhone(supportPhoneEth)}</span>
             </button>
           </div>
         </Link>
