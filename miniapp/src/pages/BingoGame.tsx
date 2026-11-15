@@ -1685,13 +1685,14 @@ export default function BingoGame() {
           )}
         </div>
 
-        {/* Bottom Action Bar: AUTO BINGO ACTIVE bar or MANUAL BINGO Claim Button - ZERO GAP */}
+        {/* Bottom Action Bar: White Auto-Win Indicator or Black BINGO Claim Button */}
         <div className="shrink-0 pt-0 pb-1 px-1 w-full max-w-[400px] mx-auto">
           {autoMark ? (
-            <div className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border border-amber-400/50 shadow-[0_2px_8px_rgba(0,0,0,0.25),inset_0_1px_0_rgba(255,255,255,0.15)] flex items-center justify-center gap-2 text-amber-300 font-black text-xs tracking-wider uppercase select-none">
+            /* MANUAL OFF / Auto-Win Active: Pure WHITE background bar, non-clickable */
+            <div className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-white via-amber-50/50 to-white border-2 border-amber-300/80 shadow-[0_2px_6px_rgba(180,83,9,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex items-center justify-center gap-2 text-amber-950 font-black text-xs tracking-wider uppercase select-none pointer-events-none">
               <span className="text-sm">🤖</span>
               <span>AUTO BINGO ACTIVE</span>
-              <span className="text-amber-400 animate-pulse">⚡</span>
+              <span className="text-amber-500 animate-pulse font-black text-xs">⚡</span>
             </div>
           ) : bingoLockSeconds > 0 ? (
             <button
@@ -1702,13 +1703,12 @@ export default function BingoGame() {
               <span>🔒 {language === 'am' ? `ተቆልፏል (${bingoLockSeconds}ሰ)` : `LOCKED (${bingoLockSeconds}s)`}</span>
             </button>
           ) : (
+            /* MANUAL ON: Solid 3D BLACK button, only says BINGO without extra explanation */
             <button
               onClick={handleManualBingoClaim}
-              className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 hover:from-amber-400 hover:via-orange-400 hover:to-red-400 text-white font-black text-xs sm:text-sm tracking-widest uppercase flex items-center justify-center gap-1.5 shadow-[0_3px_12px_rgba(234,88,12,0.45),inset_0_1px_1px_rgba(255,255,255,0.7),inset_0_-1.5px_2px_rgba(180,83,9,0.5)] border border-amber-300 ring-2 ring-orange-400 active:scale-95 transition-all cursor-pointer select-none animate-pulse"
+              className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-slate-950 via-slate-900 to-black hover:from-slate-900 hover:to-slate-900 text-amber-300 font-black text-base sm:text-lg tracking-widest uppercase flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.2),inset_0_-1.5px_2px_rgba(0,0,0,0.8)] border-2 border-amber-400/80 ring-2 ring-amber-500/30 active:scale-95 transition-all cursor-pointer select-none animate-pulse"
             >
-              <Sparkles size={14} className="text-yellow-200" />
-              <span>🔥 BINGO! • {language === 'am' ? 'ቢንጎ ይበሉ' : 'CLAIM WIN'}</span>
-              <Sparkles size={14} className="text-yellow-200" />
+              <span className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">BINGO!</span>
             </button>
           )}
         </div>
@@ -1757,7 +1757,13 @@ export default function BingoGame() {
                 }
                 if (isTaken) {
                   return (
-                    <div key={n} className="aspect-square flex items-center justify-center rounded-[7px] text-[9.5px] font-bold bg-slate-100/80 text-slate-300 shadow-[inset_0_1.5px_2.5px_rgba(0,0,0,0.08)] border border-slate-200/50 select-none">✕</div>
+                    <div
+                      key={n}
+                      className="aspect-square flex items-center justify-center rounded-[7px] text-[10px] font-black bg-gradient-to-b from-slate-900 via-black to-slate-950 text-slate-500 border border-slate-800/90 shadow-[inset_0_2px_4px_rgba(0,0,0,0.85)] select-none pointer-events-none cursor-not-allowed"
+                      title={language === 'am' ? 'በሌላ ተጫዋች ተይዟል' : 'Taken by another player'}
+                    >
+                      ✕
+                    </div>
                   );
                 }
                 return (
