@@ -690,13 +690,13 @@ export default function Home() {
                 key={stake}
                 className="bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] border border-slate-100/90 overflow-hidden flex flex-col"
               >
-                {/* Header with vibrant gradient (exact height ~64px, snug & centered) */}
+                {/* Header with vibrant gradient (exact height ~64px, snug & centered) - Displays DERASH */}
                 <div
                   onClick={handleJoin}
                   className={`h-16 bg-gradient-to-r ${theme.gradient} flex items-center justify-center relative rounded-t-2xl cursor-pointer active:opacity-95 transition-opacity`}
                 >
                   <span className="text-white font-black text-3xl tracking-tight drop-shadow-xs select-none">
-                    {stake}
+                    {pool || 0}
                   </span>
                   <div className="absolute top-2 right-2 bg-white/25 backdrop-blur-xs text-white text-[8.5px] font-black px-1.5 py-0.5 rounded tracking-wider select-none">
                     ETB
@@ -727,13 +727,13 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Bottom Action Button: Join Room (neatly placed right below stats) */}
+                {/* Bottom Action Button: Displays STAKE amount */}
                 <div className="p-2 pt-1.5 bg-white">
                   <button
                     onClick={handleJoin}
-                    className="w-full bg-[#eef3f9] hover:bg-[#e2eaf5] active:scale-95 text-slate-700 font-extrabold py-2 rounded-xl text-xs transition-all shadow-2xs border border-slate-200/60 flex items-center justify-center cursor-pointer"
+                    className="w-full bg-[#eef3f9] hover:bg-[#e2eaf5] active:scale-95 text-slate-800 font-black py-2 rounded-xl text-xs transition-all shadow-2xs border border-slate-200/60 flex items-center justify-center cursor-pointer"
                   >
-                    Join Room
+                    {stake} ETB
                   </button>
                 </div>
               </div>
