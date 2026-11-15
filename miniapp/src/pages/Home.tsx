@@ -526,7 +526,7 @@ export default function Home() {
       {/* HERO LIVE BINGO BANNER (Spacious Image 2 design) */}
       <div className="px-4 shrink-0">
         <Link
-          to={`/bingo/live?stake=${activeStakes[0] || 5}&room=${activeRoomId}`}
+          to={`/bingo/live?room=${activeRoomId}`}
           onClick={(e) => {
             if (!user && !WebApp?.initData) {
               e.preventDefault();

@@ -196,6 +196,13 @@ export default function BingoGame() {
     const s = searchParams.get("stake");
     if (s && !isNaN(Number(s))) {
       setSelectedStake(Number(s));
+    } else {
+      setSelectedStake(null);
+      setGame(null);
+      setMyCard(null);
+      setMyCartelas([]);
+      setActiveCartelaIdx(0);
+      setTaken([]);
     }
     const r = searchParams.get("room");
     if (r) {
