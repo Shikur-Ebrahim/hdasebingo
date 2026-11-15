@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
-import { Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Landmark, CreditCard, Gamepad2, Receipt, Settings2, Search, Radio, Building2, Video, Megaphone, BadgeDollarSign, Percent, ShieldCheck, QrCode, Sparkles, BarChart3, Coins, Bot } from 'lucide-react';
+import { Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Landmark, CreditCard, Gamepad2, Settings2, Radio, Building2, Video, Megaphone, BadgeDollarSign, Percent, ShieldCheck, QrCode, Sparkles, Coins, Bot } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 
@@ -51,8 +51,6 @@ export default function Admin() {
     { id: 'broadcast', title: 'Broadcast', icon: Radio, color: 'text-pink-600', bg: 'bg-pink-100', show: isAdmin },
     { id: 'agent_withdrawals', title: 'Agent & Promoter Withdrawals', icon: BadgeDollarSign, color: 'text-amber-600', bg: 'bg-amber-100', show: isAdmin },
     { id: 'system_pro', title: 'System Pro Requests', icon: Bot, color: 'text-amber-600', bg: 'bg-amber-100', show: isAdmin },
-    { id: 'game_report', title: 'Game Report', icon: BarChart3, color: 'text-indigo-600', bg: 'bg-indigo-100', show: isAdmin },
-    { id: 'tx_report', title: 'Transaction Report', icon: Receipt, color: 'text-teal-600', bg: 'bg-teal-100', show: isAdmin || perms.reports },
     { id: 'financial_audit', title: 'Financial Audit', icon: ShieldCheck, color: 'text-indigo-600', bg: 'bg-indigo-100', show: isAdmin },
     { id: 'deposits', title: 'Deposits', icon: ArrowDownToLine, color: 'text-emerald-600', bg: 'bg-emerald-100', show: isAdmin || perms.deposits },
     { id: 'withdrawals', title: 'Withdrawals', icon: ArrowUpFromLine, color: 'text-rose-600', bg: 'bg-rose-100', show: isAdmin || perms.withdrawals },
@@ -67,7 +65,6 @@ export default function Admin() {
     { id: 'agents', title: 'Agent Rooms', icon: Building2, color: 'text-sky-600', bg: 'bg-sky-100', show: isAdmin },
     { id: 'promoters', title: 'Promoters', icon: Megaphone, color: 'text-violet-600', bg: 'bg-violet-100', show: isAdmin },
     { id: 'bingo_games', title: 'Bingo Games', icon: Gamepad2, color: 'text-yellow-600', bg: 'bg-yellow-100', show: isAdmin || perms.games },
-    { id: 'user_audit', title: 'User Audit', icon: Search, color: 'text-cyan-600', bg: 'bg-cyan-100', show: isAdmin || perms.reports },
     { id: 'settings', title: 'Settings', icon: Settings2, color: 'text-slate-600', bg: 'bg-slate-100', show: isAdmin || perms.settings },
     { id: 'support_videos', title: 'Support Videos', icon: Video, color: 'text-violet-600', bg: 'bg-violet-100', show: isAdmin },
     { id: 'hdase_qr', title: 'HDASE QR Code', icon: QrCode, color: 'text-amber-600', bg: 'bg-amber-100', show: isAdmin },
@@ -229,9 +226,6 @@ export default function Admin() {
             agent_banks: '/admin/agent-banks',
             promoters: '/admin/promoters',
               bingo_games: '/admin/bingo-games',
-            user_audit: '/admin/user-audit',
-            tx_report: '/admin/tx-report',
-            game_report: '/admin/game-report',
             settings: '/admin/settings',
             user_withdrawal_fee: '/admin/user-withdrawal-fee',
             agency_withdrawal_fee: '/admin/agency-withdrawal-fee',

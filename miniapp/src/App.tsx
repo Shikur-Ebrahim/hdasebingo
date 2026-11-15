@@ -13,13 +13,11 @@ import Admin from './pages/Admin';
 import Worker from './pages/Worker';
 import BingoGame from './pages/BingoGame';
 import AdminBingoGames from './pages/AdminBingoGames';
-import AdminUserAudit from './pages/AdminUserAudit';
 import Leaderboard from './pages/Leaderboard';
 import Rules from './pages/Rules';
 import Support from './pages/Support';
 import AdminHdaseQr from './pages/AdminHdaseQr';
 import AdminChannelProofs from './pages/AdminChannelProofs';
-import AdminGameReport from './pages/AdminGameReport';
 import AdminAgencyWithdrawalFee from './pages/AdminAgencyWithdrawalFee';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
@@ -160,7 +158,6 @@ import AdminWithdrawals from './pages/AdminWithdrawals';
 import AdminAgentWithdrawals from './pages/AdminAgentWithdrawals';
 import AdminAgentBanks from './pages/AdminAgentBanks';
 import AdminSettings from './pages/AdminSettings';
-import AdminTxReport from './pages/AdminTxReport';
 import AdminRoomRanking from './pages/AdminRoomRanking';
 import AdminSystemPro from './pages/AdminSystemPro';
 import AdminUsers from './pages/AdminUsers';
@@ -455,7 +452,6 @@ function App() {
           <Route path="/support" element={<Support />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/admin/bingo-games" element={<AdminBingoGames />} />
-          <Route path="/admin/user-audit" element={<AdminUserAudit />} />
           <Route path="/admin/deposit-methods" element={<AdminDepositMethods />} />
           <Route path="/admin/withdrawal-methods" element={<AdminWithdrawalMethods />} />
           <Route path="/admin/user-withdrawal-fee" element={<AdminUserWithdrawalFee />} />
@@ -466,7 +462,6 @@ function App() {
           <Route path="/admin/agent-withdrawals" element={<AdminAgentWithdrawals />} />
           <Route path="/admin/agent-banks" element={<AdminAgentBanks />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
-          <Route path="/admin/tx-report" element={<AdminTxReport />} />
           <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/admin/workers" element={<AdminWorkers />} />
           <Route path="/admin/broadcast" element={<AdminBroadcast />} />
@@ -475,7 +470,6 @@ function App() {
           <Route path="/admin/support-videos" element={<AdminSupportVideos />} />
           <Route path="/admin/hdase-qr" element={<AdminHdaseQr />} />
           <Route path="/admin/channel-proofs" element={<AdminChannelProofs />} />
-          <Route path="/admin/game-report" element={<AdminGameReport />} />
           <Route path="/admin/room-ranking" element={<AdminRoomRanking />} />
           <Route path="/admin/system-pro" element={<AdminSystemPro />} />
           <Route path="/help-videos" element={<SupportVideos />} />
