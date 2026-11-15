@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
-import { Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Landmark, CreditCard, Gamepad2, Receipt, Settings2, Search, Radio, Building2, Video, Megaphone, BadgeDollarSign, Percent, ShieldCheck, QrCode, Sparkles, BarChart3, Coins } from 'lucide-react';
+import { Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Landmark, CreditCard, Gamepad2, Receipt, Settings2, Search, Radio, Building2, Video, Megaphone, BadgeDollarSign, Percent, ShieldCheck, QrCode, Sparkles, BarChart3, Coins, Bot } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 
@@ -50,6 +50,7 @@ export default function Admin() {
     { id: 'channel_proofs', title: 'Channel Proofs', icon: Sparkles, color: 'text-emerald-600', bg: 'bg-emerald-100', show: isAdmin },
     { id: 'broadcast', title: 'Broadcast', icon: Radio, color: 'text-pink-600', bg: 'bg-pink-100', show: isAdmin },
     { id: 'agent_withdrawals', title: 'Agent & Promoter Withdrawals', icon: BadgeDollarSign, color: 'text-amber-600', bg: 'bg-amber-100', show: isAdmin },
+    { id: 'system_pro', title: 'System Pro Requests', icon: Bot, color: 'text-amber-600', bg: 'bg-amber-100', show: isAdmin },
     { id: 'game_report', title: 'Game Report', icon: BarChart3, color: 'text-indigo-600', bg: 'bg-indigo-100', show: isAdmin },
     { id: 'tx_report', title: 'Transaction Report', icon: Receipt, color: 'text-teal-600', bg: 'bg-teal-100', show: isAdmin || perms.reports },
     { id: 'financial_audit', title: 'Financial Audit', icon: ShieldCheck, color: 'text-indigo-600', bg: 'bg-indigo-100', show: isAdmin },
@@ -239,6 +240,7 @@ export default function Admin() {
             support_videos: '/admin/support-videos',
             hdase_qr: '/admin/hdase-qr',
             channel_proofs: '/admin/channel-proofs',
+            system_pro: '/admin/system-pro',
           };
           if (routeMap[mod.id]) {
             return (

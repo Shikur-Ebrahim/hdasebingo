@@ -1141,6 +1141,27 @@ export default function Agent() {
           </div>
         )}
 
+        {/* ─── SYSTEM PRO NOTIFICATION (Only visible if room is NOT Pro) ─── */}
+        {room && (!room.system_players_pro_level || (room.system_players_pro_expires_at && new Date(room.system_players_pro_expires_at).getTime() <= Date.now())) && (
+          <div
+            onClick={() => {
+              triggerHaptic('medium');
+              setShowSystemPlayerModal(true);
+            }}
+            className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border border-amber-300/60 cursor-pointer active:scale-[0.99] transition-all"
+          >
+            <div className="flex items-center space-x-2">
+              <Bot size={15} className="text-amber-600 shrink-0" />
+              <p className="text-[11px] font-black text-amber-900">
+                ⚡ Upgrade room to Pro Level 1 for 24/7 AI System Players
+              </p>
+            </div>
+            <span className="text-[10px] font-black bg-amber-500 text-white px-2 py-0.5 rounded-lg shadow-2xs shrink-0">
+              Upgrade →
+            </span>
+          </div>
+        )}
+
         {/* ─── HDASE BINGO HERO BANNER (Exact User Home Section Style) ─── */}
         {room && (
           <div
@@ -1319,35 +1340,6 @@ export default function Agent() {
         {/* ─── TAB 1: OVERVIEW & ADVANCED PERFORMANCE GRAPH ─── */}
         {room && activeTab === 'overview' && (
           <div className="space-y-4 animate-in fade-in duration-200">
-            {/* ─── SYSTEM PLAYER (AI BOTS) STATUS CARD ─── */}
-            <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-4 border border-indigo-500/20 shadow-md text-white flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
-                  <Bot size={22} />
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <h4 className="font-black text-xs text-white tracking-wide">System Player (AI Bots)</h4>
-                    <span className="text-[8px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded-full uppercase">
-                      PRO
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-slate-300 font-medium mt-0.5">
-                    {room.system_players_enabled ? '🟢 Active & Playing' : '⚪ Inactive (Default OFF)'} • 1,000 Bots Pool
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  triggerHaptic('medium');
-                  setShowSystemPlayerModal(true);
-                }}
-                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black text-xs shadow-xs hover:from-amber-300 hover:to-amber-400 active:scale-95 transition-all shrink-0"
-              >
-                Configure →
-              </button>
-            </div>
-
             {/* ADVANCED PERFORMANCE GRAPH CARD */}
             <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-sm space-y-3.5">
               {/* Header Title full width */}
