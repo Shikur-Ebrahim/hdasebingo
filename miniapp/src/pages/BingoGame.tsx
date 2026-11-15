@@ -1127,7 +1127,7 @@ export default function BingoGame() {
   // -- 2. STAKE SELECTION SCREEN (Shown AFTER room is selected) --
   if (!selectedStake) {
     return (
-      <div className="h-[calc(100dvh-80px)] w-full bg-white flex flex-col select-none overflow-hidden relative" onClick={initWebAudio}>
+      <div className="fixed inset-x-0 top-0 bottom-16 w-full bg-white flex flex-col select-none overflow-hidden" onClick={initWebAudio}>
         
         {/* Background grid (Light mode) */}
         <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.04]" style={{ display: 'grid', gridTemplateColumns: 'repeat(15, minmax(0, 1fr))', gap: '2px', padding: '2px' }}>
@@ -1623,9 +1623,9 @@ export default function BingoGame() {
 
         {/* BOTTOM FIXED PANEL: YOUR SELECTED CARTELAS (Only displayed when at least 1 cartela is selected, NO header, ZERO bottom gap, compact height so all 4 fit) */}
         {myCartelas.length > 0 && (
-          <div className="bg-white/95 backdrop-blur-md border-t-2 border-amber-300/80 px-1 pt-1.5 pb-0 shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] z-20 animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <div className="bg-white/95 backdrop-blur-md border-t-2 border-amber-300/80 px-1 pt-1 pb-0 shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] z-20 animate-in fade-in slide-in-from-bottom-2 duration-150">
             {/* 3D Mini Cartelas Row - All 4 cartelas displayed side-by-side, compact height, zero header, zero gap */}
-            <div className="flex gap-1.5 justify-center items-stretch overflow-x-auto pb-1 px-0.5 scrollbar-none">
+            <div className="flex gap-1.5 justify-center items-stretch overflow-x-auto pb-0 px-0.5 scrollbar-none">
               {myCartelas.map((c) => (
                 <div
                   key={c.cartela_number}
@@ -1703,7 +1703,7 @@ export default function BingoGame() {
   };
 
   return (
-    <div className="h-[calc(100dvh-80px)] w-full bg-gradient-to-b from-[#fffbf0] via-[#fef3c7]/30 to-[#fffbf0] flex flex-col select-none" onClick={initWebAudio}>
+    <div className="fixed inset-x-0 top-0 bottom-16 w-full bg-gradient-to-b from-[#fffbf0] via-[#fef3c7]/30 to-[#fffbf0] flex flex-col select-none overflow-hidden" onClick={initWebAudio}>
       <div className="sticky top-0 z-40 bg-white shadow-2xs border-b border-amber-100/80 flex flex-col shrink-0">
         <Header />
         {game.status !== 'calling' && (
