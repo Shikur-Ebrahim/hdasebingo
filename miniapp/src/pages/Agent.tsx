@@ -6,6 +6,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import AgentAttackBank from '../components/AgentAttackBank';
 import AgentWithdrawModal from '../components/AgentWithdrawModal';
 import AgentLiveGameViewer from '../components/AgentLiveGameViewer';
+import AgentStakeConfigModal from '../components/AgentStakeConfigModal';
 import {
   Users,
   Gamepad2,
@@ -60,6 +61,7 @@ interface AgentRoom {
   status: 'active' | 'inactive' | 'paused';
   commission_rate?: number;
   is_pinned?: boolean;
+  stakes?: number[];
   created_at: string;
 }
 
@@ -179,6 +181,14 @@ export default function Agent() {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [viewerStake, setViewerStake] = useState<number | null>(null);
   const [showStakeModal, setShowStakeModal] = useState(false);
+  const [showStakeConfigModal, setShowStakeConfigModal] = useState(false);
+
+  const roomStakes: number[] = useMemo(() => {
+    if (room && Array.isArray(room.stakes) && room.stakes.length === 4) {
+      return room.stakes.map(Number);
+    }
+    return [5, 10, 20, 35];
+  }, [room]);
 
   const formatEthPhone = (phone: string) => {
     if (!phone) return '+251996598686';
@@ -821,8 +831,8 @@ export default function Agent() {
       if (g.stake) set.add(Number(g.stake));
     });
     const sorted = Array.from(set).sort((a, b) => a - b);
-    return sorted.length > 0 ? sorted : [10, 20, 50, 100];
-  }, [recentGames]);
+    return sorted.length > 0 ? sorted : roomStakes;
+  }, [recentGames, roomStakes]);
 
   // Filtered games report by Search + Stake + Period Category
   const filteredReportGames = useMemo(() => {
@@ -1472,7 +1482,7 @@ export default function Agent() {
 
         {/* ─── TAB 2: LIVE — STAKE PRESET ROOM MONITOR ─── */}
         {room && activeTab === 'live' && (() => {
-          const allStakes = [10, 20, 50, 100];
+          const allStakes = roomStakes;
 
           // Find the active game for a given stake
           const gameForStake = (stk: number) =>
@@ -1923,8 +1933,8 @@ export default function Agent() {
                   All
                 </button>
 
-                {/* Stake pills inline: [10] [20] [50] [100] */}
-                {[10, 20, 50, 100].map((stk) => (
+                {/* Stake pills inline: dynamic stakes */}
+                {availableStakes.map((stk) => (
                   <button
                     key={stk}
                     onClick={() => {
@@ -2501,6 +2511,40 @@ export default function Agent() {
                 <ChevronRight size={18} className="text-white/80" />
               </button>
 
+              {/* Row 3: Room Stakes Configuration (Dynamic 4 Stakes) */}
+              <button
+                onClick={() => {
+                  triggerHaptic('medium');
+                  setShowProfileModal(false);
+                  setShowStakeConfigModal(true);
+                }}
+                className="relative w-full flex items-center justify-between px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 shadow-[0_4px_16px_rgba(245,158,11,0.25)] active:scale-95 transition-all overflow-hidden group text-white"
+              >
+                <div className="absolute inset-0 bg-white/0 group-active:bg-white/10 transition-colors" />
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 shadow-inner">
+                    <Coins size={20} className="text-white" />
+                  </div>
+                  <div className="text-left">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-white font-black text-sm">Room Stakes • መወራረጃዎች</p>
+                      <span className="text-[9px] bg-white/25 text-white font-extrabold px-1.5 py-0.5 rounded-full uppercase">
+                        4 Options
+                      </span>
+                    </div>
+                    <p className="text-white/90 text-[10.5px] font-bold mt-0.5">
+                      Active: {roomStakes.join(' · ')} ETB
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] font-black bg-white text-orange-600 px-2.5 py-1 rounded-full shadow-2xs">
+                    Edit
+                  </span>
+                  <ChevronRight size={18} className="text-white/80" />
+                </div>
+              </button>
+
               {/* Stats row */}
               <div className="grid grid-cols-3 gap-2 pt-1">
                 <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
@@ -2577,7 +2621,7 @@ export default function Agent() {
 
             {/* Stake Cards List */}
             <div className="px-5 pt-4 space-y-2.5">
-              {[10, 20, 50, 100].map((stk) => {
+              {roomStakes.map((stk) => {
                 const game = activeGames.find((g) => Number(g.stake) === stk);
                 const isCalling = game?.status === 'calling';
                 const isWaiting = game?.status === 'waiting';
@@ -2656,7 +2700,22 @@ export default function Agent() {
           roomId={room.id}
           roomName={room.room_name}
           initialStake={viewerStake}
+          stakes={roomStakes}
           onClose={() => setViewerStake(null)}
+        />
+      )}
+
+      {/* ─── DYNAMIC STAKE CONFIGURATION MODAL ─── */}
+      {showStakeConfigModal && room && (
+        <AgentStakeConfigModal
+          roomId={room.id}
+          roomName={room.room_name}
+          currentStakes={roomStakes}
+          onClose={() => setShowStakeConfigModal(false)}
+          onSuccess={(updatedStakes) => {
+            setRoom((prev) => (prev ? { ...prev, stakes: updatedStakes } : prev));
+            fetchData();
+          }}
         />
       )}
     </div>

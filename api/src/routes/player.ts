@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { AuthRequest, validateTelegramAuth, verifyPwaToken } from '../middleware/auth';
 import { supabase } from '../services/supabase';
 import { uploadToR2 } from '../services/r2';
+import { engine, DEFAULT_ROOM_STAKES } from '../services/BingoEngine';
 
 const router = Router();
 
@@ -542,6 +543,9 @@ router.get('/rooms', async (req, res) => {
 
     const enrichedRooms = visibleRooms.map((room: any) => ({
       ...room,
+      stakes: (Array.isArray(room.stakes) && room.stakes.length === 4)
+        ? room.stakes.map(Number)
+        : DEFAULT_ROOM_STAKES,
       is_pinned: Boolean(room.is_pinned),
       is_private: Boolean(room.is_private),
       commission_rate: room.commission_rate ?? 7,
@@ -804,6 +808,9 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
 
     const roomPayload = {
       ...room,
+      stakes: (Array.isArray(room.stakes) && room.stakes.length === 4)
+        ? room.stakes.map(Number)
+        : DEFAULT_ROOM_STAKES,
       total_players: referredCount ?? (room.total_players || 0),
       total_games: (allFinished?.length ?? 0) || (room.total_games || 0),
     };
@@ -822,6 +829,113 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
         commission_rate: commRate,
       },
       chart_data: chartData,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /player/agent-room/stakes — update 4 dynamic stakes for the agent's room
+router.put('/agent-room/stakes', validateTelegramAuth, async (req: AuthRequest, res) => {
+  try {
+    const telegramId = req.telegramUser!.id.toString();
+    const { stakes } = req.body;
+
+    if (!Array.isArray(stakes) || stakes.length !== 4) {
+      return res.status(400).json({ error: 'Please provide exactly 4 stake values.' });
+    }
+
+    const parsedStakes = stakes.map(s => Math.round(Number(s)));
+    if (parsedStakes.some(s => isNaN(s) || s <= 0)) {
+      return res.status(400).json({ error: 'All stakes must be positive numbers greater than 0.' });
+    }
+
+    // Check for duplicates
+    if (new Set(parsedStakes).size !== 4) {
+      return res.status(400).json({ error: 'All 4 stakes must be unique numbers.' });
+    }
+
+    // Sort ascending
+    parsedStakes.sort((a, b) => a - b);
+
+    // 1. Identify user and room
+    const { data: currentUser } = await supabase
+      .from('users')
+      .select('id, telegram_id, role')
+      .eq('telegram_id', telegramId)
+      .maybeSingle();
+
+    if (!currentUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    let room: any = null;
+    if (currentUser.id) {
+      const { data: r1 } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('agent_id', currentUser.id)
+        .maybeSingle();
+      room = r1;
+    }
+    if (!room) {
+      const { data: r2 } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('agent_id', telegramId)
+        .maybeSingle();
+      room = r2;
+    }
+
+    if (!room) {
+      return res.status(404).json({ error: 'No room assigned to your account.' });
+    }
+
+    // 2. Update room stakes in database
+    const { data: updatedRoom, error: updateErr } = await supabase
+      .from('rooms')
+      .update({
+        stakes: parsedStakes,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', room.id)
+      .select()
+      .single();
+
+    if (updateErr) throw updateErr;
+
+    // 3. Immediately initialize games for the new 4 stakes
+    for (const stake of parsedStakes) {
+      try {
+        await engine.createGame(room.id, stake);
+      } catch (e) {
+        console.error(`Error initializing game for stake ${stake}:`, e);
+      }
+    }
+
+    // 4. Remove obsolete waiting games that have 0 players
+    try {
+      const { data: oldWaitingGames } = await supabase
+        .from('bingo_games')
+        .select('id, stake, total_players')
+        .eq('room_id', room.id)
+        .eq('status', 'waiting');
+
+      for (const og of oldWaitingGames || []) {
+        if (!parsedStakes.includes(Number(og.stake)) && (!og.total_players || og.total_players === 0)) {
+          await supabase.from('bingo_games').delete().eq('id', og.id);
+        }
+      }
+    } catch (e) {
+      console.warn('Error cleaning up obsolete waiting games:', e);
+    }
+
+    res.json({
+      success: true,
+      room: {
+        ...updatedRoom,
+        stakes: parsedStakes,
+      },
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -946,11 +1060,13 @@ router.get('/promoter-dashboard', validateTelegramAuth, async (req: AuthRequest,
         }
       });
 
-      const STAKE_PRESETS = [10, 20, 50, 100];
       for (const [id, r] of roomsMap.entries()) {
         const roomGames = (activeGamesForAll || []).filter((g: any) => g.room_id === id);
+        const roomStakePresets = (Array.isArray(r.stakes) && r.stakes.length === 4)
+          ? r.stakes.map(Number)
+          : DEFAULT_ROOM_STAKES;
 
-        const activeStakes = STAKE_PRESETS.map((stk) => {
+        const activeStakes = roomStakePresets.map((stk: number) => {
           const matching = roomGames.filter((g: any) => Number(g.stake) === stk);
           const callingGame = matching.find((g: any) => g.status === 'calling');
           const waitingGame = matching.find((g: any) => g.status === 'waiting');
@@ -965,7 +1081,7 @@ router.get('/promoter-dashboard', validateTelegramAuth, async (req: AuthRequest,
           };
         });
 
-        const liveStakes = activeStakes.filter(s => s.status === 'calling');
+        const liveStakes = activeStakes.filter((s: any) => s.status === 'calling');
         const liveGame = liveStakes[0] || null;
 
         roomsMap.set(id, {
@@ -973,7 +1089,7 @@ router.get('/promoter-dashboard', validateTelegramAuth, async (req: AuthRequest,
           total_players: roomPlayersMap[id] || 0,
           total_games: Math.max(roomFinishedGamesMap[id] || 0, Number(r.total_games || 0)),
           active_stakes: activeStakes,
-          live_stakes: liveStakes.map(s => s.stake),
+          live_stakes: liveStakes.map((s: any) => s.stake),
           live_game: liveGame,
         });
       }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ChevronDown, Gift, RefreshCw, Users, Clock, Trophy, Volume2, VolumeX, RotateCcw, LayoutGrid, Wand2, Hand, DoorOpen, Gamepad2, Flame, X, Star } from "lucide-react";
 import WebApp from "@twa-dev/sdk";
@@ -34,11 +34,11 @@ const ROW_COLORS = [
   "from-fuchsia-500 to-fuchsia-700","from-emerald-500 to-emerald-700","from-purple-400 to-purple-600",
 ];
 
-const STAKE_OPTIONS = [
+const DEFAULT_STAKE_OPTIONS = [
+  { value: 5, label: "5 ETB", color: "from-emerald-500 to-teal-700" },
   { value: 10, label: "10 ETB", color: "from-blue-500 to-blue-700" },
-  { value: 20, label: "20 ETB", color: "from-teal-500 to-teal-700" },
-  { value: 50, label: "50 ETB", color: "from-purple-500 to-purple-700" },
-  { value: 100, label: "100 ETB", color: "from-rose-500 to-rose-700" },
+  { value: 20, label: "20 ETB", color: "from-purple-500 to-purple-700" },
+  { value: 35, label: "35 ETB", color: "from-amber-500 to-orange-700" },
 ];
 
 const ROOM_GRADIENTS = [
@@ -206,6 +206,27 @@ export default function BingoGame() {
   };
 
   const selectedRoom = rooms.find(r => r.id === selectedRoomId) || (selectedRoomId ? { id: selectedRoomId, room_name: 'Live Room', total_players: 0, total_games: 0, status: 'active' } : null);
+
+  const roomStakes: number[] = useMemo(() => {
+    if (selectedRoom && Array.isArray(selectedRoom.stakes) && selectedRoom.stakes.length === 4) {
+      return selectedRoom.stakes.map(Number);
+    }
+    return [5, 10, 20, 35];
+  }, [selectedRoom]);
+
+  const dynamicStakeOptions = useMemo(() => {
+    const STAKE_COLORS = [
+      "from-emerald-500 to-teal-700",
+      "from-blue-500 to-blue-700",
+      "from-purple-500 to-purple-700",
+      "from-amber-500 to-orange-700",
+    ];
+    return roomStakes.map((val, idx) => ({
+      value: val,
+      label: `${val} ETB`,
+      color: STAKE_COLORS[idx % STAKE_COLORS.length],
+    }));
+  }, [roomStakes]);
 
   const handleSelectRoom = (room: Room) => {
     initWebAudio();
@@ -1375,9 +1396,9 @@ export default function BingoGame() {
             {t[language].bingo.selectStakeWinBig}
           </p>
           
-          {/* Stakes Grid (10, 20, 50, 100 ETB) */}
+          {/* Stakes Grid (Dynamic per Room) */}
           <div className="flex-1 grid grid-cols-2 gap-3 px-4 pb-2 min-h-0">
-            {STAKE_OPTIONS.map(opt => {
+            {dynamicStakeOptions.map((opt: { value: number; label: string; color: string }) => {
               const hg = homeGames[opt.value];
               const pool = hg?.pool || 0;
               const players = hg?.players || 0;
@@ -1901,7 +1922,7 @@ export default function BingoGame() {
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowStakeDropdown(false)} />
                     <div className="absolute top-[calc(100%+8px)] left-0 w-32 bg-white border border-amber-200 rounded-xl shadow-xl z-50 overflow-hidden">
-                      {[10, 20, 50, 100].map(val => (
+                      {roomStakes.map(val => (
                         <button
                           key={val}
                           onClick={() => {

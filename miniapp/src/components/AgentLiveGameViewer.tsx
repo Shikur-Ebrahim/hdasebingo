@@ -33,6 +33,7 @@ interface Props {
   roomId: string;
   roomName: string;
   initialStake?: number;
+  stakes?: number[];
   onClose: () => void;
 }
 
@@ -88,7 +89,7 @@ const AMHARIC_NUM: Record<number, string> = {
   71: 'ሰባ አንድ', 72: 'ሰባ ሁለት', 73: 'ሰባ ሶስት', 74: 'ሰባ አራት', 75: 'ሰባ አምስት',
 };
 
-const STAKE_PRESETS = [10, 20, 50, 100];
+const DEFAULT_STAKES = [5, 10, 20, 35];
 
 // ── Winning-cell helpers (mirrored from BingoGame.tsx) ──────────────────────
 const getWinningCells = (matrix: number[][], called: number[]) => {
@@ -151,10 +152,14 @@ interface CelebrationState {
 export default function AgentLiveGameViewer({
   roomId,
   roomName,
-  initialStake = 10,
+  initialStake = 5,
+  stakes = DEFAULT_STAKES,
   onClose,
 }: Props) {
-  const [selectedStake, setSelectedStake] = useState<number>(initialStake);
+  const effectiveStakes = (Array.isArray(stakes) && stakes.length === 4) ? stakes : DEFAULT_STAKES;
+  const [selectedStake, setSelectedStake] = useState<number>(() => {
+    return effectiveStakes.includes(initialStake) ? initialStake : effectiveStakes[0];
+  });
   const [game, setGame] = useState<BGame | null>(null);
   const [takenCartelas, setTakenCartelas] = useState<number[]>([]);
   const [uniquePlayers, setUniquePlayers] = useState<number>(0);
@@ -720,7 +725,7 @@ export default function AgentLiveGameViewer({
           Stakes:
         </span>
         <div className="flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-          {STAKE_PRESETS.map((stk) => {
+          {effectiveStakes.map((stk) => {
             const isActive = stk === selectedStake;
             const stakeInfo = stakeStatuses[stk];
             const isCalling = stakeInfo?.status === 'calling';

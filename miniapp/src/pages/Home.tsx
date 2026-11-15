@@ -16,6 +16,7 @@ interface Room {
   total_players: number;
   total_games: number;
   status: string;
+  stakes?: number[];
 }
 
 const ROOM_GRADIENTS = [

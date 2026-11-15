@@ -366,7 +366,7 @@ export default function AdminBingoGames() {
                 </div>
                 {(editing ? draft.early_call_8_enabled : settings.early_call_8_enabled) && (
                   <div className="grid grid-cols-2 gap-2 mt-2">
-                    {[10, 20, 50, 100].map(stake => (
+                    {[5, 10, 20, 35, 50, 100].map(stake => (
                       <div key={`8c-${stake}`} className="flex items-center gap-2">
                         <span className="text-[10px] font-bold text-slate-400 w-12 text-right">{stake} ETB:</span>
                         {editing ? (
@@ -404,7 +404,7 @@ export default function AdminBingoGames() {
                 </div>
                 {(editing ? draft.early_call_10_enabled : settings.early_call_10_enabled) && (
                   <div className="grid grid-cols-2 gap-2 mt-2">
-                    {[10, 20, 50, 100].map(stake => (
+                    {[5, 10, 20, 35, 50, 100].map(stake => (
                       <div key={`10c-${stake}`} className="flex items-center gap-2">
                         <span className="text-[10px] font-bold text-slate-400 w-12 text-right">{stake} ETB:</span>
                         {editing ? (

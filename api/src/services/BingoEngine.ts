@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import { getSettings } from '../routes/adminSettings';
 
 const TICK_MS = 300; // 300ms responsive tick for exact call_interval_ms execution
-const STAKES  = [10, 20, 50, 100];
+export const DEFAULT_ROOM_STAKES = [5, 10, 20, 35];
 
 export function generateBingoCard(): number[][] {
   const zones: [number, number][] = [[1,15],[16,30],[31,45],[46,60],[61,75]];
@@ -60,10 +60,10 @@ class BingoEngine {
   }
 
   private async step() {
-    // 1. Fetch all active rooms
+    // 1. Fetch all active rooms with their custom stakes
     const { data: activeRooms } = await supabase
       .from('rooms')
-      .select('id')
+      .select('id, stakes')
       .eq('status', 'active');
 
     const rooms = activeRooms || [];
@@ -87,7 +87,11 @@ class BingoEngine {
     }
 
     for (const room of rooms) {
-      for (const stake of STAKES) {
+      const roomStakes: number[] = (Array.isArray((room as any).stakes) && (room as any).stakes.length === 4)
+        ? (room as any).stakes.map(Number)
+        : DEFAULT_ROOM_STAKES;
+
+      for (const stake of roomStakes) {
         const key = `${room.id}_${stake}`;
         const game = gamesMap.get(key);
 

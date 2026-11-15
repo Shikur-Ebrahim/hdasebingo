@@ -1815,8 +1815,10 @@ router.post('/agents/assign-room', async (req, res) => {
         is_pinned: isPinned,
         is_private: isPrivate,
         promoter_commission_rate: promoterCommRate,
+        stakes: (req.body.stakes && Array.isArray(req.body.stakes)) ? req.body.stakes : undefined,
         updated_at: new Date().toISOString(),
       };
+      if (!updateRoomPayload.stakes) delete updateRoomPayload.stakes;
       if (promoterId !== null) updateRoomPayload.promoter_id = promoterId;
       const { data: updated, error: uErr } = await supabase
         .from('rooms')
@@ -1987,6 +1989,7 @@ router.put('/rooms/:id', async (req, res) => {
     if (req.body.is_pinned !== undefined) updates.is_pinned = Boolean(req.body.is_pinned);
     if (req.body.is_private !== undefined) updates.is_private = Boolean(req.body.is_private);
     if (req.body.promoter_id !== undefined) updates.promoter_id = req.body.promoter_id || null;
+    if (req.body.stakes !== undefined && Array.isArray(req.body.stakes)) updates.stakes = req.body.stakes;
 
     const { data: room, error } = await supabase
       .from('rooms')

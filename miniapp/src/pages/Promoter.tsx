@@ -61,6 +61,7 @@ interface PromotedRoom {
   commission_rate?: number;
   promoter_commission_rate?: number;
   is_pinned?: boolean;
+  stakes?: number[];
   created_at: string;
   active_stakes?: StakePresetInfo[];
   live_stakes?: number[];
@@ -926,7 +927,9 @@ export default function Promoter() {
     setExpandedRoomIds(next);
   };
 
-  const liveStakes = [10, 20, 50, 100];
+  const liveStakes = (Array.isArray(selectedRoom?.stakes) && selectedRoom.stakes.length === 4)
+    ? selectedRoom.stakes.map(Number)
+    : [5, 10, 20, 35];
   const promoterRate =
     selectedRoom?.promoter_commission_rate ??
     stats?.promoter_commission_rate ??
@@ -1502,14 +1505,16 @@ export default function Promoter() {
                         : (storeRoom?.total_players ?? rm.total_players ?? 0);
                       const displayGames = Math.max(rm.total_games || 0, storeRoom?.total_games || 0);
 
-                      const presets = [10, 20, 50, 100];
-                      const roomActiveStakes = rm.active_stakes || presets.map(s => ({
+                      const presets = (Array.isArray(rm.stakes) && rm.stakes.length === 4)
+                        ? rm.stakes.map(Number)
+                        : [5, 10, 20, 35];
+                      const roomActiveStakes = rm.active_stakes || presets.map((s: number) => ({
                         stake: s,
                         status: 'idle' as const,
                         players: 0,
                       }));
-                      const hasLiveGame = (rm.live_stakes && rm.live_stakes.length > 0) || roomActiveStakes.some(s => s.status === 'calling');
-                      const liveGame = rm.live_game || roomActiveStakes.find(s => s.status === 'calling') || null;
+                      const hasLiveGame = (rm.live_stakes && rm.live_stakes.length > 0) || roomActiveStakes.some((s: any) => s.status === 'calling');
+                      const liveGame = rm.live_game || roomActiveStakes.find((s: any) => s.status === 'calling') || null;
 
                       return (
                         <div
@@ -1787,9 +1792,9 @@ export default function Promoter() {
                 )}
                 </div>
 
-                {/* 4 Stake Cards (10, 20, 50, 100 ETB) */}
+                {/* 4 Stake Cards (Dynamic per Room) */}
                 <div className="grid grid-cols-2 gap-2.5">
-                  {liveStakes.map((stake) => {
+                  {liveStakes.map((stake: number) => {
                     const game = activeGames.find((g) => Number(g.stake) === stake);
                     const isCalling = game?.status === 'calling';
                     const isWaiting = game?.status === 'waiting';
@@ -2698,14 +2703,16 @@ export default function Promoter() {
                     : (storeRoom?.total_players ?? rm.total_players ?? 0);
                   const displayGames = Math.max(rm.total_games || 0, storeRoom?.total_games || 0);
 
-                  const presets = [10, 20, 50, 100];
-                  const roomActiveStakes = rm.active_stakes || presets.map(s => ({
+                  const presets = (Array.isArray(rm.stakes) && rm.stakes.length === 4)
+                    ? rm.stakes.map(Number)
+                    : [5, 10, 20, 35];
+                  const roomActiveStakes = rm.active_stakes || presets.map((s: number) => ({
                     stake: s,
                     status: 'idle' as const,
                     players: 0,
                   }));
-                  const hasLiveGame = (rm.live_stakes && rm.live_stakes.length > 0) || roomActiveStakes.some(s => s.status === 'calling');
-                  const liveGame = rm.live_game || roomActiveStakes.find(s => s.status === 'calling') || null;
+                  const hasLiveGame = (rm.live_stakes && rm.live_stakes.length > 0) || roomActiveStakes.some((s: any) => s.status === 'calling');
+                  const liveGame = rm.live_game || roomActiveStakes.find((s: any) => s.status === 'calling') || null;
 
                   return (
                     <button

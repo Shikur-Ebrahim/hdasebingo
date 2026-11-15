@@ -51,7 +51,7 @@ router.get('/pools', validateTelegramAuth, async (req, res) => {
 // ── GET /api/bingo/current ──────────────────────────────────────────────────
 router.get('/current', validateTelegramAuth, async (req: AuthRequest, res) => {
   const telegramId = req.telegramUser!.id.toString();
-  const stake = Number(req.query.stake) || 10;
+  const stake = Number(req.query.stake) || 5;
   const roomId = (req.query.room || req.query.roomId) as string | undefined;
 
   let baseQuery = supabase
@@ -191,7 +191,7 @@ router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
     res.status(400).json({ error: `Pick a cartela between 1 and ${cfg.max_players}` }); return;
   }
 
-  const requestedStake = req.body.stake || 10;
+  const requestedStake = req.body.stake || 5;
   const targetGameId = req.body.game_id;
 
   let query = supabase
