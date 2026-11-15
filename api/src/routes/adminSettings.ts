@@ -11,7 +11,7 @@ export const DEFAULT_SETTINGS = {
   waiting_period_s:  60,
   release_time_s:    60,   // seconds before solo player's cartela is released and refunded
   min_players:       2,
-  max_players:       150,
+  max_players:       300,
   prize_percent:     80,   // % of total stakes (for 3+ players)
   max_cartelas_per_user: 4, // max cartelas a single user can pick per game
   early_call_8_enabled: false,

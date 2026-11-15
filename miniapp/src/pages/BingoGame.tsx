@@ -169,8 +169,9 @@ export default function BingoGame() {
   const [showSearchBar, setShowSearchBar] = useState(false);
   const [showStakeDropdown, setShowStakeDropdown] = useState(false);
   const [showRoomDropdown, setShowRoomDropdown] = useState(false);
-  const [maxPlayers, setMaxPlayers] = useState<number>(150);
+  const [maxPlayers, setMaxPlayers] = useState<number>(300);
   const [maxCartelasPerUser, setMaxCartelasPerUser] = useState<number>(4);
+  const pendingPurchasesRef = useRef<Set<number>>(new Set());
   const [myCartelas, setMyCartelas] = useState<Array<{ cartela_number: number; card_matrix: number[][] }>>([]);
   const [activeCartelaIdx, setActiveCartelaIdx] = useState(0);
   const [uniquePlayers, setUniquePlayers] = useState<number>(0);
@@ -934,7 +935,8 @@ export default function BingoGame() {
   };
 
   const handleQuickBuy = (seat: number) => {
-    if (myCartelas.length >= maxCartelasPerUser) {
+    if (pendingPurchasesRef.current.has(seat)) return;
+    if (myCartelas.length + pendingPurchasesRef.current.size >= maxCartelasPerUser) {
       setErrMsg(`Max ${maxCartelasPerUser} cartela${maxCartelasPerUser > 1 ? 's' : ''} per game • በጨዋታ ቢበዛ ${maxCartelasPerUser} ካርቴላ`);
       return;
     }
@@ -942,6 +944,7 @@ export default function BingoGame() {
       setErrMsg(language === 'am' ? 'ይህ ቁጥር ተይዟል!' : 'Taken! Pick another.');
       return;
     }
+    pendingPurchasesRef.current.add(seat);
     const matrix = generateBingoCard();
     joinGame(seat, matrix);
   };
@@ -1062,6 +1065,7 @@ export default function BingoGame() {
       useGameStore.setState(s => ({ user: s.user ? { ...s.user, main_balance: mainBal, bonus_balance: bonusBal } : s.user }));
       setErrMsg("Network error");
     } finally {
+      pendingPurchasesRef.current.delete(seat);
       setBuying(null);
     }
   };
@@ -1127,7 +1131,7 @@ export default function BingoGame() {
         
         {/* Background grid (Light mode) */}
         <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.04]" style={{ display: 'grid', gridTemplateColumns: 'repeat(15, minmax(0, 1fr))', gap: '2px', padding: '2px' }}>
-          {Array.from({ length: 150 }, (_, i) => (
+          {Array.from({ length: 300 }, (_, i) => (
             <div key={i} className="flex items-center justify-center bg-black rounded-[3px] text-black font-black" style={{ fontSize: '6px' }}>{i + 1}</div>
           ))}
         </div>
@@ -1579,36 +1583,34 @@ export default function BingoGame() {
             <div className="grid gap-[3px] p-[2px]" style={{ gridTemplateColumns: "repeat(10, 1fr)" }}>
               {Array.from({ length: maxPlayers }, (_, i) => {
                 const n = i + 1;
-                const isTaken = taken.includes(n), isMine = myNums.includes(n), isBuying = buying === n;
+                const isTaken = taken.includes(n), isMine = myNums.includes(n);
                 if (isMine) {
                   return (
                     <button
                       key={n}
                       onClick={() => handleCancelCartela(n)}
-                      className="aspect-square flex flex-col items-center justify-center rounded-[8px] text-[9.5px] font-black bg-emerald-500 text-white ring-2 ring-emerald-300 shadow-sm active:scale-95 transition-transform z-10 cursor-pointer"
+                      className="aspect-square flex flex-col items-center justify-center rounded-[7px] text-[9.5px] font-black bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-600 text-white shadow-[0_2.5px_6px_rgba(16,185,129,0.45),inset_0_1px_1px_rgba(255,255,255,0.7),inset_0_-1px_1.5px_rgba(5,150,105,0.5)] ring-2 ring-emerald-300 active:scale-90 transition-all z-10 cursor-pointer"
                       title={language === 'am' ? 'ለመሰረዝ ይጫኑ' : 'Tap to cancel'}
                     >
-                      <span className="leading-none">{n}</span>
-                      <span className="text-[7.5px] leading-none opacity-90">✓</span>
+                      <span className="leading-none text-[8.5px] font-black">{n}</span>
+                      <span className="text-[7px] leading-none opacity-95">✓</span>
                     </button>
                   );
                 }
                 if (isTaken) {
                   return (
-                    <div key={n} className="aspect-square flex items-center justify-center rounded-[8px] text-[10px] font-bold bg-slate-100 text-slate-300 border border-slate-200/50">✕</div>
+                    <div key={n} className="aspect-square flex items-center justify-center rounded-[7px] text-[9.5px] font-bold bg-slate-100/80 text-slate-300 shadow-[inset_0_1.5px_2.5px_rgba(0,0,0,0.08)] border border-slate-200/50 select-none">✕</div>
                   );
                 }
                 return (
                   <button
                     key={n}
-                    disabled={buying !== null || !canPickMore}
+                    disabled={!canPickMore}
                     onClick={() => handleQuickBuy(n)}
-                    className={`aspect-square flex items-center justify-center rounded-[8px] text-xs font-black transition-all duration-150 border ${
+                    className={`aspect-square flex items-center justify-center rounded-[7px] text-[10.5px] font-black transition-all duration-100 border ${
                       !canPickMore 
                         ? 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed' 
-                        : isBuying 
-                        ? 'bg-amber-100 border-amber-300 opacity-60 scale-90' 
-                        : 'bg-white text-slate-800 border-slate-200/80 hover:border-amber-400 hover:bg-amber-50/50 shadow-2xs active:scale-90 cursor-pointer'
+                        : 'bg-gradient-to-b from-white via-[#fafbfe] to-[#ebeff8] text-slate-800 border-slate-200/90 shadow-[0_2px_3px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,1),inset_0_-1px_1px_rgba(0,0,0,0.05)] hover:border-amber-400 hover:from-amber-50 hover:to-amber-100/60 active:translate-y-0.5 active:shadow-[inset_0_1.5px_2px_rgba(0,0,0,0.15)] cursor-pointer select-none'
                     }`}
                   >
                     {n}
@@ -1619,27 +1621,15 @@ export default function BingoGame() {
           </div>
         </div>
 
-        {/* BOTTOM FIXED PANEL: YOUR SELECTED CARTELAS (Only displayed when at least 1 cartela is selected) */}
+        {/* BOTTOM FIXED PANEL: YOUR SELECTED CARTELAS (Only displayed when at least 1 cartela is selected, NO header, ZERO bottom gap, compact height so all 4 fit) */}
         {myCartelas.length > 0 && (
-          <div className="bg-white/95 backdrop-blur-md border-t-2 border-amber-300/80 p-2.5 shrink-0 shadow-[0_-6px_20px_rgba(0,0,0,0.08)] z-20 animate-in fade-in slide-in-from-bottom-3 duration-200">
-            <div className="flex items-center justify-between mb-2 px-1">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[11px] font-black uppercase tracking-wider text-slate-800">
-                  {language === 'am' ? 'የተመረጡ ካርቴላዎች' : 'YOUR SELECTED CARTELAS'}
-                </span>
-              </div>
-              <span className="text-[10px] font-black bg-gradient-to-r from-amber-100 to-amber-200 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded-full shadow-2xs">
-                {myCartelas.length} / {maxCartelasPerUser}
-              </span>
-            </div>
-
-            {/* 3D Mini Cartelas Horizontal Row - ONLY selected cards, NO placeholder slots */}
-            <div className="flex gap-3 overflow-x-auto pb-1 px-1 scrollbar-none items-stretch">
+          <div className="bg-white/95 backdrop-blur-md border-t-2 border-amber-300/80 px-1 pt-1.5 pb-0 shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] z-20 animate-in fade-in slide-in-from-bottom-2 duration-150">
+            {/* 3D Mini Cartelas Row - All 4 cartelas displayed side-by-side, compact height, zero header, zero gap */}
+            <div className="flex gap-1.5 justify-center items-stretch overflow-x-auto pb-1 px-0.5 scrollbar-none">
               {myCartelas.map((c) => (
                 <div
                   key={c.cartela_number}
-                  className="relative w-[114px] sm:w-[124px] shrink-0 rounded-2xl overflow-visible flex flex-col bg-gradient-to-b from-[#ffffff] via-[#fffdfa] to-[#f7f0e3] p-1.5 border-2 border-amber-400/90 shadow-[0_12px_24px_-4px_rgba(180,83,9,0.22),0_6px_12px_-2px_rgba(0,0,0,0.12),inset_0_2px_1px_rgba(255,255,255,1),inset_0_-3px_4px_rgba(217,119,6,0.15)] ring-1 ring-amber-500/30 transition-all duration-200 transform hover:-translate-y-1"
+                  className="relative w-[80px] sm:w-[88px] max-w-[94px] shrink-0 rounded-xl overflow-visible flex flex-col bg-gradient-to-b from-[#ffffff] via-[#fffdfa] to-[#f7f0e3] p-1 border-2 border-amber-400/90 shadow-[0_4px_10px_-2px_rgba(180,83,9,0.22),0_2px_4px_-1px_rgba(0,0,0,0.1),inset_0_1.5px_1px_rgba(255,255,255,1),inset_0_-1.5px_2px_rgba(217,119,6,0.12)] ring-1 ring-amber-500/25 transition-all duration-150 hover:-translate-y-0.5"
                 >
                   {/* 3D Floating Raised Cancel Button at Top-Right */}
                   <button
@@ -1648,24 +1638,24 @@ export default function BingoGame() {
                       e.stopPropagation();
                       handleCancelCartela(c.cartela_number);
                     }}
-                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-gradient-to-b from-red-400 via-red-500 to-red-600 text-white font-black flex items-center justify-center text-[11px] shadow-[0_4px_8px_rgba(220,38,38,0.5),inset_0_1.5px_1px_rgba(255,255,255,0.7)] border-2 border-white hover:scale-110 active:scale-90 active:translate-y-0.5 transition-all cursor-pointer z-30"
+                    className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 rounded-full bg-gradient-to-b from-red-400 via-red-500 to-red-600 text-white font-black flex items-center justify-center text-[9px] shadow-[0_2px_5px_rgba(220,38,38,0.5),inset_0_1px_1px_rgba(255,255,255,0.7)] border border-white hover:scale-110 active:scale-90 active:translate-y-0.5 transition-all cursor-pointer z-30"
                     title={language === 'am' ? 'ሰርዝ' : 'Cancel cartela'}
                   >
                     ✕
                   </button>
 
                   {/* 3D Embossed Card Header */}
-                  <div className="px-2 py-1 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-xl mb-1 flex items-center justify-between shadow-[0_2px_4px_rgba(180,83,9,0.3),inset_0_1px_1px_rgba(255,255,255,0.7)] border border-amber-300">
-                    <span className="text-[9.5px] font-black tracking-wider text-amber-950 drop-shadow-[0_1px_0_rgba(255,255,255,0.7)]">
+                  <div className="px-1 py-0.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 rounded-md mb-0.5 flex items-center justify-between shadow-[0_1px_2px_rgba(180,83,9,0.3),inset_0_1px_0_rgba(255,255,255,0.7)] border border-amber-300">
+                    <span className="text-[7.5px] font-black tracking-wider text-amber-950 drop-shadow-[0_1px_0_rgba(255,255,255,0.7)]">
                       HDASE
                     </span>
-                    <span className="text-[9px] font-black bg-amber-950/80 text-amber-100 px-1.5 py-0.5 rounded-md shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">
+                    <span className="text-[7px] font-black bg-amber-950/80 text-amber-100 px-1 py-0.2 rounded shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">
                       #{c.cartela_number}
                     </span>
                   </div>
 
                   {/* 3D B-I-N-G-O Columns Bar */}
-                  <div className="grid grid-cols-5 gap-[1.5px] mb-1">
+                  <div className="grid grid-cols-5 gap-[1px] mb-0.5">
                     {[
                       { l: 'B', bg: 'from-blue-500 via-blue-600 to-blue-700', bdr: 'border-blue-400' },
                       { l: 'I', bg: 'from-rose-500 via-red-600 to-red-700', bdr: 'border-rose-400' },
@@ -1675,7 +1665,7 @@ export default function BingoGame() {
                     ].map(item => (
                       <div
                         key={item.l}
-                        className={`h-4 flex items-center justify-center font-black text-white text-[8.5px] rounded-[4px] bg-gradient-to-b ${item.bg} border-t ${item.bdr} shadow-[0_1.5px_2px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.6)] drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]`}
+                        className={`h-3 flex items-center justify-center font-black text-white text-[7px] rounded-[2.5px] bg-gradient-to-b ${item.bg} border-t ${item.bdr} shadow-[0_1px_1.5px_rgba(0,0,0,0.2),inset_0_0.5px_0_rgba(255,255,255,0.6)] drop-shadow-[0_0.5px_0.5px_rgba(0,0,0,0.6)]`}
                       >
                         {item.l}
                       </div>
@@ -1683,7 +1673,7 @@ export default function BingoGame() {
                   </div>
 
                   {/* 3D Matrix Grid & Tactile Number Tiles */}
-                  <div className="bg-gradient-to-b from-amber-200/70 via-slate-200 to-amber-100/80 p-[2px] rounded-xl shadow-[inset_0_2px_4px_rgba(0,0,0,0.18)] grid grid-cols-5 gap-[2px]">
+                  <div className="bg-gradient-to-b from-amber-200/70 via-slate-200 to-amber-100/80 p-[1.5px] rounded-lg shadow-[inset_0_1.5px_3px_rgba(0,0,0,0.15)] grid grid-cols-5 gap-[1px]">
                     {Array.from({ length: 5 }).flatMap((_, r) =>
                       Array.from({ length: 5 }, (_, col) => {
                         const num = c.card_matrix[r]?.[col];
@@ -1691,10 +1681,10 @@ export default function BingoGame() {
                         return (
                           <div
                             key={`${r}-${col}`}
-                            className={`aspect-square flex items-center justify-center font-black rounded-[4px] text-[8.5px] sm:text-[9.5px] leading-none transition-transform ${
+                            className={`aspect-square flex items-center justify-center font-black rounded-[2.5px] text-[7px] sm:text-[7.5px] leading-none transition-transform ${
                               isFree
-                                ? 'bg-gradient-to-b from-amber-300 via-yellow-400 to-amber-500 text-amber-950 font-black border border-amber-300 shadow-[0_2px_4px_rgba(217,119,6,0.4),inset_0_1px_1px_rgba(255,255,255,0.9)] text-[11px]'
-                                : 'bg-gradient-to-b from-white via-[#fafbfe] to-[#ebeff8] text-slate-800 border-t border-white shadow-[0_1.5px_2.5px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.95)]'
+                                ? 'bg-gradient-to-b from-amber-300 via-yellow-400 to-amber-500 text-amber-950 font-black border border-amber-300 shadow-[0_1.5px_3px_rgba(217,119,6,0.4),inset_0_0.5px_0.5px_rgba(255,255,255,0.9)] text-[8.5px]'
+                                : 'bg-gradient-to-b from-white via-[#fafbfe] to-[#ebeff8] text-slate-800 border-t border-white shadow-[0_1px_1.5px_rgba(0,0,0,0.1),inset_0_0.5px_0_rgba(255,255,255,0.95)]'
                             }`}
                           >
                             {isFree ? '★' : num}
