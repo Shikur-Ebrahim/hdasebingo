@@ -653,38 +653,24 @@ export default function Home() {
         </Link>
       </div>
 
-      {/* ══════════ LIVE STAKE TABLES SECTION ══════════ */}
+      {/* ══════════ LIVE STAKE TABLES SECTION (SELECT MEDEB) ══════════ */}
       <div className="px-4 flex-1 pb-6">
-        {/* Section header: Active Room Stakes */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white shadow-sm font-black">
-              <Sparkles size={16} />
-            </div>
-            <div>
-              <h2 className="font-black text-slate-800 text-sm leading-tight flex items-center gap-1.5">
-                <span>{language === 'am' ? 'የቢንጎ ጠረጴዛዎች' : 'BINGO TABLES'}</span>
-                <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[9px] font-black">
-                  {language === 'am' ? 'ቀጥታ' : 'LIVE'}
-                </span>
-              </h2>
-              <p className="text-[10px] text-slate-500 font-semibold leading-none mt-0.5">
-                {activeRoom?.room_name || 'HDASE BINGO'} • {language === 'am' ? 'መደብ ይምረጡና ይጫወቱ' : 'Choose a stake & win big'}
-              </p>
-            </div>
-          </div>
-
+        {/* Section title: Exactly SELECT MEDEB matching reference design */}
+        <div className="flex items-center justify-between mb-3 px-0.5">
+          <h2 className="text-sm font-black text-slate-800 tracking-wider uppercase">
+            SELECT MEDEB
+          </h2>
           <button
             onClick={() => handleManualRefresh()}
-            className="w-8 h-8 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center active:scale-95 transition-all hover:bg-slate-200"
+            className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200/60 text-slate-500 flex items-center justify-center active:scale-95 transition-all"
             title="Refresh"
           >
-            <RefreshCw size={13} className={manualRefreshing ? 'animate-spin text-amber-500' : ''} />
+            <RefreshCw size={12} className={manualRefreshing ? 'animate-spin text-amber-500' : ''} />
           </button>
         </div>
 
-        {/* 4 Live Stake Tables Grid */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* 4 Live Stake Tables Grid - Exact replica of the reference design */}
+        <div className="grid grid-cols-2 gap-3.5">
           {activeStakes.map((stake, idx) => {
             const hg = homeGames[stake];
             const pool = hg?.pool || 0;
@@ -693,95 +679,85 @@ export default function Home() {
             const timeLeft = homeTimeLeft[stake] || 0;
             const isCountingDown = hg?.status === 'waiting' && timeLeft > 0;
 
+            // 4 exact gradient themes from reference screenshot: Blue, Green, Purple, Red
             const THEMES = [
               {
-                bgGradient: 'from-emerald-50/70 via-teal-50/30 to-white',
-                badgeGradient: 'from-emerald-500 to-teal-600',
-                borderColor: 'border-emerald-200/90 hover:border-emerald-400',
-                btnClass: 'bg-emerald-600 hover:bg-emerald-700 text-white',
+                gradient: 'from-[#2979ff] to-[#1565c0]', // Vivid Blue
               },
               {
-                bgGradient: 'from-blue-50/70 via-indigo-50/30 to-white',
-                badgeGradient: 'from-blue-500 to-indigo-600',
-                borderColor: 'border-blue-200/90 hover:border-blue-400',
-                btnClass: 'bg-blue-600 hover:bg-blue-700 text-white',
+                gradient: 'from-[#00c853] to-[#009624]', // Vivid Green
               },
               {
-                bgGradient: 'from-purple-50/70 via-violet-50/30 to-white',
-                badgeGradient: 'from-purple-500 to-violet-600',
-                borderColor: 'border-purple-200/90 hover:border-purple-400',
-                btnClass: 'bg-purple-600 hover:bg-purple-700 text-white',
+                gradient: 'from-[#ab47bc] to-[#7b1fa2]', // Vivid Purple
               },
               {
-                bgGradient: 'from-amber-50/70 via-orange-50/30 to-white',
-                badgeGradient: 'from-amber-500 to-orange-600',
-                borderColor: 'border-amber-200/90 hover:border-amber-400',
-                btnClass: 'bg-amber-600 hover:bg-orange-600 text-white',
+                gradient: 'from-[#ff2a55] to-[#d50000]', // Vivid Red
               },
             ];
 
             const theme = THEMES[idx % THEMES.length];
 
+            const handleJoin = () => {
+              if (!user && !WebApp?.initData) {
+                setAuthModalOpen(true);
+                return;
+              }
+              if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
+              navigate(`/bingo/live?stake=${stake}&room=${activeRoomId}`);
+            };
+
             return (
               <div
                 key={stake}
-                onClick={() => {
-                  if (!user && !WebApp?.initData) {
-                    setAuthModalOpen(true);
-                    return;
-                  }
-                  if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
-                  navigate(`/bingo/live?stake=${stake}&room=${activeRoomId}`);
-                }}
-                className={`relative rounded-2xl border ${theme.borderColor} bg-gradient-to-b ${theme.bgGradient} p-3 shadow-xs hover:shadow-md cursor-pointer active:scale-[0.98] transition-all flex flex-col justify-between overflow-hidden`}
+                className="bg-white rounded-3xl shadow-[0_4px_16px_rgba(0,0,0,0.06)] border border-slate-100 overflow-hidden flex flex-col justify-between"
               >
-                {/* Top Row: Stake Badge + Status */}
-                <div className="flex items-center justify-between mb-2">
-                  <div className={`px-2.5 py-1 rounded-xl bg-gradient-to-r ${theme.badgeGradient} text-white font-black text-xs shadow-xs`}>
-                    {stake} ETB
+                {/* Header with rounded-t-3xl and bright gradient */}
+                <div
+                  onClick={handleJoin}
+                  className={`h-24 bg-gradient-to-r ${theme.gradient} flex items-center justify-center relative rounded-t-3xl cursor-pointer active:opacity-95 transition-opacity`}
+                >
+                  {/* Big bold centered number */}
+                  <span className="text-white font-black text-4xl tracking-tight drop-shadow-xs select-none">
+                    {stake}
+                  </span>
+                  {/* Top-right translucent "ETB" pill */}
+                  <div className="absolute top-2.5 right-2.5 bg-white/25 backdrop-blur-xs text-white text-[9.5px] font-black px-2 py-0.5 rounded-md tracking-wider select-none">
+                    ETB
                   </div>
-                  {/* Status pill */}
-                  {isCalling ? (
-                    <div className="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-emerald-500 text-white text-[9px] font-black animate-pulse shadow-2xs">
-                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-                      <span>{language === 'am' ? 'እየተጠራ ነው' : 'Calling'}</span>
-                    </div>
-                  ) : isCountingDown ? (
-                    <div className="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-amber-500 text-white text-[9px] font-black shadow-2xs">
-                      <span className="animate-spin text-[8px]">⏱</span>
-                      <span>{timeLeft}s</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center space-x-1 px-2 py-0.5 rounded-full bg-white text-slate-600 text-[9px] font-bold border border-slate-200">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      <span>{language === 'am' ? 'ክፍት ነው' : 'Open'}</span>
-                    </div>
-                  )}
                 </div>
 
-                {/* Pot / Derash Display */}
-                <div className="my-1 bg-white/95 rounded-xl p-2.5 border border-slate-100 shadow-2xs text-center">
-                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
-                    {language === 'am' ? 'ደራሽ (POT)' : 'PRIZE POOL'}
-                  </p>
-                  <div className="flex items-baseline justify-center space-x-1 mt-0.5">
-                    <span className="text-xl font-black text-slate-900 leading-tight">
-                      {pool > 0 ? `${pool}` : '0'}
+                {/* 3-Column Stats Row */}
+                <div className="px-2 py-2.5 flex items-center justify-between text-center border-b border-slate-50 bg-white select-none">
+                  <div className="flex-1 flex flex-col items-center">
+                    <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider">DERASH</span>
+                    <span className="text-[10.5px] font-black text-[#e5a000] mt-0.5">{pool} ETB</span>
+                  </div>
+                  <div className="flex-1 flex flex-col items-center">
+                    <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider">PLAYERS</span>
+                    <span className="text-[10.5px] font-black text-[#00c853] mt-0.5">{players}</span>
+                  </div>
+                  <div className="flex-1 flex flex-col items-center">
+                    <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider">STATUS</span>
+                    <span className={`text-[10.5px] font-black mt-0.5 ${
+                      isCalling
+                        ? 'text-emerald-500 animate-pulse'
+                        : isCountingDown
+                        ? 'text-amber-500'
+                        : 'text-[#e67e22]'
+                    }`}>
+                      {isCalling ? 'Calling...' : isCountingDown ? `${timeLeft}s...` : 'Waiting...'}
                     </span>
-                    <span className="text-[10px] font-black text-amber-600">ETB</span>
                   </div>
                 </div>
 
-                {/* Players Count & CTA */}
-                <div className="mt-2 pt-2 border-t border-slate-100/80 flex items-center justify-between">
-                  <div className="flex items-center space-x-1 text-slate-500 text-[10px] font-bold">
-                    <Users size={12} className="text-slate-400 shrink-0" />
-                    <span>{players} {language === 'am' ? 'ተጫዋች' : 'players'}</span>
-                  </div>
-                  <div className={`px-2.5 py-1 rounded-lg ${theme.btnClass} text-[10px] font-black shadow-2xs flex items-center space-x-1 active:scale-95 transition-transform`}>
-                    <span>{language === 'am' ? 'ተጫወቱ' : 'PLAY'}</span>
-                    <span className="text-xs">→</span>
-                  </div>
+                {/* Bottom Action Button: Join Room */}
+                <div className="p-3 pt-1 bg-white">
+                  <button
+                    onClick={handleJoin}
+                    className="w-full bg-[#eef3f9] hover:bg-[#e2eaf5] active:scale-95 text-slate-700 font-black py-2.5 rounded-2xl text-xs transition-all shadow-2xs border border-slate-200/50 flex items-center justify-center cursor-pointer"
+                  >
+                    Join Room
+                  </button>
                 </div>
               </div>
             );
