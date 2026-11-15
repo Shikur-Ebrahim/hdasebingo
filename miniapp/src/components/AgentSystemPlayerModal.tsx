@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import WebApp from '@twa-dev/sdk';
-import VideoGuideButton from './VideoGuideButton';
 import {
   X,
   Bot,
@@ -252,8 +251,20 @@ export default function AgentSystemPlayerModal({
     setTimeout(() => setCopiedAccount(null), 2500);
   };
 
+  const requireProUpgrade = (actionName = 'activate System Players') => {
+    triggerHaptic('heavy');
+    setErrorMsg(`Pro Level 1 upgrade required to ${actionName}. Please upgrade your room first.`);
+    setActiveTab('upgrade');
+  };
+
   const handleSaveSettings = async () => {
     triggerHaptic('medium');
+    const anyStakeOn = Object.values(stakeConfigs).some(c => c.enabled);
+    const anyWaiterStakeOn = Object.values(waiterStakeConfigs).some(c => c.enabled);
+    if (!isProActive && (enabled || waiterEnabled || anyStakeOn || anyWaiterStakeOn)) {
+      requireProUpgrade('activate System Players or Waiter Players');
+      return;
+    }
     setSaving(true);
     setErrorMsg(null);
     setSuccessMsg(null);
@@ -527,9 +538,16 @@ export default function AgentSystemPlayerModal({
                   PRO LEVEL 1
                 </span>
               ) : (
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300">
-                  Pro Needed
-                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setActiveTab('upgrade');
+                  }}
+                  className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 active:scale-95 transition-all cursor-pointer"
+                >
+                  Pro Needed →
+                </button>
               )}
             </div>
             <p className="text-[10px] text-slate-500 font-bold">
@@ -538,11 +556,6 @@ export default function AgentSystemPlayerModal({
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <VideoGuideButton
-            category="system_player"
-            autoOpenOnceKey="hdase_system_player_video_seen"
-            compact={true}
-          />
           <button
             onClick={onClose}
             className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 active:scale-90 transition-all border border-slate-200 shrink-0"
@@ -608,20 +621,6 @@ export default function AgentSystemPlayerModal({
         {/* ──────────────── TAB 1: SETTINGS ──────────────── */}
         {activeTab === 'settings' && (
           <div className="space-y-4 max-w-md mx-auto">
-            {/* System Player Video Guide Banner */}
-            <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border border-amber-300/60 flex items-center justify-between shadow-2xs">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-600 flex items-center justify-center text-sm font-black">
-                  🎬
-                </div>
-                <div>
-                  <h4 className="text-xs font-black text-slate-800">Video Guidance</h4>
-                  <p className="text-[10px] text-slate-500 font-bold">Watch tutorial on AI bots & schedule</p>
-                </div>
-              </div>
-              <VideoGuideButton category="system_player" compact={true} />
-            </div>
-
             {/* Pro Lock Notice if not upgraded */}
             {!isProActive && (
               <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 flex items-start gap-3">
@@ -656,18 +655,21 @@ export default function AgentSystemPlayerModal({
               </div>
               <button
                 type="button"
-                disabled={!isProActive}
                 onClick={() => {
                   triggerHaptic('medium');
+                  if (!isProActive) {
+                    requireProUpgrade('activate System Players');
+                    return;
+                  }
                   setEnabled(!enabled);
                 }}
                 className={`relative inline-flex h-7 w-13 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  !isProActive ? 'opacity-40 cursor-not-allowed bg-slate-300' : enabled ? 'bg-emerald-500' : 'bg-slate-300'
+                  !isProActive ? 'bg-slate-300' : enabled ? 'bg-emerald-500' : 'bg-slate-300'
                 }`}
               >
                 <span
                   className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                    enabled ? 'translate-x-6' : 'translate-x-0'
+                    enabled && isProActive ? 'translate-x-6' : 'translate-x-0'
                   }`}
                 />
               </button>
@@ -788,18 +790,22 @@ export default function AgentSystemPlayerModal({
                           type="button"
                           onClick={() => {
                             triggerHaptic('light');
+                            if (!isProActive) {
+                              requireProUpgrade('configure System Players');
+                              return;
+                            }
                             setStakeConfigs(prev => ({
                               ...prev,
                               [key]: { ...prev[key], enabled: !isEnabled }
                             }));
                           }}
                           className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
-                            isEnabled
+                            isEnabled && isProActive
                               ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
                               : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
                           }`}
                         >
-                          {isEnabled ? 'ON' : 'OFF'}
+                          {isEnabled && isProActive ? 'ON' : 'OFF'}
                         </button>
                       </div>
 
@@ -905,15 +911,19 @@ export default function AgentSystemPlayerModal({
                   type="button"
                   onClick={() => {
                     triggerHaptic('light');
+                    if (!isProActive) {
+                      requireProUpgrade('activate Waiter Players');
+                      return;
+                    }
                     setWaiterEnabled(!waiterEnabled);
                   }}
                   className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-                    waiterEnabled
+                    waiterEnabled && isProActive
                       ? 'bg-amber-600 text-white shadow-xs'
                       : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
                   }`}
                 >
-                  {waiterEnabled ? 'WAITER ON' : 'WAITER OFF'}
+                  {waiterEnabled && isProActive ? 'WAITER ON' : 'WAITER OFF'}
                 </button>
               </div>
 
@@ -991,6 +1001,10 @@ export default function AgentSystemPlayerModal({
                           type="button"
                           onClick={() => {
                             triggerHaptic('light');
+                            if (!isProActive) {
+                              requireProUpgrade('activate Waiter Players');
+                              return;
+                            }
                             if (!isEnabled) {
                               // Trigger notification & confirmation modal
                               setWaiterModalConfirmTier(key);
@@ -1002,12 +1016,12 @@ export default function AgentSystemPlayerModal({
                             }
                           }}
                           className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
-                            isEnabled
+                            isEnabled && isProActive
                               ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
                               : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
                           }`}
                         >
-                          {isEnabled ? 'ON' : 'OFF'}
+                          {isEnabled && isProActive ? 'ON' : 'OFF'}
                         </button>
                       </div>
 
@@ -1553,6 +1567,11 @@ export default function AgentSystemPlayerModal({
                 type="button"
                 onClick={() => {
                   triggerHaptic('heavy');
+                  if (!isProActive) {
+                    setWaiterModalConfirmTier(null);
+                    requireProUpgrade('activate Waiter Players');
+                    return;
+                  }
                   const tier = waiterModalConfirmTier;
                   setWaiterStakeConfigs(prev => ({
                     ...prev,

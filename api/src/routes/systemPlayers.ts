@@ -319,7 +319,9 @@ router.post('/settings', validateTelegramAuth, async (req: AuthRequest, res: Res
 
     const wantsToEnable = Boolean(enabled);
     const wantsToEnableWaiter = Boolean(waiter_enabled);
-    if ((wantsToEnable || wantsToEnableWaiter) && !systemPlayerService.isRoomProActive(room)) {
+    const anyStakeEnabled = stake_configs && Object.values(stake_configs).some((c: any) => c?.enabled);
+    const anyWaiterStakeEnabled = waiter_stake_configs && Object.values(waiter_stake_configs).some((c: any) => c?.enabled);
+    if ((wantsToEnable || wantsToEnableWaiter || anyStakeEnabled || anyWaiterStakeEnabled) && !systemPlayerService.isRoomProActive(room)) {
       return res.status(400).json({
         error: 'Pro Level 1 upgrade required to activate System Players or Waiter Players.'
       });
