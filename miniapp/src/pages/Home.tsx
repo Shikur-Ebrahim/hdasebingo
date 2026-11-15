@@ -692,12 +692,12 @@ export default function Home() {
             return (
               <div
                 key={stake}
-                className="bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] border border-slate-100/90 overflow-hidden flex flex-col"
+                onClick={handleJoin}
+                className="bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] border border-slate-100/90 overflow-hidden flex flex-col cursor-pointer active:scale-[0.98] transition-all"
               >
                 {/* Header with vibrant gradient (exact height ~64px, snug & centered) - Displays DERASH */}
                 <div
-                  onClick={handleJoin}
-                  className={`h-16 bg-gradient-to-r ${theme.gradient} flex items-center justify-center relative rounded-t-2xl cursor-pointer active:opacity-95 transition-opacity`}
+                  className={`h-16 bg-gradient-to-r ${theme.gradient} flex items-center justify-center relative rounded-t-2xl`}
                 >
                   <span className="text-white font-black text-3xl tracking-tight drop-shadow-xs select-none">
                     {pool || 0}
@@ -707,7 +707,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* 2-Column Stats Row: PLAYERS and STATUS (Derash is featured in top header) */}
+                {/* 2-Column Stats Row: PLAYERS and STATUS (Clickable as part of the card) */}
                 <div className="px-3 py-2 flex items-center justify-around text-center border-b border-slate-50 bg-white select-none">
                   <div className="flex-1 flex flex-col items-center">
                     <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider">PLAYERS</span>
@@ -731,8 +731,8 @@ export default function Home() {
                 {/* Bottom Action Button: Displays STAKE amount */}
                 <div className="p-2 pt-1.5 bg-white">
                   <button
-                    onClick={handleJoin}
-                    className="w-full bg-[#eef3f9] hover:bg-[#e2eaf5] active:scale-95 text-slate-800 font-black py-2 rounded-xl text-xs transition-all shadow-2xs border border-slate-200/60 flex items-center justify-center cursor-pointer"
+                    type="button"
+                    className="w-full bg-[#eef3f9] hover:bg-[#e2eaf5] text-slate-800 font-black py-2 rounded-xl text-xs transition-all shadow-2xs border border-slate-200/60 flex items-center justify-center pointer-events-none"
                   >
                     {stake} ETB
                   </button>
