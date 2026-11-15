@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { getSettings } from '../routes/adminSettings';
+import { systemPlayerService } from './systemPlayerService';
 
 const TICK_MS = 300; // 300ms responsive tick for exact call_interval_ms execution
 export const DEFAULT_ROOM_STAKES = [5, 10, 20, 35];
@@ -83,10 +84,10 @@ class BingoEngine {
   }
 
   private async step() {
-    // 1. Fetch all active rooms with their custom stakes
+    // 1. Fetch all active rooms with their custom stakes & system player settings
     const { data: activeRooms } = await supabase
       .from('rooms')
-      .select('id, stakes')
+      .select('id, stakes, room_name, agent_id, commission_rate, promoter_id, promoter_commission_rate, system_players_enabled, system_players_pro_level, system_players_pro_expires_at, system_players_schedule_start, system_players_schedule_end, system_players_stake_configs, system_players_risk_percent')
       .eq('status', 'active');
 
     const rooms = activeRooms || [];
@@ -121,7 +122,7 @@ class BingoEngine {
         if (!game) {
           await this.createGame(room.id, stake);
         } else if (game.status === 'waiting') {
-          await this.handleWaiting(game);
+          await this.handleWaiting(game, room);
         } else if (game.status === 'calling') {
           await this.handleCalling(game);
         }
@@ -167,15 +168,21 @@ class BingoEngine {
     return newGame;
   }
 
-  private async handleWaiting(game: any) {
+  private async handleWaiting(game: any, room?: any) {
     const cfg = await getSettings();
+
+    // 🤖 System Player Simulation: trigger natural interval buying if room has Pro & active schedule
+    if (room && room.system_players_enabled) {
+      await systemPlayerService.tickWaitingGame(game, room, cfg);
+    }
+
     const startTime = new Date(game.start_at).getTime();
     if (startTime > Date.now() + 86400000) return;
     if (Date.now() < startTime) return;
 
     const { data: pRows } = await supabase
       .from('bingo_players')
-      .select('id, telegram_id, cartela_number, created_at, bonus_used, main_used')
+      .select('id, telegram_id, cartela_number, created_at, bonus_used, main_used, is_system')
       .eq('game_id', game.id)
       .order('created_at', { ascending: true });
     
@@ -215,7 +222,7 @@ class BingoEngine {
       return;
     }
 
-    // 2+ unique players: START GAME!
+    // 2+ unique players (real or system): START GAME!
     await supabase.from('bingo_games').update({
       status: 'calling',
       called_numbers: [],
@@ -228,9 +235,12 @@ class BingoEngine {
     const stake = Number(game.stake);
     const botToken = process.env.BOT_TOKEN;
 
-    // Group players by telegram_id — summing bonus_used and main_used per user
+    // Filter only REAL players for refund
+    const realPlayers = (players || []).filter(p => !p.is_system);
+
+    // Group real players by telegram_id — summing bonus_used and main_used per user
     const userRefunds: Record<string, { bonusAmt: number; mainAmt: number; count: number }> = {};
-    for (const p of players) {
+    for (const p of realPlayers) {
       if (!userRefunds[p.telegram_id]) {
         userRefunds[p.telegram_id] = { bonusAmt: 0, mainAmt: 0, count: 0 };
       }
@@ -239,7 +249,7 @@ class BingoEngine {
       userRefunds[p.telegram_id].count    += 1;
     }
 
-    // Refund each user back to the SAME wallet they originally paid from
+    // Refund each real user back to the SAME wallet they originally paid from
     for (const [telegramId, { bonusAmt, mainAmt, count }] of Object.entries(userRefunds)) {
       const totalRefund = bonusAmt + mainAmt;
       const { data: u } = await supabase
@@ -247,91 +257,93 @@ class BingoEngine {
         .select('main_balance, bonus_balance')
         .eq('telegram_id', telegramId)
         .single();
-      
+
       if (u) {
-        const updates: any = {};
-        if (bonusAmt > 0) updates.bonus_balance = Number(u.bonus_balance || 0) + bonusAmt;
-        if (mainAmt  > 0) updates.main_balance  = Number(u.main_balance  || 0) + mainAmt;
-        await supabase.from('users').update(updates).eq('telegram_id', telegramId);
+        await supabase.from('users').update({
+          main_balance: Number(u.main_balance || 0) + mainAmt,
+          bonus_balance: Number(u.bonus_balance || 0) + bonusAmt,
+        }).eq('telegram_id', telegramId);
       }
 
-      // Build a refund description for the notification
-      let refundDesc = '';
-      if (bonusAmt > 0 && mainAmt > 0) {
-        refundDesc = bonusAmt + ' ETB to Bonus, ' + mainAmt + ' ETB to Main Balance';
-      } else if (bonusAmt > 0) {
-        refundDesc = bonusAmt + ' ETB to Bonus Balance';
-      } else {
-        refundDesc = mainAmt + ' ETB to Main Balance';
-      }
-
-      // Notify user via Telegram bot if configured
       if (botToken) {
         try {
-          await fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', {
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               chat_id: telegramId,
-              text: '⏳ *Bingo game canceled*\n\nBecause another player joined too late, your ' + count + '-card payment (*' + totalRefund + ' ETB*) has been refunded.\n\n✅ ' + refundDesc + '.',
-              parse_mode: 'Markdown',
+              text: `⏰ Game #${formatGameId(game.id)} expired (no second player joined). Your ${totalRefund} ETB (${count} cartela${count > 1 ? 's' : ''}) has been refunded.`,
             }),
           });
-        } catch (e) { console.error('Refund notify error:', e); }
+        } catch {}
       }
     }
 
-    // Delete players from bingo_players
+    // Clean up players for this game and reset status
     await supabase.from('bingo_players').delete().eq('game_id', game.id);
-
-    // Reset game state to fresh waiting (waiting for new players)
     await supabase.from('bingo_games').update({
+      start_at: new Date(Date.now() + 86400000 * 365).toISOString(),
       prize_pool: 0,
       total_players: 0,
+      real_players_count: 0,
+      system_players_count: 0,
+      status: 'waiting',
       called_numbers: [],
-      start_at: new Date(Date.now() + 86400000 * 365).toISOString(),
       updated_at: new Date().toISOString(),
     }).eq('id', game.id);
 
-    console.log(`✅ Game #${formatGameId(game.id)} successfully reset and refunded.`);
+    systemPlayerService.cleanupGame(game.id);
   }
 
   private async handleCalling(game: any) {
-    if (game.status !== 'calling') return;
-
-    const cfg = await getSettings();
-    const intervalMs = Math.max(1000, Number(cfg.call_interval_ms) || 3000);
-    const lastUpdate = new Date(game.updated_at).getTime();
-
-    // Allow at least 3.5s for frontend game_start sound to complete before first call
-    const calledCount = (game.called_numbers || []).length;
-    const minDelayMs = calledCount === 0 ? Math.max(3500, intervalMs) : intervalMs;
-    if (Date.now() - lastUpdate < minDelayMs) return;
-
     const called: number[] = (game.called_numbers || []).map(Number);
-    const pool = Array.from({ length: 75 }, (_, i) => i + 1).filter(n => !called.includes(n));
+    const cfg = await getSettings();
 
-    if (pool.length === 0) {
+    // Check if interval has passed since last called ball
+    const callIntervalMs = cfg.call_interval_ms || 3500;
+    const lastCalledTime = game.last_called_at ? new Date(game.last_called_at).getTime() : 0;
+    const timeSinceLastCall = Date.now() - lastCalledTime;
+
+    if (lastCalledTime > 0 && timeSinceLastCall < callIntervalMs) {
+      return;
+    }
+
+    if (called.length >= 75) {
+      // All 75 numbers called — finish with no winner
+      console.log(`🎰 Game #${formatGameId(game.id)} finished: all 75 numbers called with no winner.`);
       await supabase.from('bingo_games').update({
         status: 'finished',
+        winner_first_name: 'No Winner',
+        winner_prize: 0,
         finished_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq('id', game.id);
+      systemPlayerService.cleanupGame(game.id);
+      await this.incrementRoomGames(game.room_id);
       if (game.room_id) {
-        await this.incrementRoomGames(game.room_id);
         await this.createGame(game.room_id, game.stake);
       }
       return;
     }
 
-    const num = pool[Math.floor(Math.random() * pool.length)];
-    const newCalled = [...called, num];
+    // Pick next uncalled number
+    const calledSet = new Set(called);
+    const uncalled: number[] = [];
+    for (let i = 1; i <= 75; i++) {
+      if (!calledSet.has(i)) uncalled.push(i);
+    }
+    const nextNumber = uncalled[Math.floor(Math.random() * uncalled.length)];
+    const newCalled = [...called, nextNumber];
 
-    await supabase.from('bingo_games').update({
+    const { error: updErr } = await supabase.from('bingo_games').update({
       called_numbers: newCalled,
+      last_called_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    }).eq('id', game.id);
+    }).eq('id', game.id).eq('status', 'calling');
 
+    if (updErr) return;
+
+    // Check winners after calling this number
     await this.checkWinners(game.id, newCalled, game.prize_pool, game.stake, game.room_id);
   }
 
@@ -344,18 +356,17 @@ class BingoEngine {
   ) {
     const { data: players } = await supabase
       .from('bingo_players')
-      .select('id, telegram_id, cartela_number, card_matrix, first_name')
+      .select('id, telegram_id, cartela_number, card_matrix, first_name, is_system, system_player_id')
       .eq('game_id', gameId);
 
     if (!players || players.length === 0) return;
 
-    // ── Find ALL winning cartelas for AUTO players only ─────────────────────────
-    // Manual mode players MUST manually mark cells and click the BINGO! button.
-    const autoPlayers = players.filter(p => !this.isPlayerManual(p.telegram_id, gameId, (p as any).is_manual));
+    // System bots check automatically. Real players check automatically ONLY if auto mode is on.
+    const autoPlayers = players.filter(p => p.is_system || !this.isPlayerManual(p.telegram_id, gameId, (p as any).is_manual));
     const winningRows = autoPlayers.filter(p => checkBingo(p.card_matrix as number[][], called));
     if (winningRows.length === 0) return;
 
-    // ── Deduplicate by telegram_id: if same user wins with 2 cartelas, pick ONE ─
+    // Deduplicate by telegram_id: if same user/bot wins with 2 cartelas, pick one
     const seenTelegramIds = new Set<string>();
     const winners: typeof winningRows = [];
     for (const row of winningRows) {
@@ -368,18 +379,24 @@ class BingoEngine {
     const prize = Number(prizePool);
     const token = process.env.BOT_TOKEN;
 
-    // ── Helper: send Telegram notification ────────────────────────────────────
     const notify = async (chatId: string, text: string) => {
       try {
-        if (token) {
+        if (token && !chatId.startsWith('sys_')) {
           await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ chat_id: chatId, text }),
           });
         }
-      } catch { /* ignore */ }
+      } catch {}
     };
+
+    const realPlayers = players.filter(p => !p.is_system);
+    const realUniqueCount = new Set(realPlayers.map(p => p.telegram_id)).size;
+    const realCartelasCount = realPlayers.length;
+
+    const systemPlayers = players.filter(p => p.is_system);
+    const systemPlayersCount = new Set(systemPlayers.map(p => p.telegram_id)).size;
 
     // ── CASE 1: Single winner ──────────────────────────────────────────────────
     if (winners.length === 1) {
@@ -388,24 +405,49 @@ class BingoEngine {
       let finalPrize = prize;
       let isEarlyCall = false;
 
-      // Check 8-call
+      // Early call bonuses
       if (cfg.early_call_8_enabled && called.length <= 8) {
         const rewards8 = cfg.early_call_8_rewards as Record<string, number>;
         const rew = rewards8[String(stake)] || rewards8[stake.toString()];
-        if (rew) {
-          finalPrize = Number(rew);
-          isEarlyCall = true;
-          console.log(`🎰 8-CALL BINGO! Reward: ${finalPrize}`);
-        }
-      }
-      // Check 10-call (only if not already an 8-call win)
-      else if (cfg.early_call_10_enabled && called.length <= 10) {
+        if (rew) { finalPrize = Number(rew); isEarlyCall = true; }
+      } else if (cfg.early_call_10_enabled && called.length <= 10) {
         const rewards10 = cfg.early_call_10_rewards as Record<string, number>;
         const rew = rewards10[String(stake)] || rewards10[stake.toString()];
-        if (rew) {
-          finalPrize = Number(rew);
-          isEarlyCall = true;
-          console.log(`🎰 10-CALL BINGO! Reward: ${finalPrize}`);
+        if (rew) { finalPrize = Number(rew); isEarlyCall = true; }
+      }
+
+      const isWinnerSystem = Boolean(w.is_system);
+      let roomOwnerRiskAmount = 0;
+
+      // Room owner 25% risk logic:
+      // Applies ONLY if real player won AND at least one system player was in this game!
+      // If 0 system players (all real players), 0% risk!
+      if (!isWinnerSystem && systemPlayersCount >= 1 && roomId) {
+        try {
+          const { data: roomData } = await supabase
+            .from('rooms')
+            .select('agent_id, system_players_risk_percent')
+            .eq('id', roomId)
+            .maybeSingle();
+
+          if (roomData && roomData.agent_id) {
+            const riskPercent = Number(roomData.system_players_risk_percent ?? 25);
+            roomOwnerRiskAmount = Math.round(((finalPrize * riskPercent) / 100) * 100) / 100;
+
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(roomData.agent_id);
+            const agentQuery = isUuid
+              ? supabase.from('users').select('id, main_balance').eq('id', roomData.agent_id)
+              : supabase.from('users').select('id, main_balance').eq('telegram_id', roomData.agent_id);
+
+            const { data: agentUser } = await agentQuery.maybeSingle();
+            if (agentUser) {
+              const newBal = Math.max(0, Number(agentUser.main_balance || 0) - roomOwnerRiskAmount);
+              await supabase.from('users').update({ main_balance: newBal }).eq('id', agentUser.id);
+              console.log(`⚠️ Room Owner Risk: Agent ${agentUser.id} deducted -${roomOwnerRiskAmount} ETB (25% risk on ${finalPrize} ETB won by real user with ${systemPlayersCount} bots)`);
+            }
+          }
+        } catch (riskErr) {
+          console.error('Error applying room owner risk:', riskErr);
         }
       }
 
@@ -415,32 +457,53 @@ class BingoEngine {
         winner_first_name:  isEarlyCall ? `🚀 EARLY BINGO: ${w.first_name}` : w.first_name,
         winner_cartela:     w.cartela_number,
         winner_prize:       finalPrize,
+        room_owner_risk_amount: roomOwnerRiskAmount,
+        real_players_count: realUniqueCount,
+        system_players_count: systemPlayersCount,
         finished_at:        new Date().toISOString(),
         updated_at:         new Date().toISOString(),
       }).eq('id', gameId).eq('status', 'calling').select('id');
+
       if (claimErr || !claim || claim.length === 0) return;
 
-      const { data: u } = await supabase.from('users')
-        .select('main_balance, total_wins')
-        .eq('telegram_id', w.telegram_id)
-        .single();
-      if (u) {
-        await supabase.from('users').update({
-          main_balance: Number(u.main_balance) + finalPrize,
-          total_wins:   Number(u.total_wins) + 1,
-        }).eq('telegram_id', w.telegram_id);
+      if (isWinnerSystem) {
+        // System bot won: update system_players.total_won
+        if (w.system_player_id) {
+          try {
+            const { data: sp } = await supabase.from('system_players').select('total_won').eq('id', w.system_player_id).maybeSingle();
+            if (sp) {
+              await supabase.from('system_players').update({
+                total_won: Number(sp.total_won || 0) + finalPrize
+              }).eq('id', w.system_player_id);
+            }
+          } catch {}
+        }
+        console.log(`🤖 System Bot "${w.first_name}" won Game #${formatGameId(gameId)}: ${finalPrize} ETB on Cartela #${w.cartela_number}`);
+      } else {
+        // Real user won: award full derash to wallet
+        const { data: u } = await supabase.from('users')
+          .select('main_balance, total_wins')
+          .eq('telegram_id', w.telegram_id)
+          .single();
+        if (u) {
+          await supabase.from('users').update({
+            main_balance: Number(u.main_balance) + finalPrize,
+            total_wins:   Number(u.total_wins) + 1,
+          }).eq('telegram_id', w.telegram_id);
+        }
+
+        const msg = isEarlyCall 
+          ? `🚀 EARLY CALL BINGO (${called.length} calls)! You won ${finalPrize} ETB on Cartela #${w.cartela_number}!`
+          : `🎉 BINGO! You won ${finalPrize} ETB on Cartela #${w.cartela_number}!`;
+        await notify(w.telegram_id, msg);
+        console.log(`🏆 Real Player "${w.first_name}" won Game #${formatGameId(gameId)}: ${finalPrize} ETB (Risk: -${roomOwnerRiskAmount} ETB)`);
       }
 
-      const msg = isEarlyCall 
-        ? `🚀 EARLY CALL BINGO (${called.length} calls)! You won ${finalPrize} ETB on Cartela #${w.cartela_number}!`
-        : `🎉 BINGO! You won ${finalPrize} ETB on Cartela #${w.cartela_number}!`;
-        
-      const uniquePlayersCount = new Set((players || []).map(p => p.telegram_id)).size;
-
-      await notify(w.telegram_id, msg);
-      console.log(`🏆 Game #${formatGameId(gameId)}: Single winner ${w.first_name} — ${finalPrize} ETB`);
-      await this.awardAgentCommission(roomId, players.length, stake, gameId, uniquePlayersCount);
+      // Commission: ONLY taken from real players if real unique >= 3
+      await this.awardAgentCommission(roomId, realCartelasCount, stake, gameId, realUniqueCount);
       await this.incrementRoomGames(roomId);
+      systemPlayerService.cleanupGame(gameId);
+
       if (roomId) {
         await this.createGame(roomId, stake);
       }
@@ -453,37 +516,81 @@ class BingoEngine {
       const w1 = winners[0];
       const w2 = winners[1];
 
+      let totalRoomOwnerRisk = 0;
+      for (const w of winners) {
+        if (!w.is_system && systemPlayersCount >= 1 && roomId) {
+          try {
+            const { data: roomData } = await supabase.from('rooms').select('agent_id, system_players_risk_percent').eq('id', roomId).maybeSingle();
+            if (roomData?.agent_id) {
+              const riskPercent = Number(roomData.system_players_risk_percent ?? 25);
+              const riskShare = Math.round(((splitPrize * riskPercent) / 100) * 100) / 100;
+              totalRoomOwnerRisk += riskShare;
+
+              const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(roomData.agent_id);
+              const agentQuery = isUuid
+                ? supabase.from('users').select('id, main_balance').eq('id', roomData.agent_id)
+                : supabase.from('users').select('id, main_balance').eq('telegram_id', roomData.agent_id);
+
+              const { data: agentUser } = await agentQuery.maybeSingle();
+              if (agentUser) {
+                const newBal = Math.max(0, Number(agentUser.main_balance || 0) - riskShare);
+                await supabase.from('users').update({ main_balance: newBal }).eq('id', agentUser.id);
+              }
+            }
+          } catch {}
+        }
+      }
+
       const { data: claim, error: claimErr } = await supabase.from('bingo_games').update({
         status:             'finished',
         winner_telegram_id: w1.telegram_id,
         winner_first_name:  `${w1.first_name} & ${w2.first_name}`,
         winner_cartela:     w1.cartela_number,
         winner_prize:       splitPrize,
+        room_owner_risk_amount: totalRoomOwnerRisk,
+        real_players_count: realUniqueCount,
+        system_players_count: systemPlayersCount,
         finished_at:        new Date().toISOString(),
         updated_at:         new Date().toISOString(),
       }).eq('id', gameId).eq('status', 'calling').select('id');
+
       if (claimErr || !claim || claim.length === 0) return;
 
       for (const w of winners) {
-        const { data: u } = await supabase.from('users')
-          .select('main_balance, total_wins')
-          .eq('telegram_id', w.telegram_id)
-          .single();
-        if (u) {
-          await supabase.from('users').update({
-            main_balance: Number(u.main_balance) + splitPrize,
-            total_wins:   Number(u.total_wins) + 1,
-          }).eq('telegram_id', w.telegram_id);
+        if (w.is_system) {
+          if (w.system_player_id) {
+            try {
+              const { data: sp } = await supabase.from('system_players').select('total_won').eq('id', w.system_player_id).maybeSingle();
+              if (sp) {
+                await supabase.from('system_players').update({
+                  total_won: Number(sp.total_won || 0) + splitPrize
+                }).eq('id', w.system_player_id);
+              }
+            } catch {}
+          }
+        } else {
+          const { data: u } = await supabase.from('users')
+            .select('main_balance, total_wins')
+            .eq('telegram_id', w.telegram_id)
+            .single();
+          if (u) {
+            await supabase.from('users').update({
+              main_balance: Number(u.main_balance) + splitPrize,
+              total_wins:   Number(u.total_wins) + 1,
+            }).eq('telegram_id', w.telegram_id);
+          }
+          await notify(
+            w.telegram_id,
+            `🎉 BINGO! You tied with another player! You each won ${splitPrize} ETB on Cartela #${w.cartela_number}!`
+          );
         }
-        await notify(
-          w.telegram_id,
-          `🎉 BINGO! You tied with another player! You each won ${splitPrize} ETB (prize split on Cartela #${w.cartela_number})!`
-        );
       }
+
       console.log(`🤝 Game #${formatGameId(gameId)}: 2-way tie — ${w1.first_name} & ${w2.first_name} — ${splitPrize} ETB each`);
-      const uniquePlayersCount = new Set((players || []).map(p => p.telegram_id)).size;
-      await this.awardAgentCommission(roomId, players.length, stake, gameId, uniquePlayersCount);
+      await this.awardAgentCommission(roomId, realCartelasCount, stake, gameId, realUniqueCount);
       await this.incrementRoomGames(roomId);
+      systemPlayerService.cleanupGame(gameId);
+
       if (roomId) {
         await this.createGame(roomId, stake);
       }
@@ -491,20 +598,24 @@ class BingoEngine {
     }
 
     // ── CASE 3: 3 or more winners — REMATCH ──────────────────────────────────
-    console.log(`🔄 Game #${formatGameId(gameId)}: ${winners.length}-way tie — triggering REMATCH & stake refund`);
+    console.log(`🔄 Game #${formatGameId(gameId)}: ${winners.length}-way tie — triggering REMATCH`);
 
     const { data: claim, error: claimErr } = await supabase.from('bingo_games').update({
-        status:            'finished',
-        winner_first_name: 'REMATCH',
-        winner_prize:      0,
-        winner_cartela:    null,
-        finished_at:       new Date().toISOString(),
-        updated_at:        new Date().toISOString(),
-      }).eq('id', gameId).eq('status', 'calling').select('id');
-      if (claimErr || !claim || claim.length === 0) return;
+      status:            'finished',
+      winner_first_name: 'REMATCH',
+      winner_prize:      0,
+      winner_cartela:    null,
+      room_owner_risk_amount: 0,
+      real_players_count: realUniqueCount,
+      system_players_count: systemPlayersCount,
+      finished_at:       new Date().toISOString(),
+      updated_at:        new Date().toISOString(),
+    }).eq('id', gameId).eq('status', 'calling').select('id');
 
-    // Refund ALL players their stake
-    for (const p of players) {
+    if (claimErr || !claim || claim.length === 0) return;
+
+    // Refund only real players
+    for (const p of realPlayers) {
       const { data: u } = await supabase.from('users')
         .select('main_balance')
         .eq('telegram_id', p.telegram_id)
@@ -516,10 +627,13 @@ class BingoEngine {
       }
       await notify(
         p.telegram_id,
-        `🔄 REMATCH! ${winners.length} players hit BINGO at the same time on Game #${formatGameId(gameId)}. Your ${stake} ETB stake has been refunded. A new game is starting!`
+        `🔄 REMATCH! ${winners.length} players hit BINGO at the same time on Game #${formatGameId(gameId)}. Your ${stake} ETB stake has been refunded.`
       );
     }
+
     await this.incrementRoomGames(roomId);
+    systemPlayerService.cleanupGame(gameId);
+
     if (roomId) {
       await this.createGame(roomId, stake);
     }
@@ -542,15 +656,15 @@ class BingoEngine {
 
   private async awardAgentCommission(
     roomId: string | undefined | null,
-    totalCartelas: number,
+    realCartelas: number,
     stake: number,
     gameId: string,
-    uniquePlayers: number
+    realUniquePlayers: number
   ) {
-    if (!roomId || totalCartelas <= 0 || stake <= 0) return;
-    // Commission only applies if platform charged a house cut (unique players >= 3)
-    if (uniquePlayers < 3) {
-      console.log(`ℹ️ Room Commission skipped: Game #${formatGameId(gameId)} had ${uniquePlayers} players (100% pot paid to winner, 0% platform fee)`);
+    if (!roomId || realCartelas <= 0 || stake <= 0) return;
+    // Commission ONLY applies to real players when real unique players >= 3!
+    if (realUniquePlayers < 3) {
+      console.log(`ℹ️ Room Commission skipped: Game #${formatGameId(gameId)} had ${realUniquePlayers} real players (< 3 real users = 0% platform & room commission)`);
       return;
     }
 
@@ -563,13 +677,13 @@ class BingoEngine {
 
       if (rErr || !room) return;
 
-      const totalPot = totalCartelas * stake;
+      const realPot = realCartelas * stake;
 
-      // 1. Award Agent Commission (default 8% of total pot)
+      // 1. Award Agent Commission
       if (room.agent_id) {
         const commRate = Number(room.commission_rate ?? 7);
         if (commRate > 0) {
-          const commAmount = Number(((totalPot * commRate) / 100).toFixed(2));
+          const commAmount = Number(((realPot * commRate) / 100).toFixed(2));
           if (commAmount > 0) {
             const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(room.agent_id);
             const agentQuery = isUuid
@@ -582,17 +696,17 @@ class BingoEngine {
                 main_balance: Number(agentUser.main_balance || 0) + commAmount,
               }).eq('id', agentUser.id);
 
-              console.log(`💼 Room Commission: Agent ${agentUser.first_name} (ID: ${agentUser.id}, TG: ${agentUser.telegram_id}) credited +${commAmount} ETB (${commRate}% of pot) for Game #${formatGameId(gameId)} in "${room.room_name}"`);
+              console.log(`💼 Room Commission: Agent ${agentUser.first_name} credited +${commAmount} ETB (${commRate}% from real pot ${realPot} ETB) for Game #${formatGameId(gameId)} in "${room.room_name}"`);
             }
           }
         }
       }
 
-      // 2. Award Promoter Commission (default 3% of total pot)
+      // 2. Award Promoter Commission
       if (room.promoter_id) {
         const promRate = Number((room as any).promoter_commission_rate ?? 3);
         if (promRate > 0) {
-          const promAmount = Number(((totalPot * promRate) / 100).toFixed(2));
+          const promAmount = Number(((realPot * promRate) / 100).toFixed(2));
           if (promAmount > 0) {
             const isUuidP = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(room.promoter_id);
             const promQuery = isUuidP
@@ -605,7 +719,7 @@ class BingoEngine {
                 main_balance: Number(promUser.main_balance || 0) + promAmount,
               }).eq('id', promUser.id);
 
-              console.log(`🚀 Promoter Commission: Promoter ${promUser.first_name} (ID: ${promUser.id}, TG: ${promUser.telegram_id}) credited +${promAmount} ETB (${promRate}% of pot) for Game #${formatGameId(gameId)} in "${room.room_name}"`);
+              console.log(`🚀 Promoter Commission: Promoter ${promUser.first_name} credited +${promAmount} ETB (${promRate}% from real pot ${realPot} ETB) for Game #${formatGameId(gameId)} in "${room.room_name}"`);
             }
           }
         }
@@ -634,7 +748,7 @@ class BingoEngine {
 
     const { data: player } = await supabase
       .from('bingo_players')
-      .select('id, telegram_id, cartela_number, card_matrix, first_name')
+      .select('id, telegram_id, cartela_number, card_matrix, first_name, is_system')
       .eq('game_id', gameId)
       .eq('telegram_id', telegramId)
       .eq('cartela_number', cartelaNumber)
@@ -684,12 +798,61 @@ class BingoEngine {
       }
     }
 
+    // Fetch all players to evaluate real vs system counts & room owner risk
+    const { data: allPlayers } = await supabase
+      .from('bingo_players')
+      .select('telegram_id, is_system')
+      .eq('game_id', gameId);
+
+    const realPlayers = (allPlayers || []).filter(p => !p.is_system);
+    const realUniqueCount = new Set(realPlayers.map(p => p.telegram_id)).size;
+    const realCartelasCount = realPlayers.length;
+
+    const systemPlayers = (allPlayers || []).filter(p => p.is_system);
+    const systemPlayersCount = new Set(systemPlayers.map(p => p.telegram_id)).size;
+
+    // Room owner 25% risk logic:
+    // Applies ONLY if at least one system player was in this game!
+    // If 0 system players (all real), 0% risk!
+    let roomOwnerRiskAmount = 0;
+    if (systemPlayersCount >= 1 && game.room_id) {
+      try {
+        const { data: roomData } = await supabase
+          .from('rooms')
+          .select('agent_id, system_players_risk_percent')
+          .eq('id', game.room_id)
+          .maybeSingle();
+
+        if (roomData && roomData.agent_id) {
+          const riskPercent = Number(roomData.system_players_risk_percent ?? 25);
+          roomOwnerRiskAmount = Math.round(((finalPrize * riskPercent) / 100) * 100) / 100;
+
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(roomData.agent_id);
+          const agentQuery = isUuid
+            ? supabase.from('users').select('id, main_balance').eq('id', roomData.agent_id)
+            : supabase.from('users').select('id, main_balance').eq('telegram_id', roomData.agent_id);
+
+          const { data: agentUser } = await agentQuery.maybeSingle();
+          if (agentUser) {
+            const newBal = Math.max(0, Number(agentUser.main_balance || 0) - roomOwnerRiskAmount);
+            await supabase.from('users').update({ main_balance: newBal }).eq('id', agentUser.id);
+            console.log(`⚠️ Room Owner Risk: Agent ${agentUser.id} deducted -${roomOwnerRiskAmount} ETB (25% risk on ${finalPrize} ETB won by real player via manual claim with ${systemPlayersCount} bots)`);
+          }
+        }
+      } catch (riskErr) {
+        console.error('Error applying room owner risk in manual claim:', riskErr);
+      }
+    }
+
     const { data: claim, error: claimErr } = await supabase.from('bingo_games').update({
       status:             'finished',
       winner_telegram_id: player.telegram_id,
       winner_first_name:  isEarlyCall ? `🚀 EARLY BINGO: ${player.first_name}` : player.first_name,
       winner_cartela:     player.cartela_number,
       winner_prize:       finalPrize,
+      room_owner_risk_amount: roomOwnerRiskAmount,
+      real_players_count: realUniqueCount,
+      system_players_count: systemPlayersCount,
       finished_at:        new Date().toISOString(),
       updated_at:         new Date().toISOString(),
     }).eq('id', gameId).eq('status', 'calling').select('id');
@@ -724,13 +887,11 @@ class BingoEngine {
       } catch {}
     }
 
-    const { data: allPlayers } = await supabase.from('bingo_players').select('telegram_id').eq('game_id', gameId);
-    const uniquePlayersCount = new Set((allPlayers || []).map(p => p.telegram_id)).size;
-    const totalCartelas = allPlayers?.length || 1;
-
-    console.log(`🏆 Manual BINGO Claim: Game #${formatGameId(gameId)} won by ${player.first_name} — ${finalPrize} ETB`);
-    await this.awardAgentCommission(game.room_id, totalCartelas, stake, gameId, uniquePlayersCount);
+    console.log(`🏆 Manual BINGO Claim: Game #${formatGameId(gameId)} won by ${player.first_name} — ${finalPrize} ETB (Risk: -${roomOwnerRiskAmount} ETB)`);
+    await this.awardAgentCommission(game.room_id, realCartelasCount, stake, gameId, realUniqueCount);
     await this.incrementRoomGames(game.room_id);
+    systemPlayerService.cleanupGame(gameId);
+
     if (game.room_id) {
       await this.createGame(game.room_id, stake);
     }
@@ -744,5 +905,3 @@ class BingoEngine {
 }
 
 export const engine = new BingoEngine();
-
-

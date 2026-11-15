@@ -7,7 +7,9 @@ import AgentAttackBank from '../components/AgentAttackBank';
 import AgentWithdrawModal from '../components/AgentWithdrawModal';
 import AgentLiveGameViewer from '../components/AgentLiveGameViewer';
 import AgentStakeConfigModal from '../components/AgentStakeConfigModal';
+import AgentSystemPlayerModal from '../components/AgentSystemPlayerModal';
 import {
+  Bot,
   Users,
   Gamepad2,
   Wifi,
@@ -62,6 +64,9 @@ interface AgentRoom {
   commission_rate?: number;
   is_pinned?: boolean;
   stakes?: number[];
+  system_players_enabled?: boolean;
+  system_players_pro_level?: number;
+  system_players_pro_expires_at?: string | null;
   created_at: string;
 }
 
@@ -79,6 +84,9 @@ interface FinishedGame {
   id: string;
   stake: number;
   total_players: number;
+  real_players_count?: number;
+  system_players_count?: number;
+  room_owner_risk_amount?: number;
   prize_pool: number;
   winner_prize: number;
   winner_first_name: string;
@@ -182,6 +190,7 @@ export default function Agent() {
   const [viewerStake, setViewerStake] = useState<number | null>(null);
   const [showStakeModal, setShowStakeModal] = useState(false);
   const [showStakeConfigModal, setShowStakeConfigModal] = useState(false);
+  const [showSystemPlayerModal, setShowSystemPlayerModal] = useState(false);
 
   const roomStakes: number[] = useMemo(() => {
     if (room && Array.isArray(room.stakes) && room.stakes.length === 4) {
@@ -1310,6 +1319,35 @@ export default function Agent() {
         {/* ─── TAB 1: OVERVIEW & ADVANCED PERFORMANCE GRAPH ─── */}
         {room && activeTab === 'overview' && (
           <div className="space-y-4 animate-in fade-in duration-200">
+            {/* ─── SYSTEM PLAYER (AI BOTS) STATUS CARD ─── */}
+            <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-4 border border-indigo-500/20 shadow-md text-white flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                  <Bot size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="font-black text-xs text-white tracking-wide">System Player (AI Bots)</h4>
+                    <span className="text-[8px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded-full uppercase">
+                      PRO
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-300 font-medium mt-0.5">
+                    {room.system_players_enabled ? '🟢 Active & Playing' : '⚪ Inactive (Default OFF)'} • 1,000 Bots Pool
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  triggerHaptic('medium');
+                  setShowSystemPlayerModal(true);
+                }}
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black text-xs shadow-xs hover:from-amber-300 hover:to-amber-400 active:scale-95 transition-all shrink-0"
+              >
+                Configure →
+              </button>
+            </div>
+
             {/* ADVANCED PERFORMANCE GRAPH CARD */}
             <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-sm space-y-3.5">
               {/* Header Title full width */}
@@ -2025,7 +2063,16 @@ export default function Agent() {
                             </div>
                           </div>
                         </div>
-                        <span className="text-[10px] text-slate-400">👥 {game.total_players} players</span>
+                        <div className="text-right">
+                          <span className="text-[10px] text-slate-500 font-bold block">
+                            👥 {game.real_players_count ?? game.total_players} Real • {game.system_players_count ?? 0} Bots
+                          </span>
+                          {(game.room_owner_risk_amount ?? 0) > 0 && (
+                            <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 text-rose-700 text-[9px] font-black">
+                              Risk: -{formatAmount(game.room_owner_risk_amount)} ETB
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Bottom: 3-chip horizontal stats row */}
@@ -2545,6 +2592,40 @@ export default function Agent() {
                 </div>
               </button>
 
+              {/* Row 4: System Player (AI Bots) Simulation */}
+              <button
+                onClick={() => {
+                  triggerHaptic('medium');
+                  setShowProfileModal(false);
+                  setShowSystemPlayerModal(true);
+                }}
+                className="relative w-full flex items-center justify-between px-5 py-3 rounded-2xl bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 shadow-[0_4px_16px_rgba(79,70,229,0.25)] active:scale-95 transition-all overflow-hidden group text-white border border-indigo-500/30"
+              >
+                <div className="absolute inset-0 bg-white/0 group-active:bg-white/10 transition-colors" />
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-indigo-500/30 border border-indigo-400/40 flex items-center justify-center shrink-0 shadow-inner text-amber-300">
+                    <Bot size={20} />
+                  </div>
+                  <div className="text-left">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-white font-black text-sm">System Player (AI Bots)</p>
+                      <span className="text-[9px] bg-indigo-500/40 text-indigo-200 border border-indigo-400/30 font-extrabold px-1.5 py-0.5 rounded-full uppercase">
+                        PRO
+                      </span>
+                    </div>
+                    <p className="text-indigo-200/90 text-[10.5px] font-bold mt-0.5">
+                      {room?.system_players_enabled ? 'Active • 1,000 Bots' : 'Configure Schedule & Bots'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] font-black bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 px-2.5 py-1 rounded-full shadow-2xs">
+                    Manage
+                  </span>
+                  <ChevronRight size={18} className="text-white/80" />
+                </div>
+              </button>
+
               {/* Stats row */}
               <div className="grid grid-cols-3 gap-2 pt-1">
                 <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 text-center">
@@ -2714,6 +2795,18 @@ export default function Agent() {
           onClose={() => setShowStakeConfigModal(false)}
           onSuccess={(updatedStakes) => {
             setRoom((prev) => (prev ? { ...prev, stakes: updatedStakes } : prev));
+            fetchData();
+          }}
+        />
+      )}
+
+      {/* ─── SYSTEM PLAYER (AI BOTS) MODAL ─── */}
+      {showSystemPlayerModal && room && (
+        <AgentSystemPlayerModal
+          roomId={room.id}
+          roomName={room.room_name}
+          onClose={() => setShowSystemPlayerModal(false)}
+          onSuccess={() => {
             fetchData();
           }}
         />

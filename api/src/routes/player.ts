@@ -766,7 +766,7 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
     // 2. Fetch recent finished games (up to 30) for history report
     const { data: finishedGames } = await supabase
       .from('bingo_games')
-      .select('id, stake, prize_pool, winner_prize, winner_first_name, winner_telegram_id, winner_cartela, total_players, status, created_at, finished_at')
+      .select('id, stake, prize_pool, winner_prize, winner_first_name, winner_telegram_id, winner_cartela, total_players, status, created_at, finished_at, real_players_count, system_players_count, room_owner_risk_amount')
       .eq('room_id', room.id)
       .eq('status', 'finished')
       .order('finished_at', { ascending: false })
@@ -786,6 +786,9 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
         id: g.id,
         stake,
         total_players: players,
+        real_players_count: g.real_players_count ?? players,
+        system_players_count: g.system_players_count ?? 0,
+        room_owner_risk_amount: Number(g.room_owner_risk_amount || 0),
         prize_pool: totalAmount,
         winner_prize: winnerPrize || (players >= 3 ? Math.floor(totalAmount * 0.8) : totalAmount),
         winner_first_name: g.winner_first_name || 'Anonymous',

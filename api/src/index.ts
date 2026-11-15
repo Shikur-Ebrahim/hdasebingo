@@ -21,6 +21,7 @@ import agentBankRouter from './routes/agentBank';
 import agentBankAdminRouter from './routes/agentBankAdmin';
 import { agentWithdrawRouter, adminAgentWithdrawRouter } from './routes/agentWithdraw';
 import channelProofsRouter from './routes/channelProofs';
+import systemPlayersRouter from './routes/systemPlayers';
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -30,6 +31,8 @@ app.use(express.json({ limit: '10mb' }));
 app.get('/health', (_, res) => res.json({ status: 'ok', service: 'hdasebingo-api' }));
 app.use('/api/auth', authRouter);
 app.use('/api/player', playerRouter);
+app.use('/api/system-players', systemPlayersRouter);
+app.use('/api/player/system-players', systemPlayersRouter);
 app.use('/api/upload', uploadRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/deposit', depositRouter);

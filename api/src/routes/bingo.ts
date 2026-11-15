@@ -309,16 +309,25 @@ router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
     res.status(400).json({ error: `Insert error: ${insertErr.message}` }); return;
   }
 
-  const { data: pRows } = await supabase.from('bingo_players').select('telegram_id').eq('game_id', game.id);
-  const unique_players = new Set((pRows || []).map((r: any) => r.telegram_id)).size;
-  const total_cartelas = pRows?.length ?? 1;
+  const { data: pRows } = await supabase.from('bingo_players').select('telegram_id, is_system').eq('game_id', game.id);
+  const allRows = pRows || [];
+  const realRows = allRows.filter((r: any) => !r.is_system);
+  const sysRows = allRows.filter((r: any) => r.is_system);
+
+  const unique_real = new Set(realRows.map((r: any) => r.telegram_id)).size;
+  const unique_sys = new Set(sysRows.map((r: any) => r.telegram_id)).size;
+  const unique_players = unique_real + unique_sys;
+  const total_cartelas = allRows.length;
 
   // Derash = total cartelas × stake (pot grows per cartela bought)
-  // Commission only applies when unique players >= 3
+  // Commission only applies to REAL players if real unique players >= 3
   const rawPool = total_cartelas * stakeAmt;
-  const prizePool = unique_players < 3
-    ? rawPool
-    : Math.floor(rawPool * cfg.prize_percent / 100);
+  let realCommission = 0;
+  if (unique_real >= 3) {
+    const houseCutPercent = 100 - Number(cfg.prize_percent || 80);
+    realCommission = Math.floor((realRows.length * stakeAmt * houseCutPercent) / 100);
+  }
+  const prizePool = Math.max(0, rawPool - realCommission);
 
   let newStartAt = game.start_at;
   // Trigger countdown from settings waiting_period_s when first player joins
@@ -329,6 +338,8 @@ router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
   await supabase.from('bingo_games').update({
     prize_pool: prizePool,
     total_players: unique_players,
+    real_players_count: unique_real,
+    system_players_count: unique_sys,
     start_at: newStartAt,
     updated_at: new Date().toISOString()
   }).eq('id', game.id);
@@ -392,15 +403,24 @@ router.post('/leave', validateTelegramAuth, async (req: AuthRequest, res) => {
   await supabase.from('bingo_players').delete().eq('id', playerRow.id);
 
   // Re-calculate game pool & players
-  const { data: remainingPlayers } = await supabase.from('bingo_players').select('telegram_id').eq('game_id', game.id);
-  const unique_players = new Set((remainingPlayers || []).map((r: any) => r.telegram_id)).size;
-  const total_cartelas = remainingPlayers?.length ?? 0;
+  const { data: remainingPlayers } = await supabase.from('bingo_players').select('telegram_id, is_system').eq('game_id', game.id);
+  const allRem = remainingPlayers || [];
+  const realRem = allRem.filter((r: any) => !r.is_system);
+  const sysRem = allRem.filter((r: any) => r.is_system);
+
+  const unique_real = new Set(realRem.map((r: any) => r.telegram_id)).size;
+  const unique_sys = new Set(sysRem.map((r: any) => r.telegram_id)).size;
+  const unique_players = unique_real + unique_sys;
+  const total_cartelas = allRem.length;
 
   const cfg = await getSettings();
   const rawPool = total_cartelas * Number(game.stake);
-  const prizePool = unique_players < 3
-    ? rawPool
-    : Math.floor(rawPool * cfg.prize_percent / 100);
+  let realCommission = 0;
+  if (unique_real >= 3) {
+    const houseCutPercent = 100 - Number(cfg.prize_percent || 80);
+    realCommission = Math.floor((realRem.length * Number(game.stake) * houseCutPercent) / 100);
+  }
+  const prizePool = Math.max(0, rawPool - realCommission);
 
   // If no cartelas remaining, reset countdown
   let newStartAt = game.start_at;
@@ -411,6 +431,8 @@ router.post('/leave', validateTelegramAuth, async (req: AuthRequest, res) => {
   await supabase.from('bingo_games').update({
     prize_pool: prizePool,
     total_players: unique_players,
+    real_players_count: unique_real,
+    system_players_count: unique_sys,
     start_at: newStartAt,
     updated_at: new Date().toISOString()
   }).eq('id', game.id);

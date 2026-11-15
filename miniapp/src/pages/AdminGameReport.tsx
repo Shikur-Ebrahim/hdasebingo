@@ -38,6 +38,10 @@ interface GameRow {
   commission_rate: number;
   promoter_commission_rate: number;
   players_count: number;
+  unique_players?: number;
+  real_players_count?: number;
+  system_players_count?: number;
+  room_owner_risk_amount?: number;
   pot: number;
   winner_prize: number;
   room_commission: number;
@@ -400,9 +404,25 @@ export default function AdminGameReport() {
                       <td className="px-3 py-2.5 font-bold text-slate-700 whitespace-nowrap">{shortId(g.id)}</td>
                       <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap max-w-[90px] truncate">{g.room_name}</td>
                       <td className="px-3 py-2.5 text-right font-semibold text-slate-700 whitespace-nowrap">{g.stake}</td>
-                      <td className="px-3 py-2.5 text-right font-semibold text-slate-600">{g.players_count}</td>
+                      <td className="px-3 py-2.5 text-right font-semibold text-slate-600 whitespace-nowrap">
+                        <div>{g.players_count}</div>
+                        {(g.system_players_count ?? 0) > 0 ? (
+                          <div className="text-[9px] text-indigo-600 font-bold">
+                            {g.real_players_count ?? 0}R / {g.system_players_count}B
+                          </div>
+                        ) : (
+                          <div className="text-[9px] text-emerald-600 font-medium">Real</div>
+                        )}
+                      </td>
                       <td className="px-3 py-2.5 text-right font-bold text-slate-800 whitespace-nowrap">{fmt(g.pot)}</td>
-                      <td className="px-3 py-2.5 text-right font-bold text-emerald-600 whitespace-nowrap">{fmt(g.room_commission)}</td>
+                      <td className="px-3 py-2.5 text-right font-bold text-emerald-600 whitespace-nowrap">
+                        <div>{fmt(g.room_commission)}</div>
+                        {(g.room_owner_risk_amount ?? 0) > 0 && (
+                          <div className="text-[9px] text-rose-600 font-black">
+                            Risk -{fmt(g.room_owner_risk_amount!)}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-3 py-2.5 text-right font-bold text-violet-600 whitespace-nowrap">{fmt(g.promoter_commission)}</td>
                       <td className="px-3 py-2.5 text-right font-bold text-indigo-600 whitespace-nowrap">{fmt(g.platform_commission)}</td>
                       <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap max-w-[70px] truncate">

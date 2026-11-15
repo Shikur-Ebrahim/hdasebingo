@@ -1436,7 +1436,7 @@ router.get('/game-report', validateTelegramAuth, requireAdmin, async (req, res) 
     // 1. Fetch finished bingo_games with room join
     const { data: games, error: gErr } = await supabase
       .from('bingo_games')
-      .select('id, stake, status, winner_prize, winner_first_name, winner_cartela, created_at, finished_at, room_id, total_players')
+      .select('id, stake, status, winner_prize, winner_first_name, winner_cartela, created_at, finished_at, room_id, total_players, real_players_count, system_players_count, room_owner_risk_amount')
       .eq('status', 'finished')
       .gte('created_at', startDate.toISOString())
       .lte('created_at', endDate.toISOString())
@@ -1513,6 +1513,9 @@ router.get('/game-report', validateTelegramAuth, requireAdmin, async (req, res) 
         promoter_commission_rate: promo_rate,
         players_count: cartelas_count,
         unique_players: unique_count,
+        real_players_count: g.real_players_count ?? unique_count,
+        system_players_count: g.system_players_count ?? 0,
+        room_owner_risk_amount: Number(g.room_owner_risk_amount || 0),
         pot,
         winner_prize,
         room_commission: Math.round(room_commission * 100) / 100,
