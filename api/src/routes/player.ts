@@ -618,6 +618,26 @@ router.get('/rooms', async (req, res) => {
   }
 });
 
+// GET /player/public-room/:id — get public room details for landing & invitation
+router.get('/public-room/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { data: room, error } = await supabase
+      .from('rooms')
+      .select('id, room_name, total_players, stakes, commission_rate, status')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error || !room) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+
+    res.json({ room });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /player/rooms/:id/enter — track player entering a room (no longer mutates total_players in rooms table)
 router.post('/rooms/:id/enter', async (_req, res) => {
   res.json({ success: true });

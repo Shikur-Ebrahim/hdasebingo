@@ -36,7 +36,8 @@ function TelegramBackButton() {
     location.pathname === '/admin' ||
     location.pathname === '/worker' ||
     location.pathname === '/agent' ||
-    location.pathname === '/promoter';
+    location.pathname === '/promoter' ||
+    location.pathname === '/join';
 
   useEffect(() => {
     if (!WebApp?.BackButton) return;
@@ -64,8 +65,8 @@ function Navigation() {
   const location = useLocation();
   const { user, isProfileOpen, setProfileOpen, language, setAuthModalOpen } = useGameStore();
 
-  // Hide the player bottom navigation if the user is an Admin, Worker, Agent, or Promoter
-  if (user?.role === 'admin' || user?.role === 'worker' || user?.role === 'agent' || user?.role === 'promoter') {
+  // Hide the player bottom navigation if the user is an Admin, Worker, Agent, Promoter, or on the Join landing page
+  if (user?.role === 'admin' || user?.role === 'worker' || user?.role === 'agent' || user?.role === 'promoter' || location.pathname === '/join') {
     return null;
   }
 
@@ -169,6 +170,7 @@ import AdminSupportVideos from './pages/AdminSupportVideos';
 import SupportVideos from './pages/SupportVideos';
 import Agent from './pages/Agent';
 import Promoter from './pages/Promoter';
+import RoomJoinLanding from './pages/RoomJoinLanding';
 
 
 
@@ -430,14 +432,26 @@ function App() {
     );
   }
 
+  const initialEntry = (() => {
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname;
+      const s = window.location.search;
+      if (p === '/join') {
+        return `/join${s}`;
+      }
+    }
+    return '/';
+  })();
+
   return (
-    <MemoryRouter initialEntries={['/']} initialIndex={0}>
+    <MemoryRouter initialEntries={[initialEntry]} initialIndex={0}>
       <PWAInstallPrompt />
       <PWAAuthModal />
       <TelegramBackButton />
       <div className="min-h-screen bg-slate-50 pb-20 font-sans text-slate-800">
         <ErrorBoundary><Routes>
           <Route path="/" element={<RoleRouter />} />
+          <Route path="/join" element={<RoomJoinLanding />} />
           <Route path="/deposit" element={<Deposit />} />
           <Route path="/deposit-history" element={<DepositHistory />} />
           <Route path="/withdraw-history" element={<WithdrawHistory />} />

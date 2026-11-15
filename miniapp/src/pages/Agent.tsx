@@ -53,6 +53,8 @@ import {
   Coins,
   BadgeDollarSign,
   UploadCloud,
+  Smartphone,
+  ArrowRight,
 } from 'lucide-react';
 
 interface AgentRoom {
@@ -344,7 +346,10 @@ export default function Agent() {
   const roomInviteLink = room
     ? `https://t.me/${botUsername}?start=room_${room.id}`
     : `https://t.me/${botUsername}?start=ref_${user?.telegram_id}`;
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://hdasebingo.com';
+  const pwaJoinLink = room ? `${origin}/join?room=${room.id}` : `${origin}/join`;
   const roomCode = room ? room.id : '';
+  const [copiedPwaLink, setCopiedPwaLink] = useState(false);
 
   const triggerHaptic = (style: 'light' | 'medium' | 'heavy' = 'light') => {
     if (typeof WebApp !== 'undefined' && WebApp.HapticFeedback) {
@@ -415,6 +420,40 @@ export default function Agent() {
     }, 20000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleCopyPwaLink = () => {
+    triggerHaptic('light');
+    navigator.clipboard.writeText(pwaJoinLink).then(() => {
+      setCopiedPwaLink(true);
+      triggerSuccessHaptic();
+      setTimeout(() => setCopiedPwaLink(false), 2000);
+    });
+  };
+
+  const handleSharePwaApp = async () => {
+    triggerHaptic('medium');
+    const title = `HDASE BINGO - Room ${room?.room_name || 'VIP'}`;
+    const text = `🎮 Install the HDASE BINGO application to play in my official room "${room?.room_name || 'HDASE BINGO'}"! Win instant cash with Ethiopian players:\n\n${pwaJoinLink}`;
+
+    if (typeof navigator !== 'undefined' && (navigator as any).share) {
+      try {
+        await (navigator as any).share({
+          title,
+          text,
+          url: pwaJoinLink,
+        });
+        return;
+      } catch (_) {}
+    }
+
+    if (typeof WebApp !== 'undefined' && WebApp.openTelegramLink) {
+      WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(pwaJoinLink)}&text=${encodeURIComponent(text)}`);
+    } else {
+      navigator.clipboard.writeText(`${text}\n${pwaJoinLink}`);
+      setCopiedPwaLink(true);
+      setTimeout(() => setCopiedPwaLink(false), 2000);
+    }
+  };
 
   const handleCopyRoomLink = () => {
     navigator.clipboard.writeText(roomInviteLink).then(() => {
@@ -2129,7 +2168,7 @@ export default function Agent() {
                   <div className="relative">
                     <QRCodeCanvas
                       ref={qrCanvasRef}
-                      value={roomInviteLink}
+                      value={pwaJoinLink}
                       size={200}
                       level="H"
                       includeMargin={false}
@@ -2209,29 +2248,111 @@ export default function Agent() {
               )}
             </button>
 
-            {/* Link display & copy */}
-            <div className="w-full p-2.5 bg-white rounded-2xl border border-slate-200 flex items-center justify-between shadow-2xs">
-              <span className="font-mono text-[11px] text-slate-600 truncate mr-2 select-all">
-                {roomInviteLink}
-              </span>
+            {/* ─── PWA WEB APP SHARE & INSTALL (MAIN PRIORITY) ─── */}
+            <div className="bg-gradient-to-br from-emerald-950 via-slate-900 to-emerald-950 border-2 border-emerald-500/50 rounded-3xl p-4.5 text-white shadow-lg space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">
+                    <Sparkles size={10} />
+                    <span>Web Application (PWA) • Main Priority</span>
+                  </span>
+                  <h4 className="text-sm font-black text-white">
+                    Share Application With Players
+                  </h4>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Players can install directly to their phone screen without Telegram. When they install & create an account, your room is automatically their home room!
+                  </p>
+                </div>
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-400 shrink-0">
+                  <Smartphone size={18} />
+                </div>
+              </div>
+
+              {/* PWA Link box & copy */}
+              <div className="w-full p-2.5 bg-black/40 rounded-2xl border border-emerald-500/30 flex items-center justify-between text-xs">
+                <span className="font-mono text-[11px] text-emerald-200 truncate mr-2 select-all">
+                  {pwaJoinLink}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyPwaLink}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black shrink-0 transition-all active:scale-95 ${
+                    copiedPwaLink ? 'bg-emerald-500 text-white' : 'bg-white/15 hover:bg-white/20 text-white border border-white/20'
+                  }`}
+                >
+                  {copiedPwaLink ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+
+              {/* Share Application Button */}
               <button
-                onClick={handleCopyRoomLink}
-                className={`px-3.5 py-2 rounded-xl text-xs font-black shrink-0 transition-all active:scale-95 ${
-                  copiedLink ? 'bg-emerald-600 text-white' : 'bg-orange-500 text-white'
-                }`}
+                type="button"
+                onClick={handleSharePwaApp}
+                className="w-full py-3 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:opacity-95 text-white rounded-2xl font-black text-xs shadow-md transition-all active:scale-98 flex items-center justify-center space-x-2"
               >
-                {copiedLink ? 'Copied!' : 'Copy'}
+                <Share2 size={15} />
+                <span>Share Application (PWA)</span>
+              </button>
+
+              {/* Preview Landing Page button */}
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic('light');
+                  navigate(`/join?room=${room.id}`);
+                }}
+                className="w-full py-2 px-3 rounded-xl text-[11px] font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 transition flex items-center justify-center space-x-1"
+              >
+                <span>Preview Join & Install Page</span>
+                <ArrowRight size={12} />
               </button>
             </div>
 
-            {/* Share to Telegram button */}
-            <button
-              onClick={handleShareRoom}
-              className="w-full py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl font-black text-xs shadow-sm transition-all active:scale-98 flex items-center justify-center gap-2"
-            >
-              <Share2 size={15} className="text-orange-400" />
-              <span>Share Link to Telegram Chats / Channels</span>
-            </button>
+            {/* ─── TELEGRAM BOT INVITE SECTION ─── */}
+            <div className="bg-white rounded-3xl p-4.5 border border-slate-200 shadow-2xs space-y-3">
+              <div className="flex items-start justify-between">
+                <div className="space-y-0.5">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                    Telegram Mini App
+                  </span>
+                  <h4 className="text-xs font-black uppercase text-slate-800 tracking-wide">
+                    Share Telegram Bot Link
+                  </h4>
+                  <p className="text-[10px] text-slate-400">
+                    For players who prefer playing inside the Telegram bot.
+                  </p>
+                </div>
+                <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+                  <Send size={15} />
+                </div>
+              </div>
+
+              {/* Telegram link box */}
+              <div className="w-full p-2.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between text-xs">
+                <span className="font-mono text-[11px] text-slate-600 truncate mr-2 select-all">
+                  {roomInviteLink}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyRoomLink}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black shrink-0 transition-all active:scale-95 ${
+                    copiedLink ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                  }`}
+                >
+                  {copiedLink ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+
+              {/* Share to Telegram button */}
+              <button
+                type="button"
+                onClick={handleShareRoom}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs shadow-xs transition-all active:scale-98 flex items-center justify-center gap-2"
+              >
+                <Send size={14} />
+                <span>Share to Telegram Chats / Channels</span>
+              </button>
+            </div>
           </div>
         )}
       </div>
