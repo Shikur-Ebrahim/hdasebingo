@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
 import WebApp from '@twa-dev/sdk';
@@ -52,6 +52,7 @@ import {
   ArrowDownToLine,
   Coins,
   BadgeDollarSign,
+  UploadCloud,
 } from 'lucide-react';
 
 interface AgentRoom {
@@ -164,17 +165,23 @@ export default function Agent() {
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   // Interactive UI state
-  const [activeTab, setActiveTab] = useState<'overview' | 'live' | 'report' | 'qr'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'live' | 'pro' | 'qr'>('overview');
   const [chartMetric, setChartMetric] = useState<'games' | 'commission' | 'volume'>('games');
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
-  const [reportSearchQuery, setReportSearchQuery] = useState('');
-  const [reportPeriod, setReportPeriod] = useState<'all' | 'today' | 'yesterday' | 'weekly' | 'monthly' | '3months' | 'yearly' | 'custom'>('all');
-  const [reportStake, setReportStake] = useState<number | 'all'>('all');
   const [selectedLiveStake, setSelectedLiveStake] = useState<number | null>(null);
-  const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
-  const [customRangeText, setCustomRangeText] = useState('');
-  const [customDateFrom, setCustomDateFrom] = useState('');
-  const [customDateTo, setCustomDateTo] = useState('');
+
+  // Pro Upgrade & Management state
+  const [proLoading, setProLoading] = useState(false);
+  const [proData, setProData] = useState<any>(null);
+  const [proUpgrading, setProUpgrading] = useState(false);
+  const [proError, setProError] = useState<string | null>(null);
+  const [proSuccess, setProSuccess] = useState<string | null>(null);
+  const [copiedAccount, setCopiedAccount] = useState<string | null>(null);
+  const [transferAmount, setTransferAmount] = useState('1000');
+  const [selectedManagerAccId, setSelectedManagerAccId] = useState<string>('');
+  const [proofScreenshot, setProofScreenshot] = useState<File | null>(null);
+  const [proofPreviewUrl, setProofPreviewUrl] = useState<string | null>(null);
+  const [submittingProof, setSubmittingProof] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [isSavingFlyer, setIsSavingFlyer] = useState(false);
@@ -199,6 +206,122 @@ export default function Agent() {
     }
     return [5, 10, 20, 35];
   }, [room]);
+
+  const isProActive = Boolean(
+    proData?.is_pro_active ??
+    (room?.system_players_pro_level && (!room?.system_players_pro_expires_at || new Date(room.system_players_pro_expires_at).getTime() > Date.now()))
+  );
+
+  const fetchProStatus = useCallback(async () => {
+    if (!room?.id) return;
+    try {
+      setProLoading(true);
+      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+      const res = await fetch(`${API}/system-players/status?roomId=${room.id}`, {
+        headers: { 'x-telegram-init-data': initData },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProData(data);
+        if (data.manager_accounts && data.manager_accounts.length > 0 && !selectedManagerAccId) {
+          setSelectedManagerAccId(data.manager_accounts[0].id);
+        }
+      }
+    } catch (err) {
+    } finally {
+      setProLoading(false);
+    }
+  }, [room?.id, selectedManagerAccId]);
+
+  useEffect(() => {
+    if (activeTab === 'pro' && room?.id) {
+      fetchProStatus();
+    }
+  }, [activeTab, room?.id, fetchProStatus]);
+
+  const handle1ClickUpgrade = async () => {
+    if (!room?.id) return;
+    triggerHaptic('heavy');
+    setProUpgrading(true);
+    setProError(null);
+    setProSuccess(null);
+    try {
+      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+      const res = await fetch(`${API}/system-players/upgrade`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-init-data': initData,
+        },
+        body: JSON.stringify({ roomId: room.id, method: 'balance' }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Failed to upgrade');
+      setProSuccess('Successfully upgraded room to PRO Level 1 for 30 days!');
+      triggerHaptic('heavy');
+      await Promise.all([fetchData(), fetchProStatus()]);
+    } catch (err: any) {
+      setProError(err.message || 'Upgrade failed');
+    } finally {
+      setProUpgrading(false);
+    }
+  };
+
+  const handleSubmitTransferProof = async () => {
+    if (!room?.id) return;
+    if (!proofScreenshot) {
+      setProError('Please select a transfer screenshot or receipt');
+      return;
+    }
+    triggerHaptic('medium');
+    setSubmittingProof(true);
+    setProError(null);
+    setProSuccess(null);
+    try {
+      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+      const formData = new FormData();
+      formData.append('file', proofScreenshot);
+      const upRes = await fetch(`${API}/upload`, {
+        method: 'POST',
+        headers: { 'x-telegram-init-data': initData },
+        body: formData,
+      });
+      if (!upRes.ok) throw new Error('Failed to upload receipt screenshot');
+      const upData = await upRes.json();
+      const screenshotUrl = upData.url || upData.file_url;
+
+      const acc = proData?.manager_accounts?.find((a: any) => a.id === selectedManagerAccId);
+
+      const reqRes = await fetch(`${API}/system-players/pro-request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-init-data': initData,
+        },
+        body: JSON.stringify({
+          roomId: room.id,
+          amount: Number(transferAmount) || 1000,
+          manager_account_id: selectedManagerAccId || null,
+          bank_type: acc?.bank_type || 'cbe',
+          account_name: acc?.account_name || '',
+          account_number: acc?.account_number || '',
+          screenshot_url: screenshotUrl,
+        }),
+      });
+      const reqData = await reqRes.json();
+      if (!reqRes.ok) throw new Error(reqData.error || 'Failed to submit proof');
+
+      setProSuccess('Transfer receipt submitted! Management will verify your transfer and activate PRO Level 1.');
+      triggerHaptic('heavy');
+      setProofScreenshot(null);
+      setProofPreviewUrl(null);
+      fetchProStatus();
+    } catch (err: any) {
+      setProError(err.message || 'Submission failed');
+    } finally {
+      setSubmittingProof(false);
+    }
+  };
 
   const formatEthPhone = (phone: string) => {
     if (!phone) return '+251996598686';
@@ -844,111 +967,6 @@ export default function Agent() {
     return sorted.length > 0 ? sorted : roomStakes;
   }, [recentGames, roomStakes]);
 
-  // Filtered games report by Search + Stake + Period Category
-  const filteredReportGames = useMemo(() => {
-    return recentGames.filter((g) => {
-      // 1. Search filter
-      if (reportSearchQuery.trim()) {
-        const q = reportSearchQuery.toLowerCase();
-        const matchSearch =
-          g.winner_first_name.toLowerCase().includes(q) ||
-          g.id.toLowerCase().includes(q) ||
-          formatGameId(g.id).toLowerCase().includes(q) ||
-          g.stake.toString().includes(q);
-        if (!matchSearch) return false;
-      }
-
-      // 2. Stake filter
-      if (reportStake !== 'all' && Number(g.stake) !== Number(reportStake)) {
-        return false;
-      }
-
-      // 3. Period category filter
-      if (reportPeriod !== 'all') {
-        const gDate = new Date(g.finished_at || g.created_at);
-        const now = new Date();
-
-        if (reportPeriod === 'today') {
-          const isToday =
-            gDate.getDate() === now.getDate() &&
-            gDate.getMonth() === now.getMonth() &&
-            gDate.getFullYear() === now.getFullYear();
-          if (!isToday) return false;
-        } else if (reportPeriod === 'yesterday') {
-          const yesterday = new Date();
-          yesterday.setDate(now.getDate() - 1);
-          const isYesterday =
-            gDate.getDate() === yesterday.getDate() &&
-            gDate.getMonth() === yesterday.getMonth() &&
-            gDate.getFullYear() === yesterday.getFullYear();
-          if (!isYesterday) return false;
-        } else if (reportPeriod === 'weekly') {
-          const weekAgo = new Date();
-          weekAgo.setDate(now.getDate() - 7);
-          if (gDate < weekAgo) return false;
-        } else if (reportPeriod === 'monthly') {
-          const monthAgo = new Date();
-          monthAgo.setDate(now.getDate() - 30);
-          if (gDate < monthAgo) return false;
-        } else if (reportPeriod === '3months') {
-          const threeMonthsAgo = new Date();
-          threeMonthsAgo.setMonth(now.getMonth() - 3);
-          if (gDate < threeMonthsAgo) return false;
-        } else if (reportPeriod === 'yearly') {
-          const oneYearAgo = new Date();
-          oneYearAgo.setFullYear(now.getFullYear() - 1);
-          if (gDate < oneYearAgo) return false;
-        } else if (reportPeriod === 'custom') {
-          // Parse range like "13-29", "13 - 29", "13/10-29/10", or single "13"
-          const raw = customRangeText.trim() || (customDateFrom && customDateTo ? `${customDateFrom}-${customDateTo}` : customDateFrom || '');
-          if (raw) {
-            const parts = raw.split(/\s*-\s*|\s+to\s+/i);
-            const partFrom = parts[0]?.trim() || '';
-            const partTo = (parts[1] || parts[0])?.trim() || '';
-
-            const parseDatePart = (input: string, isEnd: boolean): Date | null => {
-              if (!input) return null;
-              if (input.includes('/') || (input.includes('-') && input.length > 4)) {
-                const sub = input.split(/[-/]/);
-                const day = parseInt(sub[0]);
-                const month = sub[1] ? parseInt(sub[1]) - 1 : now.getMonth();
-                const year = sub[2] ? parseInt(sub[2]) : now.getFullYear();
-                if (isNaN(day)) return null;
-                const d = new Date(year, isNaN(month) ? now.getMonth() : month, day);
-                if (isEnd) d.setHours(23, 59, 59, 999);
-                else d.setHours(0, 0, 0, 0);
-                return d;
-              } else {
-                const day = parseInt(input);
-                if (isNaN(day) || day < 1 || day > 31) return null;
-                const d = new Date(now.getFullYear(), now.getMonth(), day);
-                if (isEnd) d.setHours(23, 59, 59, 999);
-                else d.setHours(0, 0, 0, 0);
-                return d;
-              }
-            };
-
-            const from = parseDatePart(partFrom, false);
-            const to = parseDatePart(partTo, true);
-
-            if (from && gDate < from) return false;
-            if (to && gDate > to) return false;
-          }
-        }
-      }
-
-      return true;
-    });
-  }, [recentGames, reportSearchQuery, reportStake, reportPeriod, customRangeText, customDateFrom, customDateTo]);
-
-  const filteredCommissionSum = useMemo(() => {
-    return filteredReportGames.reduce((acc, g) => acc + (Number(g.agent_commission) || 0), 0);
-  }, [filteredReportGames]);
-
-  const filteredPotSum = useMemo(() => {
-    return filteredReportGames.reduce((acc, g) => acc + (Number(g.prize_pool) || 0), 0);
-  }, [filteredReportGames]);
-
   // Chart computations
   const maxChartValue = useMemo(() => {
     if (!chartData || chartData.length === 0) return 10;
@@ -1320,16 +1338,16 @@ export default function Agent() {
             <button
               onClick={() => {
                 triggerHaptic('light');
-                setActiveTab('report');
+                setActiveTab('pro');
               }}
               className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center space-x-1 ${
-                activeTab === 'report'
+                activeTab === 'pro'
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Trophy size={13} className={activeTab === 'report' ? 'text-amber-500' : ''} />
-              <span>Report</span>
+              <Zap size={13} className={activeTab === 'pro' ? 'text-amber-500 fill-amber-500' : 'text-amber-500'} />
+              <span>Pro Upgrade</span>
             </button>
 
             <button
@@ -1833,294 +1851,370 @@ export default function Agent() {
         })()}
 
 
-        {room && activeTab === 'report' && (
-          <div className="space-y-3 animate-in fade-in duration-200">
+        {room && activeTab === 'pro' && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            {/* Header bar */}
             <div className="flex items-center justify-between px-1">
-              <div>
-                <h3 className="text-xs font-black uppercase text-slate-700 tracking-wider">
-                  Finished Games Report
-                </h3>
-                <p className="text-[10px] text-slate-400">
-                  Every game pot and commission earned in your room
-                </p>
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-white shadow-xs">
+                  <Crown size={16} />
+                </div>
+                <div>
+                  <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">
+                    PRO Level 1 Upgrade
+                  </h3>
+                  <p className="text-[10px] text-slate-400">
+                    System Players & Waiter Bots for {room.room_name}
+                  </p>
+                </div>
               </div>
-              <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                {recentGames.length} Finished
-              </span>
+              <button
+                onClick={() => {
+                  triggerHaptic('light');
+                  fetchProStatus();
+                }}
+                disabled={proLoading}
+                className="p-1.5 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-slate-800 transition active:scale-95 disabled:opacity-50"
+                title="Refresh Pro Status"
+              >
+                <RefreshCw size={13} className={proLoading ? 'animate-spin text-amber-600' : ''} />
+              </button>
             </div>
 
-            {/* ─── COMBINED FILTER BAR: Period toggle + Stake pills on ONE row ─── */}
-            <div className="space-y-2">
-              {/* Single row: [All Time ▾] | [All] [10] [20] [50] [100] */}
-              <div className="flex items-center space-x-1.5 overflow-x-visible pb-0.5">
-                {/* Period dropdown toggle wrapper */}
-                <div className="relative shrink-0">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      triggerHaptic('light');
-                      setShowPeriodDropdown((v) => !v);
-                    }}
-                    className={`flex items-center space-x-1 px-3 py-1.5 rounded-full text-[10px] font-black border transition-all ${
-                      reportPeriod !== 'all'
-                        ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
-                        : showPeriodDropdown
-                        ? 'bg-slate-100 text-slate-800 border-slate-300'
-                        : 'bg-white text-slate-600 border-slate-200'
-                    }`}
-                  >
-                    <span>
-                      {reportPeriod === 'all' ? 'All Time' :
-                       reportPeriod === 'today' ? 'Today' :
-                       reportPeriod === 'yesterday' ? 'Yesterday' :
-                       reportPeriod === 'weekly' ? 'This Week' :
-                       reportPeriod === 'monthly' ? 'This Month' :
-                       reportPeriod === '3months' ? '3 Months' :
-                       reportPeriod === 'yearly' ? '1 Year' :
-                       customRangeText ? `Days ${customRangeText}` : 'Custom'}
-                    </span>
-                    <ChevronRight size={10} className={`transition-transform ${showPeriodDropdown ? 'rotate-90' : ''}`} />
-                  </button>
+            {/* Error & Success banners */}
+            {proError && (
+              <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start justify-between">
+                <div className="flex items-start space-x-2">
+                  <AlertCircle size={15} className="shrink-0 mt-0.5 text-rose-500" />
+                  <span>{proError}</span>
+                </div>
+                <button onClick={() => setProError(null)} className="text-rose-400 hover:text-rose-600 ml-2">
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+            {proSuccess && (
+              <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-start justify-between">
+                <div className="flex items-start space-x-2">
+                  <CheckCircle2 size={15} className="shrink-0 mt-0.5 text-emerald-600" />
+                  <span>{proSuccess}</span>
+                </div>
+                <button onClick={() => setProSuccess(null)} className="text-emerald-400 hover:text-emerald-600 ml-2">
+                  <X size={14} />
+                </button>
+              </div>
+            )}
 
-                  {/* Compact overlay dropdown — NOT full width! Positioned right below button */}
-                  {showPeriodDropdown && (
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      className="absolute left-0 top-full mt-1.5 z-40 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-2.5 space-y-1.5 min-w-[210px] w-max max-w-[270px] animate-in fade-in duration-150"
+            {/* PRO Status Hero Card */}
+            <div
+              className={`relative overflow-hidden rounded-3xl p-4.5 border transition-all ${
+                isProActive
+                  ? 'bg-gradient-to-br from-emerald-950 via-slate-900 to-emerald-950 border-emerald-500/40 text-white shadow-md'
+                  : 'bg-gradient-to-br from-amber-950 via-slate-900 to-amber-950 border-amber-500/40 text-white shadow-md'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <span
+                      className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                        isProActive
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
+                          : 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
+                      }`}
                     >
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider px-1">Select Period</p>
-                      
-                      {/* Vertical options list */}
-                      <div className="space-y-0.5 max-h-56 overflow-y-auto">
-                        {[
-                          { key: 'all', label: 'All Time' },
-                          { key: 'today', label: 'Today' },
-                          { key: 'yesterday', label: 'Yesterday' },
-                          { key: 'weekly', label: 'This Week' },
-                          { key: 'monthly', label: 'This Month' },
-                          { key: '3months', label: 'Last 3 Months' },
-                          { key: 'yearly', label: 'Last 1 Year' },
-                          { key: 'custom', label: 'Custom (e.g. 13-29)' },
-                        ].map((p) => (
-                          <button
-                            key={p.key}
-                            onClick={() => {
-                              triggerHaptic('light');
-                              setReportPeriod(p.key as any);
-                              if (p.key !== 'custom') {
-                                setCustomRangeText('');
-                                setShowPeriodDropdown(false);
-                              }
-                            }}
-                            className={`w-full py-1.5 px-2.5 rounded-xl text-[11px] font-black border transition-all text-left flex items-center justify-between ${
-                              reportPeriod === p.key
-                                ? 'bg-slate-800 text-white border-slate-800 shadow-2xs'
-                                : 'bg-slate-50 text-slate-700 border-transparent hover:bg-slate-100 hover:border-slate-200'
-                            }`}
-                          >
-                            <span>{p.label}</span>
-                            {reportPeriod === p.key && <Check size={12} className="text-orange-400" />}
-                          </button>
-                        ))}
-                      </div>
+                      <Zap size={10} className="fill-current" />
+                      <span>{isProActive ? 'PRO Level 1 Active' : 'PRO Level 1 Required'}</span>
+                    </span>
+                    {isProActive && proData?.days_remaining !== undefined && (
+                      <span className="text-[10px] text-emerald-200 font-bold">
+                        {proData.days_remaining} {proData.days_remaining === 1 ? 'day' : 'days'} left
+                      </span>
+                    )}
+                  </div>
+                  <h4 className="text-base font-black text-white">
+                    {isProActive ? 'System Players & Waiter Bots Unlocked' : 'Activate 1,000 Ethiopian System Players'}
+                  </h4>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    {isProActive
+                      ? `Your room "${room.room_name}" is running on PRO Level 1 with 1,000 custom Ethiopian players and auto waiter bot support.`
+                      : 'Upgrade your room to PRO Level 1 (1,000 ETB / month) to activate 1,000 Ethiopian system players, auto waiter bots, and smart schedules.'}
+                  </p>
+                </div>
+                <div
+                  className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border ${
+                    isProActive
+                      ? 'bg-emerald-500/10 border-emerald-400/30 text-emerald-400'
+                      : 'bg-amber-500/10 border-amber-400/30 text-amber-400'
+                  }`}
+                >
+                  <Crown size={24} />
+                </div>
+              </div>
 
-                      {/* Custom day range input */}
-                      {reportPeriod === 'custom' && (
-                        <div className="pt-2 border-t border-slate-100 space-y-1.5 px-0.5">
-                          <p className="text-[9px] font-bold text-slate-500">
-                            Day range (e.g. <span className="font-mono text-orange-600 font-bold">13-29</span>)
-                          </p>
-                          <div className="flex items-center space-x-1.5">
-                            <input
-                              type="text"
-                              placeholder="e.g. 13-29 or 13"
-                              value={customRangeText}
-                              onChange={(e) => {
-                                setCustomRangeText(e.target.value);
-                                setReportPeriod('custom');
-                              }}
-                              className="w-28 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none focus:border-orange-500"
-                            />
-                            <button
-                              onClick={() => {
-                                triggerHaptic('light');
-                                setShowPeriodDropdown(false);
-                              }}
-                              className="px-2.5 py-1 bg-orange-500 text-white rounded-lg text-[10px] font-bold shadow-2xs"
-                            >
-                              Apply
-                            </button>
+              {/* Status details / CTA */}
+              <div className="mt-3.5 pt-3 border-t border-white/10 flex items-center justify-between gap-2">
+                <div className="text-[11px] text-slate-300">
+                  {isProActive ? (
+                    <span className="flex items-center space-x-1.5 text-emerald-300 font-bold">
+                      <CheckCircle2 size={13} />
+                      <span>Expires: {proData?.expires_at ? new Date(proData.expires_at).toLocaleDateString() : 'Active'}</span>
+                    </span>
+                  ) : (
+                    <span className="font-bold text-amber-300">1,000 ETB / month</span>
+                  )}
+                </div>
+                <button
+                  onClick={() => {
+                    triggerHaptic('medium');
+                    setShowSystemPlayerModal(true);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center space-x-1 active:scale-95 ${
+                    isProActive
+                      ? 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm'
+                      : 'bg-white/10 text-white hover:bg-white/20 border border-white/20'
+                  }`}
+                >
+                  <Bot size={13} />
+                  <span>Configure Bots</span>
+                  <ChevronRight size={12} />
+                </button>
+              </div>
+            </div>
+
+            {/* Method 1: Instant Upgrade with Agent Balance */}
+            <div className="bg-white rounded-3xl p-4.5 border border-slate-100 shadow-2xs space-y-3">
+              <div className="flex items-start justify-between">
+                <div className="space-y-0.5">
+                  <div className="flex items-center space-x-1.5 text-slate-800">
+                    <Zap size={14} className="text-amber-500 fill-amber-500" />
+                    <h4 className="text-xs font-black uppercase tracking-wide">Method 1: 1-Click Wallet Upgrade</h4>
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    Pay 1,000 ETB directly from your Agent Wallet balance.
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-[9px] text-slate-400 block font-bold">Your Balance</span>
+                  <span className="text-xs font-black text-slate-800">
+                    {formatAmount(user?.main_balance || 0)} ETB
+                  </span>
+                </div>
+              </div>
+
+              <button
+                onClick={handle1ClickUpgrade}
+                disabled={proUpgrading || (user?.main_balance || 0) < 1000}
+                className={`w-full py-2.5 px-4 rounded-2xl font-black text-xs transition flex items-center justify-center space-x-2 shadow-sm active:scale-[0.98] ${
+                  (user?.main_balance || 0) >= 1000
+                    ? 'bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 text-white hover:opacity-95'
+                    : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                }`}
+              >
+                {proUpgrading ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" />
+                    <span>Processing Upgrade...</span>
+                  </>
+                ) : (user?.main_balance || 0) >= 1000 ? (
+                  <>
+                    <Zap size={14} className="fill-current" />
+                    <span>{isProActive ? 'Extend PRO Level 1 (1,000 ETB)' : '1-Click Upgrade Now (1,000 ETB)'}</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle size={14} />
+                    <span>Insufficient Wallet Balance (Need 1,000 ETB)</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Method 2: Bank Transfer & Proof Upload */}
+            <div className="bg-white rounded-3xl p-4.5 border border-slate-100 shadow-2xs space-y-3.5">
+              <div className="space-y-0.5">
+                <div className="flex items-center space-x-1.5 text-slate-800">
+                  <Building2 size={14} className="text-emerald-600" />
+                  <h4 className="text-xs font-black uppercase tracking-wide">Method 2: Bank Transfer & Verification</h4>
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  Transfer 1,000 ETB to one of our official manager accounts and upload the receipt screenshot.
+                </p>
+              </div>
+
+              {/* Official Accounts List */}
+              <div className="space-y-2">
+                <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                  Official Manager Accounts (Tap to Copy)
+                </span>
+                {proData?.manager_accounts && proData.manager_accounts.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-2">
+                    {proData.manager_accounts.map((acc: any) => {
+                      const isCopied = copiedAccount === acc.account_number;
+                      return (
+                        <div
+                          key={acc.id}
+                          onClick={() => {
+                            navigator.clipboard.writeText(acc.account_number);
+                            setCopiedAccount(acc.account_number);
+                            setSelectedManagerAccId(acc.id);
+                            triggerHaptic('light');
+                            setTimeout(() => setCopiedAccount(null), 2500);
+                          }}
+                          className={`p-3 rounded-2xl border transition cursor-pointer flex items-center justify-between ${
+                            selectedManagerAccId === acc.id
+                              ? 'border-amber-400 bg-amber-50/40 shadow-2xs'
+                              : 'border-slate-100 bg-slate-50/50 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="space-y-0.5">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700">
+                                {acc.bank_type?.toUpperCase() || 'BANK'}
+                              </span>
+                              <span className="text-xs font-black text-slate-800">{acc.account_name}</span>
+                            </div>
+                            <p className="text-xs font-mono font-bold text-slate-600 tracking-wider">
+                              {acc.account_number}
+                            </p>
+                          </div>
+                          <div className="shrink-0 pl-2">
+                            {isCopied ? (
+                              <span className="inline-flex items-center space-x-1 px-2 py-1 rounded-xl bg-emerald-100 text-emerald-700 text-[10px] font-black">
+                                <Check size={11} />
+                                <span>Copied!</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center space-x-1 px-2 py-1 rounded-xl bg-white border border-slate-200 text-slate-500 text-[10px] font-bold">
+                                <Copy size={11} />
+                                <span>Copy</span>
+                              </span>
+                            )}
                           </div>
                         </div>
-                      )}
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-2xl border border-dashed border-slate-200 text-center text-xs text-slate-400">
+                    No active manager accounts configured.
+                  </div>
+                )}
+              </div>
+
+              {/* Upload Proof Form */}
+              <div className="pt-2 border-t border-slate-100 space-y-2.5">
+                <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
+                  Submit Receipt / Transfer Proof
+                </span>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 block mb-1">Target Account</label>
+                    <select
+                      value={selectedManagerAccId}
+                      onChange={(e) => setSelectedManagerAccId(e.target.value)}
+                      className="w-full text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-slate-700 focus:outline-none focus:border-amber-400"
+                    >
+                      {proData?.manager_accounts?.map((acc: any) => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.bank_type?.toUpperCase()} - {acc.account_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 block mb-1">Amount (ETB)</label>
+                    <input
+                      type="number"
+                      value={transferAmount}
+                      onChange={(e) => setTransferAmount(e.target.value)}
+                      className="w-full text-xs font-black bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-slate-800 focus:outline-none focus:border-amber-400"
+                      placeholder="1000"
+                    />
+                  </div>
+                </div>
+
+                {/* File picker */}
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-1">Receipt Screenshot</label>
+                  {proofPreviewUrl ? (
+                    <div className="relative rounded-2xl overflow-hidden border border-slate-200 max-h-48 bg-slate-100 flex items-center justify-center">
+                      <img src={proofPreviewUrl} alt="Receipt preview" className="max-h-48 object-contain" />
+                      <button
+                        onClick={() => {
+                          setProofScreenshot(null);
+                          setProofPreviewUrl(null);
+                        }}
+                        className="absolute top-2 right-2 p-1 bg-black/60 text-white rounded-full hover:bg-black"
+                      >
+                        <X size={14} />
+                      </button>
                     </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-200 rounded-2xl hover:border-amber-400 cursor-pointer bg-slate-50/50 hover:bg-amber-50/20 transition">
+                      <UploadCloud size={20} className="text-slate-400 mb-1" />
+                      <span className="text-xs font-bold text-slate-600">Tap to upload receipt image</span>
+                      <span className="text-[9px] text-slate-400">JPG, PNG, WebP screenshot</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setProofScreenshot(file);
+                            setProofPreviewUrl(URL.createObjectURL(file));
+                          }
+                        }}
+                      />
+                    </label>
                   )}
                 </div>
 
-                {/* Divider */}
-                <div className="w-px h-5 bg-slate-200 shrink-0" />
-
-                {/* Default Stake pill: "All" */}
                 <button
-                  onClick={() => {
-                    triggerHaptic('light');
-                    setReportStake('all');
-                  }}
-                  className={`shrink-0 px-3 py-1.5 rounded-full text-[10px] font-black border transition-all ${
-                    reportStake === 'all'
-                      ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-orange-300'
-                  }`}
+                  onClick={handleSubmitTransferProof}
+                  disabled={submittingProof || !proofScreenshot}
+                  className="w-full py-2.5 px-4 rounded-2xl bg-emerald-600 text-white font-black text-xs hover:bg-emerald-700 transition flex items-center justify-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed shadow-xs active:scale-[0.98]"
                 >
-                  All
+                  {submittingProof ? (
+                    <>
+                      <RefreshCw size={13} className="animate-spin" />
+                      <span>Uploading & Submitting Receipt...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send size={13} />
+                      <span>Submit Receipt for Approval</span>
+                    </>
+                  )}
                 </button>
-
-                {/* Stake pills inline: dynamic stakes */}
-                {availableStakes.map((stk) => (
-                  <button
-                    key={stk}
-                    onClick={() => {
-                      triggerHaptic('light');
-                      setReportStake(stk);
-                    }}
-                    className={`shrink-0 px-2.5 py-1.5 rounded-full text-[10px] font-black border transition-all ${
-                      reportStake === stk
-                        ? 'bg-orange-500 text-white border-orange-500 shadow-xs'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-orange-300'
-                    }`}
-                  >
-                    {formatAmount(stk)}
-                  </button>
-                ))}
               </div>
             </div>
 
-            {/* Search Games Input */}
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search by game ID, winner name, stake..."
-                value={reportSearchQuery}
-                onChange={(e) => setReportSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:border-orange-500 shadow-2xs"
-              />
-            </div>
-
-            {/* Filtered Summary Strip */}
-            <div className="flex items-center justify-between bg-slate-100/90 px-3 py-1.5 rounded-xl text-[10px] text-slate-600 font-bold">
-              <span>Showing {filteredReportGames.length} of {recentGames.length} games</span>
-              <span className="text-emerald-700 font-black">
-                Total Comm: +{formatAmount(filteredCommissionSum)} ETB
-              </span>
-            </div>
-
-            {filteredReportGames.length > 0 ? (
-              <div className="space-y-2">
-                {filteredReportGames.map((game) => {
-                  const finishedDate = new Date(game.finished_at || game.created_at);
-                  const formattedTime = finishedDate.toLocaleDateString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  });
-
-                  return (
-                    <div
-                      key={game.id}
-                      className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
-                    >
-                      {/* Top bar: Game ID + Room + Time */}
-                      <div className="flex items-center justify-between px-3.5 pt-3 pb-2">
-                        <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
-                          <span className="px-2 py-0.5 rounded-md bg-slate-100 font-mono text-[10px] font-black text-slate-700">
-                            #{formatGameId(game.id)}
-                          </span>
-                          {room?.room_name && (
-                            <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-200">
-                              🏢 {room.room_name}
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[9px] text-slate-400 shrink-0 ml-2">
-                          {formattedTime}
-                        </span>
-                      </div>
-
-                      {/* Middle: Winner row */}
-                      <div className="px-3.5 pb-2 flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center text-sm shrink-0">🏆</div>
-                          <div>
-                            <p className="text-[9px] text-slate-400 font-bold uppercase leading-none">Winner</p>
-                            <div className="flex items-center space-x-1.5 mt-0.5 flex-wrap">
-                              <span className="text-xs font-black text-slate-900 leading-tight">
-                                {game.winner_first_name}
-                              </span>
-                              {game.winner_cartela && (
-                                <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black tracking-tight shadow-2xs">
-                                  <Ticket size={10} className="text-amber-600" />
-                                  <span>{game.winner_cartela}</span>
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-[10px] text-slate-500 font-bold block">
-                            👥 {game.real_players_count ?? game.total_players} Real • {game.system_players_count ?? 0} Bots
-                          </span>
-                          {(game.room_owner_risk_amount ?? 0) > 0 && (
-                            <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded bg-rose-50 border border-rose-200 text-rose-700 text-[9px] font-black">
-                              Risk: -{formatAmount(game.room_owner_risk_amount)} ETB
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Bottom: 3-chip horizontal stats row */}
-                      <div className="grid grid-cols-3 divide-x divide-slate-100 border-t border-slate-100">
-                        {/* Commission */}
-                        <div className="flex flex-col items-center py-2.5 px-1 bg-emerald-50">
-                          <p className="text-[8px] font-black text-emerald-600 uppercase tracking-wide">Commission</p>
-                          <p className="text-sm font-black text-emerald-700 leading-tight">
-                            +{formatAmount(game.agent_commission)}
-                          </p>
-                          <p className="text-[8px] text-emerald-500 font-bold">
-                            {game.commission_rate ?? room.commission_rate ?? 8}% ETB
-                          </p>
-                        </div>
-                        {/* Pot */}
-                        <div className="flex flex-col items-center py-2.5 px-1">
-                          <p className="text-[8px] font-black text-slate-500 uppercase tracking-wide">Pot</p>
-                          <p className="text-sm font-black text-slate-800 leading-tight">
-                            {formatAmount(game.prize_pool)}
-                          </p>
-                          <p className="text-[8px] text-slate-400 font-bold">ETB</p>
-                        </div>
-                        {/* Stake */}
-                        <div className="flex flex-col items-center py-2.5 px-1 bg-slate-50">
-                          <p className="text-[8px] font-black text-slate-500 uppercase tracking-wide">Stake</p>
-                          <p className="text-sm font-black text-amber-600 leading-tight">
-                            {formatAmount(game.stake)}
-                          </p>
-                          <p className="text-[8px] text-slate-400 font-bold">ETB ✅</p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+            {/* Quick Launcher Card */}
+            <div
+              onClick={() => {
+                triggerHaptic('light');
+                setShowSystemPlayerModal(true);
+              }}
+              className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border border-amber-300/60 rounded-3xl p-4 flex items-center justify-between cursor-pointer hover:bg-amber-500/15 transition active:scale-[0.99]"
+            >
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                  <Bot size={20} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-slate-800">
+                    System Players & Waiter Bots Settings
+                  </h4>
+                  <p className="text-[10px] text-slate-500">
+                    Manage 1,000 bots, stake ranges, waiter players, and operating schedule
+                  </p>
+                </div>
               </div>
-            ) : (
-              <div className="bg-white rounded-2xl p-6 border border-slate-100 text-center space-y-1.5 shadow-2xs">
-                <Trophy size={24} className="mx-auto text-slate-300" />
-                <p className="text-xs font-black text-slate-600">No games found</p>
-                <p className="text-[10px] text-slate-400">
-                  {reportSearchQuery ? `No results for "${reportSearchQuery}"` : 'Games played in your room will be logged here.'}
-                </p>
-              </div>
-            )}
+              <ChevronRight size={16} className="text-amber-600 shrink-0" />
+            </div>
           </div>
         )}
 
