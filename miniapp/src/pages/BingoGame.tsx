@@ -201,6 +201,16 @@ export default function BingoGame() {
     setAutoMark(prev => {
       const next = !prev;
       try { localStorage.setItem('hdase_bingo_auto_mark', JSON.stringify(next)); } catch {}
+      if (game?.id) {
+        fetch(`${API}/bingo/mode`, {
+          method: 'POST',
+          headers: hdrs(),
+          body: JSON.stringify({
+            game_id: game.id,
+            is_manual: !next,
+          })
+        }).catch(() => {});
+      }
       return next;
     });
   };
@@ -702,6 +712,20 @@ export default function BingoGame() {
   const fetchStateRef = useRef<() => void>(() => {});
   const refreshUserRef = useRef<() => void>(() => {});
 
+  // Sync manual/auto mode to backend when calling begins
+  useEffect(() => {
+    if (game?.id && game.status === 'calling') {
+      fetch(`${API}/bingo/mode`, {
+        method: 'POST',
+        headers: hdrs(),
+        body: JSON.stringify({
+          game_id: game.id,
+          is_manual: !autoMark,
+        })
+      }).catch(() => {});
+    }
+  }, [game?.id, game?.status, autoMark]);
+
   // Instant celebration trigger - displays popup immediately in 0ms without waiting for network!
   const triggerCelebration = useCallback((finGame: any) => {
     if (!finGame || finGame.status !== 'finished') return;
@@ -823,7 +847,18 @@ export default function BingoGame() {
         const d = await r.json();
         if (d.max_players) setMaxPlayers(Number(d.max_players));
         if (d.max_cartelas_per_user) setMaxCartelasPerUser(Math.min(4, Number(d.max_cartelas_per_user) || 4));
-        if (d.my_cartelas) setMyCartelas(d.my_cartelas);
+        if (d.my_cartelas) {
+          setMyCartelas(prev => {
+            const serverMap = new Map<number, any>(d.my_cartelas.map((c: any) => [c.cartela_number, c]));
+            const merged = [...d.my_cartelas];
+            for (const local of prev) {
+              if (!serverMap.has(local.cartela_number) && pendingPurchasesRef.current.has(local.cartela_number)) {
+                merged.push(local);
+              }
+            }
+            return merged;
+          });
+        }
         if (d.unique_players !== undefined) setUniquePlayers(Number(d.unique_players));
         if (d.cartela_matrices) {
           cartelaMatricesRef.current = { ...cartelaMatricesRef.current, ...d.cartela_matrices };
@@ -879,8 +914,13 @@ export default function BingoGame() {
             cartelaMatricesRef.current[np.cartela_number] = np.card_matrix;
           }
           setTaken(prev => prev.includes(np.cartela_number) ? prev : [...prev, np.cartela_number]);
-          // Re-fetch to get accurate unique_players count (same user may buy multiple cartelas)
-          fetchState();
+          // Re-fetch only for OTHER players' joins, NOT our own!
+          // Refetching on our own insert causes the cartela to flash / release and re-mark.
+          const myTid = user?.telegram_id?.toString();
+          if (np.telegram_id !== myTid) {
+            setUniquePlayers(prev => prev + 1);
+            fetchState();
+          }
         }
       }).subscribe();
     return () => { supabase.removeChannel(ch); };
@@ -1043,7 +1083,7 @@ export default function BingoGame() {
     }
   };
 
-  const handleManualBingoClaim = () => {
+  const handleManualBingoClaim = async () => {
     if (bingoLockSeconds > 0) return;
     if (!game || game.status !== 'calling') return;
 
@@ -1072,17 +1112,36 @@ export default function BingoGame() {
     }
 
     if (winCard) {
-      // SUCCESSFUL BINGO CLAIM!
-      if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.notificationOccurred('success');
-      playSpecial('bingo_win');
-      setCelebration({
-        winner_name: user?.first_name || 'You',
-        winner_cartela: winCard.cartela_number,
-        winner_prize: game.prize_pool || 0,
-        winner_matrix: winCard.card_matrix,
-        iWon: true,
-        called: called,
-      });
+      // SUCCESSFUL BINGO CLAIM: Send to backend!
+      try {
+        const res = await fetch(`${API}/bingo/claim`, {
+          method: 'POST',
+          headers: hdrs(),
+          body: JSON.stringify({
+            game_id: game.id,
+            cartela_number: winCard.cartela_number,
+            marked_numbers: Array.from(manuallyMarked),
+          })
+        });
+        const d = await res.json();
+        if (res.ok && d.success) {
+          if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.notificationOccurred('success');
+          playSpecial('bingo_win');
+          setCelebration({
+            winner_name: user?.first_name || 'You',
+            winner_cartela: winCard.cartela_number,
+            winner_prize: d.prize || game.prize_pool || 0,
+            winner_matrix: winCard.card_matrix,
+            iWon: true,
+            called: called,
+          });
+          refreshUser();
+        } else {
+          setErrMsg(d.error || 'Could not claim Bingo');
+        }
+      } catch {
+        setErrMsg('Network error claiming Bingo');
+      }
     } else if (hasUnmarkedWin) {
       if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.notificationOccurred('warning');
       setErrMsg(language === 'am'
@@ -1137,6 +1196,7 @@ export default function BingoGame() {
           card_matrix: matrix,
           room_id: selectedRoomId,
           game_id: game.id,
+          is_manual: !autoMark,
         })
       });
       const d = await r.json();

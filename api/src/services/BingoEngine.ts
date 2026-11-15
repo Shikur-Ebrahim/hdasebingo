@@ -44,6 +44,29 @@ function formatGameId(id: string | null | undefined): string {
 class BingoEngine {
   private timer: ReturnType<typeof setInterval> | null = null;
   private busy = false;
+  private playerManualModes = new Map<string, boolean>();
+
+  setPlayerMode(telegramId: string, gameId?: string, isManual?: boolean) {
+    if (isManual === undefined) return;
+    this.playerManualModes.set(telegramId, isManual);
+    if (gameId) {
+      this.playerManualModes.set(`${gameId}:${telegramId}`, isManual);
+    }
+  }
+
+  isPlayerManual(telegramId: string, gameId?: string, dbIsManual?: boolean | null): boolean {
+    if (gameId && this.playerManualModes.has(`${gameId}:${telegramId}`)) {
+      return this.playerManualModes.get(`${gameId}:${telegramId}`)!;
+    }
+    if (this.playerManualModes.has(telegramId)) {
+      return this.playerManualModes.get(telegramId)!;
+    }
+    if (dbIsManual !== null && dbIsManual !== undefined) {
+      return Boolean(dbIsManual);
+    }
+    // Default is manual mode (true)
+    return true;
+  }
 
   start() {
     if (this.timer) return;
@@ -326,8 +349,10 @@ class BingoEngine {
 
     if (!players || players.length === 0) return;
 
-    // ── Find ALL winning cartelas ──────────────────────────────────────────────
-    const winningRows = players.filter(p => checkBingo(p.card_matrix as number[][], called));
+    // ── Find ALL winning cartelas for AUTO players only ─────────────────────────
+    // Manual mode players MUST manually mark cells and click the BINGO! button.
+    const autoPlayers = players.filter(p => !this.isPlayerManual(p.telegram_id, gameId, (p as any).is_manual));
+    const winningRows = autoPlayers.filter(p => checkBingo(p.card_matrix as number[][], called));
     if (winningRows.length === 0) return;
 
     // ── Deduplicate by telegram_id: if same user wins with 2 cartelas, pick ONE ─
@@ -588,6 +613,133 @@ class BingoEngine {
     } catch (e) {
       console.error('Error awarding room commissions:', e);
     }
+  }
+
+  async handleManualClaim(
+    gameId: string,
+    telegramId: string,
+    cartelaNumber: number,
+    markedNumbers?: number[],
+  ): Promise<{ success: boolean; winner?: string; prize?: number; error?: string }> {
+    const { data: game } = await supabase
+      .from('bingo_games')
+      .select('*')
+      .eq('id', gameId)
+      .eq('status', 'calling')
+      .maybeSingle();
+
+    if (!game) {
+      return { success: false, error: 'Game is no longer active or already finished' };
+    }
+
+    const { data: player } = await supabase
+      .from('bingo_players')
+      .select('id, telegram_id, cartela_number, card_matrix, first_name')
+      .eq('game_id', gameId)
+      .eq('telegram_id', telegramId)
+      .eq('cartela_number', cartelaNumber)
+      .maybeSingle();
+
+    if (!player) {
+      return { success: false, error: 'Cartela not found or not owned by you' };
+    }
+
+    const matrix = player.card_matrix as number[][];
+    const called = (game.called_numbers || []).map(Number);
+
+    // 1. Verify mathematically that the card fulfills Bingo with the called balls
+    const isBingo = checkBingo(matrix, called);
+    if (!isBingo) {
+      return { success: false, error: 'False Bingo claim! No completed winning pattern found.' };
+    }
+
+    // 2. If marked numbers provided, verify that marked numbers contain the winning pattern
+    if (Array.isArray(markedNumbers)) {
+      const isMarkedValid = checkBingo(matrix, markedNumbers.map(Number));
+      if (!isMarkedValid) {
+        return { success: false, error: 'Please mark all called winning numbers on your card first!' };
+      }
+    }
+
+    // 3. Atomically claim the game as finished
+    const prize = Number(game.prize_pool || 0);
+    const stake = Number(game.stake || 5);
+    const cfg = await getSettings();
+    let finalPrize = prize;
+    let isEarlyCall = false;
+
+    if (cfg.early_call_8_enabled && called.length <= 8) {
+      const rewards8 = cfg.early_call_8_rewards as Record<string, number>;
+      const rew = rewards8[String(stake)] || rewards8[stake.toString()];
+      if (rew) {
+        finalPrize = Number(rew);
+        isEarlyCall = true;
+      }
+    } else if (cfg.early_call_10_enabled && called.length <= 10) {
+      const rewards10 = cfg.early_call_10_rewards as Record<string, number>;
+      const rew = rewards10[String(stake)] || rewards10[stake.toString()];
+      if (rew) {
+        finalPrize = Number(rew);
+        isEarlyCall = true;
+      }
+    }
+
+    const { data: claim, error: claimErr } = await supabase.from('bingo_games').update({
+      status:             'finished',
+      winner_telegram_id: player.telegram_id,
+      winner_first_name:  isEarlyCall ? `🚀 EARLY BINGO: ${player.first_name}` : player.first_name,
+      winner_cartela:     player.cartela_number,
+      winner_prize:       finalPrize,
+      finished_at:        new Date().toISOString(),
+      updated_at:         new Date().toISOString(),
+    }).eq('id', gameId).eq('status', 'calling').select('id');
+
+    if (claimErr || !claim || claim.length === 0) {
+      return { success: false, error: 'Another player already claimed or game ended' };
+    }
+
+    // Award prize to winner
+    const { data: u } = await supabase.from('users')
+      .select('main_balance, total_wins')
+      .eq('telegram_id', player.telegram_id)
+      .single();
+    if (u) {
+      await supabase.from('users').update({
+        main_balance: Number(u.main_balance) + finalPrize,
+        total_wins:   Number(u.total_wins) + 1,
+      }).eq('telegram_id', player.telegram_id);
+    }
+
+    const token = process.env.BOT_TOKEN;
+    if (token) {
+      try {
+        const msg = isEarlyCall
+          ? `🚀 EARLY CALL BINGO (${called.length} calls)! You won ${finalPrize} ETB on Cartela #${player.cartela_number}!`
+          : `🎉 BINGO! You won ${finalPrize} ETB on Cartela #${player.cartela_number}!`;
+        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: player.telegram_id, text: msg }),
+        });
+      } catch {}
+    }
+
+    const { data: allPlayers } = await supabase.from('bingo_players').select('telegram_id').eq('game_id', gameId);
+    const uniquePlayersCount = new Set((allPlayers || []).map(p => p.telegram_id)).size;
+    const totalCartelas = allPlayers?.length || 1;
+
+    console.log(`🏆 Manual BINGO Claim: Game #${formatGameId(gameId)} won by ${player.first_name} — ${finalPrize} ETB`);
+    await this.awardAgentCommission(game.room_id, totalCartelas, stake, gameId, uniquePlayersCount);
+    await this.incrementRoomGames(game.room_id);
+    if (game.room_id) {
+      await this.createGame(game.room_id, stake);
+    }
+
+    return {
+      success: true,
+      winner: player.first_name,
+      prize: finalPrize,
+    };
   }
 }
 

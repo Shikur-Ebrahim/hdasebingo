@@ -193,6 +193,8 @@ router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
 
   const requestedStake = req.body.stake || 5;
   const targetGameId = req.body.game_id;
+  const isManual = req.body.is_manual !== undefined ? Boolean(req.body.is_manual) : true;
+  engine.setPlayerMode(telegramId, targetGameId, isManual);
 
   let query = supabase
     .from('bingo_games')
@@ -462,4 +464,43 @@ router.get('/tts', async (req, res) => {
     res.status(500).send('Error');
   }
 });
+// ── POST /api/bingo/mode ── Toggle between Manual and Auto mode ───────────
+router.post('/mode', validateTelegramAuth, async (req: AuthRequest, res) => {
+  const telegramId = req.telegramUser!.id.toString();
+  const { game_id, is_manual } = req.body || {};
+  const isMan = Boolean(is_manual);
+  engine.setPlayerMode(telegramId, game_id, isMan);
+  if (game_id) {
+    try {
+      await supabase
+        .from('bingo_players')
+        .update({ is_manual: isMan })
+        .eq('game_id', game_id)
+        .eq('telegram_id', telegramId);
+    } catch {}
+  }
+  res.json({ success: true, is_manual: isMan });
+});
+
+// ── POST /api/bingo/claim ── Manual BINGO Claim ───────────────────────────
+router.post('/claim', validateTelegramAuth, async (req: AuthRequest, res) => {
+  const telegramId = req.telegramUser!.id.toString();
+  const { game_id, cartela_number, marked_numbers } = req.body || {};
+  if (!game_id || !cartela_number) {
+    res.status(400).json({ error: 'game_id and cartela_number are required' });
+    return;
+  }
+  const result = await engine.handleManualClaim(
+    String(game_id),
+    telegramId,
+    Number(cartela_number),
+    Array.isArray(marked_numbers) ? marked_numbers : undefined
+  );
+  if (result.success) {
+    res.json(result);
+  } else {
+    res.status(400).json({ error: result.error || 'Claim rejected' });
+  }
+});
+
 export default router;
