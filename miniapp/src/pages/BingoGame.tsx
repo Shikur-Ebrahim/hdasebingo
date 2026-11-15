@@ -1422,7 +1422,7 @@ export default function BingoGame() {
             ].map(c => (
               <div
                 key={c.l}
-                className="py-0.5 text-center font-black text-white text-[8.5px] sm:text-[9.5px] leading-tight shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]"
+                className="h-[15px] flex items-center justify-center font-black text-white text-[8.5px] sm:text-[9.5px] leading-none shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]"
                 style={{ backgroundColor: c.bg }}
               >
                 {c.l}
@@ -1430,7 +1430,7 @@ export default function BingoGame() {
             ))}
           </div>
 
-          {/* 5x5 Matrix */}
+          {/* 5x5 Matrix - Reduced compact height so all 4 cartelas fit 100% on screen */}
           <div className="grid grid-cols-5 gap-[1px] p-[1px] bg-amber-50/40">
             {Array.from({ length: 5 }).flatMap((_, r) =>
               Array.from({ length: 5 }, (_, c) => {
@@ -1456,18 +1456,18 @@ export default function BingoGame() {
                         WebApp.HapticFeedback.selectionChanged();
                       }
                     }}
-                    className={`aspect-square flex items-center justify-center font-black rounded-[2px] select-none transition-all duration-150 ${
+                    className={`h-[21px] sm:h-[23px] flex items-center justify-center font-black rounded-[2px] select-none transition-all duration-150 ${
                       isSingle ? 'text-xs' : 'text-[9px] sm:text-[10px]'
                     } ${
                       isFree
-                        ? 'bg-gradient-to-b from-amber-300 via-yellow-400 to-amber-500 text-amber-950 font-black shadow-[0_1px_2px_rgba(217,119,6,0.35),inset_0_0.5px_0.5px_rgba(255,255,255,0.9)] text-[11px]'
+                        ? 'bg-gradient-to-b from-amber-300 via-yellow-400 to-amber-500 text-amber-950 font-black shadow-[0_1px_2px_rgba(217,119,6,0.35),inset_0_0.5px_0.5px_rgba(255,255,255,0.9)] text-[10.5px]'
                         : isLast && autoMark
                         ? 'bg-gradient-to-b from-amber-400 via-orange-500 to-amber-600 text-white font-black shadow-[0_0_8px_rgba(249,115,22,0.8),inset_0_1px_1px_rgba(255,255,255,0.8)] ring-2 ring-yellow-300 scale-105 z-10'
                         : marked
-                        ? 'bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-600 text-white font-black shadow-[0_1.5px_3px_rgba(16,185,129,0.4),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_-1px_1px_rgba(5,150,105,0.5)] border border-emerald-400'
+                        ? 'bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-600 text-white font-black shadow-[0_1px_2px_rgba(16,185,129,0.4),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_-1px_1px_rgba(5,150,105,0.5)] border border-emerald-400'
                         : canTap
                         ? 'bg-white text-blue-900 font-black border-2 border-blue-400 ring-2 ring-blue-300/80 shadow-[0_0_6px_rgba(59,130,246,0.5),inset_0_1px_1px_rgba(255,255,255,1)] animate-pulse active:scale-90 cursor-pointer'
-                        : 'bg-gradient-to-b from-white via-[#fafbfe] to-[#ebeff8] text-slate-800 font-bold border border-slate-200/80 shadow-[0_1px_1.5px_rgba(0,0,0,0.06),inset_0_0.5px_0_rgba(255,255,255,0.95)]'
+                        : 'bg-gradient-to-b from-white via-[#fafbfe] to-[#ebeff8] text-slate-800 font-bold border border-slate-200/80 shadow-[0_0.5px_1px_rgba(0,0,0,0.06),inset_0_0.5px_0_rgba(255,255,255,0.95)]'
                     }`}
                   >
                     {isFree ? '★' : num}
@@ -1478,10 +1478,10 @@ export default function BingoGame() {
           </div>
 
           {/* Ultra-slim Footer: #number on left, CARTELA on right */}
-          <div className="py-0.5 px-1.5 flex items-center justify-between bg-white border-t border-amber-200/60 leading-none">
-            <span className="text-slate-500 font-black text-[7.5px]">#{card.cartela_number}</span>
-            <span className="text-amber-800 font-black text-[7.5px] uppercase tracking-wider flex items-center gap-0.5">
-              <LayoutGrid size={8} className="text-amber-500 inline" />
+          <div className="h-[13px] px-1.5 flex items-center justify-between bg-white border-t border-amber-200/60 leading-none">
+            <span className="text-slate-500 font-black text-[7px]">#{card.cartela_number}</span>
+            <span className="text-amber-800 font-black text-[7px] uppercase tracking-wider flex items-center gap-0.5">
+              <LayoutGrid size={7.5} className="text-amber-500 inline" />
               <span>CARTELA</span>
             </span>
           </div>
@@ -1490,29 +1490,29 @@ export default function BingoGame() {
     };
 
     return (
-      <div className="h-full flex flex-col px-1 pt-1 pb-0.5 gap-1 overflow-hidden select-none">
+      <div className="h-full flex flex-col px-1 pt-0.5 pb-0 gap-1 overflow-hidden select-none">
 
         {/* Top Info Bar */}
-        <div className="flex items-center justify-between bg-gradient-to-r from-white via-amber-50/60 to-white px-2.5 py-1 rounded-xl border border-amber-200/80 shadow-[0_2px_4px_rgba(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.9)] shrink-0">
-          <div className="text-slate-600 text-[8.5px] font-black">ID: {formatGameId(game.id)}</div>
-          <div className="flex items-center gap-1 text-amber-700 text-[8.5px] font-black"><Trophy size={9.5} className="text-amber-500"/> {game.prize_pool} ETB</div>
-          <div className="flex items-center gap-1 text-blue-700 text-[8.5px] font-black"><LayoutGrid size={9.5} className="text-blue-500"/> {taken.length}</div>
-          <div className="flex items-center gap-1 text-emerald-700 text-[8.5px] font-black"><Clock size={9.5} className="text-emerald-500"/> {called.length}/75</div>
-          <div className="text-[7.5px] bg-red-500/10 text-red-600 px-2 py-0.2 rounded-full font-black animate-pulse border border-red-200">LIVE</div>
+        <div className="flex items-center justify-between bg-gradient-to-r from-white via-amber-50/60 to-white px-2 py-0.5 rounded-lg border border-amber-200/80 shadow-[0_1.5px_3px_rgba(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.9)] shrink-0">
+          <div className="text-slate-600 text-[8px] font-black">ID: {formatGameId(game.id)}</div>
+          <div className="flex items-center gap-1 text-amber-700 text-[8px] font-black"><Trophy size={9} className="text-amber-500"/> {game.prize_pool} ETB</div>
+          <div className="flex items-center gap-1 text-blue-700 text-[8px] font-black"><LayoutGrid size={9} className="text-blue-500"/> {taken.length}</div>
+          <div className="flex items-center gap-1 text-emerald-700 text-[8px] font-black"><Clock size={9} className="text-emerald-500"/> {called.length}/75</div>
+          <div className="text-[7px] bg-red-500/10 text-red-600 px-1.5 py-0.2 rounded-full font-black animate-pulse border border-red-200">LIVE</div>
         </div>
 
-        {/* 1-75 Tracker Board with 3D tactile tiles */}
-        <div className="bg-white/95 rounded-xl px-1.5 py-1 border border-amber-200/90 shadow-[0_2px_6px_rgba(180,83,9,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] shrink-0">
-          <div className="flex flex-col gap-[2px]">
+        {/* 1-75 Tracker Board with 3D tactile tiles - Compact */}
+        <div className="bg-white/95 rounded-xl px-1.5 py-0.5 border border-amber-200/90 shadow-[0_1.5px_4px_rgba(180,83,9,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] shrink-0">
+          <div className="flex flex-col gap-[1.5px]">
             {BINGO_LETTERS.map((letter, rowIndex) => (
               <div key={letter} className="flex items-center gap-1">
                 <div
-                  className="w-3 flex-shrink-0 flex items-center justify-center font-black text-[9px] leading-none"
+                  className="w-3 flex-shrink-0 flex items-center justify-center font-black text-[8.5px] leading-none"
                   style={{ color: LETTER_COLOR[letter] }}
                 >
                   {letter}
                 </div>
-                <div className="flex-1 grid gap-[1.5px]" style={{ gridTemplateColumns: 'repeat(15, minmax(0, 1fr))' }}>
+                <div className="flex-1 grid gap-[1px]" style={{ gridTemplateColumns: 'repeat(15, minmax(0, 1fr))' }}>
                   {Array.from({ length: 15 }, (_, i) => {
                     const num = rowIndex * 15 + i + 1;
                     const isCalled = called.includes(num);
@@ -1520,7 +1520,7 @@ export default function BingoGame() {
                     return (
                       <div
                         key={num}
-                        className={`h-[13px] sm:h-[14px] rounded-[2.5px] flex items-center justify-center text-[7px] sm:text-[7.5px] font-black transition-all duration-150 select-none ${
+                        className={`h-[12px] sm:h-[13px] rounded-[2px] flex items-center justify-center text-[6.5px] sm:text-[7px] font-black transition-all duration-150 select-none ${
                           isLatest
                             ? 'bg-gradient-to-b from-yellow-300 via-amber-400 to-yellow-500 text-amber-950 font-black shadow-[0_0_8px_rgba(245,158,11,0.9),0_1.5px_2px_rgba(0,0,0,0.2),inset_0_1px_1px_rgba(255,255,255,0.95)] border border-amber-200 ring-2 ring-orange-500 animate-pulse scale-110 z-20'
                             : isCalled
@@ -1538,24 +1538,37 @@ export default function BingoGame() {
           </div>
         </div>
 
-        {/* 3D Calling Ball Row with Black Ball & White Number + Past 3 Balls + Controls */}
+        {/* 3D Calling Ball Row with Authentic Black 3D Sphere & White Number */}
         <div className="shrink-0 bg-white/95 rounded-xl border border-amber-200/90 shadow-[0_2px_6px_rgba(180,83,9,0.06),inset_0_1px_0_rgba(255,255,255,0.9)] px-2 py-1 w-full max-w-[420px] mx-auto">
           <div className="flex items-center justify-between gap-1.5">
             {/* Calling Ball & Amharic Text */}
-            <div className="flex items-center gap-1.5 min-w-0">
-              {/* 3D Black Calling Ball with White Number */}
-              <div className="w-9.5 h-9.5 sm:w-10 sm:h-10 rounded-full flex flex-col items-center justify-center font-black relative overflow-hidden bg-radial from-[#374151] via-[#18181b] to-[#09090b] border-2 border-slate-700 shadow-[0_3px_8px_rgba(0,0,0,0.6),inset_0_1.5px_2px_rgba(255,255,255,0.35),inset_0_-2px_3px_rgba(0,0,0,0.9)] shrink-0">
-                <div className="absolute top-0.5 left-1.5 w-2.5 h-1.5 rounded-full bg-white/35 blur-[0.3px] pointer-events-none transform -rotate-12" />
-                <span className="text-[7px] sm:text-[7.5px] leading-none font-black text-amber-400 drop-shadow-[0_1px_1px_rgba(0,0,0,1)]">
+            <div className="flex items-center gap-2 min-w-0">
+              {/* 3D Black Sphere Calling Ball with White Number */}
+              <div
+                className="rounded-full flex flex-col items-center justify-center font-black relative overflow-hidden shrink-0 border border-slate-600/70 shadow-[0_4px_10px_rgba(0,0,0,0.65),inset_0_2px_3px_rgba(255,255,255,0.45),inset_0_-3px_5px_rgba(0,0,0,0.95)]"
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  minWidth: '38px',
+                  minHeight: '38px',
+                  background: 'radial-gradient(circle at 30% 25%, #64748b 0%, #1e293b 25%, #0f172a 55%, #020617 85%, #000000 100%)'
+                }}
+              >
+                {/* Curved specular glass highlight */}
+                <div
+                  className="absolute top-1 left-1.5 w-3.5 h-1.5 rounded-full pointer-events-none transform -rotate-25"
+                  style={{ background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0) 80%)' }}
+                />
+                <span className="text-[7.5px] leading-none font-black text-amber-300 drop-shadow-[0_1px_1px_rgba(0,0,0,1)] tracking-wider">
                   {lastNum ? currentLetter : 'BINGO'}
                 </span>
-                <span className="text-white text-sm sm:text-base leading-none font-black drop-shadow-[0_1.5px_3px_rgba(0,0,0,1)]">
+                <span className="text-white text-base leading-none font-black drop-shadow-[0_2px_3px_rgba(0,0,0,1)] tracking-tight">
                   {lastNum ?? '?'}
                 </span>
               </div>
 
               {/* Amharic Voice Word */}
-              <span className="text-amber-900 font-black text-xs tracking-wide drop-shadow-[0_0.5px_0_rgba(255,255,255,0.8)] truncate max-w-[90px]">
+              <span className="text-amber-900 font-black text-xs sm:text-sm tracking-wide drop-shadow-[0_0.5px_0_rgba(255,255,255,0.8)] truncate max-w-[95px]">
                 {lastNum ? (AMHARIC_NUM[lastNum] || '') : 'በመጠባበቅ ላይ...'}
               </span>
 
@@ -1564,10 +1577,25 @@ export default function BingoGame() {
                 {recent.slice(1, 4).map((num, idx) => (
                   <div
                     key={`${num}-${idx}`}
-                    className="w-5.5 h-5.5 rounded-full flex flex-col items-center justify-center font-black relative overflow-hidden bg-radial from-[#374151] via-[#18181b] to-[#09090b] border border-slate-600 shadow-[0_1.5px_3px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.3)] shrink-0"
+                    className="rounded-full flex flex-col items-center justify-center font-black relative overflow-hidden shrink-0 border border-slate-600/60 shadow-[0_2px_4px_rgba(0,0,0,0.5),inset_0_1px_1.5px_rgba(255,255,255,0.35)]"
+                    style={{
+                      width: '22px',
+                      height: '22px',
+                      minWidth: '22px',
+                      minHeight: '22px',
+                      background: 'radial-gradient(circle at 30% 25%, #64748b 0%, #1e293b 30%, #0f172a 70%, #000000 100%)'
+                    }}
                   >
-                    <span className="text-[5px] leading-none font-black text-amber-400">{getLetter(num)}</span>
-                    <span className="text-[8px] leading-none font-black text-white">{num}</span>
+                    <div
+                      className="absolute top-0.5 left-0.5 w-2 h-1 rounded-full pointer-events-none transform -rotate-20"
+                      style={{ background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 80%)' }}
+                    />
+                    <span className="text-[5px] leading-none font-black text-amber-300 drop-shadow-[0_0.5px_0.5px_rgba(0,0,0,1)]">
+                      {getLetter(num)}
+                    </span>
+                    <span className="text-white text-[8.5px] leading-none font-black drop-shadow-[0_1px_1px_rgba(0,0,0,1)]">
+                      {num}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -1605,15 +1633,15 @@ export default function BingoGame() {
           </div>
         </div>
 
-        {/* Cartelas Section - NO HEADER, compact height, all 4 cartelas fit cleanly without cut-off */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-0.5 py-0.5 scrollbar-none flex flex-col justify-start">
+        {/* Cartelas Section - NO HEADER, reduced height, ALL 4 CARTELAS NEVER HIDDEN */}
+        <div className="flex-1 min-h-0 flex flex-col justify-center overflow-hidden px-0.5 py-0">
           {myCartelas.length > 0 ? (
             myCartelas.length === 1 ? (
               <div className="w-full max-w-[240px] mx-auto py-0.5">
                 {renderCartelaCard(myCartelas[0], true)}
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-1 w-full max-w-[420px] mx-auto">
+              <div className="grid grid-cols-2 gap-1 w-full max-w-[400px] mx-auto">
                 {myCartelas.map(card => (
                   <div key={card.cartela_number} className="w-full">
                     {renderCartelaCard(card, false)}
@@ -1657,7 +1685,7 @@ export default function BingoGame() {
         </div>
 
         {/* Bottom Action Bar: AUTO BINGO ACTIVE bar or MANUAL BINGO Claim Button */}
-        <div className="shrink-0 pt-0.5 pb-0 px-1 w-full max-w-[420px] mx-auto">
+        <div className="shrink-0 pt-0 pb-0.5 px-1 w-full max-w-[400px] mx-auto">
           {autoMark ? (
             <div className="w-full py-1.5 px-3 rounded-xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border border-amber-400/50 shadow-[0_2px_8px_rgba(0,0,0,0.25),inset_0_1px_0_rgba(255,255,255,0.15)] flex items-center justify-center gap-2 text-amber-300 font-black text-[11px] tracking-wider uppercase select-none">
               <span className="text-xs">🤖</span>
