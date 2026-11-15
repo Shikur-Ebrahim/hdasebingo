@@ -700,7 +700,6 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
         active_games: [],
         recent_games: [],
         stats: null,
-        chart_data: [],
       });
     }
 
@@ -820,23 +819,6 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
     }
     const { count: referredCount } = await refQ;
 
-    // Build 7-day trend map
-    const daysMap: Record<string, { date: string; label: string; games_count: number; commission: number; volume: number }> = {};
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
-      daysMap[dateStr] = {
-        date: dateStr,
-        label: dayNames[d.getDay()],
-        games_count: 0,
-        commission: 0,
-        volume: 0,
-      };
-    }
-
     const now = new Date();
     const todayDateStr = now.toISOString().split('T')[0];
     let todayGames = 0;
@@ -861,15 +843,7 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
         todayGames++;
         todayCommission += comm;
       }
-
-      if (daysMap[fDate]) {
-        daysMap[fDate].games_count += 1;
-        daysMap[fDate].commission = Number((daysMap[fDate].commission + comm).toFixed(2));
-        daysMap[fDate].volume = Number((daysMap[fDate].volume + totalAmount).toFixed(2));
-      }
     });
-
-    const chartData = Object.values(daysMap);
 
     const roomPayload = {
       ...room,
@@ -893,7 +867,6 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
         total_referred_players: referredCount || 0,
         commission_rate: commRate,
       },
-      chart_data: chartData,
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

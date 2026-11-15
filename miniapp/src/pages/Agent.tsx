@@ -100,14 +100,6 @@ interface FinishedGame {
   status: string;
 }
 
-interface ChartDay {
-  date: string;
-  label: string;
-  games_count: number;
-  commission: number;
-  volume: number;
-}
-
 interface RoomStats {
   today_games: number;
   today_commission: number;
@@ -156,7 +148,6 @@ export default function Agent() {
   const [activeGames, setActiveGames] = useState<ActiveGame[]>(initialCache?.active_games || []);
   const [recentGames, setRecentGames] = useState<FinishedGame[]>(initialCache?.recent_games || []);
   const [stats, setStats] = useState<RoomStats | null>(initialCache?.stats || null);
-  const [chartData, setChartData] = useState<ChartDay[]>(initialCache?.chart_data || []);
 
   const [loading, setLoading] = useState(!initialCache?.room);
   const [refreshing, setRefreshing] = useState(false);
@@ -164,10 +155,8 @@ export default function Agent() {
   const [error, setError] = useState('');
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
-  // Interactive UI state
-  const [activeTab, setActiveTab] = useState<'overview' | 'live' | 'pro' | 'qr'>('overview');
-  const [chartMetric, setChartMetric] = useState<'games' | 'commission' | 'volume'>('games');
-  const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
+  // Interactive UI state (default mobile-first tab is 'live')
+  const [activeTab, setActiveTab] = useState<'live' | 'pro' | 'qr'>('live');
   const [selectedLiveStake, setSelectedLiveStake] = useState<number | null>(null);
 
   // Pro Upgrade & Management state
@@ -381,16 +370,10 @@ export default function Agent() {
       setActiveGames(data.active_games || []);
       setRecentGames(data.recent_games || []);
       setStats(data.stats || null);
-      setChartData(data.chart_data || []);
       setLastRefresh(new Date());
 
       if (data && data.room) {
         localStorage.setItem('hdase_agent_cache', JSON.stringify(data));
-      }
-
-      // Default selected day in chart to today (last item)
-      if (data.chart_data && data.chart_data.length > 0) {
-        setSelectedDayIndex(data.chart_data.length - 1);
       }
     } catch (e: any) {
       setError(e.message || 'Unknown error');
@@ -967,25 +950,6 @@ export default function Agent() {
     return sorted.length > 0 ? sorted : roomStakes;
   }, [recentGames, roomStakes]);
 
-  // Chart computations
-  const maxChartValue = useMemo(() => {
-    if (!chartData || chartData.length === 0) return 10;
-    const values = chartData.map((d) => {
-      if (chartMetric === 'games') return d.games_count;
-      if (chartMetric === 'commission') return d.commission;
-      return d.volume;
-    });
-    const max = Math.max(...values, 0);
-    return max === 0 ? 10 : max;
-  }, [chartData, chartMetric]);
-
-  const selectedDay = useMemo(() => {
-    if (selectedDayIndex === null || !chartData[selectedDayIndex]) {
-      return chartData[chartData.length - 1] || null;
-    }
-    return chartData[selectedDayIndex];
-  }, [selectedDayIndex, chartData]);
-
   const statusColor = (status: string) => {
     if (status === 'active') return 'bg-emerald-500/15 text-emerald-700 border-emerald-300';
     if (status === 'paused') return 'bg-amber-500/15 text-amber-700 border-amber-300';
@@ -1061,7 +1025,7 @@ export default function Agent() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 select-none pb-24 font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-800 select-none pb-36 font-sans">
 
       {/* ─── FLOATING PROFILE BUTTON (bottom-center FAB) ─── */}
       <button
@@ -1301,37 +1265,22 @@ export default function Agent() {
 
 
         {room && (
-          <div className="flex bg-slate-200/80 p-1 rounded-2xl space-x-1 text-[11px] font-black">
-            <button
-              onClick={() => {
-                triggerHaptic('light');
-                setActiveTab('overview');
-              }}
-              className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center space-x-1 ${
-                activeTab === 'overview'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <BarChart3 size={13} className={activeTab === 'overview' ? 'text-orange-500' : ''} />
-              <span>Analytics</span>
-            </button>
-
+          <div className="flex bg-slate-200/80 p-1 rounded-2xl space-x-1 text-[11px] font-black shadow-inner">
             <button
               onClick={() => {
                 triggerHaptic('light');
                 setActiveTab('live');
               }}
-              className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center space-x-1 relative ${
+              className={`flex-1 py-2.5 rounded-xl transition-all flex items-center justify-center space-x-1.5 ${
                 activeTab === 'live'
-                  ? 'bg-white text-slate-900 shadow-xs'
+                  ? 'bg-white text-slate-900 shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Gamepad2 size={13} className={activeTab === 'live' ? 'text-orange-500' : ''} />
-              <span>Live ({callingGamesCount})</span>
+              <Gamepad2 size={14} className={activeTab === 'live' ? 'text-orange-500' : ''} />
+              <span>Live Tables ({callingGamesCount})</span>
               {callingGamesCount > 0 && (
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               )}
             </button>
 
@@ -1340,14 +1289,17 @@ export default function Agent() {
                 triggerHaptic('light');
                 setActiveTab('pro');
               }}
-              className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center space-x-1 ${
+              className={`flex-1 py-2.5 rounded-xl transition-all flex items-center justify-center space-x-1.5 ${
                 activeTab === 'pro'
-                  ? 'bg-white text-slate-900 shadow-xs'
+                  ? 'bg-white text-slate-900 shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Zap size={13} className={activeTab === 'pro' ? 'text-amber-500 fill-amber-500' : 'text-amber-500'} />
+              <Zap size={14} className={activeTab === 'pro' ? 'text-amber-500 fill-amber-500' : 'text-amber-500'} />
               <span>Pro Upgrade</span>
+              {isProActive && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              )}
             </button>
 
             <button
@@ -1355,188 +1307,16 @@ export default function Agent() {
                 triggerHaptic('light');
                 setActiveTab('qr');
               }}
-              className={`py-2 px-3 rounded-xl transition-all flex items-center justify-center space-x-1 ${
+              className={`py-2.5 px-3.5 rounded-xl transition-all flex items-center justify-center space-x-1.5 ${
                 activeTab === 'qr'
-                  ? 'bg-white text-slate-900 shadow-xs'
+                  ? 'bg-white text-slate-900 shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
-              title="QR & Invite"
+              title="Flyer & Invite Link"
             >
-              <QrCode size={13} className={activeTab === 'qr' ? 'text-orange-500' : ''} />
+              <QrCode size={14} className={activeTab === 'qr' ? 'text-orange-500' : ''} />
+              <span className="hidden sm:inline">Flyer</span>
             </button>
-          </div>
-        )}
-
-        {/* ─── TAB 1: OVERVIEW & ADVANCED PERFORMANCE GRAPH ─── */}
-        {room && activeTab === 'overview' && (
-          <div className="space-y-4 animate-in fade-in duration-200">
-            {/* ADVANCED PERFORMANCE GRAPH CARD */}
-            <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-sm space-y-3.5">
-              {/* Header Title full width */}
-              <div className="space-y-0.5">
-                <div className="flex items-center space-x-1.5 text-slate-800">
-                  <TrendingUp size={16} className="text-orange-500" />
-                  <h3 className="text-xs font-black uppercase tracking-wider">
-                    Room Activity & Trends
-                  </h3>
-                </div>
-                <p className="text-[10px] text-slate-400 font-medium">Last 7 Days Room Performance</p>
-              </div>
-
-              {/* Metric Selector 3 Horizontal Buttons Below the Text */}
-              <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-2xl text-[10px] font-black">
-                <button
-                  onClick={() => {
-                    triggerHaptic('light');
-                    setChartMetric('games');
-                  }}
-                  className={`py-2 rounded-xl transition-all flex items-center justify-center space-x-1 ${
-                    chartMetric === 'games'
-                      ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Gamepad2 size={12} />
-                  <span>Games</span>
-                </button>
-                <button
-                  onClick={() => {
-                    triggerHaptic('light');
-                    setChartMetric('commission');
-                  }}
-                  className={`py-2 rounded-xl transition-all flex items-center justify-center space-x-1 ${
-                    chartMetric === 'commission'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <TrendingUp size={12} />
-                  <span>Comm (ETB)</span>
-                </button>
-                <button
-                  onClick={() => {
-                    triggerHaptic('light');
-                    setChartMetric('volume');
-                  }}
-                  className={`py-2 rounded-xl transition-all flex items-center justify-center space-x-1 ${
-                    chartMetric === 'volume'
-                      ? 'bg-slate-800 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Trophy size={12} />
-                  <span>Pot (ETB)</span>
-                </button>
-              </div>
-
-              {/* Interactive SVG Bar & Trend Chart */}
-              <div className="pt-2">
-                <div className="h-36 flex items-end justify-between space-x-2 px-1">
-                  {chartData.map((d, idx) => {
-                    const val =
-                      chartMetric === 'games'
-                        ? d.games_count
-                        : chartMetric === 'commission'
-                        ? d.commission
-                        : d.volume;
-
-                    const heightPercent = maxChartValue > 0 ? Math.max(10, Math.round((val / maxChartValue) * 100)) : 10;
-                    const isSelected = selectedDayIndex === idx;
-
-                    return (
-                      <div
-                        key={d.date}
-                        onClick={() => {
-                          triggerHaptic('light');
-                          setSelectedDayIndex(idx);
-                        }}
-                        className="flex-1 flex flex-col items-center h-full justify-end cursor-pointer group"
-                      >
-                        {/* Bar Value Tooltip on top */}
-                        <span
-                          className={`text-[8px] font-black mb-1 transition-all ${
-                            isSelected
-                              ? 'text-slate-900 scale-110'
-                              : 'text-slate-400 opacity-70 group-hover:opacity-100'
-                          }`}
-                        >
-                          {chartMetric === 'games' ? val : formatAmount(val)}
-                        </span>
-
-                        {/* Bar Pillar */}
-                        <div className="w-full max-w-[28px] bg-slate-100 rounded-xl overflow-hidden flex flex-col justify-end h-[100px] p-0.5">
-                          <div
-                            style={{ height: `${heightPercent}%` }}
-                            className={`w-full rounded-lg transition-all duration-300 ${
-                              chartMetric === 'games'
-                                ? isSelected
-                                  ? 'bg-gradient-to-t from-orange-600 to-amber-400 shadow-xs'
-                                  : 'bg-gradient-to-t from-orange-300 to-amber-200 group-hover:from-orange-400 group-hover:to-amber-300'
-                                : chartMetric === 'commission'
-                                ? isSelected
-                                  ? 'bg-gradient-to-t from-emerald-600 to-teal-400 shadow-xs'
-                                  : 'bg-gradient-to-t from-emerald-300 to-teal-200 group-hover:from-emerald-400 group-hover:to-teal-300'
-                                : isSelected
-                                ? 'bg-gradient-to-t from-slate-900 to-slate-700 shadow-xs'
-                                : 'bg-gradient-to-t from-slate-300 to-slate-200 group-hover:from-slate-400 group-hover:to-slate-300'
-                            }`}
-                          />
-                        </div>
-
-                        {/* Day Label on X Axis */}
-                        <span
-                          className={`text-[9px] mt-1.5 font-black uppercase transition-colors ${
-                            isSelected ? 'text-orange-600' : 'text-slate-400'
-                          }`}
-                        >
-                          {d.label}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Selected Day Details Tooltip Strip */}
-              {selectedDay && (
-                <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-2.5 flex items-center justify-between text-xs">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center font-black text-[10px]">
-                      {selectedDay.label}
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase leading-none">
-                        {selectedDay.date}
-                      </p>
-                      <p className="text-xs font-black text-slate-800 mt-0.5">
-                        {selectedDay.games_count} {selectedDay.games_count === 1 ? 'Game' : 'Games'} Finished
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase leading-none">Commission</p>
-                    <p className="text-xs font-black text-emerald-600 mt-0.5">
-                      +{formatAmount(selectedDay.commission)} ETB
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Summary Strip */}
-              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100 text-center">
-                <div className="bg-slate-50/70 p-2 rounded-xl">
-                  <span className="text-[9px] text-slate-400 font-bold uppercase">Today's Earned:</span>{' '}
-                  <span className="text-xs font-black text-emerald-600">+{formatAmount(stats?.today_commission ?? 0)} ETB</span>
-                </div>
-                <div className="bg-slate-50/70 p-2 rounded-xl">
-                  <span className="text-[9px] text-slate-400 font-bold uppercase">7-Day Total Pot:</span>{' '}
-                  <span className="text-xs font-black text-slate-800">
-                    {formatAmount(chartData.reduce((acc, c) => acc + c.volume, 0))} ETB
-                  </span>
-                </div>
-              </div>
-            </div>
           </div>
         )}
 
@@ -1907,15 +1687,15 @@ export default function Agent() {
 
             {/* PRO Status Hero Card */}
             <div
-              className={`relative overflow-hidden rounded-3xl p-4.5 border transition-all ${
+              className={`relative rounded-3xl p-5 border transition-all space-y-4 ${
                 isProActive
                   ? 'bg-gradient-to-br from-emerald-950 via-slate-900 to-emerald-950 border-emerald-500/40 text-white shadow-md'
                   : 'bg-gradient-to-br from-amber-950 via-slate-900 to-amber-950 border-amber-500/40 text-white shadow-md'
               }`}
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center space-x-2">
+                <div className="space-y-1.5">
+                  <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                     <span
                       className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                         isProActive
@@ -1952,38 +1732,38 @@ export default function Agent() {
                 </div>
               </div>
 
-              {/* Status details / CTA */}
-              <div className="mt-3.5 pt-3 border-t border-white/10 flex items-center justify-between gap-2">
-                <div className="text-[11px] text-slate-300">
+              {/* Status details / CTA (mobile-first, never clipped) */}
+              <div className="pt-3.5 border-t border-white/15 flex items-center justify-between gap-3 flex-wrap">
+                <div className="py-0.5">
                   {isProActive ? (
-                    <span className="flex items-center space-x-1.5 text-emerald-300 font-bold">
-                      <CheckCircle2 size={13} />
+                    <span className="flex items-center space-x-1.5 text-emerald-300 font-bold text-xs">
+                      <CheckCircle2 size={14} className="shrink-0" />
                       <span>Expires: {proData?.expires_at ? new Date(proData.expires_at).toLocaleDateString() : 'Active'}</span>
                     </span>
                   ) : (
-                    <span className="font-bold text-amber-300">1,000 ETB / month</span>
+                    <div>
+                      <span className="text-[9px] text-amber-200/80 font-bold block uppercase tracking-wider">Fee</span>
+                      <span className="text-sm font-black text-amber-300">1,000 ETB / month</span>
+                    </div>
                   )}
                 </div>
                 <button
+                  type="button"
                   onClick={() => {
                     triggerHaptic('medium');
                     setShowSystemPlayerModal(true);
                   }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center space-x-1 active:scale-95 ${
-                    isProActive
-                      ? 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm'
-                      : 'bg-white/10 text-white hover:bg-white/20 border border-white/20'
-                  }`}
+                  className="px-4 py-2.5 rounded-xl text-xs font-black transition flex items-center space-x-1.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:opacity-95 shadow-sm active:scale-95 shrink-0"
                 >
-                  <Bot size={13} />
+                  <Bot size={14} />
                   <span>Configure Bots</span>
-                  <ChevronRight size={12} />
+                  <ChevronRight size={13} />
                 </button>
               </div>
             </div>
 
             {/* Method 1: Instant Upgrade with Agent Balance */}
-            <div className="bg-white rounded-3xl p-4.5 border border-slate-100 shadow-2xs space-y-3">
+            <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-2xs space-y-3">
               <div className="flex items-start justify-between">
                 <div className="space-y-0.5">
                   <div className="flex items-center space-x-1.5 text-slate-800">
@@ -2031,7 +1811,7 @@ export default function Agent() {
             </div>
 
             {/* Method 2: Bank Transfer & Proof Upload */}
-            <div className="bg-white rounded-3xl p-4.5 border border-slate-100 shadow-2xs space-y-3.5">
+            <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-2xs space-y-4">
               <div className="space-y-0.5">
                 <div className="flex items-center space-x-1.5 text-slate-800">
                   <Building2 size={14} className="text-emerald-600" />
@@ -2042,14 +1822,15 @@ export default function Agent() {
                 </p>
               </div>
 
-              {/* Official Accounts List */}
+              {/* Official Accounts List (Tap to Select & Copy) */}
               <div className="space-y-2">
                 <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
-                  Official Manager Accounts (Tap to Copy)
+                  Official Manager Accounts (Tap to Select & Copy)
                 </span>
                 {proData?.manager_accounts && proData.manager_accounts.length > 0 ? (
                   <div className="grid grid-cols-1 gap-2">
                     {proData.manager_accounts.map((acc: any) => {
+                      const isSelected = selectedManagerAccId === acc.id;
                       const isCopied = copiedAccount === acc.account_number;
                       return (
                         <div
@@ -2061,31 +1842,40 @@ export default function Agent() {
                             triggerHaptic('light');
                             setTimeout(() => setCopiedAccount(null), 2500);
                           }}
-                          className={`p-3 rounded-2xl border transition cursor-pointer flex items-center justify-between ${
-                            selectedManagerAccId === acc.id
-                              ? 'border-amber-400 bg-amber-50/40 shadow-2xs'
+                          className={`p-3.5 rounded-2xl border transition cursor-pointer flex items-center justify-between ${
+                            isSelected
+                              ? 'border-amber-500 bg-amber-50/70 shadow-sm ring-2 ring-amber-400/30'
                               : 'border-slate-100 bg-slate-50/50 hover:bg-slate-50'
                           }`}
                         >
-                          <div className="space-y-0.5">
+                          <div className="space-y-1">
                             <div className="flex items-center space-x-2">
-                              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700">
+                              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md border ${
+                                isSelected
+                                  ? 'bg-amber-500 text-white border-amber-600'
+                                  : 'bg-white border-slate-200 text-slate-700'
+                              }`}>
                                 {acc.bank_type?.toUpperCase() || 'BANK'}
                               </span>
                               <span className="text-xs font-black text-slate-800">{acc.account_name}</span>
+                              {isSelected && (
+                                <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded-md">
+                                  Selected
+                                </span>
+                              )}
                             </div>
-                            <p className="text-xs font-mono font-bold text-slate-600 tracking-wider">
+                            <p className="text-xs font-mono font-bold text-slate-700 tracking-wider">
                               {acc.account_number}
                             </p>
                           </div>
                           <div className="shrink-0 pl-2">
                             {isCopied ? (
-                              <span className="inline-flex items-center space-x-1 px-2 py-1 rounded-xl bg-emerald-100 text-emerald-700 text-[10px] font-black">
+                              <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-emerald-100 text-emerald-700 text-[10px] font-black">
                                 <Check size={11} />
                                 <span>Copied!</span>
                               </span>
                             ) : (
-                              <span className="inline-flex items-center space-x-1 px-2 py-1 rounded-xl bg-white border border-slate-200 text-slate-500 text-[10px] font-bold">
+                              <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-slate-600 text-[10px] font-bold shadow-2xs">
                                 <Copy size={11} />
                                 <span>Copy</span>
                               </span>
@@ -2102,37 +1892,86 @@ export default function Agent() {
                 )}
               </div>
 
-              {/* Upload Proof Form */}
-              <div className="pt-2 border-t border-slate-100 space-y-2.5">
-                <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">
+              {/* Upload Proof Form (Mobile-first, NO native popup select!) */}
+              <div className="pt-2 border-t border-slate-100 space-y-3">
+                <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider block">
                   Submit Receipt / Transfer Proof
                 </span>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 block mb-1">Target Account</label>
-                    <select
-                      value={selectedManagerAccId}
-                      onChange={(e) => setSelectedManagerAccId(e.target.value)}
-                      className="w-full text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-slate-700 focus:outline-none focus:border-amber-400"
-                    >
-                      {proData?.manager_accounts?.map((acc: any) => (
-                        <option key={acc.id} value={acc.id}>
-                          {acc.bank_type?.toUpperCase()} - {acc.account_name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-500 block mb-1">Amount (ETB)</label>
-                    <input
-                      type="number"
-                      value={transferAmount}
-                      onChange={(e) => setTransferAmount(e.target.value)}
-                      className="w-full text-xs font-black bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-slate-800 focus:outline-none focus:border-amber-400"
-                      placeholder="1000"
-                    />
-                  </div>
+                {/* Mobile Bank Selector Button Group */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider block">
+                    Paying To Bank Account
+                  </label>
+                  {proData?.manager_accounts && proData.manager_accounts.length > 0 && (
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {proData.manager_accounts.map((acc: any) => {
+                        const isSelected = selectedManagerAccId === acc.id;
+                        return (
+                          <button
+                            key={acc.id}
+                            type="button"
+                            onClick={() => {
+                              triggerHaptic('light');
+                              setSelectedManagerAccId(acc.id);
+                            }}
+                            className={`py-2 px-1.5 rounded-xl text-center border transition-all flex flex-col items-center justify-center ${
+                              isSelected
+                                ? 'bg-amber-500 text-white border-amber-600 shadow-xs ring-2 ring-amber-300'
+                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="text-[11px] font-black uppercase tracking-wide">{acc.bank_type}</span>
+                            <span className={`text-[9px] truncate max-w-full font-bold ${isSelected ? 'text-amber-100' : 'text-slate-400'}`}>
+                              {acc.account_name}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Selected Account Info Bar */}
+                  {(() => {
+                    const activeAcc = proData?.manager_accounts?.find((a: any) => a.id === selectedManagerAccId) || proData?.manager_accounts?.[0];
+                    if (!activeAcc) return null;
+                    const isCopied = copiedAccount === activeAcc.account_number;
+                    return (
+                      <div className="p-2.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex items-center justify-between text-xs mt-1">
+                        <div className="space-y-0.5 min-w-0 pr-2">
+                          <span className="text-[9px] font-black uppercase tracking-wider text-amber-800 block truncate">
+                            Transfer to {activeAcc.bank_type?.toUpperCase()} ({activeAcc.account_name})
+                          </span>
+                          <p className="font-mono font-black text-slate-800 text-xs truncate">
+                            {activeAcc.account_number}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(activeAcc.account_number);
+                            setCopiedAccount(activeAcc.account_number);
+                            triggerHaptic('light');
+                            setTimeout(() => setCopiedAccount(null), 2500);
+                          }}
+                          className="px-2.5 py-1 rounded-xl bg-white border border-amber-300 text-amber-800 text-[10px] font-black shrink-0 shadow-2xs hover:bg-amber-50 active:scale-95 transition"
+                        >
+                          {isCopied ? 'Copied!' : 'Copy'}
+                        </button>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-1">Amount (ETB)</label>
+                  <input
+                    type="number"
+                    value={transferAmount}
+                    onChange={(e) => setTransferAmount(e.target.value)}
+                    className="w-full text-xs font-black bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:border-amber-400"
+                    placeholder="1000"
+                  />
                 </div>
 
                 {/* File picker */}
