@@ -77,9 +77,14 @@ export default function AdminSystemPro() {
   const fetchRequests = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_URL}/system-players/admin/requests?status=${filter}`, {
+      let res = await fetch(`${API_URL}/admin/system-pro/requests?status=${filter}`, {
         headers: getAuthHeaders(),
       });
+      if (!res.ok && res.status === 404) {
+        res = await fetch(`${API_URL}/system-players/admin/requests?status=${filter}`, {
+          headers: getAuthHeaders(),
+        });
+      }
       if (res.ok) {
         const data = await res.json();
         setRequests(data || []);
@@ -99,7 +104,7 @@ export default function AdminSystemPro() {
     triggerHaptic('heavy');
     setActionLoading(true);
     try {
-      const res = await fetch(`${API_URL}/system-players/admin/requests/${id}/review`, {
+      let res = await fetch(`${API_URL}/admin/system-pro/requests/${id}/review`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -107,6 +112,17 @@ export default function AdminSystemPro() {
         },
         body: JSON.stringify({ action, reason }),
       });
+
+      if (!res.ok && res.status === 404) {
+        res = await fetch(`${API_URL}/system-players/admin/requests/${id}/review`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders(),
+          },
+          body: JSON.stringify({ action, reason }),
+        });
+      }
 
       const data = await res.json();
       if (!res.ok) {

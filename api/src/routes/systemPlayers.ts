@@ -640,10 +640,19 @@ router.post('/reseed', validateTelegramAuth, async (req: AuthRequest, res: Respo
 // ── ADMIN: GET /api/system-players/admin/requests ───────────────────────────
 router.get('/admin/requests', validateTelegramAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const telegramId = req.telegramUser!.id.toString();
-    const { data: user } = await supabase.from('users').select('role').eq('telegram_id', telegramId).single();
-    if (!user || (user.role !== 'admin' && user.role !== 'worker')) {
-      return res.status(403).json({ error: 'Admin only' });
+    const telegramId = req.telegramUser?.id?.toString() || '';
+    let userRole = req.pwaUser?.role;
+    if (!userRole && telegramId) {
+      const { data: dbUser } = await supabase
+        .from('users')
+        .select('role')
+        .eq('telegram_id', telegramId)
+        .maybeSingle();
+      if (dbUser) userRole = dbUser.role;
+    }
+
+    if (!userRole || (userRole !== 'admin' && userRole !== 'worker')) {
+      return res.status(403).json({ error: 'Admin or worker only' });
     }
 
     const status = (req.query.status as string) || 'all';
@@ -695,14 +704,17 @@ router.post('/admin/requests/:id/review', validateTelegramAuth, async (req: Auth
     let userRole = req.pwaUser?.role;
     let userFirstName = req.pwaUser?.first_name;
 
-    if (!userRole) {
+    if (!userRole && telegramId) {
       const { data: dbUser } = await supabase
         .from('users')
         .select('role, first_name')
-        .or(`telegram_id.eq.${telegramId},id.eq.${telegramId}`)
+        .eq('telegram_id', telegramId)
         .maybeSingle();
-      userRole = dbUser?.role;
-      userFirstName = dbUser?.first_name;
+
+      if (dbUser) {
+        userRole = dbUser.role;
+        userFirstName = dbUser.first_name;
+      }
     }
 
     if (!userRole || (userRole !== 'admin' && userRole !== 'worker')) {

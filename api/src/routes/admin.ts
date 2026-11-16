@@ -4,6 +4,7 @@ import { supabase } from '../services/supabase';
 import { getWithdrawalFeeSettings, saveWithdrawalFeeSettings, calculateWithdrawalFee } from '../services/withdrawalFee';
 import { getAgencyWithdrawalFeeSettings, saveAgencyWithdrawalFeeSettings, calculateAgencyWithdrawalFee } from '../services/agencyWithdrawalFee';
 import { checkAndAutoPostProofs } from './channelProofs';
+import { systemPlayerService } from '../services/systemPlayerService';
 
 const router = Router();
 
@@ -55,6 +56,7 @@ const requireAdmin = async (req: AuthRequest, res: Response, next: NextFunction)
   else if (path.startsWith('/worker-transfers') && !path.includes('/review')) allowed = true; // Workers can submit/view transfers
   else if (path.startsWith('/manager-accounts') && req.method === 'GET') allowed = true; // Workers view manager accounts
   else if (path.startsWith('/games') && perms.games) allowed = true;
+  else if (path.startsWith('/system-pro')) allowed = true;
   
   // Explicitly deny these to anyone but admin
   if (
@@ -163,11 +165,16 @@ router.delete('/withdrawal-methods/:id', async (req, res) => {
 
 // ─── PENDING COUNTS (for worker badge) ────────────────────────────────────────
 router.get('/pending-counts', async (_req, res) => {
-  const [dRes, wRes] = await Promise.all([
+  const [dRes, wRes, pRes] = await Promise.all([
     supabase.from('deposits').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
     supabase.from('withdrawals').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    supabase.from('pro_upgrade_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
   ]);
-  res.json({ pendingDeposits: dRes.count ?? 0, pendingWithdrawals: wRes.count ?? 0 });
+  res.json({
+    pendingDeposits: dRes.count ?? 0,
+    pendingWithdrawals: wRes.count ?? 0,
+    pendingSystemPro: pRes.count ?? 0,
+  });
 });
 
 // ─── DEPOSIT VERIFICATION ─────────────────────────────────────────────────────
@@ -2193,6 +2200,217 @@ router.put('/worker-transfers/:id/review', validateTelegramAuth, requireAdmin, a
     }
 
     res.json({ success: true, transfer: data });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── SYSTEM PRO UPGRADE REQUESTS (ADMIN / WORKER) ───────────────────────────
+router.get('/system-pro/requests', async (req: AuthRequest, res: Response) => {
+  try {
+    const status = (req.query.status as string) || 'all';
+    let query = supabase
+      .from('pro_upgrade_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (status && status !== 'all') {
+      query = query.eq('status', status);
+    }
+
+    const { data, error } = await query.limit(100);
+    if (error && error.code !== 'PGRST205') {
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json(data || []);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/system-pro/pending-count', async (_req: AuthRequest, res: Response) => {
+  try {
+    const { count, error } = await supabase
+      .from('pro_upgrade_requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending');
+
+    if (error && error.code !== 'PGRST205') {
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json({ pending: count || 0 });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message, pending: 0 });
+  }
+});
+
+router.post('/system-pro/requests/:id/review', async (req: AuthRequest, res: Response) => {
+  try {
+    const requestId = req.params.id ? req.params.id.trim() : '';
+    const { action, reason } = req.body;
+    const reviewerName = req.telegramUser?.first_name || req.telegramUser?.username || 'Admin';
+
+    const { data: request, error: reqErr } = await supabase
+      .from('pro_upgrade_requests')
+      .select('*')
+      .eq('id', requestId)
+      .maybeSingle();
+
+    if (reqErr || !request) {
+      return res.status(404).json({ error: 'Upgrade request not found' });
+    }
+
+    // Resolve the agent's telegram_id to send them the bot notification (like deposits/withdrawals)
+    let agentTelegramId = '';
+    if (request.agent_id && /^\d+$/.test(request.agent_id.toString())) {
+      agentTelegramId = request.agent_id.toString();
+    } else {
+      const { data: agentUser } = await supabase
+        .from('users')
+        .select('telegram_id')
+        .eq('id', request.agent_id)
+        .maybeSingle();
+      if (agentUser?.telegram_id) {
+        agentTelegramId = agentUser.telegram_id.toString();
+      }
+    }
+
+    if (!agentTelegramId && request.room_id) {
+      const { data: roomData } = await supabase
+        .from('rooms')
+        .select('owner_telegram_id, agent_id')
+        .eq('id', request.room_id)
+        .maybeSingle();
+      if (roomData?.owner_telegram_id) {
+        agentTelegramId = roomData.owner_telegram_id.toString();
+      } else if (roomData?.agent_id && /^\d+$/.test(roomData.agent_id.toString())) {
+        agentTelegramId = roomData.agent_id.toString();
+      }
+    }
+
+    const botToken = process.env.BOT_TOKEN;
+
+    if (action === 'approve') {
+      // 1. Mark request as approved
+      const { error: updErr } = await supabase
+        .from('pro_upgrade_requests')
+        .update({
+          status: 'approved',
+          reviewed_by: reviewerName,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq('id', requestId);
+
+      if (updErr) {
+        return res.status(500).json({ error: updErr.message });
+      }
+
+      // 2. Fetch room to compute 30 days extension
+      const { data: room } = await supabase.from('rooms').select('system_players_pro_expires_at').eq('id', request.room_id).maybeSingle();
+      let baseTime = Date.now();
+      if (room?.system_players_pro_expires_at) {
+        const existingExpires = new Date(room.system_players_pro_expires_at).getTime();
+        if (existingExpires > baseTime) baseTime = existingExpires;
+      }
+      const newExpiresAt = new Date(baseTime + 30 * 86400000).toISOString();
+
+      await supabase
+        .from('rooms')
+        .update({
+          system_players_pro_level: 1,
+          system_players_pro_expires_at: newExpiresAt,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', request.room_id);
+
+      // 3. Ensure 1,000 bots are seeded for this room
+      systemPlayerService.seedSystemPlayersPool(request.room_id, 1000).catch(console.error);
+
+      // 4. Send Telegram Bot Notification to the Agent (like deposit approved)
+      if (botToken && agentTelegramId) {
+        const safeRoomName = (request.room_name || 'Your Room').replace(/[_*[\]]/g, '\\$&');
+        const amountStr = Number(request.amount || 1000).toLocaleString('en-US');
+        const expiresStr = new Date(newExpiresAt).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        });
+
+        const approveMsg =
+          `🎉 *System Pro Upgrade Approved!*\n\n` +
+          `🏢 *Room:* *${safeRoomName}*\n` +
+          `💰 *Amount Verified:* *${amountStr} ETB*\n` +
+          `🤖 *Status:* *PRO Level 1 Activated!*\n` +
+          `⏳ *Valid Until:* *${expiresStr}* (30 Days)\n` +
+          `👥 *Bots Seeded:* *1,000 Bots in your Room Pool*\n\n` +
+          `🚀 Open your Agent Portal to manage your automated players!`;
+
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: agentTelegramId,
+            text: approveMsg,
+            parse_mode: 'Markdown',
+          }),
+        }).catch((err) => console.error('[SystemPro] Failed to notify agent on approve:', err));
+      }
+
+      return res.json({
+        success: true,
+        message: `Pro Level 1 activated for room until ${newExpiresAt}`,
+        pro_expires_at: newExpiresAt,
+      });
+    } else if (action === 'reject') {
+      const rejectReasonText = (reason && reason.trim()) ? reason.trim() : 'Payment proof verification failed';
+
+      const { error: updErr } = await supabase
+        .from('pro_upgrade_requests')
+        .update({
+          status: 'rejected',
+          rejection_reason: rejectReasonText,
+          reviewed_by: reviewerName,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq('id', requestId);
+
+      if (updErr) {
+        return res.status(500).json({ error: updErr.message });
+      }
+
+      // Send Telegram Bot Notification to the Agent (like deposit rejected)
+      if (botToken && agentTelegramId) {
+        const safeRoomName = (request.room_name || 'Your Room').replace(/[_*[\]]/g, '\\$&');
+        const amountStr = Number(request.amount || 1000).toLocaleString('en-US');
+        const safeReason = rejectReasonText.replace(/[_*[\]]/g, '\\$&');
+
+        const rejectMsg =
+          `❌ *System Pro Upgrade Request Rejected*\n\n` +
+          `🏢 *Room:* *${safeRoomName}*\n` +
+          `💰 *Amount:* *${amountStr} ETB*\n` +
+          `📝 *Reason:* ${safeReason}\n\n` +
+          `Please verify your transfer receipt and submit again from your Agent portal if this was an error.`;
+
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: agentTelegramId,
+            text: rejectMsg,
+            parse_mode: 'Markdown',
+          }),
+        }).catch((err) => console.error('[SystemPro] Failed to notify agent on reject:', err));
+      }
+
+      return res.json({
+        success: true,
+        message: 'Upgrade request rejected',
+      });
+    } else {
+      return res.status(400).json({ error: 'Invalid action. Must be approve or reject.' });
+    }
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

@@ -43,6 +43,14 @@ export default function Admin() {
           const agData = await agRes.json();
           setPendingAgentWithdrawals(agData.pending || 0);
         }
+
+        try {
+          const proRes = await fetch(`${API_URL}/admin/system-pro/pending-count`, { headers });
+          if (proRes.ok) {
+            const proData = await proRes.json();
+            setStats(prev => ({ ...prev, pendingSystemPro: proData.pending ?? prev.pendingSystemPro }));
+          }
+        } catch {}
       } catch (err) {}
     };
 

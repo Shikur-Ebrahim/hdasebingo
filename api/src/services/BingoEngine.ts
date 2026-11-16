@@ -994,12 +994,14 @@ class BingoEngine {
   /**
    * Schedule automatic permanent deletion of a finished game after a 60-second grace window.
    * Gives players time to enjoy the celebration popup & view the winning cartela,
-   * then completely removes the game row and all bulky player JSON cartela matrices via ON DELETE CASCADE.
+   * then completely removes the game row and all bulky player JSON cartela matrices.
    */
   private scheduleFinishedGameCleanup(gameId: string, delayMs: number = 60000) {
     if (!gameId) return;
     setTimeout(async () => {
       try {
+        // Delete players first so it never fails even if ON DELETE CASCADE is missing
+        await supabase.from('bingo_players').delete().eq('game_id', gameId);
         const { error } = await supabase.from('bingo_games').delete().eq('id', gameId);
         if (!error) {
           console.log(`🧹 [Auto-Cleanup] Purged finished game #${formatGameId(gameId)} and all player cartelas from database.`);
@@ -1017,15 +1019,21 @@ class BingoEngine {
   public async purgeStaleFinishedGames(maxAgeSeconds: number = 60) {
     try {
       const cutoff = new Date(Date.now() - maxAgeSeconds * 1000).toISOString();
-      const { data: deleted, error } = await supabase
+      const { data: finishedGames, error: fetchErr } = await supabase
         .from('bingo_games')
-        .delete()
+        .select('id')
         .eq('status', 'finished')
-        .lt('finished_at', cutoff)
-        .select('id');
+        .or(`finished_at.lt.${cutoff},finished_at.is.null,updated_at.lt.${cutoff}`)
+        .limit(200);
 
-      if (deleted && deleted.length > 0) {
-        console.log(`🧹 [Database Cleaner] Purged ${deleted.length} finished game(s) older than ${maxAgeSeconds}s.`);
+      if (!fetchErr && finishedGames && finishedGames.length > 0) {
+        const ids = finishedGames.map(g => g.id);
+        // Clean up players first to guarantee zero foreign-key constraint violations
+        await supabase.from('bingo_players').delete().in('game_id', ids);
+        const { data: deleted } = await supabase.from('bingo_games').delete().in('id', ids).select('id');
+        if (deleted && deleted.length > 0) {
+          console.log(`🧹 [Database Cleaner] Purged ${deleted.length} finished game(s) and all player cartelas.`);
+        }
       }
     } catch (err) {
       console.warn('[Database Cleaner] Error purging old games:', err);
