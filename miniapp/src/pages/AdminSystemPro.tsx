@@ -337,6 +337,26 @@ export default function AdminSystemPro() {
             <p className="text-xs text-slate-500">
               Provide a reason for rejecting the Pro upgrade request for <b>{selectedRequest.room_name}</b>:
             </p>
+
+            {/* Quick Reason Suggestions */}
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                'Payment screenshot unreadable',
+                'Amount does not match 1,000 ETB',
+                'Duplicate transfer receipt',
+                'Wrong bank account',
+              ].map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => setRejectReason(suggestion)}
+                  className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-700 text-[10px] font-bold border border-rose-200 transition"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+
             <textarea
               rows={3}
               placeholder="e.g. Invalid transaction screenshot, amount mismatch..."
@@ -348,14 +368,14 @@ export default function AdminSystemPro() {
               <button
                 disabled={actionLoading}
                 onClick={() => setShowRejectModal(false)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-100 font-black text-xs text-slate-600"
+                className="flex-1 py-2.5 rounded-xl bg-slate-100 font-black text-xs text-slate-600 active:scale-95 transition"
               >
                 Cancel
               </button>
               <button
                 disabled={actionLoading}
-                onClick={() => handleReview(selectedRequest.id, 'reject', rejectReason)}
-                className="flex-1 py-2.5 rounded-xl bg-rose-600 text-white font-black text-xs shadow-xs"
+                onClick={() => handleReview(selectedRequest.id, 'reject', rejectReason || 'Payment proof verification failed')}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs shadow-xs active:scale-95 transition"
               >
                 {actionLoading ? 'Rejecting...' : 'Confirm Reject'}
               </button>
