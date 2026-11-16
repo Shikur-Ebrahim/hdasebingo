@@ -432,27 +432,25 @@ export default function Agent() {
 
   const handleSharePwaApp = async () => {
     triggerHaptic('medium');
-    const title = `HDASE BINGO - Room ${room?.room_name || 'VIP'}`;
-    const text = `🎮 Install the HDASE BINGO application to play in my official room "${room?.room_name || 'HDASE BINGO'}"! Win instant cash with Ethiopian players:\n\n${pwaJoinLink}`;
+
+    if (typeof WebApp !== 'undefined' && WebApp.openTelegramLink) {
+      WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(pwaJoinLink)}`);
+      return;
+    }
 
     if (typeof navigator !== 'undefined' && (navigator as any).share) {
       try {
         await (navigator as any).share({
-          title,
-          text,
           url: pwaJoinLink,
         });
         return;
       } catch (_) {}
     }
 
-    if (typeof WebApp !== 'undefined' && WebApp.openTelegramLink) {
-      WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(pwaJoinLink)}&text=${encodeURIComponent(text)}`);
-    } else {
-      navigator.clipboard.writeText(`${text}\n${pwaJoinLink}`);
-      setCopiedPwaLink(true);
-      setTimeout(() => setCopiedPwaLink(false), 2000);
-    }
+    navigator.clipboard.writeText(pwaJoinLink);
+    setCopiedPwaLink(true);
+    triggerSuccessHaptic();
+    setTimeout(() => setCopiedPwaLink(false), 2000);
   };
 
   const handleCopyRoomLink = () => {
@@ -465,18 +463,17 @@ export default function Agent() {
 
   const handleShareRoom = () => {
     triggerHaptic('medium');
-    const text = `🎮 Come play Bingo in my official room "${room?.room_name || 'HDASE BINGO'}"! Join now:\n\n${roomInviteLink}`;
     if (typeof WebApp !== 'undefined' && WebApp.openTelegramLink) {
-      WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(roomInviteLink)}&text=${encodeURIComponent(text)}`);
-    } else if (navigator.share) {
-      navigator.share({
-        title: room?.room_name || 'HDASE BINGO Room',
-        text,
+      WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(roomInviteLink)}`);
+      return;
+    }
+    if (typeof navigator !== 'undefined' && (navigator as any).share) {
+      (navigator as any).share({
         url: roomInviteLink,
       }).catch(() => {});
-    } else {
-      handleCopyRoomLink();
+      return;
     }
+    handleCopyRoomLink();
   };
 
   const handleCopyRoomCode = () => {
