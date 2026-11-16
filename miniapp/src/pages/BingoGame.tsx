@@ -1979,7 +1979,9 @@ export default function BingoGame() {
                           {language === 'am' ? 'ክፍል ምረጥ' : 'Select Room'}
                         </p>
                       </div>
-                      {((rooms.filter(r => !r.status || r.status === 'active').length > 0 ? rooms.filter(r => !r.status || r.status === 'active') : rooms).slice().sort((a, b) => {
+                      {((rooms.filter(r => (!r.status || r.status === 'active') && !Boolean(r.is_private)).length > 0
+                        ? rooms.filter(r => (!r.status || r.status === 'active') && !Boolean(r.is_private))
+                        : rooms.filter(r => !Boolean(r.is_private))).slice().sort((a, b) => {
                         if (Boolean(b.is_pinned) !== Boolean(a.is_pinned)) return b.is_pinned ? 1 : -1;
                         return 0;
                       })).map(r => {

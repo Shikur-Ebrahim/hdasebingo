@@ -160,6 +160,7 @@ export const useGameStore = create<GameStore>()(
                 total_players: roomPlayersMap[r.id] || 0,
                 status: r.status,
                 is_pinned: Boolean(r.is_pinned),
+                is_private: Boolean(r.is_private),
                 commission_rate: r.commission_rate ?? 8,
                 created_at: r.created_at,
               }));
@@ -180,12 +181,15 @@ export const useGameStore = create<GameStore>()(
           if (loadedRooms && loadedRooms.length > 0) {
             const invitedRoomId = (get().user as any)?.room_id || (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null);
             loadedRooms.sort((a, b) => {
-              const aInv = Boolean(invitedRoomId && a.id === invitedRoomId);
-              const bInv = Boolean(invitedRoomId && b.id === invitedRoomId);
-              if (aInv !== bInv) return aInv ? -1 : 1;
+              // 1. PINNED rooms ALWAYS have top priority
               if (Boolean(b.is_pinned) !== Boolean(a.is_pinned)) {
                 return b.is_pinned ? 1 : -1;
               }
+              // 2. User's invited/assigned room next
+              const aInv = Boolean(invitedRoomId && a.id === invitedRoomId);
+              const bInv = Boolean(invitedRoomId && b.id === invitedRoomId);
+              if (aInv !== bInv) return aInv ? -1 : 1;
+
               return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
             });
             set({ rooms: loadedRooms });

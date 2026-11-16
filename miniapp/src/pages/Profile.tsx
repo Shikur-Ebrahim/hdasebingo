@@ -28,12 +28,31 @@ export default function Profile() {
   const [roomSuccessMsg, setRoomSuccessMsg] = useState<string | null>(null);
 
   const userRoomId = (user as any)?.room_id || (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null);
-  const currentRoom = rooms.find(r => r.id === userRoomId) || rooms.find(r => r.room_name?.toUpperCase().includes('HDASE')) || rooms[0];
+  const currentRoom = rooms.find(r => r.id === userRoomId) || rooms.find(r => r.is_pinned) || rooms.find(r => r.room_name?.toUpperCase().includes('HDASE')) || rooms[0];
   const currentRoomName = currentRoom?.room_name || 'HDASE BINGO';
 
-  const filteredRooms = rooms
-    .filter(r => !r.is_private || (userRoomId && r.id === userRoomId))
-    .filter(r => !roomSearch.trim() || r.room_name.toLowerCase().includes(roomSearch.toLowerCase()));
+  // Strictly filter out private rooms (never visible in public dropdown) and sort pinned rooms first with highest priority
+  const filteredRooms = [...rooms]
+    .filter(r => !Boolean(r.is_private))
+    .filter(r => !roomSearch.trim() || r.room_name.toLowerCase().includes(roomSearch.toLowerCase()))
+    .sort((a, b) => {
+      // 1. Pinned rooms ALWAYS come first (Pin is highest priority)
+      const aPinned = Boolean(a.is_pinned);
+      const bPinned = Boolean(b.is_pinned);
+      if (aPinned !== bPinned) return bPinned ? 1 : -1;
+
+      // 2. Currently selected room next
+      const aSelected = a.id === userRoomId;
+      const bSelected = b.id === userRoomId;
+      if (aSelected !== bSelected) return bSelected ? 1 : -1;
+
+      // 3. Higher player count
+      const playerDiff = (b.total_players || 0) - (a.total_players || 0);
+      if (playerDiff !== 0) return playerDiff;
+
+      // 4. Room name
+      return a.room_name.localeCompare(b.room_name);
+    });
 
   const handleSelectRoom = async (roomId: string) => {
     setSelectingRoom(true);
@@ -584,56 +603,63 @@ export default function Profile() {
 
             {/* Room List */}
             <div className="flex-1 overflow-y-auto p-3 space-y-2">
-              {filteredRooms.map((r) => {
-                const isSelected = r.id === userRoomId;
-                return (
-                  <button
-                    key={r.id}
-                    disabled={selectingRoom}
-                    onClick={() => handleSelectRoom(r.id)}
-                    className={`w-full p-3 rounded-2xl border text-left flex items-center justify-between transition-all active:scale-[0.98] ${
-                      isSelected
-                        ? 'bg-amber-500/10 border-amber-400 dark:border-amber-500/50 shadow-xs'
-                        : 'bg-white dark:bg-slate-800/70 border-slate-100 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3 min-w-0">
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+              {filteredRooms.length === 0 ? (
+                <div className="py-10 text-center text-slate-400">
+                  <DoorOpen size={32} className="mx-auto mb-2 opacity-30 text-amber-500" />
+                  <p className="text-xs font-bold">{language === 'am' ? 'ምንም ክፍሎች አልተገኙም' : 'No available rooms found'}</p>
+                </div>
+              ) : (
+                filteredRooms.map((r) => {
+                  const isSelected = r.id === userRoomId;
+                  return (
+                    <button
+                      key={r.id}
+                      disabled={selectingRoom}
+                      onClick={() => handleSelectRoom(r.id)}
+                      className={`w-full p-3 rounded-2xl border text-left flex items-center justify-between transition-all active:scale-[0.98] ${
                         isSelected
-                          ? 'bg-amber-500 text-white shadow-xs'
-                          : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-                      }`}>
-                        <DoorOpen size={18} />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <p className="font-black text-xs text-slate-800 dark:text-white truncate">
-                            {r.room_name}
-                          </p>
-                          {r.is_pinned && (
-                            <span className="text-[8px] bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-black px-1.5 py-0.2 rounded-full uppercase">
-                              Official
-                            </span>
-                          )}
+                          ? 'bg-amber-500/10 border-amber-400 dark:border-amber-500/50 shadow-xs'
+                          : 'bg-white dark:bg-slate-800/70 border-slate-100 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3 min-w-0">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                          isSelected
+                            ? 'bg-amber-500 text-white shadow-xs'
+                            : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                        }`}>
+                          <DoorOpen size={18} />
                         </div>
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold mt-0.5">
-                          <Users size={10} className="inline mr-1 -mt-0.5" />
-                          {r.total_players || 0} {language === 'am' ? 'ተጫዋቾች' : 'players'}
-                        </p>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-black text-xs text-slate-800 dark:text-white truncate">
+                              {r.room_name}
+                            </p>
+                            {r.is_pinned && (
+                              <span className="text-[8px] bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-black px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5 border border-amber-300/40 shrink-0">
+                                📌 {language === 'am' ? 'ይፋዊ (Pinned)' : 'Pinned'}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold mt-0.5">
+                            <Users size={10} className="inline mr-1 -mt-0.5" />
+                            {r.total_players || 0} {language === 'am' ? 'ተጫዋቾች' : 'players'}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    {isSelected ? (
-                      <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs shrink-0">
-                        <Check size={14} />
-                      </div>
-                    ) : (
-                      <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 hover:text-amber-600 shrink-0">
-                        {language === 'am' ? 'ምረጥ' : 'Select'}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+                      {isSelected ? (
+                        <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs shrink-0">
+                          <Check size={14} />
+                        </div>
+                      ) : (
+                        <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 hover:text-amber-600 shrink-0">
+                          {language === 'am' ? 'ምረጥ' : 'Select'}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
