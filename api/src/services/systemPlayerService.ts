@@ -402,10 +402,21 @@ export class SystemPlayerService {
     remainingMinutes: number;
     elapsedMinutes: number;
   } {
-    const start = scheduleStart || '00:00';
-    const end = scheduleEnd || '24:00';
+    const rawStart = (scheduleStart || '00:00').trim();
+    const rawEnd = (scheduleEnd || '24:00').trim();
 
-    if (start === '00:00' && (end === '24:00' || end === '23:59')) {
+    const start = rawStart || '00:00';
+    const end = rawEnd || '24:00';
+
+    // 24/7 Always Active check:
+    // If start is 00:00 and end is 24:00, 23:59, 00:00, or start === end -> 24 Hours non-stop
+    if (
+      (start === '00:00' && (end === '24:00' || end === '23:59' || end === '00:00')) ||
+      (start === '24:00' && end === '24:00') ||
+      start === end ||
+      !scheduleStart ||
+      !scheduleEnd
+    ) {
       return {
         isActive: true,
         is24h: true,

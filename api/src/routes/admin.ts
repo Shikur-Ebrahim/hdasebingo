@@ -2673,10 +2673,15 @@ router.put('/hdase-room', requireAdmin, async (req: AuthRequest, res: Response) 
       updates.system_players_enabled = Boolean(system_players_enabled);
     }
     if (system_players_schedule_start !== undefined) {
-      updates.system_players_schedule_start = system_players_schedule_start;
+      const s = String(system_players_schedule_start || '00:00').trim();
+      updates.system_players_schedule_start = s;
     }
     if (system_players_schedule_end !== undefined) {
-      updates.system_players_schedule_end = system_players_schedule_end;
+      let e = String(system_players_schedule_end || '24:00').trim();
+      if (e === '00:00' && (updates.system_players_schedule_start === '00:00' || !updates.system_players_schedule_start)) {
+        e = '24:00';
+      }
+      updates.system_players_schedule_end = e;
     }
     if (system_players_stake_configs !== undefined) {
       updates.system_players_stake_configs = system_players_stake_configs;

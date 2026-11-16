@@ -176,8 +176,11 @@ export default function AdminHdaseBingo() {
             setStakes(r.stakes.map(Number));
           }
           setSystemEnabled(r.system_players_enabled !== undefined ? Boolean(r.system_players_enabled) : true);
-          setScheduleStart(r.system_players_schedule_start || '00:00');
-          setScheduleEnd(r.system_players_schedule_end || '24:00');
+          const rawStart = (r.system_players_schedule_start || '00:00').trim();
+          let rawEnd = (r.system_players_schedule_end || '24:00').trim();
+          if (rawEnd === '00:00' && rawStart === '00:00') rawEnd = '24:00';
+          setScheduleStart(rawStart || '00:00');
+          setScheduleEnd(rawEnd || '24:00');
           setRiskPercent(Number(r.system_players_risk_percent ?? 25));
 
           if (r.system_players_stake_configs) {
@@ -427,6 +430,7 @@ export default function AdminHdaseBingo() {
     triggerHaptic('light');
     setScheduleStart('00:00');
     setScheduleEnd('24:00');
+    showToast('success', '24/7 Always Active selected (00:00 - 24:00)');
   };
 
   if (loading) {
@@ -656,39 +660,84 @@ export default function AdminHdaseBingo() {
 
             {systemEnabled ? (
               <div className="space-y-4 pt-1">
-                {/* Active Schedule Window */}
-                <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200 space-y-2">
+                {/* Active Schedule Window (Clean 24h Selector) */}
+                <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="font-black text-xs text-slate-700 flex items-center gap-1.5">
-                      <Clock size={13} className="text-amber-500" />
-                      Active Schedule (24h)
+                    <span className="font-black text-xs text-slate-800 flex items-center gap-1.5">
+                      <Clock size={14} className="text-amber-500" />
+                      24h Schedule Interval
                     </span>
                     <button
+                      type="button"
                       onClick={set24Hours}
-                      className="text-[9px] font-black px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 hover:bg-amber-200"
+                      className={`text-[10px] font-black px-2.5 py-1 rounded-xl transition-all cursor-pointer flex items-center gap-1 ${
+                        scheduleStart === '00:00' && (scheduleEnd === '24:00' || scheduleEnd === '23:59')
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                      }`}
                     >
-                      Set 24/7 (Always ON)
+                      <Sparkles size={11} />
+                      <span>{scheduleStart === '00:00' && (scheduleEnd === '24:00' || scheduleEnd === '23:59') ? '24/7 ON ✓' : 'Set 24/7 (00:00 - 24:00)'}</span>
                     </button>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+
+                  {/* 24-Hour Military Format Selectors */}
+                  <div className="grid grid-cols-2 gap-2.5">
                     <div>
-                      <span className="text-[8.5px] font-bold text-slate-400 uppercase">Start Time</span>
-                      <input
-                        type="time"
+                      <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block mb-1">
+                        Start Time (24h)
+                      </span>
+                      <select
                         value={scheduleStart}
                         onChange={(e) => setScheduleStart(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs font-black text-slate-800 mt-0.5"
-                      />
+                        className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+                      >
+                        {Array.from({ length: 24 }).map((_, h) => {
+                          const val = `${h.toString().padStart(2, '0')}:00`;
+                          return (
+                            <option key={val} value={val}>
+                              {val} {h === 0 ? '(00:00 Midnight)' : h === 12 ? '(12:00 Noon)' : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
                     </div>
+
                     <div>
-                      <span className="text-[8.5px] font-bold text-slate-400 uppercase">End Time</span>
-                      <input
-                        type="time"
+                      <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block mb-1">
+                        End Time (24h)
+                      </span>
+                      <select
                         value={scheduleEnd}
                         onChange={(e) => setScheduleEnd(e.target.value)}
-                        className="w-full bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs font-black text-slate-800 mt-0.5"
-                      />
+                        className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+                      >
+                        <option value="24:00">24:00 (Full 24 Hours / All Day)</option>
+                        {Array.from({ length: 24 }).map((_, h) => {
+                          const val = `${h.toString().padStart(2, '0')}:00`;
+                          return (
+                            <option key={val} value={val}>
+                              {val} {h === 0 ? '(00:00 Midnight)' : h === 12 ? '(12:00 Noon)' : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
                     </div>
+                  </div>
+
+                  {/* 24-Hour Active Indicator Banner */}
+                  <div className="p-2.5 rounded-xl bg-amber-50/80 border border-amber-200/90 text-[10.5px] text-amber-950 font-medium">
+                    {scheduleStart === '00:00' && (scheduleEnd === '24:00' || scheduleEnd === '23:59' || scheduleEnd === '00:00') ? (
+                      <span className="flex items-center gap-1.5 text-emerald-800 font-bold">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                        <span><strong>24/7 Mode Active:</strong> System players join all games around the clock (00:00 - 24:00) every day.</span>
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1.5 text-slate-700">
+                        <Clock size={13} className="text-amber-600 shrink-0" />
+                        <span>Active window: <strong>{scheduleStart}</strong> to <strong>{scheduleEnd}</strong> (24h Ethiopian time UTC+3).</span>
+                      </span>
+                    )}
                   </div>
                 </div>
 
