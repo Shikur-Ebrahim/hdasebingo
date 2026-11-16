@@ -28,6 +28,10 @@ const PORT = process.env.PORT || 3002;
 app.use(corsMiddleware);
 app.use(express.json({ limit: '10mb' }));
 app.get('/health', (_, res) => res.json({ status: 'ok', service: 'hdasebingo-api' }));
+app.get(['/api/manifest', '/api/manifest.json', '/api/manifest.webmanifest'], (req, res, next) => {
+  req.url = '/manifest' + (req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '');
+  playerRouter(req, res, next);
+});
 app.use('/api/auth', authRouter);
 app.use('/api/player', playerRouter);
 app.use('/api/system-players', systemPlayersRouter);

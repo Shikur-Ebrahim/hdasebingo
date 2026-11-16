@@ -52,6 +52,70 @@ router.get('/resolve-invite', async (req, res) => {
   }
 });
 
+// GET /player/manifest — dynamic PWA Web Manifest with room and inviter pre-baked
+router.get(['/manifest', '/manifest.json', '/manifest.webmanifest'], async (req, res) => {
+  try {
+    const rawRoom = (req.query.room as string || '').replace('room_', '').trim();
+    const rawRef = (req.query.ref as string || '').replace('ref_', '').trim();
+
+    let roomName = '';
+    if (rawRoom) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawRoom);
+      const { data: rData } = await (isUuid
+        ? supabase.from('rooms').select('room_name').eq('id', rawRoom).maybeSingle()
+        : supabase.from('rooms').select('room_name').ilike('room_name', `%${rawRoom}%`).limit(1).maybeSingle()
+      );
+      if (rData?.room_name) roomName = rData.room_name;
+    }
+
+    let startUrl = '/?source=pwa';
+    if (rawRoom) {
+      startUrl += `&room=${encodeURIComponent(rawRoom)}`;
+      if (rawRef) startUrl += `&ref=${encodeURIComponent(rawRef)}`;
+    } else if (rawRef) {
+      startUrl += `&ref=${encodeURIComponent(rawRef)}`;
+    }
+
+    const appName = roomName ? `Hdase Bingo • ${roomName}` : 'Hdase Bingo • ሕዳሴ ቢንጎ';
+    const appShortName = roomName ? `${roomName} Bingo` : 'Hdase Bingo';
+
+    const manifest = {
+      id: '/',
+      name: 'Hdase Bingo • ሕዳሴ ቢንጎ',
+      short_name: 'Hdase Bingo',
+      description: 'የሕዳሴ ቢንጎ መድረክ - Official Ethiopian Online Bingo. Play live games, win real cash and enjoy instant payouts!',
+      start_url: startUrl,
+      scope: '/',
+      display: 'standalone',
+      display_override: [
+        'window-controls-overlay',
+        'standalone',
+        'minimal-ui'
+      ],
+      orientation: 'portrait',
+      background_color: '#ffffff',
+      theme_color: '#f59e0b',
+      lang: 'am',
+      dir: 'ltr',
+      categories: ['games', 'entertainment', 'sports'],
+      icons: [
+        { src: '/favicon-16x16.png', sizes: '16x16', type: 'image/png', purpose: 'any' },
+        { src: '/favicon-32x32.png', sizes: '32x32', type: 'image/png', purpose: 'any' },
+        { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: '/icon-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+        { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+      ]
+    };
+
+    res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    res.json(manifest);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/player/invited — returns all users invited by the current user
 router.get('/invited', validateTelegramAuth, async (req: AuthRequest, res) => {
   const telegramId = req.telegramUser!.id.toString();

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import WebApp from '@twa-dev/sdk';
 import { useGameStore } from '../store/gameStore';
+import { syncManifestWithRoom } from '../lib/pwa';
 
 const API = import.meta.env.VITE_API_URL || '/api';
 const BOT_USERNAME = import.meta.env.VITE_BOT_USERNAME || 'hdasebingo_bot';
@@ -99,6 +100,10 @@ export default function RoomJoinLanding() {
       if (detectedRef.startsWith('ref_')) detectedRef = detectedRef.replace('ref_', '');
       localStorage.setItem('hdase_promoter_ref', detectedRef);
       localStorage.setItem('hdase_invited_by', detectedRef);
+    }
+
+    if (detectedId || detectedRef) {
+      syncManifestWithRoom(detectedId, detectedRef);
     }
   }, [searchParams]);
 

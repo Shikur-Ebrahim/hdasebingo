@@ -9,6 +9,7 @@ import AgentLiveGameViewer from '../components/AgentLiveGameViewer';
 import AgentStakeConfigModal from '../components/AgentStakeConfigModal';
 import AgentSystemPlayerModal from '../components/AgentSystemPlayerModal';
 import VideoGuideButton from '../components/VideoGuideButton';
+import { syncManifestWithRoom } from '../lib/pwa';
 import {
   Bot,
   Users,
@@ -420,6 +421,12 @@ export default function Agent() {
     }, 20000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (room?.id) {
+      syncManifestWithRoom(room.id, user?.telegram_id || user?.id);
+    }
+  }, [room?.id, user?.telegram_id, user?.id]);
 
   const handleCopyPwaLink = () => {
     triggerHaptic('light');

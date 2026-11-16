@@ -10,6 +10,7 @@ import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
 import WebApp from '@twa-dev/sdk';
 import { QRCodeCanvas } from 'qrcode.react';
+import { syncManifestWithRoom } from '../lib/pwa';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -74,6 +75,12 @@ export default function Invite() {
       fetchRooms();
     }
   }, [rooms, fetchRooms]);
+
+  useEffect(() => {
+    if (userRoomId) {
+      syncManifestWithRoom(userRoomId, userRefId);
+    }
+  }, [userRoomId, userRefId]);
 
   // Fetch room name if not present in rooms list
   useEffect(() => {

@@ -3,6 +3,7 @@ import { MemoryRouter, Routes, Route, Link, useLocation, Navigate, useNavigate }
 import { Gamepad2, Wallet, Trophy, User, Headphones, ShieldAlert, MessageCircle } from 'lucide-react';
 import WebApp from '@twa-dev/sdk';
 import { useGameStore } from './store/gameStore';
+import { syncManifestWithRoom } from './lib/pwa';
 import { t } from './lib/translations';
 
 import Home from './pages/Home';
@@ -247,6 +248,7 @@ function App() {
       }
       if (detectedRoomId) {
         localStorage.setItem('hdase_invited_room_id', detectedRoomId);
+        syncManifestWithRoom(detectedRoomId, detectedPromoterRef);
       }
       if (detectedPromoterRef) {
         localStorage.setItem('hdase_promoter_ref', detectedPromoterRef);
@@ -257,11 +259,17 @@ function App() {
           .then(data => {
             if (data?.room_id) {
               localStorage.setItem('hdase_invited_room_id', data.room_id);
+              syncManifestWithRoom(data.room_id, detectedPromoterRef);
             }
           })
           .catch(() => {});
       }
     } catch {}
+
+    // Synchronize PWA manifest so any installed app carries this room into the WebAPK
+    const storedRoom = typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null;
+    const storedRef = typeof window !== 'undefined' ? localStorage.getItem('hdase_promoter_ref') : null;
+    if (storedRoom) syncManifestWithRoom(storedRoom, storedRef);
 
     // Apply dark mode on initial load
     if (isDarkMode) {
@@ -306,6 +314,12 @@ function App() {
       setIsAppInitializing(false);
     });
   }, [fetchUser, fetchRooms, subscribeToBalance]);
+
+  useEffect(() => {
+    if (user?.room_id) {
+      syncManifestWithRoom(user.room_id, user.telegram_id || user.id);
+    }
+  }, [user?.room_id, user?.telegram_id, user?.id]);
 
   useEffect(() => {
     if (isBlocked) {

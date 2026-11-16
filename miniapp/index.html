@@ -7,7 +7,25 @@
     <meta name="description" content="Hdase Bingo • ሕዳሴ ቢንጎ - Official Ethiopian Online Bingo. Play live, win cash, enjoy instant payouts!" />
 
     <!-- PWA & Mobile Web App Meta Tags -->
-    <link rel="manifest" href="/manifest.json" />
+    <link id="app-manifest" rel="manifest" href="/manifest.json" />
+    <script>
+      (function() {
+        try {
+          var sp = new URLSearchParams(window.location.search);
+          var hash = window.location.hash ? new URLSearchParams(window.location.hash.replace(/^#/, '')) : null;
+          var room = sp.get('room') || (hash ? hash.get('room') : null) || localStorage.getItem('hdase_invited_room_id');
+          var ref = sp.get('ref') || (hash ? hash.get('ref') : null) || localStorage.getItem('hdase_promoter_ref');
+          if (room) {
+            if (room.indexOf('room_') === 0) room = room.replace('room_', '');
+            if (ref && ref.indexOf('ref_') === 0) ref = ref.replace('ref_', '');
+            var mLink = document.getElementById('app-manifest');
+            if (mLink) {
+              mLink.href = '/api/player/manifest?room=' + encodeURIComponent(room) + (ref ? '&ref=' + encodeURIComponent(ref) : '');
+            }
+          }
+        } catch (e) {}
+      })();
+    </script>
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
