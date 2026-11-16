@@ -2250,7 +2250,26 @@ router.post('/system-pro/requests/:id/review', async (req: AuthRequest, res: Res
   try {
     const requestId = req.params.id ? req.params.id.trim() : '';
     const { action, reason } = req.body;
-    const reviewerName = req.telegramUser?.first_name || req.telegramUser?.username || 'Admin';
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    if (!requestId || !isUuid.test(requestId)) {
+      return res.status(400).json({ error: 'Invalid request ID format' });
+    }
+
+    const telegramId = req.telegramUser?.id?.toString() || '';
+    let reviewerUuid: string | null = null;
+    if (req.pwaUser?.id && isUuid.test(req.pwaUser.id)) {
+      reviewerUuid = req.pwaUser.id;
+    } else if (telegramId) {
+      const { data: dbUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('telegram_id', telegramId)
+        .maybeSingle();
+      if (dbUser?.id && isUuid.test(dbUser.id)) {
+        reviewerUuid = dbUser.id;
+      }
+    }
 
     const { data: request, error: reqErr } = await supabase
       .from('pro_upgrade_requests')
@@ -2266,7 +2285,7 @@ router.post('/system-pro/requests/:id/review', async (req: AuthRequest, res: Res
     let agentTelegramId = '';
     if (request.agent_id && /^\d+$/.test(request.agent_id.toString())) {
       agentTelegramId = request.agent_id.toString();
-    } else {
+    } else if (request.agent_id && isUuid.test(request.agent_id.toString())) {
       const { data: agentUser } = await supabase
         .from('users')
         .select('telegram_id')
@@ -2277,7 +2296,7 @@ router.post('/system-pro/requests/:id/review', async (req: AuthRequest, res: Res
       }
     }
 
-    if (!agentTelegramId && request.room_id) {
+    if (!agentTelegramId && request.room_id && isUuid.test(request.room_id.toString())) {
       const { data: roomData } = await supabase
         .from('rooms')
         .select('owner_telegram_id, agent_id')
@@ -2293,12 +2312,12 @@ router.post('/system-pro/requests/:id/review', async (req: AuthRequest, res: Res
     const botToken = process.env.BOT_TOKEN;
 
     if (action === 'approve') {
-      // 1. Mark request as approved
+      // 1. Mark request as approved (reviewed_by column is UUID type)
       const { error: updErr } = await supabase
         .from('pro_upgrade_requests')
         .update({
           status: 'approved',
-          reviewed_by: reviewerName,
+          reviewed_by: reviewerUuid,
           reviewed_at: new Date().toISOString(),
         })
         .eq('id', requestId);
@@ -2308,25 +2327,33 @@ router.post('/system-pro/requests/:id/review', async (req: AuthRequest, res: Res
       }
 
       // 2. Fetch room to compute 30 days extension
-      const { data: room } = await supabase.from('rooms').select('system_players_pro_expires_at').eq('id', request.room_id).maybeSingle();
-      let baseTime = Date.now();
-      if (room?.system_players_pro_expires_at) {
-        const existingExpires = new Date(room.system_players_pro_expires_at).getTime();
-        if (existingExpires > baseTime) baseTime = existingExpires;
+      let newExpiresAt = new Date(Date.now() + 30 * 86400000).toISOString();
+      if (request.room_id && isUuid.test(request.room_id.toString())) {
+        const { data: room } = await supabase
+          .from('rooms')
+          .select('system_players_pro_expires_at')
+          .eq('id', request.room_id)
+          .maybeSingle();
+
+        let baseTime = Date.now();
+        if (room?.system_players_pro_expires_at) {
+          const existingExpires = new Date(room.system_players_pro_expires_at).getTime();
+          if (existingExpires > baseTime) baseTime = existingExpires;
+        }
+        newExpiresAt = new Date(baseTime + 30 * 86400000).toISOString();
+
+        await supabase
+          .from('rooms')
+          .update({
+            system_players_pro_level: 1,
+            system_players_pro_expires_at: newExpiresAt,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', request.room_id);
+
+        // 3. Ensure 1,000 bots are seeded for this room
+        systemPlayerService.seedSystemPlayersPool(request.room_id, 1000).catch(console.error);
       }
-      const newExpiresAt = new Date(baseTime + 30 * 86400000).toISOString();
-
-      await supabase
-        .from('rooms')
-        .update({
-          system_players_pro_level: 1,
-          system_players_pro_expires_at: newExpiresAt,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', request.room_id);
-
-      // 3. Ensure 1,000 bots are seeded for this room
-      systemPlayerService.seedSystemPlayersPool(request.room_id, 1000).catch(console.error);
 
       // 4. Send Telegram Bot Notification to the Agent (like deposit approved)
       if (botToken && agentTelegramId) {
@@ -2371,7 +2398,7 @@ router.post('/system-pro/requests/:id/review', async (req: AuthRequest, res: Res
         .update({
           status: 'rejected',
           rejection_reason: rejectReasonText,
-          reviewed_by: reviewerName,
+          reviewed_by: reviewerUuid,
           reviewed_at: new Date().toISOString(),
         })
         .eq('id', requestId);

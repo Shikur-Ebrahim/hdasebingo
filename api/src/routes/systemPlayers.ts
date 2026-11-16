@@ -697,23 +697,34 @@ router.get('/admin/pending-count', validateTelegramAuth, async (req: AuthRequest
 // ── ADMIN: POST /api/system-players/admin/requests/:id/review ───────────────
 router.post('/admin/requests/:id/review', validateTelegramAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const telegramId = req.telegramUser?.id?.toString() || '';
     const requestId = req.params.id ? req.params.id.trim() : '';
     const { action, reason } = req.body;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+    if (!requestId || !isUuid.test(requestId)) {
+      return res.status(400).json({ error: 'Invalid request ID format' });
+    }
+
+    const telegramId = req.telegramUser?.id?.toString() || '';
     let userRole = req.pwaUser?.role;
-    let userFirstName = req.pwaUser?.first_name;
+    let reviewerUuid: string | null = null;
+
+    if (req.pwaUser?.id && isUuid.test(req.pwaUser.id)) {
+      reviewerUuid = req.pwaUser.id;
+    }
 
     if (!userRole && telegramId) {
       const { data: dbUser } = await supabase
         .from('users')
-        .select('role, first_name')
+        .select('id, role')
         .eq('telegram_id', telegramId)
         .maybeSingle();
 
       if (dbUser) {
         userRole = dbUser.role;
-        userFirstName = dbUser.first_name;
+        if (!reviewerUuid && dbUser.id && isUuid.test(dbUser.id)) {
+          reviewerUuid = dbUser.id;
+        }
       }
     }
 
@@ -735,7 +746,7 @@ router.post('/admin/requests/:id/review', validateTelegramAuth, async (req: Auth
     let agentTelegramId = '';
     if (request.agent_id && /^\d+$/.test(request.agent_id.toString())) {
       agentTelegramId = request.agent_id.toString();
-    } else {
+    } else if (request.agent_id && isUuid.test(request.agent_id.toString())) {
       const { data: agentUser } = await supabase
         .from('users')
         .select('telegram_id')
@@ -746,7 +757,7 @@ router.post('/admin/requests/:id/review', validateTelegramAuth, async (req: Auth
       }
     }
 
-    if (!agentTelegramId && request.room_id) {
+    if (!agentTelegramId && request.room_id && isUuid.test(request.room_id.toString())) {
       const { data: roomData } = await supabase
         .from('rooms')
         .select('owner_telegram_id, agent_id')
@@ -762,12 +773,12 @@ router.post('/admin/requests/:id/review', validateTelegramAuth, async (req: Auth
     const botToken = process.env.BOT_TOKEN;
 
     if (action === 'approve') {
-      // 1. Mark request as approved
+      // 1. Mark request as approved (reviewed_by is UUID type)
       const { error: updErr } = await supabase
         .from('pro_upgrade_requests')
         .update({
           status: 'approved',
-          reviewed_by: userFirstName || telegramId,
+          reviewed_by: reviewerUuid,
           reviewed_at: new Date().toISOString(),
         })
         .eq('id', requestId);
@@ -777,25 +788,33 @@ router.post('/admin/requests/:id/review', validateTelegramAuth, async (req: Auth
       }
 
       // 2. Fetch room to compute 30 days extension
-      const { data: room } = await supabase.from('rooms').select('system_players_pro_expires_at').eq('id', request.room_id).maybeSingle();
-      let baseTime = Date.now();
-      if (room?.system_players_pro_expires_at) {
-        const existingExpires = new Date(room.system_players_pro_expires_at).getTime();
-        if (existingExpires > baseTime) baseTime = existingExpires;
+      let newExpiresAt = new Date(Date.now() + 30 * 86400000).toISOString();
+      if (request.room_id && isUuid.test(request.room_id.toString())) {
+        const { data: room } = await supabase
+          .from('rooms')
+          .select('system_players_pro_expires_at')
+          .eq('id', request.room_id)
+          .maybeSingle();
+
+        let baseTime = Date.now();
+        if (room?.system_players_pro_expires_at) {
+          const existingExpires = new Date(room.system_players_pro_expires_at).getTime();
+          if (existingExpires > baseTime) baseTime = existingExpires;
+        }
+        newExpiresAt = new Date(baseTime + 30 * 86400000).toISOString();
+
+        await supabase
+          .from('rooms')
+          .update({
+            system_players_pro_level: 1,
+            system_players_pro_expires_at: newExpiresAt,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', request.room_id);
+
+        // 3. Ensure 1,000 bots are seeded for this room
+        systemPlayerService.seedSystemPlayersPool(request.room_id, 1000).catch(console.error);
       }
-      const newExpiresAt = new Date(baseTime + 30 * 86400000).toISOString();
-
-      await supabase
-        .from('rooms')
-        .update({
-          system_players_pro_level: 1,
-          system_players_pro_expires_at: newExpiresAt,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', request.room_id);
-
-      // 3. Ensure 1,000 bots are seeded for this room
-      systemPlayerService.seedSystemPlayersPool(request.room_id, 1000).catch(console.error);
 
       // 4. Send Telegram Bot Notification to the Agent (like deposit approved)
       if (botToken && agentTelegramId) {
@@ -840,7 +859,7 @@ router.post('/admin/requests/:id/review', validateTelegramAuth, async (req: Auth
         .update({
           status: 'rejected',
           rejection_reason: rejectReasonText,
-          reviewed_by: userFirstName || telegramId,
+          reviewed_by: reviewerUuid,
           reviewed_at: new Date().toISOString(),
         })
         .eq('id', requestId);
@@ -859,8 +878,8 @@ router.post('/admin/requests/:id/review', validateTelegramAuth, async (req: Auth
           `❌ *System Pro Upgrade Request Rejected*\n\n` +
           `🏢 *Room:* *${safeRoomName}*\n` +
           `💰 *Amount:* *${amountStr} ETB*\n` +
-          `⚠️ *Reason:* ${safeReason}\n\n` +
-          `You can now submit a new receipt in your Agent Portal or contact support for help.`;
+          `📝 *Reason:* ${safeReason}\n\n` +
+          `Please verify your transfer receipt and submit again from your Agent portal if this was an error.`;
 
         await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',
@@ -877,9 +896,9 @@ router.post('/admin/requests/:id/review', validateTelegramAuth, async (req: Auth
         success: true,
         message: 'Upgrade request rejected',
       });
+    } else {
+      return res.status(400).json({ error: 'Invalid action. Must be approve or reject.' });
     }
-
-    return res.status(400).json({ error: 'Invalid review action. Use "approve" or "reject".' });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
