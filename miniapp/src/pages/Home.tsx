@@ -527,12 +527,7 @@ export default function Home() {
       <div className="px-4 shrink-0">
         <Link
           to={`/bingo/live?room=${activeRoomId}`}
-          onClick={(e) => {
-            if (!user && !WebApp?.initData) {
-              e.preventDefault();
-              setAuthModalOpen(true);
-              return;
-            }
+          onClick={() => {
             if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
           }}
           className="block relative rounded-2xl overflow-hidden shadow-md h-48 sm:h-52 flex flex-col items-center justify-center border border-amber-100 cursor-pointer active:scale-[0.99] transition-transform"
@@ -683,10 +678,6 @@ export default function Home() {
             const theme = THEMES[idx % THEMES.length];
 
             const handleJoin = () => {
-              if (!user && !WebApp?.initData) {
-                setAuthModalOpen(true);
-                return;
-              }
               if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
               navigate(`/bingo/live?stake=${stake}&room=${activeRoomId}`);
             };

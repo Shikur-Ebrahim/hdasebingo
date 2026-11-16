@@ -24,7 +24,13 @@ const formatGameId = (id: string | null | undefined): string => {
 interface MyCard { cartela_number: number; card_matrix: number[][]; }
 interface Celebration { winner_name: string; winner_cartela: number; winner_prize: number; winner_matrix: number[][] | null; iWon: boolean; called: number[]; winners_list?: {first_name: string, cartela_number: number, card_matrix: number[][]}[] }
 
-const hdrs = () => ({ "Content-Type": "application/json", "x-telegram-init-data": WebApp?.initData ?? "" });
+const hdrs = () => {
+  const pwaToken = typeof window !== 'undefined' ? (localStorage.getItem('hdase_pwa_token') || localStorage.getItem('pwa_token')) : null;
+  const h: Record<string, string> = { "Content-Type": "application/json" };
+  if (WebApp?.initData) h["x-telegram-init-data"] = WebApp.initData;
+  if (pwaToken) h["Authorization"] = `Bearer ${pwaToken}`;
+  return h;
+};
 
 const ROW_COLORS = [
   "from-blue-500 to-blue-700","from-purple-500 to-purple-700","from-cyan-500 to-cyan-700",
@@ -153,7 +159,7 @@ const getWinningPatternTitle = (matrix: number[][], called: number[]): string =>
 export default function BingoGame() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user, fetchUser: refreshUser, subscribeToBalance, language, rooms, fetchRooms, subscribeToRooms } = useGameStore();
+  const { user, fetchUser: refreshUser, subscribeToBalance, language, rooms, fetchRooms, subscribeToRooms, setAuthModalOpen } = useGameStore();
 
   const urlStake = searchParams.get("stake");
   const urlRoom = searchParams.get("room");
@@ -863,7 +869,7 @@ export default function BingoGame() {
             }
           }).catch(() => {});
       }
-    }, 1200);
+    }, 2000);
   }, [user?.telegram_id, myCartelas, playSpecial, playCallAudio]);
 
   const dismissCelebration = useCallback(() => {
@@ -1092,6 +1098,10 @@ export default function BingoGame() {
   };
 
   const handleQuickBuy = (seat: number) => {
+    if (!user && !WebApp?.initData) {
+      setAuthModalOpen(true);
+      return;
+    }
     if (pendingPurchasesRef.current.has(seat)) return;
     if (myCartelas.length + pendingPurchasesRef.current.size >= maxCartelasPerUser) {
       setErrMsg(`Max ${maxCartelasPerUser} cartela${maxCartelasPerUser > 1 ? 's' : ''} per game • በጨዋታ ቢበዛ ${maxCartelasPerUser} ካርቴላ`);

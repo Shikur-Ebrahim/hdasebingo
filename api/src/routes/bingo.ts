@@ -1,13 +1,13 @@
 import { Router } from 'express';
-import { AuthRequest, validateTelegramAuth } from '../middleware/auth';
+import { AuthRequest, validateTelegramAuth, optionalTelegramAuth } from '../middleware/auth';
 import { supabase } from '../services/supabase';
 import { generateBingoCard, checkBingo, engine } from '../services/BingoEngine';
 import { getSettings } from './adminSettings';
 
 const router = Router();
 
-// ── GET /api/bingo/pools ── server-side unique player count (bypasses RLS) ──
-router.get('/pools', validateTelegramAuth, async (req, res) => {
+// ── GET /api/bingo/pools ── server-side unique player count (public, bypasses RLS) ──
+router.get('/pools', async (req, res) => {
   const roomId = (req.query.room || req.query.roomId) as string | undefined;
 
   let query = supabase
@@ -48,9 +48,9 @@ router.get('/pools', validateTelegramAuth, async (req, res) => {
   res.json({ pools });
 });
 
-// ── GET /api/bingo/current ──────────────────────────────────────────────────
-router.get('/current', validateTelegramAuth, async (req: AuthRequest, res) => {
-  const telegramId = req.telegramUser!.id.toString();
+// ── GET /api/bingo/current ── optional auth so visitors/unregistered users can view the table
+router.get('/current', optionalTelegramAuth, async (req: AuthRequest, res) => {
+  const telegramId = req.telegramUser?.id ? req.telegramUser.id.toString() : null;
   const stake = Number(req.query.stake) || 5;
   const roomId = (req.query.room || req.query.roomId) as string | undefined;
 
@@ -101,7 +101,7 @@ router.get('/current', validateTelegramAuth, async (req: AuthRequest, res) => {
   const taken_cartelas = (rows || []).map((p: any) => Number(p.cartela_number));
   const unique_players = new Set((rows || []).map((p: any) => p.telegram_id)).size;
   
-  const myRows = (rows || []).filter((p: any) => p.telegram_id === telegramId);
+  const myRows = telegramId ? (rows || []).filter((p: any) => p.telegram_id === telegramId) : [];
   const my_cartelas = myRows.map((p: any) => ({ cartela_number: p.cartela_number, card_matrix: p.card_matrix }));
   // Backward compat: my_card = first cartela
   const my_card = my_cartelas.length > 0 ? my_cartelas[0] : null;
