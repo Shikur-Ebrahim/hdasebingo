@@ -260,6 +260,7 @@ export default function BingoGame() {
       setGame(null);
       setMyCard(null);
       setMyCartelas([]);
+      pendingPurchasesRef.current.clear();
       setActiveCartelaIdx(0);
       setTaken([]);
     }
@@ -701,6 +702,13 @@ export default function BingoGame() {
   const [loading, setLoading] = useState(false);
   const [buying, setBuying] = useState<number | null>(null);
   const [errMsg, setErrMsg] = useState("");
+  useEffect(() => {
+    if (!errMsg) return;
+    const t = setTimeout(() => {
+      setErrMsg("");
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [errMsg]);
   const [timeLeft, setTimeLeft] = useState(0);
   const [celebration, setCelebration] = useState<Celebration | null>(null);
   const celebrationRef = useRef<Celebration | null>(null);
@@ -814,6 +822,7 @@ export default function BingoGame() {
         finishedCartelasRef.current = [];
         setMyCard(null);
         setMyCartelas([]);
+        pendingPurchasesRef.current.clear();
         setActiveCartelaIdx(0);
         setTaken([]);
         setManuallyMarked(new Set());
@@ -888,6 +897,7 @@ export default function BingoGame() {
     finishedCartelasRef.current = [];
     setMyCard(null);
     setMyCartelas([]);
+    pendingPurchasesRef.current.clear();
     setActiveCartelaIdx(0);
     setTaken([]);
     setManuallyMarked(new Set());
@@ -1102,8 +1112,15 @@ export default function BingoGame() {
       setAuthModalOpen(true);
       return;
     }
-    if (pendingPurchasesRef.current.has(seat)) return;
-    if (myCartelas.length + pendingPurchasesRef.current.size >= maxCartelasPerUser) {
+    // Deduplicate distinct seats selected in state or pending in-flight
+    const allSelectedNumbers = new Set<number>([
+      ...myCartelas.map(c => c.cartela_number),
+      ...Array.from(pendingPurchasesRef.current)
+    ]);
+
+    if (allSelectedNumbers.has(seat)) return;
+
+    if (allSelectedNumbers.size >= maxCartelasPerUser) {
       setErrMsg(`Max ${maxCartelasPerUser} cartela${maxCartelasPerUser > 1 ? 's' : ''} per game • በጨዋታ ቢበዛ ${maxCartelasPerUser} ካርቴላ`);
       return;
     }
@@ -1111,6 +1128,7 @@ export default function BingoGame() {
       setErrMsg(language === 'am' ? 'ይህ ቁጥር ተይዟል!' : 'Taken! Pick another.');
       return;
     }
+    setErrMsg('');
     pendingPurchasesRef.current.add(seat);
     const matrix = generateBingoCard();
     joinGame(seat, matrix);
@@ -1119,6 +1137,9 @@ export default function BingoGame() {
   const handleCancelCartela = async (seat: number) => {
     if (!game || game.status !== 'waiting') return;
     if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
+
+    pendingPurchasesRef.current.delete(seat);
+    setErrMsg('');
 
     const existing = myCartelas.find(c => c.cartela_number === seat);
     if (!existing) return;
@@ -1144,16 +1165,16 @@ export default function BingoGame() {
         refreshUser();
         fetchState();
       } else {
-        setMyCartelas(prev => [...prev, existing]);
-        setTaken(prev => [...prev, seat]);
+        setMyCartelas(prev => prev.some(c => c.cartela_number === seat) ? prev : [...prev, existing]);
+        setTaken(prev => prev.includes(seat) ? prev : [...prev, seat]);
         useGameStore.setState(s => ({
           user: s.user ? { ...s.user, main_balance: Math.max(0, Number(s.user.main_balance || 0) - stakeAmt) } : s.user
         }));
         setErrMsg('Could not cancel cartela');
       }
     } catch {
-      setMyCartelas(prev => [...prev, existing]);
-      setTaken(prev => [...prev, seat]);
+      setMyCartelas(prev => prev.some(c => c.cartela_number === seat) ? prev : [...prev, existing]);
+      setTaken(prev => prev.includes(seat) ? prev : [...prev, seat]);
       useGameStore.setState(s => ({
         user: s.user ? { ...s.user, main_balance: Math.max(0, Number(s.user.main_balance || 0) - stakeAmt) } : s.user
       }));
@@ -1237,16 +1258,40 @@ export default function BingoGame() {
 
   const joinGame = async (seat: number, matrix: number[][]) => {
     initWebAudio();
-    if (!game || game.status !== "waiting") return;
-    if (myCartelas.length >= maxCartelasPerUser) { setErrMsg(`Max ${maxCartelasPerUser} cartela${maxCartelasPerUser > 1 ? 's' : ''} per game`); return; }
-    if (taken.includes(seat)) { setErrMsg("Taken! Pick another."); return; }
+    if (!game || game.status !== "waiting") {
+      pendingPurchasesRef.current.delete(seat);
+      return;
+    }
+    if (myCartelas.some(c => c.cartela_number === seat)) {
+      pendingPurchasesRef.current.delete(seat);
+      return;
+    }
+    const distinctOtherCount = new Set([
+      ...myCartelas.map(c => c.cartela_number).filter(n => n !== seat),
+      ...Array.from(pendingPurchasesRef.current).filter(n => n !== seat)
+    ]).size;
+
+    if (distinctOtherCount >= maxCartelasPerUser) {
+      pendingPurchasesRef.current.delete(seat);
+      setErrMsg(`Max ${maxCartelasPerUser} cartela${maxCartelasPerUser > 1 ? 's' : ''} per game • በጨዋታ ቢበዛ ${maxCartelasPerUser} ካርቴላ`);
+      return;
+    }
+    if (taken.includes(seat) && !myCartelas.some(c => c.cartela_number === seat)) {
+      pendingPurchasesRef.current.delete(seat);
+      setErrMsg(language === 'am' ? 'ይህ ቁጥር ተይዟል!' : "Taken! Pick another.");
+      return;
+    }
     const bonusBal = Number(user?.bonus_balance || 0), mainBal = Number(user?.main_balance || 0);
-    if (!user || bonusBal + mainBal < game.stake) { setErrMsg(`Need ${game.stake} ETB`); return; }
+    if (!user || bonusBal + mainBal < game.stake) {
+      pendingPurchasesRef.current.delete(seat);
+      setErrMsg(`Need ${game.stake} ETB`);
+      return;
+    }
 
     setErrMsg("");
     // INSTANT 0ms OPTIMISTIC UPDATE: Turn green with \u2713 immediately!
     const optimisticCard = { cartela_number: seat, card_matrix: matrix };
-    setMyCartelas(prev => [...prev, optimisticCard]);
+    setMyCartelas(prev => prev.some(c => c.cartela_number === seat) ? prev : [...prev, optimisticCard]);
     setMyCard(optimisticCard);
     setTaken(prev => prev.includes(seat) ? prev : [...prev, seat]);
     setBuying(null);
@@ -1870,7 +1915,11 @@ export default function BingoGame() {
 
   const renderCartelaPicker = () => {
     const myNums = myCartelas.map(c => c.cartela_number);
-    const canPickMore = myCartelas.length < maxCartelasPerUser;
+    const activeSeats = new Set<number>([
+      ...myNums,
+      ...Array.from(pendingPurchasesRef.current)
+    ]);
+    const canPickMore = activeSeats.size < maxCartelasPerUser;
 
     return (
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
@@ -1884,7 +1933,7 @@ export default function BingoGame() {
               </p>
             </div>
             <span className="text-[11px] bg-amber-100 text-amber-900 border border-amber-300/80 px-2.5 py-0.5 rounded-full font-black shadow-2xs">
-              {myCartelas.length}/{maxCartelasPerUser} PICKED
+              {Math.max(myCartelas.length, activeSeats.size)}/{maxCartelasPerUser} PICKED
             </span>
           </div>
 
@@ -2034,6 +2083,7 @@ export default function BingoGame() {
                   setGame(null);
                   setMyCard(null);
                   setMyCartelas([]);
+                  pendingPurchasesRef.current.clear();
                   setActiveCartelaIdx(0);
                   setTaken([]);
                 }} 
@@ -2091,6 +2141,7 @@ export default function BingoGame() {
                                 setGame(null);
                                 setMyCard(null);
                                 setMyCartelas([]);
+                                pendingPurchasesRef.current.clear();
                                 setActiveCartelaIdx(0);
                                 setTaken([]);
                               }
@@ -2149,7 +2200,7 @@ export default function BingoGame() {
                               if (selectedRoomId) params.set('room', selectedRoomId);
                               return params;
                             });
-                            setGame(null); setMyCard(null); setMyCartelas([]); setActiveCartelaIdx(0); setTaken([]);
+                            setGame(null); setMyCard(null); setMyCartelas([]); pendingPurchasesRef.current.clear(); setActiveCartelaIdx(0); setTaken([]);
                             setShowStakeDropdown(false);
                           }}
                           className={`w-full text-left px-4 py-3 flex items-center justify-between border-b border-slate-100 last:border-0 hover:bg-amber-50 active:bg-amber-100 transition-colors ${selectedStake === val ? 'text-amber-600 font-black' : 'text-slate-700'}`}
