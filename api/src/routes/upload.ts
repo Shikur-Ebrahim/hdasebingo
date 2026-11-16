@@ -1,9 +1,50 @@
 import { Router } from 'express';
 import { AuthRequest, validateTelegramAuth } from '../middleware/auth';
-import { getPresignedUploadUrl } from '../services/r2';
+import { getPresignedUploadUrl, uploadToR2 } from '../services/r2';
 import crypto from 'crypto';
 
 const router = Router();
+
+/**
+ * POST /api/upload
+ * POST /api/upload/direct
+ * Direct base64 image/file upload to R2 (bulletproof fallback when presign/CORS is blocked)
+ * Body: { filename: "receipt.jpg", contentType: "image/jpeg", fileBase64: "..." }
+ */
+const handleDirectUpload = async (req: AuthRequest, res: any) => {
+  try {
+    const { filename, contentType, fileBase64, data, image } = req.body;
+    const rawData = fileBase64 || data || image;
+
+    if (!rawData) {
+      return res.status(400).json({ error: 'fileBase64 or data is required for direct upload' });
+    }
+
+    const cleanContentType = contentType || 'image/jpeg';
+    const base64Content = rawData.replace(/^data:[^;]+;base64,/, '');
+    const buffer = Buffer.from(base64Content, 'base64');
+
+    const telegramId = req.telegramUser?.id?.toString() || 'anonymous';
+    const ext = (filename || 'screenshot.jpg').split('.').pop() || 'jpg';
+    const uniqueId = crypto.randomBytes(8).toString('hex');
+    const key = `users/${telegramId}/${uniqueId}.${ext}`;
+
+    const publicUrl = await uploadToR2(key, buffer, cleanContentType);
+
+    return res.json({
+      success: true,
+      url: publicUrl,
+      publicUrl,
+      key,
+    });
+  } catch (err: any) {
+    console.error('[Upload Direct] Error:', err);
+    return res.status(500).json({ error: err.message || 'Direct upload failed' });
+  }
+};
+
+router.post('/', validateTelegramAuth, handleDirectUpload);
+router.post('/direct', validateTelegramAuth, handleDirectUpload);
 
 /**
  * POST /api/upload/presign

@@ -196,8 +196,8 @@ router.post('/upgrade', validateTelegramAuth, async (req: AuthRequest, res: Resp
   }
 });
 
-// ── POST /api/system-players/submit-proof (Transfer screenshot submission) ───
-router.post('/submit-proof', validateTelegramAuth, async (req: AuthRequest, res: Response) => {
+// ── POST /api/system-players/submit-proof & /pro-request (Transfer screenshot submission) ───
+const handleProProofSubmit = async (req: AuthRequest, res: Response) => {
   try {
     const telegramId = req.telegramUser!.id.toString();
     const {
@@ -257,7 +257,10 @@ router.post('/submit-proof', validateTelegramAuth, async (req: AuthRequest, res:
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
-});
+};
+
+router.post('/submit-proof', validateTelegramAuth, handleProProofSubmit);
+router.post('/pro-request', validateTelegramAuth, handleProProofSubmit);
 
 // ── GET /api/system-players/my-pro-requests ─────────────────────────────────
 router.get('/my-pro-requests', validateTelegramAuth, async (req: AuthRequest, res: Response) => {
@@ -594,8 +597,8 @@ router.post('/admin/requests/:id/review', validateTelegramAuth, async (req: Auth
     const { action, reason } = req.body;
 
     const { data: user } = await supabase.from('users').select('role, first_name').eq('telegram_id', telegramId).single();
-    if (!user || user.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin only' });
+    if (!user || (user.role !== 'admin' && user.role !== 'worker')) {
+      return res.status(403).json({ error: 'Admin or worker only' });
     }
 
     const { data: request, error: reqErr } = await supabase

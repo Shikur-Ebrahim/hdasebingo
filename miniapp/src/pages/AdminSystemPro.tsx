@@ -61,12 +61,24 @@ export default function AdminSystemPro() {
     } catch {}
   };
 
+  const getAuthHeaders = (): Record<string, string> => {
+    const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+    const pwaToken = typeof window !== 'undefined' ? (localStorage.getItem('hdase_pwa_token') || localStorage.getItem('pwa_token')) : null;
+    const headers: Record<string, string> = {};
+    if (initData) headers['x-telegram-init-data'] = initData;
+    if (pwaToken) {
+      headers['x-pwa-token'] = pwaToken;
+      headers['x-pwa-auth'] = pwaToken;
+      headers['Authorization'] = `Bearer ${pwaToken}`;
+    }
+    return headers;
+  };
+
   const fetchRequests = async () => {
     try {
       setLoading(true);
-      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
       const res = await fetch(`${API_URL}/system-players/admin/requests?status=${filter}`, {
-        headers: { 'x-telegram-init-data': initData },
+        headers: getAuthHeaders(),
       });
       if (res.ok) {
         const data = await res.json();
@@ -87,12 +99,11 @@ export default function AdminSystemPro() {
     triggerHaptic('heavy');
     setActionLoading(true);
     try {
-      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
       const res = await fetch(`${API_URL}/system-players/admin/requests/${id}/review`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-telegram-init-data': initData,
+          ...getAuthHeaders(),
         },
         body: JSON.stringify({ action, reason }),
       });

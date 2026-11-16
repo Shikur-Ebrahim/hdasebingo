@@ -271,29 +271,94 @@ export default function Agent() {
     setProSuccess(null);
     try {
       const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
-      const formData = new FormData();
-      formData.append('file', proofScreenshot);
-      const upRes = await fetch(`${API}/upload`, {
-        method: 'POST',
-        headers: { 'x-telegram-init-data': initData },
-        body: formData,
-      });
-      if (!upRes.ok) throw new Error('Failed to upload receipt screenshot');
-      const upData = await upRes.json();
-      const screenshotUrl = upData.url || upData.file_url;
+      const pwaToken = typeof window !== 'undefined' ? (localStorage.getItem('hdase_pwa_token') || localStorage.getItem('pwa_token')) : null;
+      const authHeaders: Record<string, string> = {};
+      if (initData) authHeaders['x-telegram-init-data'] = initData;
+      if (pwaToken) {
+        authHeaders['x-pwa-token'] = pwaToken;
+        authHeaders['x-pwa-auth'] = pwaToken;
+        authHeaders['Authorization'] = `Bearer ${pwaToken}`;
+      }
 
-      const acc = proData?.manager_accounts?.find((a: any) => a.id === selectedManagerAccId);
+      // Step 1: Upload the screenshot image
+      let screenshotUrl = '';
 
-      const reqRes = await fetch(`${API}/system-players/pro-request`, {
+      // Method A: Presigned URL direct to R2 (same reliable method as Deposit.tsx)
+      try {
+        const presignRes = await fetch(`${API}/upload/presign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({
+            filename: proofScreenshot.name || 'receipt.jpg',
+            contentType: proofScreenshot.type || 'image/jpeg',
+          }),
+        });
+
+        if (presignRes.ok) {
+          const presignData = await presignRes.json();
+          const { uploadUrl, publicUrl } = presignData;
+          if (uploadUrl) {
+            const putRes = await fetch(uploadUrl, {
+              method: 'PUT',
+              headers: { 'Content-Type': proofScreenshot.type || 'image/jpeg' },
+              body: proofScreenshot,
+            });
+            if (putRes.ok && publicUrl) {
+              screenshotUrl = publicUrl;
+            }
+          }
+        }
+      } catch (presignErr) {
+        console.warn('[Agent] Presign upload failed, falling back to direct upload:', presignErr);
+      }
+
+      // Fallback Method B: Direct base64 upload to backend /api/upload
+      if (!screenshotUrl) {
+        const toBase64 = (file: File): Promise<string> =>
+          new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = (err) => reject(err);
+          });
+
+        const base64Data = await toBase64(proofScreenshot);
+        const directRes = await fetch(`${API}/upload`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders },
+          body: JSON.stringify({
+            filename: proofScreenshot.name || 'receipt.jpg',
+            contentType: proofScreenshot.type || 'image/jpeg',
+            fileBase64: base64Data,
+          }),
+        });
+
+        if (!directRes.ok) {
+          const errJson = await directRes.json().catch(() => ({}));
+          throw new Error(errJson.error || 'Failed to upload receipt screenshot. Please try again.');
+        }
+
+        const directData = await directRes.json();
+        screenshotUrl = directData.url || directData.publicUrl;
+      }
+
+      if (!screenshotUrl) {
+        throw new Error('Could not obtain image URL after upload. Please try again.');
+      }
+
+      const acc = proData?.manager_accounts?.find((a: any) => a.id === selectedManagerAccId) || proData?.manager_accounts?.[0];
+
+      // Step 2: Submit proof for admin review
+      const reqRes = await fetch(`${API}/system-players/submit-proof`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-telegram-init-data': initData,
+          ...authHeaders,
         },
         body: JSON.stringify({
           roomId: room.id,
           amount: Number(transferAmount) || 1000,
-          manager_account_id: selectedManagerAccId || null,
+          manager_account_id: acc?.id || selectedManagerAccId || null,
           bank_type: acc?.bank_type || 'cbe',
           account_name: acc?.account_name || '',
           account_number: acc?.account_number || '',

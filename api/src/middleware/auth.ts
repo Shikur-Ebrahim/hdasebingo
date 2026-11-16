@@ -92,8 +92,8 @@ export async function validateTelegramAuth(req: AuthRequest, res: Response, next
     }
   }
 
-  // 2. Try PWA token auth (header 'x-pwa-auth' or 'Authorization: Bearer <token>')
-  let pwaToken = req.headers['x-pwa-auth'] as string;
+  // 2. Try PWA token auth (header 'x-pwa-auth', 'x-pwa-token' or 'Authorization: Bearer <token>')
+  let pwaToken = (req.headers['x-pwa-auth'] || req.headers['x-pwa-token']) as string;
   if (!pwaToken && req.headers['authorization']) {
     const authHeader = req.headers['authorization'] as string;
     if (authHeader.startsWith('Bearer ')) {
