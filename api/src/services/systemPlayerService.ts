@@ -814,9 +814,9 @@ export class SystemPlayerService {
 
     const totalUnique = realUnique + systemUnique;
 
-    // Derash (Prize Pool) is always based on prize_percent (default 80% of total pot)
+    // Derash (Prize Pool): If 2 players, 100% (0% commission). If 3+ players, prize_percent (default 80%)
     const rawPot = totalCartelas * stakeAmt;
-    const prizePercent = Number(cfg.prize_percent || 80);
+    const prizePercent = totalUnique >= 3 ? Number(cfg.prize_percent || 80) : 100;
     const prizePool = Math.floor((rawPot * prizePercent) / 100);
 
     await supabase.from('bingo_games').update({

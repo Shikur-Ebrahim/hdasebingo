@@ -326,9 +326,9 @@ router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
   const unique_players = unique_real + unique_sys;
   const total_cartelas = allRows.length;
 
-  // Derash (Prize Pool) is always based on prize_percent (default 80% of total pot)
+  // Derash (Prize Pool): If 2 players, 100% (0% commission). If 3+ players, prize_percent (default 80%)
   const rawPool = total_cartelas * stakeAmt;
-  const prizePercent = Number(cfg.prize_percent || 80);
+  const prizePercent = unique_players >= 3 ? Number(cfg.prize_percent || 80) : 100;
   const prizePool = Math.floor((rawPool * prizePercent) / 100);
 
   let newStartAt = game.start_at;
@@ -417,7 +417,7 @@ router.post('/leave', validateTelegramAuth, async (req: AuthRequest, res) => {
 
   const cfg = await getSettings();
   const rawPool = total_cartelas * Number(game.stake);
-  const prizePercent = Number(cfg.prize_percent || 80);
+  const prizePercent = unique_players >= 3 ? Number(cfg.prize_percent || 80) : 100;
   const prizePool = Math.floor((rawPool * prizePercent) / 100);
 
   // If no cartelas remaining, reset countdown

@@ -710,6 +710,8 @@ export default function BingoGame() {
   const celebrationTimerRef = useRef<any>(null);
   const finishingDelayTimerRef = useRef<any>(null);
   const lastPlayedBallRef = useRef<number | null>(null);
+  const isFinishingRef = useRef(false);
+  const finishedCartelasRef = useRef<MyCard[]>([]);
   const [isFinishing, setIsFinishing] = useState(false);
   const cartelaMatricesRef = useRef<Record<number, number[][]>>({});
   const fetchStateRef = useRef<() => void>(() => {});
@@ -772,12 +774,17 @@ export default function BingoGame() {
     // 3. Keep live calling board visible for 1.2s so the user clearly sees:
     // - The final ball called in the caller circle
     // - The final number marked in orange on the winning cartela!
+    if (myCartelas && myCartelas.length > 0) {
+      finishedCartelasRef.current = myCartelas;
+    }
     setIsFinishing(true);
+    isFinishingRef.current = true;
 
     if (finishingDelayTimerRef.current) clearTimeout(finishingDelayTimerRef.current);
     finishingDelayTimerRef.current = setTimeout(() => {
       finishingDelayTimerRef.current = null;
       setIsFinishing(false);
+      isFinishingRef.current = false;
 
       // 4. Play "Bingo!" / stop sound now!
       playSpecial('bingo_win');
@@ -795,6 +802,10 @@ export default function BingoGame() {
       celebrationTimerRef.current = setTimeout(() => {
         celebrationTimerRef.current = null;
         setCelebration(null);
+        celebrationRef.current = null;
+        setIsFinishing(false);
+        isFinishingRef.current = false;
+        finishedCartelasRef.current = [];
         setMyCard(null);
         setMyCartelas([]);
         setActiveCartelaIdx(0);
@@ -865,7 +876,10 @@ export default function BingoGame() {
       finishingDelayTimerRef.current = null;
     }
     setIsFinishing(false);
+    isFinishingRef.current = false;
     setCelebration(null);
+    celebrationRef.current = null;
+    finishedCartelasRef.current = [];
     setMyCard(null);
     setMyCartelas([]);
     setActiveCartelaIdx(0);
@@ -880,11 +894,14 @@ export default function BingoGame() {
 
   const fetchState = useCallback(async () => {
     if (!selectedStake) return;
+    // CRITICAL: Never wipe out the active calling board or cartelas while finishing or celebrating!
+    if (isFinishingRef.current || celebrationRef.current) return;
     setLoading(true);
     try {
       const url = `${API}/bingo/current?stake=${selectedStake}${selectedRoomId ? `&room=${selectedRoomId}` : ''}`;
       const r = await fetch(url, { headers: hdrs() });
       if (r.ok) {
+        if (isFinishingRef.current || celebrationRef.current) return;
         const d = await r.json();
         if (d.max_players) setMaxPlayers(Number(d.max_players));
         if (d.max_cartelas_per_user) setMaxCartelasPerUser(Math.min(4, Number(d.max_cartelas_per_user) || 4));
@@ -939,6 +956,10 @@ export default function BingoGame() {
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "bingo_games" }, ({ new: g }) => {
         if (Number(g.stake) === selectedStake && (!selectedRoomId || g.room_id === selectedRoomId)) {
           const bg = g as BGame;
+          // Guard: if finishing or celebrating this game, ignore updates from any different game!
+          if ((isFinishingRef.current || celebrationRef.current) && bg.id !== gameIdRef.current) {
+            return;
+          }
           setGame(bg);
           if (bg.status === 'finished') {
             triggerCelebration(bg);
@@ -946,6 +967,7 @@ export default function BingoGame() {
         }
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "bingo_games" }, () => {
+        if (isFinishingRef.current || celebrationRef.current) return;
         fetchState();
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "bingo_players" }, ({ new: p }) => {
@@ -986,6 +1008,7 @@ export default function BingoGame() {
   useEffect(() => {
     if (!selectedStake) return;
     const pollId = setInterval(() => {
+      if (isFinishingRef.current || celebrationRef.current) return;
       if (game?.status === 'calling' || (game?.status === 'waiting' && timeLeft <= 2)) {
         fetchState();
       }
@@ -1224,12 +1247,13 @@ export default function BingoGame() {
     if (nb >= stakeAmt) { nb -= stakeAmt; } else { nm -= stakeAmt - nb; nb = 0; }
     useGameStore.setState(s => ({ user: s.user ? { ...s.user, main_balance: nm, bonus_balance: nb } : s.user }));
 
-    // Optimistic pot calculation: pot = (total cartelas + 1) Ã— stake
+    // Optimistic pot calculation: pot = (total cartelas + 1) × stake
     const isFirstCartela = myCartelas.length === 0;
     const newUniquePlayers = isFirstCartela ? uniquePlayers + 1 : uniquePlayers;
     const newTotalCartelas = taken.length + 1;
     const rawPool = newTotalCartelas * stakeAmt;
-    setGame(prev => prev ? { ...prev, prize_pool: Math.floor(rawPool * 0.8) } : prev);
+    const prizePercent = newUniquePlayers >= 3 ? 0.8 : 1.0;
+    setGame(prev => prev ? { ...prev, prize_pool: Math.floor(rawPool * prizePercent) } : prev);
 
     try {
       const r = await fetch(`${API}/bingo/join`, {
@@ -1543,9 +1567,9 @@ export default function BingoGame() {
                 const isFree = (r === 2 && c === 2) || num === 0;
                 const isCalled = called.includes(num);
                 const isManualMarked = manuallyMarked.has(num);
-                const marked = isFree || (autoMark ? isCalled : isManualMarked);
+                const marked = isFree || (autoMark || isFinishing || celebration ? isCalled : isManualMarked);
                 const isLast = num === lastNum;
-                const canTap = !autoMark && isCalled && !isFree;
+                const canTap = !autoMark && isCalled && !isFree && !isFinishing && !celebration;
 
                 return (
                   <div
@@ -1568,7 +1592,7 @@ export default function BingoGame() {
                     } ${
                       isFree
                         ? 'bg-gradient-to-b from-amber-300 via-yellow-400 to-amber-500 text-amber-950 font-black shadow-[0_1px_2px_rgba(217,119,6,0.35),inset_0_0.5px_0.5px_rgba(255,255,255,0.9)] text-[10.5px]'
-                        : isLast && autoMark
+                        : (isLast && (autoMark || isFinishing || celebration))
                         ? 'bg-gradient-to-b from-amber-400 via-orange-500 to-amber-600 text-white font-black shadow-[0_0_8px_rgba(249,115,22,0.8),inset_0_1px_1px_rgba(255,255,255,0.8)] ring-2 ring-yellow-300 scale-105 z-10'
                         : marked
                         ? 'bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-600 text-white font-black shadow-[0_1px_2px_rgba(16,185,129,0.4),inset_0_1px_1px_rgba(255,255,255,0.8),inset_0_-1px_1px_rgba(5,150,105,0.5)] border border-emerald-400'
@@ -1746,79 +1770,89 @@ export default function BingoGame() {
         </div>
 
         {/* Cartelas Section - Moved down, anchored right above bottom action button with zero gap */}
-        <div className={`flex-1 min-h-0 flex flex-col ${myCartelas.length <= 2 ? 'justify-start' : 'justify-end'} overflow-hidden px-0.5 mt-0.5 mb-0.5`}>
-          {myCartelas.length > 0 ? (
-            <div className={`grid ${myCartelas.length === 1 ? 'grid-cols-1 max-w-[240px]' : 'grid-cols-2 max-w-[400px]'} gap-1 w-full mx-auto`}>
-              {myCartelas.map(card => (
-                <div key={card.cartela_number} className="w-full">
-                  {renderCartelaCard(card, myCartelas.length === 1)}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="w-full max-w-[250px] mx-auto relative mt-2 pointer-events-none">
-              <div className="rounded-2xl overflow-hidden border-2 border-amber-300 bg-white shadow-md">
-                <div className="grid grid-cols-5">
-                  {BINGO_LETTERS.map(l => (
-                    <div key={l} className="flex items-center justify-center py-1 font-black text-white text-xs" style={{ background: LETTER_BG[l] }}>{l}</div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-5 gap-[2px] p-[2px] bg-amber-50/60">
-                  {Array.from({ length: 5 }).flatMap((_, r) =>
-                    Array.from({ length: 5 }, (_, c) => {
-                      const isFree = r === 2 && c === 2;
-                      const num = isFree ? '★' : (c * 15) + r + (c % 2 === 0 ? 3 : 8);
-                      return (
-                        <div key={`${r}-${c}`} className={`aspect-square flex items-center justify-center font-black text-xs rounded ${
-                          isFree ? 'bg-amber-400 text-amber-950' : 'bg-white text-slate-800 shadow-2xs border border-slate-100'
-                        }`}>{num}</div>
-                      );
-                    })
+        {(() => {
+          const activeCartelas = (myCartelas && myCartelas.length > 0)
+            ? myCartelas
+            : ((isFinishing || celebration) && finishedCartelasRef.current.length > 0 ? finishedCartelasRef.current : []);
+
+          return (
+            <>
+              <div className={`flex-1 min-h-0 flex flex-col ${activeCartelas.length <= 2 ? 'justify-start' : 'justify-end'} overflow-hidden px-0.5 mt-0.5 mb-0.5`}>
+                {activeCartelas.length > 0 ? (
+                  <div className={`grid ${activeCartelas.length === 1 ? 'grid-cols-1 max-w-[240px]' : 'grid-cols-2 max-w-[400px]'} gap-1 w-full mx-auto`}>
+                    {activeCartelas.map(card => (
+                      <div key={card.cartela_number} className="w-full">
+                        {renderCartelaCard(card, activeCartelas.length === 1)}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="w-full max-w-[250px] mx-auto relative mt-2 pointer-events-none">
+                    <div className="rounded-2xl overflow-hidden border-2 border-amber-300 bg-white shadow-md">
+                      <div className="grid grid-cols-5">
+                        {BINGO_LETTERS.map(l => (
+                          <div key={l} className="flex items-center justify-center py-1 font-black text-white text-xs" style={{ background: LETTER_BG[l] }}>{l}</div>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-5 gap-[2px] p-[2px] bg-amber-50/60">
+                        {Array.from({ length: 5 }).flatMap((_, r) =>
+                          Array.from({ length: 5 }, (_, c) => {
+                            const isFree = r === 2 && c === 2;
+                            const num = isFree ? '★' : (c * 15) + r + (c % 2 === 0 ? 3 : 8);
+                            return (
+                              <div key={`${r}-${c}`} className={`aspect-square flex items-center justify-center font-black text-xs rounded ${
+                                isFree ? 'bg-amber-400 text-amber-950' : 'bg-white text-slate-800 shadow-2xs border border-slate-100'
+                              }`}>{num}</div>
+                            );
+                          })
+                        )}
+                      </div>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-xs z-10 p-2">
+                        <div className="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center mb-2 border border-red-500/30">
+                          <Clock size={18} className="animate-pulse text-amber-400" />
+                        </div>
+                        <h3 className="text-red-300 font-black text-sm uppercase tracking-wider mb-1">Match is active</h3>
+                        <p className="text-white text-[9px] font-bold text-center leading-relaxed uppercase tracking-wider">
+                          <span dangerouslySetInnerHTML={{ __html: t[language].bingo.waitNext }} />
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Bottom Action Bar: Only visible if user has bought at least 1 cartela */}
+              {activeCartelas.length > 0 && (
+                <div className="shrink-0 pt-0 pb-1 px-1 w-full max-w-[400px] mx-auto">
+                  {autoMark ? (
+                    /* MANUAL OFF / Auto-Win Active: Pure WHITE background bar, non-clickable */
+                    <div className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-white via-amber-50/50 to-white border-2 border-amber-300/80 shadow-[0_2px_6px_rgba(180,83,9,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex items-center justify-center gap-2 text-amber-950 font-black text-xs tracking-wider uppercase select-none pointer-events-none">
+                      <span className="text-sm">🤖</span>
+                      <span>AUTO BINGO ACTIVE</span>
+                      <span className="text-amber-500 animate-pulse font-black text-xs">⚡</span>
+                    </div>
+                  ) : bingoLockSeconds > 0 ? (
+                    <button
+                      disabled
+                      className="w-full py-2 px-3 rounded-xl bg-gradient-to-b from-red-800 via-red-900 to-red-950 border border-red-500 text-red-200 font-black text-xs tracking-wider uppercase flex items-center justify-center gap-1.5 shadow-[0_2px_8px_rgba(185,28,28,0.4)] cursor-not-allowed select-none opacity-90"
+                    >
+                      <Lock size={14} className="text-red-400 animate-pulse" />
+                      <span>🔒 {language === 'am' ? `ተቆልፏል (${bingoLockSeconds}ሰ)` : `LOCKED (${bingoLockSeconds}s)`}</span>
+                    </button>
+                  ) : (
+                    /* MANUAL ON: Solid 3D BLACK button, only says BINGO without extra explanation */
+                    <button
+                      onClick={handleManualBingoClaim}
+                      className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-slate-950 via-slate-900 to-black hover:from-slate-900 hover:to-slate-900 text-amber-300 font-black text-base sm:text-lg tracking-widest uppercase flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.2),inset_0_-1.5px_2px_rgba(0,0,0,0.8)] border-2 border-amber-400/80 ring-2 ring-amber-500/30 active:scale-95 transition-all cursor-pointer select-none animate-pulse"
+                    >
+                      <span className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">BINGO!</span>
+                    </button>
                   )}
                 </div>
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-xs z-10 p-2">
-                  <div className="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center mb-2 border border-red-500/30">
-                    <Clock size={18} className="animate-pulse text-amber-400" />
-                  </div>
-                  <h3 className="text-red-300 font-black text-sm uppercase tracking-wider mb-1">Match is active</h3>
-                  <p className="text-white text-[9px] font-bold text-center leading-relaxed uppercase tracking-wider">
-                    <span dangerouslySetInnerHTML={{ __html: t[language].bingo.waitNext }} />
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Bottom Action Bar: Only visible if user has bought at least 1 cartela */}
-        {myCartelas.length > 0 && (
-          <div className="shrink-0 pt-0 pb-1 px-1 w-full max-w-[400px] mx-auto">
-            {autoMark ? (
-              /* MANUAL OFF / Auto-Win Active: Pure WHITE background bar, non-clickable */
-              <div className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-white via-amber-50/50 to-white border-2 border-amber-300/80 shadow-[0_2px_6px_rgba(180,83,9,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex items-center justify-center gap-2 text-amber-950 font-black text-xs tracking-wider uppercase select-none pointer-events-none">
-                <span className="text-sm">🤖</span>
-                <span>AUTO BINGO ACTIVE</span>
-                <span className="text-amber-500 animate-pulse font-black text-xs">⚡</span>
-              </div>
-            ) : bingoLockSeconds > 0 ? (
-              <button
-                disabled
-                className="w-full py-2 px-3 rounded-xl bg-gradient-to-b from-red-800 via-red-900 to-red-950 border border-red-500 text-red-200 font-black text-xs tracking-wider uppercase flex items-center justify-center gap-1.5 shadow-[0_2px_8px_rgba(185,28,28,0.4)] cursor-not-allowed select-none opacity-90"
-              >
-                <Lock size={14} className="text-red-400 animate-pulse" />
-                <span>🔒 {language === 'am' ? `ተቆልፏል (${bingoLockSeconds}ሰ)` : `LOCKED (${bingoLockSeconds}s)`}</span>
-              </button>
-            ) : (
-              /* MANUAL ON: Solid 3D BLACK button, only says BINGO without extra explanation */
-              <button
-                onClick={handleManualBingoClaim}
-                className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-slate-950 via-slate-900 to-black hover:from-slate-900 hover:to-slate-900 text-amber-300 font-black text-base sm:text-lg tracking-widest uppercase flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.2),inset_0_-1.5px_2px_rgba(0,0,0,0.8)] border-2 border-amber-400/80 ring-2 ring-amber-500/30 active:scale-95 transition-all cursor-pointer select-none animate-pulse"
-              >
-                <span className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">BINGO!</span>
-              </button>
-            )}
-          </div>
-        )}
+              )}
+            </>
+          );
+        })()}
 
       </div>
     );
@@ -1977,7 +2011,7 @@ export default function BingoGame() {
     <div className="fixed inset-x-0 top-0 bottom-16 w-full bg-gradient-to-b from-[#fffbf0] via-[#fef3c7]/30 to-[#fffbf0] flex flex-col select-none overflow-hidden" onClick={initWebAudio}>
       <div className="sticky top-0 z-40 bg-white shadow-2xs border-b border-amber-100/80 flex flex-col shrink-0">
         <Header />
-        {game.status !== 'calling' && !isFinishing && (
+        {game.status !== 'calling' && !isFinishing && !celebration && (
           <div className="bg-gradient-to-r from-amber-50/90 via-yellow-50/60 to-amber-50/90 border-b border-amber-200/70 px-3 pt-3 pb-3">
             <div className="flex items-center gap-1.5 mb-2">
               <button 
@@ -2137,14 +2171,14 @@ export default function BingoGame() {
       </div>
 
       {errMsg && (
-        <div className={`mx-3 mt-2 px-3 py-2 ${(game.status === 'calling' || isFinishing) ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'bg-red-50 border-red-200 text-red-600'} border rounded-xl flex items-center justify-between z-10 shrink-0`}>
+        <div className={`mx-3 mt-2 px-3 py-2 ${(game.status === 'calling' || isFinishing || celebration) ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'bg-red-50 border-red-200 text-red-600'} border rounded-xl flex items-center justify-between z-10 shrink-0`}>
           <p className="text-xs font-bold">{errMsg}</p>
           <button onClick={() => setErrMsg("")} className="text-base leading-none ml-2 p-1 hover:bg-red-200/50 rounded-full transition-colors"><X size={14} /></button>
         </div>
       )}
 
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        {(game.status === 'calling' || isFinishing) ? renderCallingBoard() : renderCartelaPicker()}
+        {(game.status === 'calling' || isFinishing || celebration) ? renderCallingBoard() : renderCartelaPicker()}
       </div>
 
       {/* Winner Celebration */}
