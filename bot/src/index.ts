@@ -40,15 +40,18 @@ async function main() {
 
   // Configure permanent Chat Menu Button for Telegram Mini App
   const miniAppUrl = process.env.MINI_APP_URL || 'https://hdasebingo-44kc.vercel.app';
+  const HDASE_OFFICIAL_ROOM_ID = 'd7c9114a-e112-426f-8f9b-13c00050279c';
+  const sep = miniAppUrl.includes('?') ? '&' : '?';
+  const menuAppUrl = `${miniAppUrl}${sep}room=${HDASE_OFFICIAL_ROOM_ID}&startapp=room_${HDASE_OFFICIAL_ROOM_ID}`;
   try {
     await bot.api.setChatMenuButton({
       menu_button: {
         type: 'web_app',
         text: '🎮 PLAY BINGO',
-        web_app: { url: miniAppUrl },
+        web_app: { url: menuAppUrl },
       },
     });
-    console.log('✅ Chat menu button configured: 🎮 PLAY BINGO');
+    console.log('✅ Chat menu button configured: 🎮 PLAY BINGO (Official HDASE Room)');
   } catch (menuErr) {
     console.warn('Could not set chat menu button:', menuErr);
   }

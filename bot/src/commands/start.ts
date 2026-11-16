@@ -60,9 +60,10 @@ export async function startCommand(ctx: Context) {
   const supportUrl = settings.support_url;
   const channelUrl = settings.channel_url;
 
-  const effectiveRoomId = userRecord?.room_id || roomId;
+  const HDASE_OFFICIAL_ROOM_ID = 'd7c9114a-e112-426f-8f9b-13c00050279c';
+  const effectiveRoomId = userRecord?.room_id || roomId || HDASE_OFFICIAL_ROOM_ID;
   let invitedRoomName: string | null = null;
-  if (effectiveRoomId) {
+  if (effectiveRoomId && effectiveRoomId !== HDASE_OFFICIAL_ROOM_ID) {
     try {
       const { data: rData } = await supabase.from('rooms').select('room_name').eq('id', effectiveRoomId).maybeSingle();
       if (rData?.room_name) invitedRoomName = rData.room_name;
@@ -71,12 +72,10 @@ export async function startCommand(ctx: Context) {
     }
   }
 
-  // Construct play URL with room parameter if user has a room
+  // Construct play URL with room parameter pointing to effective room (defaulting to official HDASE room)
   let playUrl = miniAppUrl;
-  if (effectiveRoomId) {
-    const sep = playUrl.includes('?') ? '&' : '?';
-    playUrl = `${playUrl}${sep}room=${encodeURIComponent(effectiveRoomId)}&startapp=room_${encodeURIComponent(effectiveRoomId)}`;
-  }
+  const sep = playUrl.includes('?') ? '&' : '?';
+  playUrl = `${playUrl}${sep}room=${encodeURIComponent(effectiveRoomId)}&startapp=room_${encodeURIComponent(effectiveRoomId)}`;
 
   const botUsername = 'hdasebingo_bot';
   const invitePayload = effectiveRoomId ? `ref_${user.id}_room_${effectiveRoomId}` : `ref_${user.id}`;
