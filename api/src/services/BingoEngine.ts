@@ -586,8 +586,8 @@ class BingoEngine {
         console.log(`🏆 Real Player "${w.first_name}" won Game #${formatGameId(gameId)}: ${finalPrize} ETB (Risk: -${roomOwnerRiskAmount} ETB)`);
       }
 
-      // Commission: ONLY taken from real players if total unique >= 3
-      await this.awardAgentCommission(roomId, realCartelasCount, stake, gameId, totalUniqueCount);
+      // Commission: ONLY taken from real players if real unique players >= 3 (above 2 players)
+      await this.awardAgentCommission(roomId, realCartelasCount, stake, gameId, realUniqueCount);
       await this.incrementRoomGames(roomId);
       systemPlayerService.cleanupGame(gameId);
       this.gameLastCallTime.delete(gameId);
@@ -700,7 +700,7 @@ class BingoEngine {
       }
 
       console.log(`🤝 Game #${formatGameId(gameId)}: 2-way tie — ${w1.first_name} & ${w2.first_name} — ${splitPrize} ETB each`);
-      await this.awardAgentCommission(roomId, realCartelasCount, stake, gameId, totalUniqueCount);
+      await this.awardAgentCommission(roomId, realCartelasCount, stake, gameId, realUniqueCount);
       await this.incrementRoomGames(roomId);
       systemPlayerService.cleanupGame(gameId);
       this.gameLastCallTime.delete(gameId);
@@ -776,13 +776,13 @@ class BingoEngine {
     realCartelas: number,
     stake: number,
     gameId: string,
-    totalUniquePlayers: number
+    realUniquePlayers: number
   ) {
     if (!roomId || realCartelas <= 0 || stake <= 0) return;
-    // Commission ONLY applies when total unique players (real + bot) >= 3!
-    // If total unique players < 3 (e.g. 2 players), derash was 100% (0% house cut), so 0% commission is taken!
-    if (totalUniquePlayers < 3) {
-      console.log(`ℹ️ Room Commission skipped: Game #${formatGameId(gameId)} had ${totalUniquePlayers} total players (< 3 total players = 0% platform & room commission)`);
+    // Commission ONLY applies when real unique players >= 3 (above 2 real players)!
+    // If real unique players < 3 (0, 1, or 2 real players), 0% commission is taken!
+    if (realUniquePlayers < 3) {
+      console.log(`ℹ️ Room Commission skipped: Game #${formatGameId(gameId)} had ${realUniquePlayers} real players (< 3 real players = 0% agent commission)`);
       return;
     }
 
@@ -1028,8 +1028,7 @@ class BingoEngine {
     }
 
     console.log(`🏆 Manual BINGO Claim: Game #${formatGameId(gameId)} won by ${player.first_name} — ${finalPrize} ETB (Risk: -${roomOwnerRiskAmount} ETB)`);
-    const totalUniqueCount = realUniqueCount + systemPlayersCount;
-    await this.awardAgentCommission(game.room_id, realCartelasCount, stake, gameId, totalUniqueCount);
+    await this.awardAgentCommission(game.room_id, realCartelasCount, stake, gameId, realUniqueCount);
     await this.incrementRoomGames(game.room_id);
     systemPlayerService.cleanupGame(gameId);
     this.gameLastCallTime.delete(gameId);

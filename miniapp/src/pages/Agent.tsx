@@ -413,17 +413,8 @@ export default function Agent() {
   // Only calling games count as live matches (waiting games are not live yet)
   const callingGames = useMemo(() => activeGames.filter(g => g.status === 'calling'), [activeGames]);
   const callingGamesCount = callingGames.length;
-  const liveCallingPlayers = useMemo(() => callingGames.reduce((acc, g) => acc + (g.total_players || 0), 0), [callingGames]);
   // Total active players across ALL stakes in this room (waiting + calling)
   const totalActivePlayers = useMemo(() => activeGames.reduce((acc, g) => acc + (g.total_players || 0), 0), [activeGames]);
-  const liveCallingComm = useMemo(() => {
-    return callingGames.reduce((acc, g) => {
-      const raw = Number(g.prize_pool || 0);
-      const players = Number(g.total_players || 0);
-      const pot = players >= 3 && raw > 0 ? Math.round(raw / 0.8) : (raw || Number(g.stake || 0) * players);
-      return acc + (pot * (room?.commission_rate ?? 8)) / 100;
-    }, 0);
-  }, [callingGames, room]);
 
   if (user?.role !== 'agent') {
     return <Navigate to="/" replace />;
@@ -1650,10 +1641,16 @@ export default function Agent() {
                   const isCalling = game?.status === 'calling';
                   const isWaiting = game?.status === 'waiting';
                   const playerCount = game?.total_players || 0;
-                  const estPot = (playerCount >= 3 && game?.prize_pool)
-                    ? game.prize_pool
-                    : stk * playerCount;
-                  const estComm = (estPot * (room.commission_rate ?? 8)) / 100;
+                  const realPlayers = (game as any)?.real_players ?? 0;
+                  const realCartelas = (game as any)?.real_cartelas ?? 0;
+
+                  // Commission is ONLY calculated for real players, AND ONLY if real players >= 3 (above 2 players)!
+                  const estComm = (realPlayers >= 3)
+                    ? ((game as any)?.estimated_commission !== undefined
+                        ? Number((game as any).estimated_commission)
+                        : Number((((realCartelas > 0 ? realCartelas : realPlayers) * stk * (room.commission_rate ?? 10)) / 100).toFixed(2))
+                      )
+                    : 0;
                   const lastW = recentGames.find((g) => Number(g.stake) === stk);
 
                   return (
@@ -1734,26 +1731,6 @@ export default function Agent() {
                     </button>
                   );
                 })}
-              </div>
-
-              {/* Quick Stats Strip — Only Calling games count as Live */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="bg-white rounded-xl p-2.5 border border-slate-100 shadow-2xs text-center">
-                  <p className="text-sm font-black text-orange-500">{callingGamesCount}</p>
-                  <p className="text-[9px] text-slate-400 font-bold">Calling Games</p>
-                </div>
-                <div className="bg-white rounded-xl p-2.5 border border-slate-100 shadow-2xs text-center">
-                  <p className="text-sm font-black text-slate-800">
-                    {liveCallingPlayers}
-                  </p>
-                  <p className="text-[9px] text-slate-400 font-bold">Live Players</p>
-                </div>
-                <div className="bg-white rounded-xl p-2.5 border border-slate-100 shadow-2xs text-center">
-                  <p className="text-sm font-black text-emerald-600">
-                    +{formatAmount(liveCallingComm)} ETB
-                  </p>
-                  <p className="text-[9px] text-slate-400 font-bold">Est. Comm</p>
-                </div>
               </div>
             </div>
           );

@@ -618,7 +618,7 @@ router.get('/rooms', async (req, res) => {
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data: recentGames } = await supabase
       .from('bingo_games')
-      .select('room_id, stake, total_players, winner_prize')
+      .select('room_id, stake, total_players, real_players_count, winner_prize')
       .eq('status', 'finished')
       .gte('created_at', since24h);
 
@@ -627,17 +627,17 @@ router.get('/rooms', async (req, res) => {
     // Also fetch rooms' commission_rate for this calculation
     const roomCommRateMap: Record<string, number> = {};
     visibleRooms.forEach((r: any) => {
-      roomCommRateMap[r.id] = Number(r.commission_rate ?? 7);
+      roomCommRateMap[r.id] = Number(r.commission_rate ?? 10);
     });
 
     (recentGames || []).forEach((g: any) => {
       if (!g.room_id) return;
-      const players = Number(g.total_players || 0);
-      if (players < 2) return; // only count games with enough players
+      const realPlayers = Number(g.real_players_count !== undefined && g.real_players_count !== null ? g.real_players_count : g.total_players || 0);
+      if (realPlayers < 3) return; // Commission ONLY when real players >= 3!
       const stake = Number(g.stake || 0);
-      const pot = players * stake;
-      const commRate = roomCommRateMap[g.room_id] ?? 7;
-      const roomComm = pot * commRate / 100;
+      const pot = realPlayers * stake;
+      const commRate = roomCommRateMap[g.room_id] ?? 10;
+      const roomComm = (pot * commRate) / 100;
       if (!roomCommMap[g.room_id]) {
         roomCommMap[g.room_id] = { commission: 0, games: 0 };
       }
@@ -810,39 +810,70 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
     }
     const deduplicatedGames = Array.from(stakeMap.values());
 
-    // Enrich with exact unique players from bingo_players table
+    // Enrich with exact unique players and real players from bingo_players table
     const activeGameIds = deduplicatedGames.map((g: any) => g.id).filter(Boolean);
     let gameUniquePlayersMap: Record<string, number> = {};
+    let gameRealPlayersMap: Record<string, number> = {};
+    let gameRealCartelasMap: Record<string, number> = {};
+
     if (activeGameIds.length > 0) {
       const { data: playerRows } = await supabase
         .from('bingo_players')
-        .select('game_id, telegram_id')
+        .select('game_id, telegram_id, is_system')
         .in('game_id', activeGameIds);
 
       if (playerRows && playerRows.length > 0) {
-        const setsMap: Record<string, Set<string>> = {};
+        const totalSetsMap: Record<string, Set<string>> = {};
+        const realSetsMap: Record<string, Set<string>> = {};
+        const realCartelasMap: Record<string, number> = {};
+
         playerRows.forEach((row: any) => {
-          if (!setsMap[row.game_id]) setsMap[row.game_id] = new Set();
-          setsMap[row.game_id].add(row.telegram_id);
+          if (!totalSetsMap[row.game_id]) totalSetsMap[row.game_id] = new Set();
+          totalSetsMap[row.game_id].add(row.telegram_id);
+
+          if (!row.is_system) {
+            if (!realSetsMap[row.game_id]) realSetsMap[row.game_id] = new Set();
+            realSetsMap[row.game_id].add(row.telegram_id);
+            realCartelasMap[row.game_id] = (realCartelasMap[row.game_id] || 0) + 1;
+          }
         });
-        for (const [gid, set] of Object.entries(setsMap)) {
+
+        for (const [gid, set] of Object.entries(totalSetsMap)) {
           gameUniquePlayersMap[gid] = set.size;
+        }
+        for (const [gid, set] of Object.entries(realSetsMap)) {
+          gameRealPlayersMap[gid] = set.size;
+        }
+        for (const [gid, count] of Object.entries(realCartelasMap)) {
+          gameRealCartelasMap[gid] = count;
         }
       }
     }
 
     const activeGames = deduplicatedGames.map((g: any) => {
       const stake = Number(g.stake || 0);
-      const players = gameUniquePlayersMap[g.id] ?? Number(g.total_players || 0);
+      const totalPlayers = gameUniquePlayersMap[g.id] ?? Number(g.total_players || 0);
+      const realPlayers = gameRealPlayersMap[g.id] ?? 0;
+      const realCartelas = gameRealCartelasMap[g.id] ?? 0;
       const rawPool = Number(g.prize_pool || 0);
-      const totalPot = (players >= 3 && rawPool > 0)
+      const totalPot = (totalPlayers >= 3 && rawPool > 0)
         ? Math.round(rawPool / 0.8)
-        : (rawPool || stake * players);
+        : (rawPool || stake * totalPlayers);
+
+      // Estimated commission: ONLY from real players, and ONLY if real players >= 3 (above 2 real players)!
+      const realPot = realCartelas * stake;
+      const estComm = realPlayers >= 3
+        ? Number(((realPot * commRate) / 100).toFixed(2))
+        : 0;
+
       return {
         ...g,
-        total_players: players,
+        total_players: totalPlayers,
+        real_players: realPlayers,
+        real_cartelas: realCartelas,
         prize_pool: totalPot,
         winner_prize: rawPool,
+        estimated_commission: estComm,
       };
     });
 
@@ -858,18 +889,21 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
     const mappedRecentGames = (finishedGames || []).map((g: any) => {
       const stake = Number(g.stake || 0);
       const players = Number(g.total_players || 0);
+      const realPlayers = Number(g.real_players_count !== undefined && g.real_players_count !== null ? g.real_players_count : players);
       const winnerPrize = Number(g.winner_prize || 0);
       const rawPool = Number(g.prize_pool || winnerPrize || 0);
       // Winner prize is 80% when players >= 3; raw total stake (100% pot) is rawPool / 0.8
       const totalAmount = (players >= 3 && rawPool > 0)
         ? Math.round(rawPool / 0.8) 
         : (rawPool || (stake * players) || 0);
-      const comm = players >= 3 ? Number(((totalAmount * commRate) / 100).toFixed(2)) : 0;
+      // Commission ONLY applies when real players >= 3 (above 2 real players)!
+      const realPot = realPlayers * stake;
+      const comm = realPlayers >= 3 ? Number(((realPot * commRate) / 100).toFixed(2)) : 0;
       return {
         id: g.id,
         stake,
         total_players: players,
-        real_players_count: g.real_players_count ?? players,
+        real_players_count: realPlayers,
         system_players_count: g.system_players_count ?? 0,
         waiter_players_count: g.waiter_players_count ?? 0,
         room_owner_risk_amount: Number(g.room_owner_risk_amount || 0),
@@ -888,7 +922,7 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
     // 3. Fetch all finished games for full metrics & 7-day trend
     const { data: allFinished } = await supabase
       .from('bingo_games')
-      .select('id, stake, prize_pool, total_players, finished_at, created_at')
+      .select('id, stake, prize_pool, total_players, real_players_count, finished_at, created_at')
       .eq('room_id', room.id)
       .eq('status', 'finished')
       .order('finished_at', { ascending: false });
@@ -913,11 +947,14 @@ router.get('/agent-room', validateTelegramAuth, async (req: AuthRequest, res) =>
     (allFinished || []).forEach((g: any) => {
       const stake = Number(g.stake || 0);
       const players = Number(g.total_players || 0);
+      const realPlayers = Number(g.real_players_count !== undefined && g.real_players_count !== null ? g.real_players_count : players);
       const rawPool = Number(g.prize_pool || 0);
       const totalAmount = (players >= 3 && rawPool > 0)
         ? Math.round(rawPool / 0.8)
         : (rawPool || (stake * players) || 0);
-      const comm = (players >= 3) ? Number(((totalAmount * commRate) / 100).toFixed(2)) : 0;
+      // Commission ONLY applies when real players >= 3 (above 2 real players)!
+      const realPot = realPlayers * stake;
+      const comm = (realPlayers >= 3) ? Number(((realPot * commRate) / 100).toFixed(2)) : 0;
 
       totalPotVolume += totalAmount;
       totalCommissionAllTime += comm;
