@@ -66,7 +66,7 @@ interface AgentUser {
   room?: AgentRoom | null;
 }
 
-// Commission entered as free-form number input; default is 7%
+// Commission entered as free-form number input; default is 10%
 
 export default function AdminAgents() {
   const { user } = useGameStore();
@@ -77,7 +77,7 @@ export default function AdminAgents() {
 
   // Assign room form state
   const [newRoomName, setNewRoomName] = useState('');
-  const [newCommissionRate, setNewCommissionRate] = useState<number>(7); // default 7%
+  const [newCommissionRate, setNewCommissionRate] = useState<number>(10); // default 10%
   const [newIsPinned, setNewIsPinned] = useState(false); // default not pinned
   const [newIsPrivate, setNewIsPrivate] = useState(false); // default not private (public)
   const [newRiskPercent, setNewRiskPercent] = useState<number>(25); // default 25%
@@ -98,7 +98,7 @@ export default function AdminAgents() {
   const [editRoomName, setEditRoomName] = useState('');
   const [editRoomNumber, setEditRoomNumber] = useState<number | ''>('');
   const [editRoomStatus, setEditRoomStatus] = useState<'active' | 'inactive' | 'paused'>('active');
-  const [editCommissionRate, setEditCommissionRate] = useState<number>(7);
+  const [editCommissionRate, setEditCommissionRate] = useState<number>(10);
   const [editIsPinned, setEditIsPinned] = useState(false);
   const [editIsPrivate, setEditIsPrivate] = useState(false);
   const [editRiskPercent, setEditRiskPercent] = useState<number>(25);
@@ -159,7 +159,7 @@ export default function AdminAgents() {
         setSearchedUser(data.user);
         setSearchedRoom(data.room);
         setNewRoomName(`${data.user.first_name || data.user.username || 'Agent'}'s Room`);
-        setNewCommissionRate(data.room?.commission_rate ?? 7);
+        setNewCommissionRate(data.room?.commission_rate ?? 10);
         setNewIsPinned(Boolean(data.room?.is_pinned));
         setNewIsPrivate(Boolean(data.room?.is_private));
         setNewRiskPercent(data.room?.system_players_risk_percent ?? 25);
@@ -207,7 +207,7 @@ export default function AdminAgents() {
           telegramId: searchedUser.telegram_id,
           roomName: newRoomName.trim(),
           status: 'active',
-          commission_rate: Number(newCommissionRate) || 7,
+          commission_rate: Number(newCommissionRate) || 10,
           is_pinned: Boolean(newIsPinned),
           is_private: Boolean(newIsPrivate),
           system_players_risk_percent: Number(newRiskPercent) >= 0 ? Number(newRiskPercent) : 25,
@@ -218,7 +218,7 @@ export default function AdminAgents() {
 
       if (res.ok) {
         const data = await res.json();
-        showToast('success', `Room "${data.room.room_name}" successfully assigned with ${data.room.commission_rate ?? 7}% commission!`);
+        showToast('success', `Room "${data.room.room_name}" successfully assigned with ${data.room.commission_rate ?? 10}% commission!`);
         setSearchedRoom(data.room);
         setSearchedUser({ ...searchedUser, role: 'agent' });
         fetchRoomsAndAgents();
@@ -320,7 +320,7 @@ export default function AdminAgents() {
     setEditRoomName(room.room_name);
     setEditRoomNumber(room.room_number !== undefined && room.room_number !== null ? Number(room.room_number) : '');
     setEditRoomStatus(room.status);
-    setEditCommissionRate(room.commission_rate ?? 7);
+    setEditCommissionRate(room.commission_rate ?? 10);
     setEditIsPinned(Boolean(room.is_pinned));
     setEditIsPrivate(Boolean(room.is_private));
     setEditRiskPercent(room.system_players_risk_percent !== undefined && room.system_players_risk_percent !== null ? Number(room.system_players_risk_percent) : 25);
@@ -340,7 +340,7 @@ export default function AdminAgents() {
           room_name: editRoomName.trim(),
           room_number: editRoomNumber !== '' ? Number(editRoomNumber) : undefined,
           status: editRoomStatus,
-          commission_rate: Number(editCommissionRate) || 7,
+          commission_rate: Number(editCommissionRate) || 10,
           is_pinned: Boolean(editIsPinned),
           is_private: Boolean(editIsPrivate),
           system_players_risk_percent: Number(editRiskPercent) >= 0 ? Number(editRiskPercent) : 25,
@@ -655,9 +655,9 @@ export default function AdminAgents() {
                         value={newCommissionRate}
                         onChange={e => setNewCommissionRate(Math.max(0, Number(e.target.value)))}
                         className="flex-1 bg-transparent outline-none text-xs font-black text-slate-800 placeholder-slate-300"
-                        placeholder="7"
+                        placeholder="10"
                       />
-                      <span className="text-[11px] font-bold text-slate-400">% (Default: 7%)</span>
+                      <span className="text-[11px] font-bold text-slate-400">% (Default: 10%)</span>
                     </div>
                   </div>
 
@@ -1109,9 +1109,9 @@ export default function AdminAgents() {
                     value={editCommissionRate}
                     onChange={e => setEditCommissionRate(Math.max(0, Number(e.target.value)))}
                     className="flex-1 bg-transparent outline-none text-xs font-black text-slate-800 placeholder-slate-300"
-                    placeholder="7"
+                    placeholder="10"
                   />
-                  <span className="text-[11px] font-bold text-slate-400">% (Default: 7%)</span>
+                  <span className="text-[11px] font-bold text-slate-400">% (Default: 10%)</span>
                 </div>
               </div>
 

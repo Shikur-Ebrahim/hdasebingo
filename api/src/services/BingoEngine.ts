@@ -799,7 +799,7 @@ class BingoEngine {
 
       // 1. Award Agent Commission
       if (room.agent_id) {
-        const commRate = Number(room.commission_rate ?? 7);
+        const commRate = Number(room.commission_rate ?? 10);
         if (commRate > 0) {
           const commAmount = Number(((realPot * commRate) / 100).toFixed(2));
           if (commAmount > 0) {

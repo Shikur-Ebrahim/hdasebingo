@@ -1311,7 +1311,7 @@ router.post('/agents/assign-room', async (req, res) => {
 
     const assignedRoomName = roomName?.trim() || `${user.first_name || user.username || 'Agent'}'s Room`;
     const roomStatus = status || 'active';
-    const commRate = commission_rate !== undefined ? Number(commission_rate) : 7;
+    const commRate = commission_rate !== undefined ? Number(commission_rate) : 10;
     const isPinned = is_pinned !== undefined ? Boolean(is_pinned) : false;
     const isPrivate = is_private !== undefined ? Boolean(is_private) : false;
     const promoterCommRate = promoter_commission_rate !== undefined ? Number(promoter_commission_rate) : 3;
@@ -1482,7 +1482,7 @@ router.get('/rooms', async (_req, res) => {
 
         return {
           ...r,
-          commission_rate: r.commission_rate ?? 7,
+          commission_rate: r.commission_rate ?? 10,
           promoter_commission_rate: r.promoter_commission_rate ?? 3,
           is_pinned: Boolean(r.is_pinned),
           is_private: Boolean(r.is_private),
