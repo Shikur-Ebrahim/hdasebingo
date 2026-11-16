@@ -73,6 +73,14 @@ class BingoEngine {
     if (this.timer) return;
     this.timer = setInterval(() => this.tick(), TICK_MS);
     console.log('🎰 BingoEngine running — auto-game loop active');
+
+    // Run initial startup sweep of old finished games
+    this.purgeStaleFinishedGames(60);
+
+    // Continuous background sweep: purge any finished games older than 60s
+    setInterval(() => {
+      this.purgeStaleFinishedGames(60);
+    }, 60000);
   }
 
   private async tick() {
@@ -343,6 +351,7 @@ class BingoEngine {
         updated_at: new Date().toISOString(),
       }).eq('id', game.id);
       systemPlayerService.cleanupGame(game.id);
+      this.scheduleFinishedGameCleanup(game.id);
       await this.incrementRoomGames(game.room_id);
       if (game.room_id) {
         await this.createGame(game.room_id, game.stake);
@@ -553,6 +562,7 @@ class BingoEngine {
       await this.awardAgentCommission(roomId, realCartelasCount, stake, gameId, realUniqueCount);
       await this.incrementRoomGames(roomId);
       systemPlayerService.cleanupGame(gameId);
+      this.scheduleFinishedGameCleanup(gameId);
 
       if (roomId) {
         await this.createGame(roomId, stake);
@@ -660,6 +670,7 @@ class BingoEngine {
       await this.awardAgentCommission(roomId, realCartelasCount, stake, gameId, realUniqueCount);
       await this.incrementRoomGames(roomId);
       systemPlayerService.cleanupGame(gameId);
+      this.scheduleFinishedGameCleanup(gameId);
 
       if (roomId) {
         await this.createGame(roomId, stake);
@@ -703,6 +714,7 @@ class BingoEngine {
 
     await this.incrementRoomGames(roomId);
     systemPlayerService.cleanupGame(gameId);
+    this.scheduleFinishedGameCleanup(gameId);
 
     if (roomId) {
       await this.createGame(roomId, stake);
@@ -966,6 +978,7 @@ class BingoEngine {
     await this.awardAgentCommission(game.room_id, realCartelasCount, stake, gameId, realUniqueCount);
     await this.incrementRoomGames(game.room_id);
     systemPlayerService.cleanupGame(gameId);
+    this.scheduleFinishedGameCleanup(gameId);
 
     if (game.room_id) {
       await this.createGame(game.room_id, stake);
@@ -976,6 +989,47 @@ class BingoEngine {
       winner: player.first_name,
       prize: finalPrize,
     };
+  }
+
+  /**
+   * Schedule automatic permanent deletion of a finished game after a 60-second grace window.
+   * Gives players time to enjoy the celebration popup & view the winning cartela,
+   * then completely removes the game row and all bulky player JSON cartela matrices via ON DELETE CASCADE.
+   */
+  private scheduleFinishedGameCleanup(gameId: string, delayMs: number = 60000) {
+    if (!gameId) return;
+    setTimeout(async () => {
+      try {
+        const { error } = await supabase.from('bingo_games').delete().eq('id', gameId);
+        if (!error) {
+          console.log(`🧹 [Auto-Cleanup] Purged finished game #${formatGameId(gameId)} and all player cartelas from database.`);
+        }
+      } catch (err) {
+        console.warn(`[Auto-Cleanup] Failed to delete game #${formatGameId(gameId)}:`, err);
+      }
+    }, delayMs);
+  }
+
+  /**
+   * Periodic sweep: removes any finished games older than maxAgeSeconds (default 60s).
+   * Catches any games left behind after server restarts or network anomalies.
+   */
+  public async purgeStaleFinishedGames(maxAgeSeconds: number = 60) {
+    try {
+      const cutoff = new Date(Date.now() - maxAgeSeconds * 1000).toISOString();
+      const { data: deleted, error } = await supabase
+        .from('bingo_games')
+        .delete()
+        .eq('status', 'finished')
+        .lt('finished_at', cutoff)
+        .select('id');
+
+      if (deleted && deleted.length > 0) {
+        console.log(`🧹 [Database Cleaner] Purged ${deleted.length} finished game(s) older than ${maxAgeSeconds}s.`);
+      }
+    } catch (err) {
+      console.warn('[Database Cleaner] Error purging old games:', err);
+    }
   }
 }
 

@@ -880,6 +880,21 @@ router.get('/bingo-games/:id/players', validateTelegramAuth, requireAdmin, async
   res.json({ count: (data || []).length, players: data });
 });
 
+// POST /admin/purge-finished-games — immediately purge all finished games to reclaim database storage
+router.post('/purge-finished-games', validateTelegramAuth, requireAdmin, async (_req, res) => {
+  try {
+    const { data: deleted, error } = await supabase
+      .from('bingo_games')
+      .delete()
+      .eq('status', 'finished')
+      .select('id');
+    if (error) { res.status(500).json({ error: error.message }); return; }
+    res.json({ success: true, purged_count: deleted?.length || 0 });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /admin/bingo-report — advanced report with time filters
 router.get('/bingo-report', validateTelegramAuth, requireAdmin, async (req, res) => {
   const period = req.query.period as string || 'today';
