@@ -52,14 +52,18 @@ router.get('/status', validateTelegramAuth, async (req: AuthRequest, res: Respon
     const expiresAt = room.system_players_pro_expires_at ? new Date(room.system_players_pro_expires_at).getTime() : null;
     const daysRemaining = expiresAt && expiresAt > Date.now() ? Math.ceil((expiresAt - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
 
-    // Fetch pool count
+    // Fetch pool count (only count from database if Pro is active, otherwise 0 to prevent unnecessary storage usage)
     let totalBots = 0;
-    const { count, error: countErr } = await supabase
-      .from('system_players')
-      .select('*', { count: 'exact', head: true })
-      .eq('room_id', roomId);
+    if (isPro) {
+      const { count, error: countErr } = await supabase
+        .from('system_players')
+        .select('*', { count: 'exact', head: true })
+        .eq('room_id', roomId);
 
-    if (!countErr) totalBots = count || 0;
+      if (!countErr) totalBots = count || 0;
+    } else {
+      totalBots = 0;
+    }
 
     // Fetch active manager accounts for manual payment display
     const { data: managerAccounts } = await supabase
@@ -178,8 +182,8 @@ router.post('/upgrade', validateTelegramAuth, async (req: AuthRequest, res: Resp
         return res.status(500).json({ error: 'Failed to update room pro level: ' + rErr.message });
       }
 
-      // Ensure 1,000 pool is seeded in the background for this room
-      systemPlayerService.seedSystemPlayersPool(targetRoomId, 1000).catch(console.error);
+      // Ensure 1,000 pool is seeded in the database immediately for this upgraded room
+      await systemPlayerService.seedSystemPlayersPool(targetRoomId, 1000);
 
       return res.json({
         success: true,
@@ -456,12 +460,27 @@ router.get('/pool', validateTelegramAuth, async (req: AuthRequest, res: Response
       return res.status(400).json({ error: 'Room ID is required' });
     }
 
-    const { authorized, error } = await verifyRoomOwnerOrAdmin(telegramId, roomId);
-    if (!authorized) {
+    const { authorized, room, error } = await verifyRoomOwnerOrAdmin(telegramId, roomId);
+    if (!authorized || !room) {
       return res.status(403).json({ error: error || 'Unauthorized' });
     }
 
-    // Auto-seed pool for this room if currently empty
+    const isPro = systemPlayerService.isRoomProActive(room);
+
+    // CRITICAL: NEVER auto-seed bots into the database if the room is NOT active Pro!
+    // This prevents storing 1,000 useless rows in Supabase for unupgraded rooms!
+    if (!isPro) {
+      return res.json({
+        players: [],
+        total: 0,
+        page,
+        limit,
+        is_pro_active: false,
+        message: 'Upgrade to Pro Level 1 to activate and save 1,000 System Players.',
+      });
+    }
+
+    // Auto-seed pool for this room ONLY if Pro is active and currently empty
     const { count: initialCount } = await supabase
       .from('system_players')
       .select('*', { count: 'exact', head: true })
@@ -812,8 +831,8 @@ router.post('/admin/requests/:id/review', validateTelegramAuth, async (req: Auth
           })
           .eq('id', request.room_id);
 
-        // 3. Ensure 1,000 bots are seeded for this room
-        systemPlayerService.seedSystemPlayersPool(request.room_id, 1000).catch(console.error);
+        // 3. Ensure 1,000 bots are seeded in the database for this room
+        await systemPlayerService.seedSystemPlayersPool(request.room_id, 1000);
       }
 
       // 4. Send Telegram Bot Notification to the Agent (like deposit approved)

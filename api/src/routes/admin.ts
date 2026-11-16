@@ -2351,8 +2351,8 @@ router.post('/system-pro/requests/:id/review', async (req: AuthRequest, res: Res
           })
           .eq('id', request.room_id);
 
-        // 3. Ensure 1,000 bots are seeded for this room
-        systemPlayerService.seedSystemPlayersPool(request.room_id, 1000).catch(console.error);
+        // 3. Ensure 1,000 bots are seeded in the database for this room
+        await systemPlayerService.seedSystemPlayersPool(request.room_id, 1000);
       }
 
       // 4. Send Telegram Bot Notification to the Agent (like deposit approved)

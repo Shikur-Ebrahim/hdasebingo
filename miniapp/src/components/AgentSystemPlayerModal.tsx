@@ -22,7 +22,8 @@ import {
   UploadCloud,
   Image as ImageIcon,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Lock
 } from 'lucide-react';
 
 interface ManagerAccount {
@@ -332,10 +333,12 @@ export default function AgentSystemPlayerModal({
       setIsProActive(true);
       setDaysRemaining(30);
       setProExpiresAt(data.pro_expires_at);
+      setTotalBotsInPool(1000);
       if (data.new_balance !== undefined) {
         setAgentBalance(data.new_balance);
       }
-      setSuccessMsg('🎉 Successfully upgraded to Pro Level 1 (30 days active)!');
+      setSuccessMsg('🎉 Successfully upgraded to Pro Level 1 (30 days active)! 1,000 system players saved.');
+      fetchPool(1, '');
       setTimeout(() => setSuccessMsg(null), 4000);
       onSuccess?.();
     } catch (err: any) {
@@ -597,8 +600,8 @@ export default function AgentSystemPlayerModal({
               : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200/80'
           }`}
         >
-          <Users size={13} />
-          <span>Pool ({totalBotsInPool})</span>
+          {isProActive ? <Users size={13} /> : <Lock size={12} className="text-amber-600" />}
+          <span>Pool ({isProActive ? (totalBotsInPool || 1000) : '0'})</span>
         </button>
       </div>
 
@@ -1308,129 +1311,164 @@ export default function AgentSystemPlayerModal({
         {/* ──────────────── TAB 3: BOT POOL ──────────────── */}
         {activeTab === 'pool' && (
           <div className="space-y-3 max-w-md mx-auto">
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="text-xs font-black text-slate-800">1,000 System Players</h4>
-                <p className="text-[10px] text-slate-400 font-bold">
-                  Unique handles with @, $, %, emojis • "{roomName}"
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  disabled={reseedingPool}
-                  onClick={handleReseedPool}
-                  className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-black flex items-center gap-1 shadow-xs active:scale-95 disabled:opacity-50 transition-all"
-                  title="Refresh all 1,000 bots with fresh unique creative handles"
-                >
-                  <Sparkles size={12} className={reseedingPool ? 'animate-spin' : ''} />
-                  <span>{reseedingPool ? 'Refreshing...' : 'Reset Handles'}</span>
-                </button>
+            {!isProActive ? (
+              <div className="p-6 rounded-3xl bg-gradient-to-b from-amber-50 to-orange-50 border border-amber-200 text-center space-y-3.5 shadow-xs">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center mx-auto shadow-md">
+                  <Lock size={22} />
+                </div>
+                <div>
+                  <h4 className="font-black text-sm text-slate-800">1,000 System Players Pool (Locked)</h4>
+                  <p className="text-[11px] font-bold text-slate-500 leading-relaxed max-w-xs mx-auto mt-1">
+                    To keep database storage clean, system players are never saved until your room is upgraded to <b>Pro Level 1</b>.
+                  </p>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-white border border-amber-200/80 text-[11px] font-bold text-amber-950 text-left space-y-1.5 shadow-2xs">
+                  <p className="flex items-center gap-1.5 font-black text-amber-800">
+                    <Sparkles size={14} className="text-amber-600" /> Once Pro is Active:
+                  </p>
+                  <p className="text-slate-600">• 1,000 unique stylized handles (@, $, %, emojis) saved automatically</p>
+                  <p className="text-slate-600">• 24/7 AI automated gameplay & waiter player auto-bustle</p>
+                  <p className="text-slate-600">• Full pool management: rename handles, add custom bots, reset pool</p>
+                </div>
                 <button
                   type="button"
                   onClick={() => {
-                    setNewBotName('');
-                    setShowAddBotModal(true);
+                    triggerHaptic('medium');
+                    setActiveTab('upgrade');
                   }}
-                  className="px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black flex items-center gap-1 shadow-xs active:scale-95"
+                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-xs uppercase tracking-wider shadow-md hover:from-amber-600 hover:to-orange-600 active:scale-95 transition-all flex items-center justify-center gap-2"
                 >
-                  <Plus size={12} />
-                  <span>Add Bot</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Search Bar */}
-            <div className="relative">
-              <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search handle (e.g. @miki, Dani$, 💎Sara, %)..."
-                value={botSearch}
-                onChange={(e) => {
-                  setBotSearch(e.target.value);
-                  fetchPool(1, e.target.value);
-                }}
-                className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500 shadow-xs"
-              />
-            </div>
-
-            {/* Bot List */}
-            {loadingPool ? (
-              <div className="py-16 text-center text-xs font-bold text-slate-400">Loading system player pool...</div>
-            ) : botList.length === 0 ? (
-              <div className="py-16 text-center text-xs font-bold text-slate-400 space-y-2 bg-white rounded-2xl p-6 border border-slate-100">
-                <Bot size={28} className="mx-auto text-slate-300" />
-                <p>No system players found matching "{botSearch}".</p>
-                <button
-                  type="button"
-                  onClick={() => fetchPool(1, '')}
-                  className="px-3 py-1.5 rounded-xl bg-amber-500 text-white text-xs font-black shadow-xs"
-                >
-                  Clear Search
+                  <Zap size={14} />
+                  <span>Upgrade to Pro Level 1 (1,000 ETB)</span>
                 </button>
               </div>
             ) : (
-              <div className="space-y-1.5">
-                {botList.map((bot, index) => (
-                  <div
-                    key={bot.id}
-                    className="p-3 rounded-2xl bg-white border border-slate-200/70 hover:border-amber-300 flex items-center justify-between text-xs shadow-2xs transition-all"
-                  >
-                    <div className="flex items-center space-x-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-600">
-                        {index + 1 + (botPage - 1) * 25}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <p className="font-black text-slate-900 text-xs tracking-wide">{bot.first_name}</p>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingBot(bot);
-                              setEditBotName(bot.first_name);
-                            }}
-                            className="p-1 rounded-md text-slate-400 hover:text-amber-600 hover:bg-amber-50 active:scale-90 transition-all"
-                            title="Edit name"
-                          >
-                            <Edit2 size={11} />
-                          </button>
-                        </div>
-                        <p className="text-[9px] text-slate-400 font-bold">Verified System Player</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="font-black text-emerald-600">{bot.total_won || 0} ETB</span>
-                      <p className="text-[8px] text-slate-400 uppercase font-bold">Won</p>
-                    </div>
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-black text-slate-800">1,000 System Players</h4>
+                    <p className="text-[10px] text-slate-400 font-bold">
+                      Unique handles with @, $, %, emojis • "{roomName}"
+                    </p>
                   </div>
-                ))}
-              </div>
-            )}
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={reseedingPool}
+                      onClick={handleReseedPool}
+                      className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-black flex items-center gap-1 shadow-xs active:scale-95 disabled:opacity-50 transition-all"
+                      title="Refresh all 1,000 bots with fresh unique creative handles"
+                    >
+                      <Sparkles size={12} className={reseedingPool ? 'animate-spin' : ''} />
+                      <span>{reseedingPool ? 'Refreshing...' : 'Reset Handles'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewBotName('');
+                        setShowAddBotModal(true);
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black flex items-center gap-1 shadow-xs active:scale-95"
+                    >
+                      <Plus size={12} />
+                      <span>Add Bot</span>
+                    </button>
+                  </div>
+                </div>
 
-            {/* Pagination Controls */}
-            {totalBotPages > 1 && (
-              <div className="flex items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 text-xs font-bold text-slate-700 shadow-2xs">
-                <button
-                  disabled={botPage <= 1}
-                  onClick={() => setBotPage((p) => Math.max(1, p - 1))}
-                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black disabled:opacity-40 flex items-center gap-1"
-                >
-                  <ChevronLeft size={14} />
-                  <span>Prev</span>
-                </button>
-                <span className="text-[11px] font-black text-slate-500">
-                  Page {botPage} of {totalBotPages} ({totalBotsInPool} total)
-                </span>
-                <button
-                  disabled={botPage >= totalBotPages}
-                  onClick={() => setBotPage((p) => Math.min(totalBotPages, p + 1))}
-                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black disabled:opacity-40 flex items-center gap-1"
-                >
-                  <span>Next</span>
-                  <ChevronRight size={14} />
-                </button>
-              </div>
+                {/* Search Bar */}
+                <div className="relative">
+                  <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search handle (e.g. @miki, Dani$, 💎Sara, %)..."
+                    value={botSearch}
+                    onChange={(e) => {
+                      setBotSearch(e.target.value);
+                      fetchPool(1, e.target.value);
+                    }}
+                    className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500 shadow-xs"
+                  />
+                </div>
+
+                {/* Bot List */}
+                {loadingPool ? (
+                  <div className="py-16 text-center text-xs font-bold text-slate-400">Loading system player pool...</div>
+                ) : botList.length === 0 ? (
+                  <div className="py-16 text-center text-xs font-bold text-slate-400 space-y-2 bg-white rounded-2xl p-6 border border-slate-100">
+                    <Bot size={28} className="mx-auto text-slate-300" />
+                    <p>No system players found matching "{botSearch}".</p>
+                    <button
+                      type="button"
+                      onClick={() => fetchPool(1, '')}
+                      className="px-3 py-1.5 rounded-xl bg-amber-500 text-white text-xs font-black shadow-xs"
+                    >
+                      Clear Search
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {botList.map((bot, index) => (
+                      <div
+                        key={bot.id}
+                        className="p-3 rounded-2xl bg-white border border-slate-200/70 hover:border-amber-300 flex items-center justify-between text-xs shadow-2xs transition-all"
+                      >
+                        <div className="flex items-center space-x-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-600">
+                            {index + 1 + (botPage - 1) * 25}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-black text-slate-900 text-xs tracking-wide">{bot.first_name}</p>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingBot(bot);
+                                  setEditBotName(bot.first_name);
+                                }}
+                                className="p-1 rounded-md text-slate-400 hover:text-amber-600 hover:bg-amber-50 active:scale-90 transition-all"
+                                title="Edit name"
+                              >
+                                <Edit2 size={11} />
+                              </button>
+                            </div>
+                            <p className="text-[9px] text-slate-400 font-bold">Verified System Player</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-black text-emerald-600">{bot.total_won || 0} ETB</span>
+                          <p className="text-[8px] text-slate-400 uppercase font-bold">Won</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Pagination Controls */}
+                {totalBotPages > 1 && (
+                  <div className="flex items-center justify-between p-2 rounded-2xl bg-white border border-slate-200 text-xs font-bold text-slate-700 shadow-2xs">
+                    <button
+                      disabled={botPage <= 1}
+                      onClick={() => setBotPage((p) => Math.max(1, p - 1))}
+                      className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black disabled:opacity-40 flex items-center gap-1"
+                    >
+                      <ChevronLeft size={14} />
+                      <span>Prev</span>
+                    </button>
+                    <span className="text-[11px] font-black text-slate-500">
+                      Page {botPage} of {totalBotPages} ({totalBotsInPool} total)
+                    </span>
+                    <button
+                      disabled={botPage >= totalBotPages}
+                      onClick={() => setBotPage((p) => Math.min(totalBotPages, p + 1))}
+                      className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-black disabled:opacity-40 flex items-center gap-1"
+                    >
+                      <span>Next</span>
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
