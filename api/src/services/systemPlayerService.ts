@@ -371,6 +371,15 @@ export class SystemPlayerService {
    */
   isRoomProActive(room: any): boolean {
     if (!room) return false;
+    // HDASE BINGO official platform room (ID d7c9114a-e112-426f-8f9b-13c00050279c or agent 5b3ac1f4-6a29-4929-9fc4-5043c0118572)
+    // is platform owned: always active, never needs pro upgrade or monthly renewal!
+    if (
+      room.id === 'd7c9114a-e112-426f-8f9b-13c00050279c' ||
+      room.room_name === 'HDASE BINGO' ||
+      room.agent_id === '5b3ac1f4-6a29-4929-9fc4-5043c0118572'
+    ) {
+      return true;
+    }
     const proLevel = Number(room.system_players_pro_level || 0);
     if (proLevel < 1) return false;
 
@@ -717,35 +726,44 @@ export class SystemPlayerService {
     let agentUserId: string | null = null;
     const stakeAmt = Number(game.stake || 5);
     const totalBotCost = stakeAmt * cartelaCount;
+    const isOfficialHdaseRoom =
+      room.id === 'd7c9114a-e112-426f-8f9b-13c00050279c' ||
+      room.room_name === 'HDASE BINGO' ||
+      room.agent_id === '5b3ac1f4-6a29-4929-9fc4-5043c0118572';
 
     if (isWaiterMode) {
-      if (!room.agent_id) return;
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(room.agent_id);
-      const agentQuery = isUuid
-        ? supabase.from('users').select('id, main_balance').eq('id', room.agent_id)
-        : supabase.from('users').select('id, main_balance').eq('telegram_id', room.agent_id);
+      if (!isOfficialHdaseRoom) {
+        if (!room.agent_id) return;
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(room.agent_id);
+        const agentQuery = isUuid
+          ? supabase.from('users').select('id, main_balance').eq('id', room.agent_id)
+          : supabase.from('users').select('id, main_balance').eq('telegram_id', room.agent_id);
 
-      const { data: agentUser } = await agentQuery.maybeSingle();
-      if (!agentUser) {
-        console.warn(`[Waiter Player] Agent ${room.agent_id} not found.`);
-        return;
-      }
+        const { data: agentUser } = await agentQuery.maybeSingle();
+        if (!agentUser) {
+          console.warn(`[Waiter Player] Agent ${room.agent_id} not found.`);
+          return;
+        }
 
-      const agentBal = Number(agentUser.main_balance || 0);
-      if (agentBal < totalBotCost) {
-        console.warn(`[Waiter Player] Agent ${agentUser.id} balance insufficient (${agentBal} < ${totalBotCost} ETB). Waiter bot paused.`);
-        return;
-      }
-      agentUserId = agentUser.id;
+        const agentBal = Number(agentUser.main_balance || 0);
+        if (agentBal < totalBotCost) {
+          console.warn(`[Waiter Player] Agent ${agentUser.id} balance insufficient (${agentBal} < ${totalBotCost} ETB). Waiter bot paused.`);
+          return;
+        }
+        agentUserId = agentUser.id;
 
-      // Deduct stake from agent's main_balance
-      const newBal = Math.max(0, agentBal - totalBotCost);
-      const { error: balErr } = await supabase.from('users').update({ main_balance: newBal }).eq('id', agentUserId);
-      if (balErr) {
-        console.error('[Waiter Player] Failed to deduct agent balance:', balErr);
-        return;
+        // Deduct stake from agent's main_balance
+        const newBal = Math.max(0, agentBal - totalBotCost);
+        const { error: balErr } = await supabase.from('users').update({ main_balance: newBal }).eq('id', agentUserId);
+        if (balErr) {
+          console.error('[Waiter Player] Failed to deduct agent balance:', balErr);
+          return;
+        }
+        console.log(`💳 [Waiter Player Joined] Agent ${agentUserId} balance deducted -${totalBotCost} ETB (${agentBal} -> ${newBal} ETB) for bot "${chosenBot.first_name}"`);
+      } else {
+        // HDASE BINGO official platform room: waiter bots are platform-managed, never touch admin balance!
+        agentUserId = null;
       }
-      console.log(`💳 [Waiter Player Joined] Agent ${agentUserId} balance deducted -${totalBotCost} ETB (${agentBal} -> ${newBal} ETB) for bot "${chosenBot.first_name}"`);
     }
 
     // Find available seats (1 to 300)
@@ -778,11 +796,11 @@ export class SystemPlayerService {
       card_matrix: generateBingoCard(),
       is_system: true,
       is_waiter: isWaiterMode,
-      waiter_agent_id: agentUserId,
-      waiter_stake_deducted: isWaiterMode ? stakeAmt : 0,
+      waiter_agent_id: isOfficialHdaseRoom ? null : agentUserId,
+      waiter_stake_deducted: isOfficialHdaseRoom ? 0 : (isWaiterMode ? stakeAmt : 0),
       system_player_id: chosenBot.id,
       bonus_used: 0,
-      main_used: isWaiterMode ? stakeAmt : 0,
+      main_used: isOfficialHdaseRoom ? 0 : (isWaiterMode ? stakeAmt : 0),
     }));
 
     const { error: insErr } = await supabase.from('bingo_players').insert(botRows);

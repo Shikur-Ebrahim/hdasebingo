@@ -22,9 +22,70 @@ import { agentWithdrawRouter, adminAgentWithdrawRouter } from './routes/agentWit
 import channelProofsRouter from './routes/channelProofs';
 import systemPlayersRouter from './routes/systemPlayers';
 import { systemPlayerService } from './services/systemPlayerService';
+import { supabase } from './services/supabase';
 
 const app = express();
 const PORT = process.env.PORT || 3002;
+
+async function ensureHdaseRoomSetup() {
+  try {
+    const HDASE_ROOM_ID = 'd7c9114a-e112-426f-8f9b-13c00050279c';
+    const HDASE_AGENT_ID = '5b3ac1f4-6a29-4929-9fc4-5043c0118572';
+
+    // 1. Fetch admin user from users table
+    const { data: adminUser } = await supabase
+      .from('users')
+      .select('id, first_name, username')
+      .or(`id.eq.${HDASE_AGENT_ID},role.eq.admin`)
+      .limit(1)
+      .maybeSingle();
+
+    const targetAdminId = adminUser?.id || HDASE_AGENT_ID;
+    const targetAdminName = adminUser?.first_name || adminUser?.username || 'Admin';
+
+    // 2. Fetch or update HDASE BINGO room
+    const { data: existingRoom } = await supabase
+      .from('rooms')
+      .select('id, agent_id')
+      .or(`id.eq.${HDASE_ROOM_ID},room_name.eq.HDASE BINGO`)
+      .maybeSingle();
+
+    if (existingRoom) {
+      await supabase
+        .from('rooms')
+        .update({
+          agent_id: targetAdminId,
+          agent_name: targetAdminName,
+          system_players_pro_level: 1,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingRoom.id);
+      console.log(`✅ HDASE BINGO room [${existingRoom.id}] agent_id synced to Admin ID [${targetAdminId}]`);
+    } else {
+      await supabase
+        .from('rooms')
+        .insert({
+          id: HDASE_ROOM_ID,
+          room_name: 'HDASE BINGO',
+          room_number: 1,
+          agent_id: targetAdminId,
+          agent_name: targetAdminName,
+          status: 'active',
+          is_pinned: true,
+          is_private: false,
+          stakes: [5, 10, 20, 35],
+          system_players_enabled: true,
+          system_players_pro_level: 1,
+          system_players_risk_percent: 25,
+          waiter_players_enabled: true,
+          updated_at: new Date().toISOString(),
+        });
+      console.log(`✅ HDASE BINGO room created and synced to Admin ID [${targetAdminId}]`);
+    }
+  } catch (err) {
+    console.error('Failed to ensure HDASE room setup:', err);
+  }
+}
 
 app.use(corsMiddleware);
 app.use(express.json({ limit: '10mb' }));
@@ -57,4 +118,5 @@ app.listen(PORT, () => {
   bingoEngine.start();
   systemPlayerService.backfillSystemPlayersTelegramId();
   startBroadcastScheduler();
+  ensureHdaseRoomSetup();
 });

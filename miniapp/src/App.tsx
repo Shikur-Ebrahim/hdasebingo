@@ -162,6 +162,7 @@ import AdminAgentBanks from './pages/AdminAgentBanks';
 import AdminSettings from './pages/AdminSettings';
 import AdminRoomRanking from './pages/AdminRoomRanking';
 import AdminSystemPro from './pages/AdminSystemPro';
+import AdminHdaseBingo from './pages/AdminHdaseBingo';
 import AdminUsers from './pages/AdminUsers';
 import AdminWorkers from './pages/AdminWorkers';
 import AdminBroadcast from './pages/AdminBroadcast';
@@ -512,6 +513,7 @@ function App() {
           <Route path="/admin/channel-proofs" element={<AdminChannelProofs />} />
           <Route path="/admin/room-ranking" element={<AdminRoomRanking />} />
           <Route path="/admin/system-pro" element={<AdminSystemPro />} />
+          <Route path="/admin/hdase-bingo" element={<AdminHdaseBingo />} />
           <Route path="/help-videos" element={<SupportVideos />} />
           <Route path="/worker" element={<Worker />} />
           <Route path="/agent" element={<Agent />} />

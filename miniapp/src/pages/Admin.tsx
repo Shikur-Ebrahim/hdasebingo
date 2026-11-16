@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
-import { Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Landmark, CreditCard, Gamepad2, Settings2, Radio, Building2, Video, Megaphone, BadgeDollarSign, Percent, ShieldCheck, QrCode, Sparkles, Coins, Bot } from 'lucide-react';
+import { Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Landmark, CreditCard, Gamepad2, Settings2, Radio, Building2, Video, Megaphone, BadgeDollarSign, Percent, ShieldCheck, QrCode, Sparkles, Coins, Bot, Flame } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { supabase } from '../lib/supabase';
@@ -87,6 +87,7 @@ export default function Admin() {
 
   let adminModules = [
     // ── TOP PRIORITY BUTTONS ─────────────────────────────────────────────────
+    { id: 'hdase_bingo', title: 'HDASE BINGO Room', icon: Flame, color: 'text-amber-500', bg: 'bg-amber-100', show: isAdmin },
     { id: 'channel_proofs', title: 'Channel Proofs', icon: Sparkles, color: 'text-emerald-600', bg: 'bg-emerald-100', show: isAdmin },
     { id: 'broadcast', title: 'Broadcast', icon: Radio, color: 'text-pink-600', bg: 'bg-pink-100', show: isAdmin },
     { id: 'agent_withdrawals', title: 'Agent & Promoter Withdrawals', icon: BadgeDollarSign, color: 'text-amber-600', bg: 'bg-amber-100', show: isAdmin },
@@ -275,6 +276,7 @@ export default function Admin() {
             hdase_qr: '/admin/hdase-qr',
             channel_proofs: '/admin/channel-proofs',
             system_pro: '/admin/system-pro',
+            hdase_bingo: '/admin/hdase-bingo',
           };
           if (routeMap[mod.id]) {
             return (

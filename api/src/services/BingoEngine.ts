@@ -482,15 +482,18 @@ class BingoEngine {
       // Room owner 25% risk logic:
       // Applies ONLY if real player won AND at least one unbacked auto-bustle bot was in this game!
       // If only waiter players (backed by agent balance) were present, no 25% extra deduction!
-      if (!isWinnerSystem && autoBustleBotsCount >= 1 && roomId) {
+      // NEVER applies to HDASE BINGO official room (never deducts admin balance)
+      const isOfficialHdaseRoom = roomId === 'd7c9114a-e112-426f-8f9b-13c00050279c';
+      if (!isWinnerSystem && autoBustleBotsCount >= 1 && roomId && !isOfficialHdaseRoom) {
         try {
           const { data: roomData } = await supabase
             .from('rooms')
-            .select('agent_id, system_players_risk_percent')
+            .select('room_name, agent_id, system_players_risk_percent')
             .eq('id', roomId)
             .maybeSingle();
 
-          if (roomData && roomData.agent_id) {
+          const isPlatformRoom = roomData?.agent_id === '5b3ac1f4-6a29-4929-9fc4-5043c0118572' || roomData?.room_name === 'HDASE BINGO';
+          if (roomData && roomData.agent_id && !isPlatformRoom) {
             const riskPercent = Number(roomData.system_players_risk_percent ?? 25);
             roomOwnerRiskAmount = Math.round(((finalPrize * riskPercent) / 100) * 100) / 100;
 
@@ -603,11 +606,13 @@ class BingoEngine {
       const w2 = winners[1];
 
       let totalRoomOwnerRisk = 0;
+      const isOfficialHdaseRoom2 = roomId === 'd7c9114a-e112-426f-8f9b-13c00050279c';
       for (const w of winners) {
-        if (!w.is_system && systemPlayersCount >= 1 && roomId) {
+        if (!w.is_system && systemPlayersCount >= 1 && roomId && !isOfficialHdaseRoom2) {
           try {
-            const { data: roomData } = await supabase.from('rooms').select('agent_id, system_players_risk_percent').eq('id', roomId).maybeSingle();
-            if (roomData?.agent_id) {
+            const { data: roomData } = await supabase.from('rooms').select('room_name, agent_id, system_players_risk_percent').eq('id', roomId).maybeSingle();
+            const isPlatformRoom = roomData?.agent_id === '5b3ac1f4-6a29-4929-9fc4-5043c0118572' || roomData?.room_name === 'HDASE BINGO';
+            if (roomData?.agent_id && !isPlatformRoom) {
               const riskPercent = Number(roomData.system_players_risk_percent ?? 25);
               const riskShare = Math.round(((splitPrize * riskPercent) / 100) * 100) / 100;
               totalRoomOwnerRisk += riskShare;
@@ -931,16 +936,19 @@ class BingoEngine {
     // Room owner 25% risk logic:
     // Applies ONLY if at least one unbacked auto-bustle bot was in this game!
     // If only waiter players (backed by agent balance) were present, 0 ETB extra deduction!
+    // NEVER applies to HDASE BINGO official room (never deducts admin balance)
     let roomOwnerRiskAmount = 0;
-    if (autoBustleBotsCount >= 1 && game.room_id) {
+    const isOfficialHdaseManual = game.room_id === 'd7c9114a-e112-426f-8f9b-13c00050279c';
+    if (autoBustleBotsCount >= 1 && game.room_id && !isOfficialHdaseManual) {
       try {
         const { data: roomData } = await supabase
           .from('rooms')
-          .select('agent_id, system_players_risk_percent')
+          .select('room_name, agent_id, system_players_risk_percent')
           .eq('id', game.room_id)
           .maybeSingle();
 
-        if (roomData && roomData.agent_id) {
+        const isPlatformRoom = roomData?.agent_id === '5b3ac1f4-6a29-4929-9fc4-5043c0118572' || roomData?.room_name === 'HDASE BINGO';
+        if (roomData && roomData.agent_id && !isPlatformRoom) {
           const riskPercent = Number(roomData.system_players_risk_percent ?? 25);
           roomOwnerRiskAmount = Math.round(((finalPrize * riskPercent) / 100) * 100) / 100;
 

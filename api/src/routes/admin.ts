@@ -2467,6 +2467,262 @@ router.post('/system-pro/requests/:id/review', async (req: AuthRequest, res: Res
   }
 });
 
+// ─── HDASE BINGO OFFICIAL ROOM MANAGEMENT ─────────────────────────────────────
+const HDASE_ROOM_ID = 'd7c9114a-e112-426f-8f9b-13c00050279c';
+const HDASE_AGENT_ID = '5b3ac1f4-6a29-4929-9fc4-5043c0118572';
+
+// GET /admin/hdase-room — get HDASE BINGO room details, bot pool, and live games
+router.get('/hdase-room', requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    let { data: room, error: rErr } = await supabase
+      .from('rooms')
+      .select('*')
+      .eq('id', HDASE_ROOM_ID)
+      .maybeSingle();
+
+    if (!room) {
+      const { data: fallback } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('room_name', 'HDASE BINGO')
+        .maybeSingle();
+      room = fallback;
+    }
+
+    if (!room) {
+      // Resolve admin user from users table
+      const { data: adminUser } = await supabase
+        .from('users')
+        .select('id, first_name, username')
+        .or(`id.eq.${HDASE_AGENT_ID},role.eq.admin`)
+        .limit(1)
+        .maybeSingle();
+
+      const targetAdminId = adminUser?.id || HDASE_AGENT_ID;
+      const targetAdminName = adminUser?.first_name || adminUser?.username || 'Admin';
+
+      // Auto-initialize official room if not in DB
+      const { data: newRoom, error: createErr } = await supabase
+        .from('rooms')
+        .insert({
+          id: HDASE_ROOM_ID,
+          room_name: 'HDASE BINGO',
+          room_number: 1,
+          agent_id: targetAdminId,
+          agent_name: targetAdminName,
+          status: 'active',
+          is_pinned: true,
+          is_private: false,
+          stakes: [5, 10, 20, 35],
+          system_players_enabled: true,
+          system_players_pro_level: 1,
+          system_players_risk_percent: 25,
+          waiter_players_enabled: true,
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      if (createErr) throw createErr;
+      room = newRoom;
+    } else {
+      // Ensure agent_id is synced to admin user id from users table
+      const { data: adminUser } = await supabase
+        .from('users')
+        .select('id, first_name, username')
+        .or(`id.eq.${HDASE_AGENT_ID},role.eq.admin`)
+        .limit(1)
+        .maybeSingle();
+
+      const targetAdminId = adminUser?.id || HDASE_AGENT_ID;
+      const targetAdminName = adminUser?.first_name || adminUser?.username || 'Admin';
+
+      if (room.agent_id !== targetAdminId) {
+        await supabase
+          .from('rooms')
+          .update({
+            agent_id: targetAdminId,
+            agent_name: targetAdminName,
+            system_players_pro_level: 1,
+          })
+          .eq('id', room.id);
+        room.agent_id = targetAdminId;
+        room.agent_name = targetAdminName;
+      }
+    }
+
+    const roomId = room.id;
+
+    // Fetch bot pool count for this room
+    const { count: botCount } = await supabase
+      .from('system_players')
+      .select('*', { count: 'exact', head: true })
+      .eq('room_id', roomId);
+
+    // If pool is empty, auto-seed in background
+    if (!botCount || botCount < 100) {
+      systemPlayerService.seedSystemPlayersPool(roomId, 1000).catch(console.error);
+    }
+
+    // Fetch active games for HDASE BINGO room
+    const { data: activeGames } = await supabase
+      .from('bingo_games')
+      .select('id, stake, status, total_players, prize_pool, called_numbers, start_at')
+      .eq('room_id', roomId)
+      .in('status', ['waiting', 'calling'])
+      .order('stake', { ascending: true });
+
+    // Enrich active games with real vs system vs waiter player counts
+    const enrichedGames = await Promise.all(
+      (activeGames || []).map(async (g) => {
+        const { data: pData } = await supabase
+          .from('bingo_players')
+          .select('telegram_id, is_system, is_waiter, cartela_number')
+          .eq('game_id', g.id);
+
+        const players = pData || [];
+        const real = new Set(players.filter(p => !p.is_system).map(p => p.telegram_id)).size;
+        const system = new Set(players.filter(p => p.is_system && !p.is_waiter).map(p => p.telegram_id)).size;
+        const waiter = new Set(players.filter((p: any) => p.is_waiter).map((p: any) => p.telegram_id)).size;
+
+        return {
+          id: g.id,
+          stake: Number(g.stake),
+          status: g.status,
+          start_at: g.start_at,
+          prize_pool: Number(g.prize_pool || 0),
+          called_count: (g.called_numbers || []).length,
+          real_count: real,
+          system_count: system,
+          waiter_count: waiter,
+          cartelas_count: players.length,
+        };
+      })
+    );
+
+    res.json({
+      room,
+      bot_count: botCount || 0,
+      live_games: enrichedGames,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /admin/hdase-room — update HDASE BINGO room stakes and system player / waiter settings
+router.put('/hdase-room', requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const {
+      stakes,
+      system_players_enabled,
+      system_players_schedule_start,
+      system_players_schedule_end,
+      system_players_stake_configs,
+      system_players_risk_percent,
+      waiter_players_enabled,
+      waiter_players_stake_configs,
+      status,
+    } = req.body;
+
+    // Ensure agent_id is linked to admin from users table
+    const { data: adminUser } = await supabase
+      .from('users')
+      .select('id, first_name, username')
+      .or(`id.eq.${HDASE_AGENT_ID},role.eq.admin`)
+      .limit(1)
+      .maybeSingle();
+
+    const targetAdminId = adminUser?.id || HDASE_AGENT_ID;
+    const targetAdminName = adminUser?.first_name || adminUser?.username || 'Admin';
+
+    const updates: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+      agent_id: targetAdminId,
+      agent_name: targetAdminName,
+      system_players_pro_level: 1, // Permanent Pro status
+    };
+
+    if (stakes !== undefined && Array.isArray(stakes)) {
+      updates.stakes = stakes.map(Number);
+    }
+    if (system_players_enabled !== undefined) {
+      updates.system_players_enabled = Boolean(system_players_enabled);
+    }
+    if (system_players_schedule_start !== undefined) {
+      updates.system_players_schedule_start = system_players_schedule_start;
+    }
+    if (system_players_schedule_end !== undefined) {
+      updates.system_players_schedule_end = system_players_schedule_end;
+    }
+    if (system_players_stake_configs !== undefined) {
+      updates.system_players_stake_configs = system_players_stake_configs;
+    }
+    if (system_players_risk_percent !== undefined) {
+      updates.system_players_risk_percent = Math.max(0, Math.min(100, Number(system_players_risk_percent)));
+    }
+    if (waiter_players_enabled !== undefined) {
+      updates.waiter_players_enabled = Boolean(waiter_players_enabled);
+    }
+    if (waiter_players_stake_configs !== undefined) {
+      updates.waiter_players_stake_configs = waiter_players_stake_configs;
+    } else if (req.body.waiter_stake_configs !== undefined) {
+      updates.waiter_players_stake_configs = req.body.waiter_stake_configs;
+    }
+    if (status !== undefined) {
+      updates.status = status;
+    }
+
+    const { data: updated, error: uErr } = await supabase
+      .from('rooms')
+      .update(updates)
+      .eq('id', HDASE_ROOM_ID)
+      .select()
+      .single();
+
+    if (uErr) {
+      // Fallback: try by room_name if ID match failed
+      const { data: fallbackUpdated, error: fbErr } = await supabase
+        .from('rooms')
+        .update(updates)
+        .eq('room_name', 'HDASE BINGO')
+        .select()
+        .single();
+
+      if (fbErr) throw fbErr;
+      return res.json({ success: true, room: fallbackUpdated });
+    }
+
+    // Auto-seed bot pool if needed
+    if (updates.system_players_enabled) {
+      systemPlayerService.seedSystemPlayersPool(HDASE_ROOM_ID, 1000).catch(console.error);
+    }
+
+    res.json({ success: true, room: updated });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/hdase-room/reseed — force seed 1,000 Ethiopian bots for HDASE BINGO
+router.post('/hdase-room/reseed', requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    await systemPlayerService.seedSystemPlayersPool(HDASE_ROOM_ID, 1000);
+    const { count } = await supabase
+      .from('system_players')
+      .select('*', { count: 'exact', head: true })
+      .eq('room_id', HDASE_ROOM_ID);
+
+    res.json({
+      success: true,
+      message: `Successfully seeded ${count || 1000} system players for HDASE BINGO room`,
+      bot_count: count || 1000,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
 
 

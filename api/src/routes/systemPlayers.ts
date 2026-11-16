@@ -423,6 +423,7 @@ router.post('/settings', validateTelegramAuth, async (req: AuthRequest, res: Res
     if (risk_percent !== undefined) updates.system_players_risk_percent = Number(risk_percent);
     if (waiter_enabled !== undefined) updates.waiter_players_enabled = Boolean(waiter_enabled);
     if (waiter_stake_configs !== undefined) updates.waiter_players_stake_configs = waiter_stake_configs;
+    if (req.body.stakes !== undefined && Array.isArray(req.body.stakes)) updates.stakes = req.body.stakes.map(Number);
 
     const { error: updErr } = await supabase
       .from('rooms')
