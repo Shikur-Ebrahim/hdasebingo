@@ -197,10 +197,22 @@ function App() {
       let detectedPromoterRef: string | null = null;
       if (typeof WebApp !== 'undefined' && WebApp.initDataUnsafe?.start_param) {
         const sp = String(WebApp.initDataUnsafe.start_param).trim();
-        if (sp.startsWith('room_')) {
-          detectedRoomId = sp.replace('room_', '');
-        } else if (sp.startsWith('ref_')) {
-          detectedPromoterRef = sp; // keep full ref_ string for backend
+        if (sp.includes('ref_')) {
+          const m = sp.match(/ref_([a-zA-Z0-9-]+)/);
+          if (m) detectedPromoterRef = `ref_${m[1]}`;
+        }
+        if (sp.includes('room_')) {
+          const m = sp.match(/room_([a-zA-Z0-9-]+)/);
+          if (m) detectedRoomId = m[1];
+        }
+        if (!detectedRoomId && !detectedPromoterRef) {
+          if (sp.startsWith('room_')) {
+            detectedRoomId = sp.replace('room_', '');
+          } else if (sp.startsWith('ref_')) {
+            detectedPromoterRef = sp;
+          } else {
+            detectedRoomId = sp;
+          }
         }
       }
       if (!detectedRoomId && !detectedPromoterRef && typeof window !== 'undefined') {

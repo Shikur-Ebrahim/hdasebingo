@@ -82,6 +82,24 @@ export default function RoomJoinLanding() {
       setRoomId(detectedId);
       localStorage.setItem('hdase_invited_room_id', detectedId);
     }
+
+    // Resolve inviter / referral ID
+    let detectedRef =
+      searchParams.get('ref') ||
+      searchParams.get('inviter') ||
+      '';
+    if (!detectedRef && typeof window !== 'undefined') {
+      const hash = window.location.hash;
+      if (hash) {
+        const hp = new URLSearchParams(hash.replace(/^#/, ''));
+        detectedRef = hp.get('ref') || hp.get('inviter') || '';
+      }
+    }
+    if (detectedRef) {
+      if (detectedRef.startsWith('ref_')) detectedRef = detectedRef.replace('ref_', '');
+      localStorage.setItem('hdase_promoter_ref', detectedRef);
+      localStorage.setItem('hdase_invited_by', detectedRef);
+    }
   }, [searchParams]);
 
   // 2. Fetch room details
@@ -164,8 +182,18 @@ export default function RoomJoinLanding() {
 
   // Handler for Telegram Bot
   const handleOpenTelegramBot = () => {
-    const tgUrl = roomId
-      ? `https://t.me/${BOT_USERNAME}?start=room_${roomId}`
+    const inviterRef = typeof window !== 'undefined' ? localStorage.getItem('hdase_promoter_ref') || '' : '';
+    let startParam = '';
+    if (inviterRef && roomId) {
+      startParam = `ref_${inviterRef}_room_${roomId}`;
+    } else if (roomId) {
+      startParam = `room_${roomId}`;
+    } else if (inviterRef) {
+      startParam = `ref_${inviterRef}`;
+    }
+
+    const tgUrl = startParam
+      ? `https://t.me/${BOT_USERNAME}?start=${startParam}`
       : `https://t.me/${BOT_USERNAME}`;
     if (typeof WebApp !== 'undefined' && WebApp.openTelegramLink) {
       WebApp.openTelegramLink(tgUrl);

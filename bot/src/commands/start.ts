@@ -29,16 +29,22 @@ export async function startCommand(ctx: Context) {
       const payload = parts[1].trim();
       if (payload === 'qr' || payload === 'start' || payload === 'play') {
         isFromQr = true;
-      } else if (payload.startsWith('ref_')) {
-        inviterId = payload.replace('ref_', '');
-      } else if (payload.startsWith('room_')) {
-        roomId = payload.replace('room_', '');
+      } else {
+        if (payload.includes('ref_')) {
+          const m = payload.match(/ref_([a-zA-Z0-9-]+)/);
+          if (m) inviterId = m[1];
+        }
+        if (payload.includes('room_')) {
+          const m = payload.match(/room_([a-zA-Z0-9-]+)/);
+          if (m) roomId = m[1];
+        }
       }
     }
   }
 
+  let userRecord: any = null;
   try {
-    await upsertUser(user.id.toString(), user.username || user.first_name, user.first_name, inviterId, roomId);
+    userRecord = await upsertUser(user.id.toString(), user.username || user.first_name, user.first_name, inviterId, roomId);
   } catch (e: any) {
     if (e.message === 'ACCOUNT_INACTIVE') {
       await ctx.reply('❌ Your account has been deactivated by the admin. You can no longer use this bot.');
@@ -54,26 +60,28 @@ export async function startCommand(ctx: Context) {
   const supportUrl = settings.support_url;
   const channelUrl = settings.channel_url;
 
+  const effectiveRoomId = userRecord?.room_id || roomId;
   let invitedRoomName: string | null = null;
-  if (roomId) {
+  if (effectiveRoomId) {
     try {
-      const { data: rData } = await supabase.from('rooms').select('room_name').eq('id', roomId).maybeSingle();
+      const { data: rData } = await supabase.from('rooms').select('room_name').eq('id', effectiveRoomId).maybeSingle();
       if (rData?.room_name) invitedRoomName = rData.room_name;
     } catch (err) {
       console.error('Failed to fetch invited room in bot:', err);
     }
   }
 
-  // Construct play URL with room parameter if user was invited
+  // Construct play URL with room parameter if user has a room
   let playUrl = miniAppUrl;
-  if (roomId) {
+  if (effectiveRoomId) {
     const sep = playUrl.includes('?') ? '&' : '?';
-    playUrl = `${playUrl}${sep}room=${encodeURIComponent(roomId)}&startapp=room_${encodeURIComponent(roomId)}`;
+    playUrl = `${playUrl}${sep}room=${encodeURIComponent(effectiveRoomId)}&startapp=room_${encodeURIComponent(effectiveRoomId)}`;
   }
 
   const botUsername = 'hdasebingo_bot';
-  const inviteLink = `https://t.me/${botUsername}?start=ref_${user.id}`;
-  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent('🎮 Play Hdasebingo with me! Join and let\'s win together! 🎱')}`;
+  const invitePayload = effectiveRoomId ? `ref_${user.id}_room_${effectiveRoomId}` : `ref_${user.id}`;
+  const inviteLink = `https://t.me/${botUsername}?start=${invitePayload}`;
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}`;
 
   const playButtonText = invitedRoomName 
     ? `🎱 ወደ ${invitedRoomName} ግባ (PLAY!)` 
@@ -87,7 +95,7 @@ export async function startCommand(ctx: Context) {
         { text: '📢 Join Channel', url: channelUrl },
       ],
       [
-        { text: '👥 Invite Friend', url: `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent('🎮 Play Hdasebingo with me! Join using my invite link and let\'s win together! 🎱')}` },
+        { text: '👥 Invite Friend', url: shareUrl },
         { text: '💰 Deposit', callback_data: 'btn_deposit' },
       ],
     ],

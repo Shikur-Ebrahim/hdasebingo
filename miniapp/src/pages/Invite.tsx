@@ -3,6 +3,7 @@ import {
   ArrowLeft, Share2, Copy, Check, Gift, QrCode, Link2, 
   Download, Maximize2, X, Sparkles, CheckCircle2, Crown, RefreshCw,
   Play, ChevronLeft, ChevronRight, Volume2, VolumeX,
+  Smartphone, Send, ArrowRight, Users,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../store/gameStore';
@@ -22,13 +23,17 @@ interface SupportVideo {
 }
 
 export default function Invite() {
-  const { user, setProfileOpen, language } = useGameStore();
+  const { user, rooms, fetchRooms, setProfileOpen, language } = useGameStore();
   const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedPwaLink, setCopiedPwaLink] = useState(false);
+  const [copiedBotLink, setCopiedBotLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
+  const [isSavingFlyer, setIsSavingFlyer] = useState(false);
   const [activeTab, setActiveTab] = useState<'qr' | 'link'>('qr');
   const [showFullscreenQR, setShowFullscreenQR] = useState(false);
   const [inviteRewardPct, setInviteRewardPct] = useState<number>(10);
+  const [resolvedRoomName, setResolvedRoomName] = useState<string>('');
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const fullscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const navigate = useNavigate();
@@ -44,13 +49,46 @@ export default function Invite() {
   const [highlightGuideBtn, setHighlightGuideBtn] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
 
-  const isTg = Boolean(typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.initData);
   const botUsername = import.meta.env.VITE_BOT_USERNAME || 'hdasebingo_bot';
-  const refCode = `ref_${user?.telegram_id || 'player'}`;
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://hdasebingo.com';
-  const friendRoomParam = (user as any)?.room_id ? `&room=${(user as any).room_id}` : '';
-  const pwaInviteLink = `${origin}/?ref=${user?.telegram_id || 'player'}${friendRoomParam}`;
-  const inviteLink = isTg ? `https://t.me/${botUsername}?start=${refCode}` : pwaInviteLink;
+  const userRefId = user?.telegram_id || user?.id || 'player';
+  const refCode = `ref_${userRefId}`;
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://hdasebingo-44kc.vercel.app';
+
+  // Explicitly inherit inviter's room ID
+  const userRoomId =
+    (user as any)?.room_id ||
+    (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null) ||
+    'd7c9114a-e112-426f-8f9b-13c00050279c';
+
+  const userRoom = rooms?.find((r) => r.id === userRoomId);
+  const displayRoomName = userRoom?.room_name || resolvedRoomName || 'HDASE BINGO';
+
+  // PWA Join & Mobile Application Link carrying both room and inviter referral
+  const pwaInviteLink = `${origin}/join?room=${userRoomId}&ref=${userRefId}`;
+  // Telegram Bot direct invitation carrying both compound parameters
+  const botInviteLink = `https://t.me/${botUsername}?start=ref_${userRefId}_room_${userRoomId}`;
+  const inviteLink = pwaInviteLink;
+
+  useEffect(() => {
+    if (!rooms || rooms.length === 0) {
+      fetchRooms();
+    }
+  }, [rooms, fetchRooms]);
+
+  // Fetch room name if not present in rooms list
+  useEffect(() => {
+    if (userRoom?.room_name) {
+      setResolvedRoomName(userRoom.room_name);
+      return;
+    }
+    if (!userRoomId) return;
+    fetch(`${API_URL}/player/public-room/${userRoomId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.room?.room_name) setResolvedRoomName(data.room.room_name);
+      })
+      .catch(() => {});
+  }, [userRoomId, userRoom]);
 
   // Fetch real invite reward % from admin settings + invite videos
   useEffect(() => {
@@ -169,13 +207,23 @@ export default function Invite() {
     setTimeout(() => setProfileOpen(true), 50);
   };
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(inviteLink).then(() => {
-      setCopiedLink(true);
+  const handleCopyPwaLink = () => {
+    navigator.clipboard.writeText(pwaInviteLink).then(() => {
+      setCopiedPwaLink(true);
       if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('light');
-      setTimeout(() => setCopiedLink(false), 2000);
+      setTimeout(() => setCopiedPwaLink(false), 2000);
     });
   };
+
+  const handleCopyBotLink = () => {
+    navigator.clipboard.writeText(botInviteLink).then(() => {
+      setCopiedBotLink(true);
+      if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('light');
+      setTimeout(() => setCopiedBotLink(false), 2000);
+    });
+  };
+
+  const handleCopyLink = handleCopyPwaLink;
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(refCode).then(() => {
@@ -185,20 +233,45 @@ export default function Invite() {
     });
   };
 
-  const handleShare = () => {
-    const text = `🎮 Play Hdasebingo with me! Join using my link and let's win together!\n\n${inviteLink}`;
+  const handleSharePwaApp = async () => {
+    if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
+
     if (typeof WebApp !== 'undefined' && WebApp.openTelegramLink) {
-      WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent("🎮 Play Hdasebingo with me! Join using my link and let's win together!")}`);
-    } else if (navigator.share) {
-      navigator.share({
-        title: 'Hdasebingo',
-        text: 'Play Hdasebingo with me!',
-        url: inviteLink,
-      }).catch(() => {});
-    } else {
-      handleCopyLink();
+      WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(pwaInviteLink)}`);
+      return;
     }
+
+    if (typeof navigator !== 'undefined' && (navigator as any).share) {
+      try {
+        await (navigator as any).share({
+          url: pwaInviteLink,
+        });
+        return;
+      } catch (_) {}
+    }
+
+    handleCopyPwaLink();
   };
+
+  const handleShareBotLink = () => {
+    if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
+
+    if (typeof WebApp !== 'undefined' && WebApp.openTelegramLink) {
+      WebApp.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(botInviteLink)}`);
+      return;
+    }
+
+    if (typeof navigator !== 'undefined' && (navigator as any).share) {
+      navigator.share({
+        url: botInviteLink,
+      }).catch(() => {});
+      return;
+    }
+
+    handleCopyBotLink();
+  };
+
+  const handleShare = handleSharePwaApp;
 
   // Generate the luxury branded invite canvas (same style as Agent flyer)
   const generateInviteCanvas = (): HTMLCanvasElement | null => {
@@ -319,11 +392,10 @@ export default function Invite() {
       ctx.textAlign = 'center';
       ctx.fillText('HDASE BINGO', width / 2, 142);
 
-      // 5. Subtitle with divider lines — personalized with player's first name
+      // 5. Subtitle with divider lines — personalized with room name
       ctx.fillStyle = '#8a6a1d';
       ctx.font = 'bold 12.5px sans-serif';
-      const playerName = (user?.first_name || user?.username || 'A PLAYER').toUpperCase();
-      const subText = `PLAYER INVITE \u2022 ${playerName}'S INVITATION`;
+      const subText = `PLAYER INVITE \u2022 ${displayRoomName.toUpperCase()}`;
       ctx.fillText(subText, width / 2, 172);
 
       const subWidth = ctx.measureText(subText).width;
@@ -340,11 +412,11 @@ export default function Invite() {
       ctx.lineTo(width / 2 + subWidth / 2 + 12 + lineLen, lineY);
       ctx.stroke();
 
-      // 6. "SCAN TO JOIN" with wing ornaments
+      // 6. "SCAN TO PLAY" with wing ornaments
       const scanY = 224;
       ctx.fillStyle = '#17120a';
       ctx.font = '900 35px "Times New Roman", Georgia, sans-serif';
-      ctx.fillText('SCAN TO JOIN', width / 2, scanY);
+      ctx.fillText('SCAN TO PLAY', width / 2, scanY);
 
       const scanWidth = ctx.measureText('SCAN TO JOIN').width;
       const wingLeftX = width / 2 - scanWidth / 2 - 25;
@@ -497,11 +569,11 @@ export default function Invite() {
       ctx.textAlign = 'center';
       ctx.fillStyle = '#221609';
       ctx.font = 'italic bold 23px "Brush Script MT", "Great Vibes", "Lucida Calligraphy", cursive';
-      ctx.fillText('Invite Friends  \u2022  Play Together  \u2022  Win Big', width / 2, 955);
+      ctx.fillText('Real Players  \u2022  Good Luck  \u2022  Big Wins', width / 2, 955);
 
-      // 11. Official Bot Invite Link Box
-      const codeBoxW = 540;
-      const codeBoxH = 38;
+      // 11. Official Bot Link Box
+      const codeBoxW = 280;
+      const codeBoxH = 36;
       const codeBoxX = (width - codeBoxW) / 2;
       const codeBoxY = 988;
 
@@ -513,9 +585,9 @@ export default function Invite() {
       ctx.lineWidth = 1;
       ctx.stroke();
       ctx.fillStyle = '#664a10';
-      ctx.font = 'bold 13px monospace';
+      ctx.font = 'bold 15px sans-serif';
       ctx.textBaseline = 'middle';
-      ctx.fillText(inviteLink, width / 2, codeBoxY + codeBoxH / 2);
+      ctx.fillText(`@${botUsername}`, width / 2, codeBoxY + codeBoxH / 2);
       ctx.textBaseline = 'alphabetic';
 
       // 12. Footer
@@ -530,54 +602,104 @@ export default function Invite() {
     }
   };
 
-  // Download the luxury branded invitation poster
-  const handleDownloadQR = () => {
-    const canvas = generateInviteCanvas();
-    if (!canvas) return;
+  // Download the luxury branded invitation poster / save to gallery
+  const handleSaveFlyer = async () => {
+    if (isSavingFlyer) return;
+    setIsSavingFlyer(true);
+    if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
 
     try {
+      const canvas = generateInviteCanvas();
+      if (!canvas) {
+        setIsSavingFlyer(false);
+        return;
+      }
+
       const dataUrl = canvas.toDataURL('image/png');
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = `hdasebingo-invite-${user?.telegram_id || 'player'}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) {
+        setIsSavingFlyer(false);
+        return;
+      }
+
+      const fileName = `hdasebingo-invite-${userRefId}.png`;
+      const file = new File([blob], fileName, { type: 'image/png' });
+
+      // 1. Send to backend: uploads to R2 and delivers high-res photo to Telegram Chat
+      let publicUrl = '';
+      try {
+        const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+        if (initData) {
+          const res = await fetch(`${API_URL}/player/send-flyer`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-telegram-init-data': initData,
+            },
+            body: JSON.stringify({
+              image_base64: dataUrl,
+              room_name: displayRoomName,
+              room_id: userRoomId,
+            }),
+          });
+          if (res.ok) {
+            const resData = await res.json();
+            publicUrl = resData.publicUrl || '';
+          }
+        }
+      } catch (err) {
+        console.error('Failed to send flyer to backend:', err);
+      }
+
+      // 2. Telegram Native downloadFile
+      if (publicUrl && typeof WebApp !== 'undefined' && typeof (WebApp as any).downloadFile === 'function') {
+        try {
+          (WebApp as any).downloadFile({
+            url: publicUrl,
+            file_name: fileName,
+          }, () => {});
+        } catch (_) {}
+      }
+
+      // 3. Web Share API
+      if (typeof navigator !== 'undefined' && 'canShare' in navigator) {
+        try {
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: `HDASE BINGO - ${displayRoomName}`,
+              text: `🎮 Join me on HDASE BINGO room "${displayRoomName}"!`,
+            });
+          }
+        } catch (_) {}
+      }
+
+      // 4. Browser fallback anchor download
+      try {
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+      } catch (_) {}
 
       setDownloaded(true);
       if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.notificationOccurred('success');
-      setTimeout(() => setDownloaded(false), 2000);
+      setTimeout(() => setDownloaded(false), 3000);
     } catch (e) {
-      console.error('Download QR failed', e);
+      console.error('Download flyer failed', e);
+    } finally {
+      setIsSavingFlyer(false);
     }
   };
 
+  const handleDownloadQR = handleSaveFlyer;
+
   const handleShareQR = () => {
-    const canvas = generateInviteCanvas();
-    if (canvas && navigator.canShare) {
-      try {
-        canvas.toBlob(blob => {
-          if (!blob) {
-            handleShare();
-            return;
-          }
-          const file = new File([blob], `hdasebingo-invite-${user?.telegram_id || 'invite'}.png`, { type: 'image/png' });
-          if (navigator.canShare({ files: [file] })) {
-            navigator.share({
-              title: 'Hdasebingo Invite',
-              text: `🎮 Play Hdasebingo with me! Join using my link: ${inviteLink}`,
-              files: [file],
-            }).catch(() => handleShare());
-            return;
-          }
-          handleShare();
-        });
-        return;
-      } catch {
-        handleShare();
-      }
-    }
-    handleShare();
+    handleSaveFlyer();
   };
 
   const renderVideoModal = () => {
@@ -888,16 +1010,16 @@ export default function Invite() {
                   </h3>
                   <div className="flex items-center justify-center space-x-2 text-[10px] font-bold text-[#8a6a1d] uppercase tracking-wider mt-0.5">
                     <span className="w-6 h-px bg-[#d4af37]" />
-                    <span>PLAYER INVITE • {((user?.first_name || user?.username || 'PLAYER') + "'S INVITATION").toUpperCase()}</span>
+                    <span>PLAYER INVITE • {displayRoomName.toUpperCase()}</span>
                     <span className="w-6 h-px bg-[#d4af37]" />
                   </div>
                 </div>
 
-                {/* 3. Bold "SCAN TO JOIN" */}
+                {/* 3. Bold "SCAN TO PLAY" */}
                 <div className="flex items-center justify-center space-x-2 pt-0.5">
                   <span className="text-[#c59b27] font-black text-sm">⮞</span>
                   <span className="font-serif font-black text-lg text-[#140f09] tracking-wider">
-                    SCAN TO JOIN
+                    SCAN TO PLAY
                   </span>
                   <span className="text-[#c59b27] font-black text-sm">⮜</span>
                 </div>
@@ -913,7 +1035,7 @@ export default function Invite() {
                     Scan the QR code to
                   </span>
                   <span className="font-serif italic font-black text-xs text-[#831414]">
-                    Join & Win Bonus!
+                    Play & Win Cash!
                   </span>
                 </div>
 
@@ -931,7 +1053,7 @@ export default function Invite() {
                   <div className="relative">
                     <QRCodeCanvas
                       ref={qrCanvasRef}
-                      value={inviteLink}
+                      value={pwaInviteLink}
                       size={200}
                       level="H"
                       includeMargin={false}
@@ -971,60 +1093,335 @@ export default function Invite() {
 
                 {/* 7. Cursive motto */}
                 <p className="font-serif italic font-bold text-xs text-[#221609] pt-0.5">
-                  Invite Friends &nbsp;•&nbsp; Play Together &nbsp;•&nbsp; Win Big
+                  Real Players &nbsp;•&nbsp; Good Luck &nbsp;•&nbsp; Big Wins
                 </p>
 
-                {/* 8. Full Start Bot Invite Link Box with Copy Button */}
-                <div className="mx-auto w-full max-w-xs px-2.5 py-1.5 bg-[#fbf6ea] border border-[#c59b27] rounded-xl shadow-2xs flex items-center justify-between gap-1.5">
-                  <span className="font-mono text-[10px] text-[#664a10] truncate select-all">
-                    {inviteLink}
-                  </span>
-                  <button
-                    onClick={handleCopyLink}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black shrink-0 transition-all active:scale-95 flex items-center gap-1 ${
-                      copiedLink ? 'bg-emerald-600 text-white' : 'bg-[#c59b27] hover:bg-[#b8860b] text-white shadow-2xs'
-                    }`}
-                  >
-                    {copiedLink ? <Check size={11} /> : <Copy size={11} />}
-                    <span>{copiedLink ? (language === 'am' ? 'ተቀድቷል!' : 'Copied!') : (language === 'am' ? 'ቅዳ' : 'Copy')}</span>
-                  </button>
+                {/* 8. Bot handle badge */}
+                <div className="mx-auto w-fit px-5 py-1.5 bg-[#fbf6ea] border border-[#c59b27] rounded-xl shadow-2xs">
+                  <span className="font-bold text-xs text-[#664a10] tracking-wide">@{botUsername}</span>
                 </div>
               </div>
+            </div>
+
+            {/* DOWNLOAD FLYER BUTTON */}
+            <button
+              onClick={handleSaveFlyer}
+              disabled={isSavingFlyer}
+              className={`w-full py-3.5 px-4 rounded-2xl font-black text-sm shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 border ${
+                isSavingFlyer
+                  ? 'bg-amber-600 text-white border-amber-600 opacity-90 cursor-wait'
+                  : downloaded
+                  ? 'bg-emerald-600 text-white border-emerald-600'
+                  : 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white border-orange-400 shadow-orange-500/25'
+              }`}
+            >
+              {isSavingFlyer ? (
+                <>
+                  <RefreshCw size={18} className="animate-spin text-white" />
+                  <span>{language === 'am' ? 'ፍላየሩ እየተዘጋጀ ነው...' : 'Saving Poster...'}</span>
+                </>
+              ) : downloaded ? (
+                <>
+                  <CheckCircle2 size={18} />
+                  <span>{language === 'am' ? 'ፍላየሩ በተሳካ ሁኔታ ተቀምጧል!' : 'Poster Saved Successfully!'}</span>
+                </>
+              ) : (
+                <>
+                  <Download size={18} />
+                  <span>{language === 'am' ? 'የግብዣ ፍላየር አውርድ (HD PNG)' : 'Download Printable Flyer (HD PNG)'}</span>
+                </>
+              )}
+            </button>
+
+            {/* ─── PWA WEB APP SHARE & INSTALL (MATCHING AGENT SECTION) ─── */}
+            <div className="bg-white dark:bg-slate-800 rounded-3xl p-4.5 border border-slate-200 dark:border-slate-700 shadow-2xs space-y-3">
+              <div className="flex items-start justify-between">
+                <div className="space-y-0.5">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 dark:bg-emerald-950/50 dark:text-emerald-400 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                    Mobile Web Application (PWA)
+                  </span>
+                  <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-100 tracking-wide">
+                    {language === 'am' ? 'የሞባይል መተግበሪያ ሊንክ ያጋሩ' : 'Share Mobile Application Link'}
+                  </h4>
+                  <p className="text-[10px] text-slate-400">
+                    {language === 'am'
+                      ? 'ተጋባዦች በ Chrome ከፍተው መተግበሪያውን በቀጥታ ስልካቸው ላይ ይጭናሉ።'
+                      : 'Players open in Chrome to install app directly to home screen.'}
+                  </p>
+                </div>
+                <div className="w-9 h-9 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 dark:border-emerald-800 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                  <Smartphone size={17} />
+                </div>
+              </div>
+
+              {/* PWA Link box & copy */}
+              <div className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs">
+                <span className="font-mono text-[11px] text-slate-600 dark:text-slate-300 truncate mr-2 select-all">
+                  {pwaInviteLink}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyPwaLink}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black shrink-0 transition-all active:scale-95 ${
+                    copiedPwaLink ? 'bg-emerald-600 text-white' : 'bg-slate-800 dark:bg-slate-700 text-white'
+                  }`}
+                >
+                  {copiedPwaLink ? (language === 'am' ? 'ተቀድቷል!' : 'Copied!') : (language === 'am' ? 'ቅዳ' : 'Copy')}
+                </button>
+              </div>
+
+              {/* Share Application Link Button */}
+              <button
+                type="button"
+                onClick={handleSharePwaApp}
+                className="w-full py-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:opacity-95 text-white rounded-2xl font-black text-xs shadow-md transition-all active:scale-98 flex items-center justify-center space-x-2"
+              >
+                <Share2 size={15} />
+                <span>{language === 'am' ? 'የሞባይል መተግበሪያ ሊንክ አጋራ (PWA)' : 'Share Application Link (PWA)'}</span>
+              </button>
+
+              {/* Preview Landing Page button */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('light');
+                  navigate(`/join?room=${userRoomId}&ref=${userRefId}`);
+                }}
+                className="w-full py-1.5 px-3 rounded-xl text-[11px] font-bold text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition flex items-center justify-center space-x-1"
+              >
+                <span>{language === 'am' ? 'የመጫኛ ገጹን ይመልከቱ' : 'Preview Join & Install Page'}</span>
+                <ArrowRight size={12} />
+              </button>
+            </div>
+
+            {/* ─── TELEGRAM BOT INVITE SECTION ─── */}
+            <div className="bg-white dark:bg-slate-800 rounded-3xl p-4.5 border border-slate-200 dark:border-slate-700 shadow-2xs space-y-3">
+              <div className="flex items-start justify-between">
+                <div className="space-y-0.5">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 dark:bg-blue-950/50 dark:text-blue-400 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800">
+                    Telegram Mini App
+                  </span>
+                  <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-100 tracking-wide">
+                    {language === 'am' ? 'የቴሌግራም ቦት ሊንክ ያጋሩ' : 'Share Telegram Bot Link'}
+                  </h4>
+                  <p className="text-[10px] text-slate-400">
+                    {language === 'am'
+                      ? 'በቴሌግራም ቦት ውስጥ በቀጥታ መጫወት ለሚመርጡ ጓደኞች።'
+                      : 'For players who prefer playing inside the Telegram bot.'}
+                  </p>
+                </div>
+                <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-100 dark:border-blue-800 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+                  <Send size={15} />
+                </div>
+              </div>
+
+              {/* Telegram link box */}
+              <div className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs">
+                <span className="font-mono text-[11px] text-slate-600 dark:text-slate-300 truncate mr-2 select-all">
+                  {botInviteLink}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyBotLink}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black shrink-0 transition-all active:scale-95 ${
+                    copiedBotLink ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300'
+                  }`}
+                >
+                  {copiedBotLink ? (language === 'am' ? 'ተቀድቷል!' : 'Copied!') : (language === 'am' ? 'ቅዳ' : 'Copy')}
+                </button>
+              </div>
+
+              {/* Share to Telegram button */}
+              <button
+                type="button"
+                onClick={handleShareBotLink}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs shadow-xs transition-all active:scale-98 flex items-center justify-center gap-2"
+              >
+                <Send size={14} />
+                <span>{language === 'am' ? 'ወደ ቴሌግራም ቻት/ቻናል አጋራ' : 'Share to Telegram Chats / Channels'}</span>
+              </button>
+            </div>
+
+            {/* VIEW INVITED FRIENDS CARD */}
+            <div
+              onClick={() => {
+                if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('light');
+                navigate('/invited');
+              }}
+              className="bg-white dark:bg-slate-800 rounded-2xl p-3.5 border border-slate-200 dark:border-slate-700 shadow-2xs flex items-center justify-between cursor-pointer active:scale-98 transition"
+            >
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                  <Users size={18} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-slate-800 dark:text-slate-100">
+                    {language === 'am' ? 'የተጋበዙ ጓደኞች ዝርዝርና ያገኙት ቦነስ' : 'View Invited Friends & Earnings'}
+                  </h4>
+                  <p className="text-[10px] text-slate-400">
+                    {language === 'am' ? 'ጓደኞችዎ ያስገቡትንና ያገኙትን ቦነስ ይመልከቱ' : 'See friend deposits and your earned referral bonuses'}
+                  </p>
+                </div>
+              </div>
+              <ChevronRight size={16} className="text-slate-400" />
             </div>
           </div>
         )}
 
         {/* TAB 2: LINK SECTION */}
         {activeTab === 'link' && (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-slate-800 shrink-0">
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-2">
-              {t[language].invite.linkTitle}
-            </label>
-            <div className="flex bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden p-1 mb-3">
-              <div className="flex-1 px-2 py-2 overflow-x-auto whitespace-nowrap hide-scrollbar flex items-center">
-                <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300 font-mono">
-                  {inviteLink}
-                </span>
+          <div className="space-y-3 shrink-0">
+            {/* ─── PWA WEB APP SHARE & INSTALL ─── */}
+            <div className="bg-white dark:bg-slate-800 rounded-3xl p-4.5 border border-slate-200 dark:border-slate-700 shadow-2xs space-y-3">
+              <div className="flex items-start justify-between">
+                <div className="space-y-0.5">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 dark:bg-emerald-950/50 dark:text-emerald-400 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                    Mobile Web Application (PWA)
+                  </span>
+                  <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-100 tracking-wide">
+                    {language === 'am' ? 'የሞባይል መተግበሪያ ሊንክ ያጋሩ' : 'Share Mobile Application Link'}
+                  </h4>
+                  <p className="text-[10px] text-slate-400">
+                    {language === 'am'
+                      ? 'ተጋባዦች በ Chrome ከፍተው መተግበሪያውን በቀጥታ ስልካቸው ላይ ይጭናሉ።'
+                      : 'Players open in Chrome to install app directly to home screen.'}
+                  </p>
+                </div>
+                <div className="w-9 h-9 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 dark:border-emerald-800 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                  <Smartphone size={17} />
+                </div>
               </div>
+
+              {/* PWA Link box & copy */}
+              <div className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs">
+                <span className="font-mono text-[11px] text-slate-600 dark:text-slate-300 truncate mr-2 select-all">
+                  {pwaInviteLink}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyPwaLink}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black shrink-0 transition-all active:scale-95 ${
+                    copiedPwaLink ? 'bg-emerald-600 text-white' : 'bg-slate-800 dark:bg-slate-700 text-white'
+                  }`}
+                >
+                  {copiedPwaLink ? (language === 'am' ? 'ተቀድቷል!' : 'Copied!') : (language === 'am' ? 'ቅዳ' : 'Copy')}
+                </button>
+              </div>
+
+              {/* Share Application Link Button */}
               <button
-                onClick={handleCopyLink}
-                className={`shrink-0 w-10 h-8 rounded-lg flex items-center justify-center transition-colors ${
-                  copiedLink 
-                    ? 'bg-emerald-500 text-white' 
-                    : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100'
-                }`}
+                type="button"
+                onClick={handleSharePwaApp}
+                className="w-full py-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:opacity-95 text-white rounded-2xl font-black text-xs shadow-md transition-all active:scale-98 flex items-center justify-center space-x-2"
               >
-                {copiedLink ? <Check size={14} /> : <Copy size={14} />}
+                <Share2 size={15} />
+                <span>{language === 'am' ? 'የሞባይል መተግበሪያ ሊንክ አጋራ (PWA)' : 'Share Application Link (PWA)'}</span>
+              </button>
+
+              {/* Preview Landing Page button */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('light');
+                  navigate(`/join?room=${userRoomId}&ref=${userRefId}`);
+                }}
+                className="w-full py-1.5 px-3 rounded-xl text-[11px] font-bold text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition flex items-center justify-center space-x-1"
+              >
+                <span>{language === 'am' ? 'የመጫኛ ገጹን ይመልከቱ' : 'Preview Join & Install Page'}</span>
+                <ArrowRight size={12} />
               </button>
             </div>
 
-            <button
-              onClick={handleShare}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-white py-2.5 rounded-xl font-black text-sm shadow-sm transition-transform active:scale-95 flex items-center justify-center space-x-2"
+            {/* ─── TELEGRAM BOT INVITE SECTION ─── */}
+            <div className="bg-white dark:bg-slate-800 rounded-3xl p-4.5 border border-slate-200 dark:border-slate-700 shadow-2xs space-y-3">
+              <div className="flex items-start justify-between">
+                <div className="space-y-0.5">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 dark:bg-blue-950/50 dark:text-blue-400 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800">
+                    Telegram Mini App
+                  </span>
+                  <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-100 tracking-wide">
+                    {language === 'am' ? 'የቴሌግራም ቦት ሊንክ ያጋሩ' : 'Share Telegram Bot Link'}
+                  </h4>
+                  <p className="text-[10px] text-slate-400">
+                    {language === 'am'
+                      ? 'በቴሌግራም ቦት ውስጥ በቀጥታ መጫወት ለሚመርጡ ጓደኞች።'
+                      : 'For players who prefer playing inside the Telegram bot.'}
+                  </p>
+                </div>
+                <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-100 dark:border-blue-800 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+                  <Send size={15} />
+                </div>
+              </div>
+
+              {/* Telegram link box */}
+              <div className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs">
+                <span className="font-mono text-[11px] text-slate-600 dark:text-slate-300 truncate mr-2 select-all">
+                  {botInviteLink}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyBotLink}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black shrink-0 transition-all active:scale-95 ${
+                    copiedBotLink ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300'
+                  }`}
+                >
+                  {copiedBotLink ? (language === 'am' ? 'ተቀድቷል!' : 'Copied!') : (language === 'am' ? 'ቅዳ' : 'Copy')}
+                </button>
+              </div>
+
+              {/* Share to Telegram button */}
+              <button
+                type="button"
+                onClick={handleShareBotLink}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs shadow-xs transition-all active:scale-98 flex items-center justify-center gap-2"
+              >
+                <Send size={14} />
+                <span>{language === 'am' ? 'ወደ ቴሌግራም ቻት/ቻናል አጋራ' : 'Share to Telegram Chats / Channels'}</span>
+              </button>
+            </div>
+
+            {/* REFERRAL CODE CHIP */}
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-3 border border-slate-200 dark:border-slate-700 shadow-2xs flex items-center justify-between">
+              <div>
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                  {language === 'am' ? 'የመጋበዣ ኮድዎ' : 'Your Referral Code'}
+                </span>
+                <span className="font-mono text-xs font-black text-slate-800 dark:text-slate-100">
+                  {refCode}
+                </span>
+              </div>
+              <button
+                onClick={handleCopyCode}
+                className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-700 text-purple-600 dark:text-purple-300 text-[10px] font-bold flex items-center gap-1 active:scale-95 transition"
+              >
+                {copiedCode ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                <span>{copiedCode ? (language === 'am' ? 'ተቀድቷል' : 'Copied') : (language === 'am' ? 'ቅዳ' : 'Copy')}</span>
+              </button>
+            </div>
+
+            {/* VIEW INVITED FRIENDS CARD */}
+            <div
+              onClick={() => {
+                if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('light');
+                navigate('/invited');
+              }}
+              className="bg-white dark:bg-slate-800 rounded-2xl p-3.5 border border-slate-200 dark:border-slate-700 shadow-2xs flex items-center justify-between cursor-pointer active:scale-98 transition"
             >
-              <Share2 size={16} />
-              <span>{t[language].invite.shareBtn}</span>
-            </button>
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                  <Users size={18} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-slate-800 dark:text-slate-100">
+                    {language === 'am' ? 'የተጋበዙ ጓደኞች ዝርዝርና ያገኙት ቦነስ' : 'View Invited Friends & Earnings'}
+                  </h4>
+                  <p className="text-[10px] text-slate-400">
+                    {language === 'am' ? 'ጓደኞችዎ ያስገቡትንና ያገኙትን ቦነስ ይመልከቱ' : 'See friend deposits and your earned referral bonuses'}
+                  </p>
+                </div>
+              </div>
+              <ChevronRight size={16} className="text-slate-400" />
+            </div>
           </div>
         )}
       </div>
@@ -1062,7 +1459,7 @@ export default function Invite() {
             <div className="p-4 bg-white rounded-2xl shadow-md border-2 border-amber-300 relative">
               <QRCodeCanvas
                 ref={fullscreenCanvasRef}
-                value={inviteLink}
+                value={pwaInviteLink}
                 size={230}
                 level="H"
                 includeMargin={false}
@@ -1094,18 +1491,19 @@ export default function Invite() {
             {/* Action buttons */}
             <div className="grid grid-cols-2 gap-2 w-full mt-4">
               <button
-                onClick={handleDownloadQR}
-                className="py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm"
+                onClick={handleSaveFlyer}
+                disabled={isSavingFlyer}
+                className="py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm disabled:opacity-75"
               >
-                <Download size={14} />
-                <span>{downloaded ? 'Saved!' : 'Save'}</span>
+                {isSavingFlyer ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
+                <span>{downloaded ? 'Saved!' : 'Save Poster'}</span>
               </button>
               <button
-                onClick={handleShare}
+                onClick={handleSharePwaApp}
                 className="py-2.5 bg-slate-800 text-white hover:bg-slate-900 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm"
               >
                 <Share2 size={14} />
-                <span>{t[language].invite.shareBtn}</span>
+                <span>{language === 'am' ? 'ሊንክ አጋራ' : 'Share App'}</span>
               </button>
             </div>
           </div>

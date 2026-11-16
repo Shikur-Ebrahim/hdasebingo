@@ -305,15 +305,33 @@ router.post('/change-password', validateTelegramAuth, async (req: AuthRequest, r
 // ── POST /api/auth/verify — Legacy & Telegram WebApp User Verification ────────
 router.post('/verify', validateTelegramAuth, async (req: AuthRequest, res) => {
   const user = req.telegramUser!;
-  const rawRoomId = req.body?.room_id || req.body?.start_param || null;
-  let invitedRoomId: string | null = null;
-  if (typeof rawRoomId === 'string' && rawRoomId.trim()) {
-    invitedRoomId = rawRoomId.startsWith('room_') ? rawRoomId.replace('room_', '').trim() : rawRoomId.trim();
+  const startParam = typeof req.body?.start_param === 'string' ? req.body.start_param.trim() : '';
+  let explicitRoomId: string | null = null;
+  let rawPromoterRef: string | null = req.body?.promoter_ref || null;
+
+  // Extract both ref and room from startParam if present (e.g. ref_123_room_456 or room_456)
+  if (startParam) {
+    if (startParam.includes('ref_')) {
+      const m = startParam.match(/ref_([a-zA-Z0-9-]+)/);
+      if (m && !rawPromoterRef) rawPromoterRef = m[1];
+    }
+    if (startParam.includes('room_')) {
+      const m = startParam.match(/room_([a-zA-Z0-9-]+)/);
+      if (m) explicitRoomId = m[1];
+    } else if (!explicitRoomId && !startParam.includes('ref_')) {
+      explicitRoomId = startParam;
+    }
   }
 
-  // Resolve promoter_ref → inviter_id UUID
+  // Also check direct room_id in body
+  if (!explicitRoomId && req.body?.room_id) {
+    const raw = String(req.body.room_id).trim();
+    explicitRoomId = raw.startsWith('room_') ? raw.replace('room_', '').trim() : raw;
+  }
+
+  // Resolve promoter_ref → inviter_id UUID & inherited room
   let resolvedInviterUuid: string | null = null;
-  const rawPromoterRef = req.body?.promoter_ref || null;
+  let inviterRoomId: string | null = null;
   if (typeof rawPromoterRef === 'string' && rawPromoterRef.trim()) {
     const cleanRef = rawPromoterRef.replace('ref_', '').trim();
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanRef);
@@ -323,26 +341,25 @@ router.post('/verify', validateTelegramAuth, async (req: AuthRequest, res) => {
     );
     if (promoterUser?.id) {
       resolvedInviterUuid = promoterUser.id;
-      if (!invitedRoomId && promoterUser.room_id) {
-        invitedRoomId = promoterUser.room_id;
+      if (promoterUser.room_id) {
+        inviterRoomId = promoterUser.room_id;
       }
     }
   }
 
-  // Fallback to default HDASE BINGO room if no room specified
-  if (!invitedRoomId) {
-    try {
-      const { data: defRoom } = await supabase
-        .from('rooms')
-        .select('id')
-        .or('id.eq.d7c9114a-e112-426f-8f9b-13c00050279c,room_name.ilike.%hdase%')
-        .limit(1)
-        .maybeSingle();
-      invitedRoomId = defRoom?.id || 'd7c9114a-e112-426f-8f9b-13c00050279c';
-    } catch {
-      invitedRoomId = 'd7c9114a-e112-426f-8f9b-13c00050279c';
-    }
-  }
+  const effectiveInvitedRoomId = explicitRoomId || inviterRoomId || null;
+
+  // Fallback default room ID if user has no room
+  let defaultRoomId = 'd7c9114a-e112-426f-8f9b-13c00050279c';
+  try {
+    const { data: defRoom } = await supabase
+      .from('rooms')
+      .select('id')
+      .or('id.eq.d7c9114a-e112-426f-8f9b-13c00050279c,room_name.ilike.%hdase%')
+      .limit(1)
+      .maybeSingle();
+    if (defRoom?.id) defaultRoomId = defRoom.id;
+  } catch {}
   
   // Check if user already exists
   const { data: existing } = await supabase.from('users').select('*').eq('telegram_id', user.id.toString()).maybeSingle();
@@ -353,9 +370,12 @@ router.post('/verify', validateTelegramAuth, async (req: AuthRequest, res) => {
 
   if (existing) {
     const updatePayload: any = { username: user.username || user.first_name, first_name: user.first_name };
-    if (invitedRoomId) {
-      // Always update to latest scanned room so new QR scans take effect immediately
-      updatePayload.room_id = invitedRoomId;
+    if (effectiveInvitedRoomId) {
+      // User explicitly joined or scanned a room, update to that room
+      updatePayload.room_id = effectiveInvitedRoomId;
+    } else if (!existing.room_id) {
+      // Only set default room if user has NO room assigned at all
+      updatePayload.room_id = defaultRoomId;
     }
     // Only set inviter_id if not already set (first-time promoter attribution)
     if (!existing.inviter_id && resolvedInviterUuid) {
@@ -388,10 +408,8 @@ router.post('/verify', validateTelegramAuth, async (req: AuthRequest, res) => {
       first_name: user.first_name,
       main_balance: 0,
       bonus_balance: welcomeBonus,
+      room_id: effectiveInvitedRoomId || defaultRoomId,
     };
-    if (invitedRoomId) {
-      insertPayload.room_id = invitedRoomId;
-    }
     if (resolvedInviterUuid) {
       insertPayload.inviter_id = resolvedInviterUuid; // Store promoter UUID!
     }
