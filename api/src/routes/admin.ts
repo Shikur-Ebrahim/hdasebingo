@@ -712,20 +712,26 @@ router.get('/profit-report', validateTelegramAuth, requireAdmin, async (req, res
 // ─── USER MANAGEMENT ──────────────────────────────────────────────────────────
 
 router.get('/users', async (req, res) => {
-  const { search = '', page = '1', limit = '20' } = req.query;
+  const { search = '', page = '1', limit = '20', role = 'all' } = req.query;
   const pageNum = Math.max(1, parseInt(page as string));
   const limitNum = Math.min(50, parseInt(limit as string));
   const offset = (pageNum - 1) * limitNum;
 
   let query = supabase
     .from('users')
-    .select('id, telegram_id, username, first_name, role, status, main_balance, bonus_balance, total_wins, created_at', { count: 'exact' })
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limitNum - 1);
+    .select('id, telegram_id, username, first_name, role, status, main_balance, bonus_balance, total_wins, created_at', { count: 'exact' });
+
+  if (role && role !== 'all' && ['user', 'agent', 'worker', 'promoter', 'admin'].includes(role as string)) {
+    query = query.eq('role', role);
+  }
 
   if (search) {
     query = query.or(`username.ilike.%${search}%,first_name.ilike.%${search}%,telegram_id.eq.${search}`);
   }
+
+  query = query
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limitNum - 1);
 
   const { data, error, count } = await query;
   if (error) { res.status(500).json({ error: error.message }); return; }

@@ -36,6 +36,17 @@ const ROLE_COLORS: Record<string, string> = {
   user: 'bg-slate-100 text-slate-600',
 };
 
+type RoleCategory = 'all' | 'user' | 'agent' | 'promoter' | 'worker' | 'admin';
+
+const ROLE_TABS: { id: RoleCategory; label: string; icon: string }[] = [
+  { id: 'all', label: 'All Users', icon: '👥' },
+  { id: 'user', label: 'Players', icon: '👤' },
+  { id: 'agent', label: 'Agents', icon: '🤝' },
+  { id: 'promoter', label: 'Promoters', icon: '📣' },
+  { id: 'worker', label: 'Workers', icon: '🔧' },
+  { id: 'admin', label: 'Admins', icon: '👑' },
+];
+
 function fmt(n: number) {
   return (n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
@@ -53,6 +64,7 @@ export default function AdminUsers() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [selectedRole, setSelectedRole] = useState<RoleCategory>('all');
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<UserDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -80,10 +92,10 @@ export default function AdminUsers() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const fetchUsers = async (q = search, p = page) => {
+  const fetchUsers = async (q = search, p = page, r = selectedRole) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ search: q, page: String(p), limit: String(LIMIT) });
+      const params = new URLSearchParams({ search: q, page: String(p), limit: String(LIMIT), role: r });
       const res = await fetch(`${API_URL}/admin/users?${params}`, { headers: getHeaders() });
       if (res.ok) {
         const data = await res.json();
@@ -110,12 +122,20 @@ export default function AdminUsers() {
     finally { setDetailLoading(false); }
   };
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => { fetchUsers('', 1, 'all'); }, []);
 
   const { user } = useGameStore();
   if (!user || (user.role !== 'admin' && !(user.role === 'worker' && user.permissions?.users))) {
     return <div className="p-10 text-center font-bold text-slate-600">Access Denied</div>;
   }
+
+  const handleRoleChange = (r: RoleCategory) => {
+    if (selectedRole === r) return;
+    setSelectedRole(r);
+    setPage(1);
+    setUsers([]);
+    fetchUsers(search, 1, r);
+  };
 
   const handleSearch = (val: string) => {
     setSearch(val);
@@ -123,14 +143,14 @@ export default function AdminUsers() {
     searchTimer.current = setTimeout(() => {
       setPage(1);
       setUsers([]);
-      fetchUsers(val, 1);
+      fetchUsers(val, 1, selectedRole);
     }, 400);
   };
 
   const loadMore = () => {
     const nextPage = page + 1;
     setPage(nextPage);
-    fetchUsers(search, nextPage);
+    fetchUsers(search, nextPage, selectedRole);
   };
 
   const adjustBalance = async () => {
@@ -146,7 +166,7 @@ export default function AdminUsers() {
         showToast('success', 'Balance updated! User notified.');
         setSelected(prev => prev ? { ...prev, [adjField]: d.newValue } : prev);
         setAdjAmount(''); setAdjNote('');
-        fetchUsers(search, 1);
+        fetchUsers(search, 1, selectedRole);
       } else {
         showToast('error', d.error || 'Failed');
       }
@@ -166,7 +186,7 @@ export default function AdminUsers() {
       if (res.ok) {
         showToast('success', `Role changed to ${role}`);
         setSelected(prev => prev ? { ...prev, role } : prev);
-        fetchUsers(search, 1);
+        fetchUsers(search, 1, selectedRole);
       } else {
         showToast('error', d.error || 'Failed');
       }
@@ -187,7 +207,7 @@ export default function AdminUsers() {
       if (res.ok) {
         showToast('success', `Account ${status === 'active' ? 'activated' : 'deactivated'}`);
         setSelected(prev => prev ? { ...prev, status } : prev);
-        fetchUsers(search, 1);
+        fetchUsers(search, 1, selectedRole);
       } else {
         showToast('error', d.error || 'Failed');
       }
@@ -212,9 +232,11 @@ export default function AdminUsers() {
         </Link>
         <div className="flex-1">
           <h1 className="text-base font-black text-slate-800 leading-tight">Users</h1>
-          <p className="text-[10px] text-slate-400 font-medium">{total} total users</p>
+          <p className="text-[10px] text-slate-400 font-medium">
+            {total} {selectedRole === 'all' ? 'total users' : `${ROLE_TABS.find(t => t.id === selectedRole)?.label || selectedRole}`}
+          </p>
         </div>
-        <button onClick={() => { setPage(1); setUsers([]); fetchUsers(search, 1); }} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+        <button onClick={() => { setPage(1); setUsers([]); fetchUsers(search, 1, selectedRole); }} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 active:scale-90 transition-all">
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
         </button>
       </div>
@@ -228,7 +250,7 @@ export default function AdminUsers() {
             placeholder="Search name, username, or Telegram ID..."
             value={search}
             onChange={e => handleSearch(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs font-medium text-slate-700 outline-none focus:border-violet-400"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-8 py-2 text-xs font-medium text-slate-700 outline-none focus:border-violet-400"
           />
           {search && (
             <button onClick={() => handleSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400">
@@ -238,12 +260,42 @@ export default function AdminUsers() {
         </div>
       </div>
 
+      {/* ROLE CATEGORIES */}
+      <div className="px-3 py-2 bg-white border-b border-gray-100 shrink-0 shadow-sm">
+        <div className="flex items-center space-x-1.5 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] py-0.5">
+          {ROLE_TABS.map((tab) => {
+            const isSelected = selectedRole === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => handleRoleChange(tab.id)}
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-black shrink-0 transition-all active:scale-95 ${
+                  isSelected
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 active:bg-slate-300'
+                }`}
+              >
+                <span>{tab.icon}</span>
+                <span>{tab.label}</span>
+                {isSelected && (
+                  <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 text-white font-bold">
+                    {total}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* LIST */}
       <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
         {users.length === 0 && !loading && (
           <div className="flex flex-col items-center justify-center py-16 space-y-2">
             <Users size={32} className="text-slate-300" />
-            <p className="text-xs font-bold text-slate-400">No users found</p>
+            <p className="text-xs font-bold text-slate-400">
+              {search ? 'No users matching search' : `No ${selectedRole === 'all' ? 'users' : ROLE_TABS.find(t => t.id === selectedRole)?.label || 'users'} found`}
+            </p>
           </div>
         )}
         {users.map(u => (
