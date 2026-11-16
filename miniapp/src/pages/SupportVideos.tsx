@@ -54,7 +54,7 @@ export default function SupportVideos() {
     support_phone_eth: string;
   }>({
     username: 'hdasebingo_admin',
-    channel: 'https://t.me/hdasebingo',
+    channel: 'https://t.me/HdasebingoG',
     support_phone_usa: '+1 (984) 378-9510',
     support_phone_eth: '+251996598686',
   });
@@ -71,7 +71,7 @@ export default function SupportVideos() {
         if (data) {
           setContact({
             username: (data.username || 'hdasebingo_admin').replace(/^@/, '').trim(),
-            channel: data.channel || 'https://t.me/hdasebingo',
+            channel: data.channel || 'https://t.me/HdasebingoG',
             support_phone_usa: data.support_phone_usa || '+1 (984) 378-9510',
             support_phone_eth: data.support_phone_eth || '+251996598686',
           });
@@ -342,7 +342,7 @@ export default function SupportVideos() {
           </span>
         </button>
 
-        {/* Telegram Official Channel */}
+        {/* Telegram Official Group */}
         <button
           onClick={handleOpenChannel}
           className="w-full bg-violet-50/80 hover:bg-violet-100/70 active:scale-[0.98] border border-violet-200/70 text-violet-950 p-3 rounded-2xl flex items-center justify-between transition-transform shadow-2xs"
@@ -353,10 +353,10 @@ export default function SupportVideos() {
             </div>
             <div className="text-left min-w-0">
               <p className="font-black text-xs text-violet-950 leading-tight truncate">
-                {language === 'am' ? 'ይፋዊ ቴሌግራም ቻናል' : 'Official Telegram Channel'}
+                {language === 'am' ? 'ይፋዊ ቴሌግራም ግሩፕ' : 'Official Telegram Group'}
               </p>
               <p className="text-[10.5px] text-violet-700/80 font-medium truncate">
-                {language === 'am' ? 'ዜናዎችንና ዝማኔዎችን ይከታተሉ' : 'Announcements & Updates'}
+                {language === 'am' ? 'ተቀላቅለው ከማህበረሰቡ ጋር ይወያዩ' : 'Join our official community'}
               </p>
             </div>
           </div>

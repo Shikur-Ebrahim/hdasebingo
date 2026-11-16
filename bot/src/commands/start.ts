@@ -92,7 +92,7 @@ export async function startCommand(ctx: Context) {
       [{ text: playButtonText, web_app: { url: playUrl } }],
       [
         { text: '💬 Get Support', url: supportUrl },
-        { text: '📢 Join Channel', url: channelUrl },
+        { text: '👥 Join Group', url: channelUrl },
       ],
       [
         { text: '👥 Invite Friend', url: shareUrl },

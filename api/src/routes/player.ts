@@ -268,7 +268,7 @@ router.get('/support-contact', async (_req, res) => {
 
     res.json({
       username,
-      channel: getSetting('channel_link', 'https://t.me/hdasebingo'),
+      channel: getSetting('channel_link', 'https://t.me/HdasebingoG'),
       announcement_message: getSetting('announcement_message', ''),
       announcement_max_views: parseInt(getSetting('announcement_max_views', '2'), 10),
       support_phone_usa: getSetting('support_phone_usa', '+1 (984) 378-9510'),
@@ -278,7 +278,7 @@ router.get('/support-contact', async (_req, res) => {
   } catch {
     res.json({
       username: 'Mosque_Dona',
-      channel: 'https://t.me/hdasebingo',
+      channel: 'https://t.me/HdasebingoG',
       announcement_message: '',
       announcement_max_views: 2,
       home_popup_video: null,

@@ -25,7 +25,7 @@ const SETTING_FIELDS: SettingField[] = [
   { key: 'support_username', label: 'Support Team User', icon: <Headphones size={16} />, type: 'text', color: 'text-orange-600', bg: 'bg-orange-50', defaultValue: 'hdasebingo_admin' },
   { key: 'support_phone_usa', label: 'USA Support Phone', icon: <Phone size={16} />, type: 'text', color: 'text-blue-700', bg: 'bg-blue-50', defaultValue: '+1 (984) 378-9510' },
   { key: 'support_phone_eth', label: 'Ethiopia Support Phone', icon: <Phone size={16} />, type: 'text', color: 'text-green-700', bg: 'bg-green-50', defaultValue: '+251996598686' },
-  { key: 'channel_link', label: 'Official Channel Link', icon: <Megaphone size={16} />, type: 'text', color: 'text-indigo-600', bg: 'bg-indigo-50', defaultValue: 'https://t.me/hdasebingo' },
+  { key: 'channel_link', label: 'Official Group Link', icon: <Users size={16} />, type: 'text', color: 'text-indigo-600', bg: 'bg-indigo-50', defaultValue: 'https://t.me/HdasebingoG' },
   { key: 'announcement_message', label: 'Announcement Message', icon: <Megaphone size={16} />, type: 'textarea', color: 'text-fuchsia-600', bg: 'bg-fuchsia-50', defaultValue: '' },
   { key: 'announcement_max_views', label: 'Popup Max Views', icon: <Users size={16} />, type: 'number', color: 'text-pink-600', bg: 'bg-pink-50', defaultValue: 2 },
 ];

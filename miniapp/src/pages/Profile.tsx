@@ -17,7 +17,7 @@ export default function Profile() {
   const { user, isProfileOpen, setProfileOpen, isDarkMode, toggleDarkMode, language, setLanguage, logoutPwa, setAuthModalOpen, rooms, fetchRooms } = useGameStore();
   const [showLangDropdown, setShowLangDropdown] = useState(false);
   const [supportUsername, setSupportUsername] = useState('hdasebingo_admin');
-  const [channelLink, setChannelLink] = useState('https://t.me/hdasebingo');
+  const [channelLink, setChannelLink] = useState('https://t.me/HdasebingoG');
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
 
@@ -287,18 +287,6 @@ export default function Profile() {
               <ChevronRight size={11} className="text-slate-300" />
             </button>
 
-            {/* System Player Button */}
-            <button onClick={() => navigateTo('/agent')} className={row}>
-              <div className={icon('bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400')}><Bot size={12} /></div>
-              <span className="flex-1 font-bold text-slate-700 dark:text-slate-200 text-[10px]">
-                {language === 'am' ? 'የክፍል ሲስተም ተጫዋች (System Player)' : 'System Player (AI Bots)'}
-              </span>
-              <span className="text-[8px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-100/80 dark:bg-indigo-900/40 px-2 py-0.5 rounded-full mr-1 uppercase">
-                PRO
-              </span>
-              <ChevronRight size={11} className="text-slate-300" />
-            </button>
-
             <button onClick={() => navigateTo('/invited')} className={row}>
               <div className={icon('bg-emerald-50 text-emerald-500')}><Users size={12} /></div>
               <span className="flex-1 font-bold text-slate-700 dark:text-slate-200 text-[10px]">{t[language].profile.invitePerson}</span>
@@ -372,8 +360,8 @@ export default function Profile() {
             </button>
 
             <button onClick={handleChannel} className={row}>
-              <div className={icon('bg-indigo-50 text-indigo-500')}><Megaphone size={12} /></div>
-              <span className="flex-1 font-bold text-slate-700 dark:text-slate-200 text-[10px]">{t[language].profile.channel}</span>
+              <div className={icon('bg-indigo-50 text-indigo-500')}><Users size={12} /></div>
+              <span className="flex-1 font-bold text-slate-700 dark:text-slate-200 text-[10px]">{language === 'am' ? 'ቴሌግራም ግሩፕ (Group)' : 'Telegram Group'}</span>
               <ChevronRight size={11} className="text-slate-300" />
             </button>
 

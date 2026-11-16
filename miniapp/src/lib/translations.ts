@@ -114,7 +114,7 @@ export const t = {
       darkMode: 'Dark Mode',
       aiAssistance: 'AI Assistance',
       support: 'Support Team',
-      channel: 'Channel',
+      channel: 'Group',
       logout: 'Close Profile',
     },
     deposit: {
@@ -517,7 +517,7 @@ export const t = {
       darkMode: 'የጨለማ ገጽታ',
       aiAssistance: 'ኤአይ ረዳት (AI Assistant)',
       support: 'ድጋፍ ሰጪ ቡድን',
-      channel: 'ቻናል (Channel)',
+      channel: 'ግሩፕ (Group)',
       logout: 'ፕሮፋይል ዝጋ',
     },
     deposit: {
