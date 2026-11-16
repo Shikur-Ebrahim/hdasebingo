@@ -66,8 +66,8 @@ class BingoEngine {
     if (dbIsManual !== null && dbIsManual !== undefined) {
       return Boolean(dbIsManual);
     }
-    // Default is manual mode (true)
-    return true;
+    // Default is MANUAL OFF (auto mode: false)
+    return false;
   }
 
   start() {

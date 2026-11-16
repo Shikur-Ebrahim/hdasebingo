@@ -189,9 +189,9 @@ export default function BingoGame() {
   const [autoMark, setAutoMark] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('hdase_bingo_auto_mark');
-      return saved !== null ? JSON.parse(saved) : false; // Default is MANUAL as requested
+      return saved !== null ? JSON.parse(saved) : true; // Default is MANUAL OFF (Auto mode active)
     } catch {
-      return false; // Default is MANUAL as requested
+      return true; // Default is MANUAL OFF (Auto mode active)
     }
   });
   const [manuallyMarked, setManuallyMarked] = useState<Set<number>>(new Set());
@@ -708,6 +708,9 @@ export default function BingoGame() {
   const prevTimeLeftRef = useRef<number>(-1);
   const hadCartelasRef = useRef(false);
   const celebrationTimerRef = useRef<any>(null);
+  const finishingDelayTimerRef = useRef<any>(null);
+  const lastPlayedBallRef = useRef<number | null>(null);
+  const [isFinishing, setIsFinishing] = useState(false);
   const cartelaMatricesRef = useRef<Record<number, number[][]>>({});
   const fetchStateRef = useRef<() => void>(() => {});
   const refreshUserRef = useRef<() => void>(() => {});
@@ -726,13 +729,13 @@ export default function BingoGame() {
     }
   }, [game?.id, game?.status, autoMark]);
 
-  // Instant celebration trigger - displays popup immediately in 0ms without waiting for network!
+  // Delayed celebration trigger: shows the winning called ball on screen & marks it on cartela for 1.2s before celebration popup!
   const triggerCelebration = useCallback((finGame: any) => {
     if (!finGame || finGame.status !== 'finished') return;
     if (celebratedGamesRef.current.has(finGame.id)) return;
     if (!finGame.winner_cartela && finGame.winner_first_name !== 'REMATCH') return;
 
-    // Guard: ignore stale games > 6s old
+    // Guard: ignore stale games > 12s old
     if (finGame.finished_at && (Date.now() - new Date(finGame.finished_at).getTime()) > 12000) {
       celebratedGamesRef.current.add(finGame.id);
       return;
@@ -744,86 +747,124 @@ export default function BingoGame() {
       celebratedGamesRef.current.delete(oldest);
     }
 
-    // Play celebration sound
-    playSpecial('bingo_win');
-
-        // Auto-dismiss matches bingo_win.mp3 duration + viewing time (minimum 3.5s so card does not vanish fast)
-    let durationMs = 3500;
-    try {
-      const audioBuffer = audioBufferCache.current.get('/audio/bingo/bingo_win.mp3');
-      if (audioBuffer && audioBuffer.duration > 0) {
-        durationMs = Math.max(3500, Math.ceil(audioBuffer.duration * 1000) + 1200);
-      }
-    } catch {}
-
-    if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
-    celebrationTimerRef.current = setTimeout(() => {
-      celebrationTimerRef.current = null;
-      setCelebration(null);
-      setMyCard(null);
-      setMyCartelas([]);
-      setActiveCartelaIdx(0);
-      setTaken([]);
-      setManuallyMarked(new Set());
-      setBingoLockSeconds(0);
-      setGame(prev => prev ? { ...prev, status: 'waiting', called_numbers: [], total_players: 0, prize_pool: 0 } : prev);
-      fetchStateRef.current();
-      refreshUserRef.current();
-    }, durationMs);
-
-    if (finGame.winner_first_name === 'REMATCH') {
-      setCelebration({
-        winner_name: 'REMATCH',
-        winner_cartela: 0,
-        winner_prize: 0,
-        winner_matrix: null,
-        iWon: false,
-        called: [...(finGame.called_numbers || [])],
-      });
-      return;
-    }
-
-    const iWon = finGame.winner_telegram_id === String(user?.telegram_id);
-    const localCard = myCartelas.find(c => c.cartela_number === finGame.winner_cartela)?.card_matrix;
-    const cachedCard = finGame.winner_matrix || (finGame.winner_cartela ? cartelaMatricesRef.current[finGame.winner_cartela] : null);
-    const winningMatrix = localCard || cachedCard || null;
-
-    // Render celebration popup IMMEDIATELY with full tracked cartela matrix - 0ms, no loading!
-    setCelebration({
-      winner_name: finGame.winner_first_name || 'Player',
-      winner_cartela: finGame.winner_cartela || 0,
-      winner_prize: finGame.winner_prize || 0,
-      winner_matrix: winningMatrix,
-      iWon,
-      called: [...(finGame.called_numbers || [])],
+    // 1. Ensure game state is updated with this finished game's final called numbers & state
+    setGame(prev => {
+      if (!prev) return finGame;
+      return {
+        ...prev,
+        ...finGame,
+        called_numbers: finGame.called_numbers || prev.called_numbers,
+      };
     });
 
-    // If 2-way tie, fetch winners list in background
-    if (finGame.winner_first_name && finGame.winner_first_name.includes(' & ')) {
-      fetch(`${API}/bingo/winners?game_id=${finGame.id}`, { headers: hdrs() })
-        .then(r => r.json())
-        .then(data => {
-          if (data?.winners) {
-            setCelebration(prev => prev ? { ...prev, winners_list: data.winners } : prev);
-          }
-        }).catch(() => {});
-    } else if (!winningMatrix && finGame.winner_cartela) {
-      // Fallback only if not in memory: fetch winner card matrix
-      fetch(`${API}/bingo/card?game_id=${finGame.id}&cartela=${finGame.winner_cartela}`, { headers: hdrs() })
-        .then(r => r.json())
-        .then(data => {
-          if (data?.matrix) {
-            setCelebration(prev => prev ? { ...prev, winner_matrix: data.matrix } : prev);
-          }
-        }).catch(() => {});
+    const finalCalled = finGame.called_numbers || [];
+    const finalBall = finalCalled.length > 0 ? Number(finalCalled[finalCalled.length - 1]) : null;
+
+    // 2. Play the final winning ball call sound so voice announces the ball
+    if (finalBall && finalBall !== lastPlayedBallRef.current) {
+      lastPlayedBallRef.current = finalBall;
+      playCallAudio(finalBall);
+      if (typeof WebApp !== 'undefined' && WebApp?.HapticFeedback) {
+        WebApp.HapticFeedback.impactOccurred('heavy');
+      }
     }
-  }, [user?.telegram_id, myCartelas, playSpecial]);
+
+    // 3. Keep live calling board visible for 1.2s so the user clearly sees:
+    // - The final ball called in the caller circle
+    // - The final number marked in orange on the winning cartela!
+    setIsFinishing(true);
+
+    if (finishingDelayTimerRef.current) clearTimeout(finishingDelayTimerRef.current);
+    finishingDelayTimerRef.current = setTimeout(() => {
+      finishingDelayTimerRef.current = null;
+      setIsFinishing(false);
+
+      // 4. Play "Bingo!" / stop sound now!
+      playSpecial('bingo_win');
+
+      // 5. Auto-dismiss matches bingo_win.mp3 duration + viewing time (minimum 4s)
+      let durationMs = 4000;
+      try {
+        const audioBuffer = audioBufferCache.current.get('/audio/bingo/bingo_win.mp3');
+        if (audioBuffer && audioBuffer.duration > 0) {
+          durationMs = Math.max(3800, Math.ceil(audioBuffer.duration * 1000) + 1200);
+        }
+      } catch {}
+
+      if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
+      celebrationTimerRef.current = setTimeout(() => {
+        celebrationTimerRef.current = null;
+        setCelebration(null);
+        setMyCard(null);
+        setMyCartelas([]);
+        setActiveCartelaIdx(0);
+        setTaken([]);
+        setManuallyMarked(new Set());
+        setBingoLockSeconds(0);
+        setGame(prev => prev ? { ...prev, status: 'waiting', called_numbers: [], total_players: 0, prize_pool: 0 } : prev);
+        fetchStateRef.current();
+        refreshUserRef.current();
+      }, durationMs);
+
+      if (finGame.winner_first_name === 'REMATCH') {
+        setCelebration({
+          winner_name: 'REMATCH',
+          winner_cartela: 0,
+          winner_prize: 0,
+          winner_matrix: null,
+          iWon: false,
+          called: [...finalCalled],
+        });
+        return;
+      }
+
+      const iWon = finGame.winner_telegram_id === String(user?.telegram_id);
+      const localCard = myCartelas.find(c => c.cartela_number === finGame.winner_cartela)?.card_matrix;
+      const cachedCard = finGame.winner_matrix || (finGame.winner_cartela ? cartelaMatricesRef.current[finGame.winner_cartela] : null);
+      const winningMatrix = localCard || cachedCard || null;
+
+      // 6. NOW show the celebration popup!
+      setCelebration({
+        winner_name: finGame.winner_first_name || 'Player',
+        winner_cartela: finGame.winner_cartela || 0,
+        winner_prize: finGame.winner_prize || 0,
+        winner_matrix: winningMatrix,
+        iWon,
+        called: [...finalCalled],
+      });
+
+      // If 2-way tie, fetch winners list in background
+      if (finGame.winner_first_name && finGame.winner_first_name.includes(' & ')) {
+        fetch(`${API}/bingo/winners?game_id=${finGame.id}`, { headers: hdrs() })
+          .then(r => r.json())
+          .then(data => {
+            if (data?.winners) {
+              setCelebration(prev => prev ? { ...prev, winners_list: data.winners } : prev);
+            }
+          }).catch(() => {});
+      } else if (!winningMatrix && finGame.winner_cartela) {
+        // Fallback only if not in memory: fetch winner card matrix
+        fetch(`${API}/bingo/card?game_id=${finGame.id}&cartela=${finGame.winner_cartela}`, { headers: hdrs() })
+          .then(r => r.json())
+          .then(data => {
+            if (data?.matrix) {
+              setCelebration(prev => prev ? { ...prev, winner_matrix: data.matrix } : prev);
+            }
+          }).catch(() => {});
+      }
+    }, 1200);
+  }, [user?.telegram_id, myCartelas, playSpecial, playCallAudio]);
 
   const dismissCelebration = useCallback(() => {
     if (celebrationTimerRef.current) {
       clearTimeout(celebrationTimerRef.current);
       celebrationTimerRef.current = null;
     }
+    if (finishingDelayTimerRef.current) {
+      clearTimeout(finishingDelayTimerRef.current);
+      finishingDelayTimerRef.current = null;
+    }
+    setIsFinishing(false);
     setCelebration(null);
     setMyCard(null);
     setMyCartelas([]);
@@ -870,15 +911,16 @@ export default function BingoGame() {
         }
 
         if (d.game) {
+          setGame(d.game);
           if (d.game.status === 'finished') {
             triggerCelebration(d.game);
           }
-          setGame(d.game);
           setTaken(d.taken_cartelas ?? []);
           setMyCard(d.my_card ?? null);
           if (d.game.id !== gameIdRef.current) {
             gameIdRef.current = d.game.id;
             prevCalledLenRef.current = d.game.called_numbers?.length || 0;
+            lastPlayedBallRef.current = null;
             setManuallyMarked(new Set());
             setBingoLockSeconds(0);
           }
@@ -897,10 +939,9 @@ export default function BingoGame() {
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "bingo_games" }, ({ new: g }) => {
         if (Number(g.stake) === selectedStake && (!selectedRoomId || g.room_id === selectedRoomId)) {
           const bg = g as BGame;
+          setGame(bg);
           if (bg.status === 'finished') {
             triggerCelebration(bg);
-          } else {
-            setGame(bg);
           }
         }
       })
@@ -988,7 +1029,10 @@ export default function BingoGame() {
 
   useEffect(() => {
     if (game?.status === 'calling' && called.length > prevCalledLenRef.current) {
-      if (lastNum) { playCallAudio(lastNum); }
+      if (lastNum && lastNum !== lastPlayedBallRef.current) {
+        lastPlayedBallRef.current = lastNum;
+        playCallAudio(lastNum);
+      }
       if (WebApp?.HapticFeedback) WebApp.HapticFeedback.impactOccurred('medium');
     }
     prevCalledLenRef.current = called.length;
@@ -1005,6 +1049,7 @@ export default function BingoGame() {
   useEffect(() => {
     return () => {
       if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
+      if (finishingDelayTimerRef.current) clearTimeout(finishingDelayTimerRef.current);
     };
   }, []);
 
@@ -1932,7 +1977,7 @@ export default function BingoGame() {
     <div className="fixed inset-x-0 top-0 bottom-16 w-full bg-gradient-to-b from-[#fffbf0] via-[#fef3c7]/30 to-[#fffbf0] flex flex-col select-none overflow-hidden" onClick={initWebAudio}>
       <div className="sticky top-0 z-40 bg-white shadow-2xs border-b border-amber-100/80 flex flex-col shrink-0">
         <Header />
-        {game.status !== 'calling' && (
+        {game.status !== 'calling' && !isFinishing && (
           <div className="bg-gradient-to-r from-amber-50/90 via-yellow-50/60 to-amber-50/90 border-b border-amber-200/70 px-3 pt-3 pb-3">
             <div className="flex items-center gap-1.5 mb-2">
               <button 
@@ -2092,14 +2137,14 @@ export default function BingoGame() {
       </div>
 
       {errMsg && (
-        <div className={`mx-3 mt-2 px-3 py-2 ${game.status === 'calling' ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'bg-red-50 border-red-200 text-red-600'} border rounded-xl flex items-center justify-between z-10 shrink-0`}>
+        <div className={`mx-3 mt-2 px-3 py-2 ${(game.status === 'calling' || isFinishing) ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'bg-red-50 border-red-200 text-red-600'} border rounded-xl flex items-center justify-between z-10 shrink-0`}>
           <p className="text-xs font-bold">{errMsg}</p>
           <button onClick={() => setErrMsg("")} className="text-base leading-none ml-2 p-1 hover:bg-red-200/50 rounded-full transition-colors"><X size={14} /></button>
         </div>
       )}
 
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        {game.status === 'calling' ? renderCallingBoard() : renderCartelaPicker()}
+        {(game.status === 'calling' || isFinishing) ? renderCallingBoard() : renderCartelaPicker()}
       </div>
 
       {/* Winner Celebration */}
