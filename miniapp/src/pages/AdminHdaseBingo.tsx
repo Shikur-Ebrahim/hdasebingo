@@ -19,9 +19,16 @@ import {
   Check,
   UserCheck,
   Calendar,
-  Layers
+  Layers,
+  Search,
+  Edit2,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  Sliders,
+  Award
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const HDASE_ROOM_ID = 'd7c9114a-e112-426f-8f9b-13c00050279c';
@@ -51,8 +58,19 @@ interface LiveGameInfo {
   cartelas_count: number;
 }
 
+interface SystemBot {
+  id: string;
+  first_name: string;
+  telegram_id: string;
+  total_won: number;
+  created_at?: string;
+}
+
 export default function AdminHdaseBingo() {
   const navigate = useNavigate();
+
+  // Active view tab: settings & live tables OR full 1,000 bot pool viewer & editor
+  const [activeTab, setActiveTab] = useState<'settings' | 'pool'>('settings');
 
   // Loading & toast states
   const [loading, setLoading] = useState(true);
@@ -60,12 +78,12 @@ export default function AdminHdaseBingo() {
   const [reseeding, setReseeding] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Room data
+  // Room data & live metrics
   const [room, setRoom] = useState<any>(null);
   const [botCount, setBotCount] = useState<number>(1000);
   const [liveGames, setLiveGames] = useState<LiveGameInfo[]>([]);
 
-  // Form states: Stakes
+  // Form states: Stakes (Strict 4 Tiers)
   const [stakes, setStakes] = useState<number[]>([5, 10, 20, 35]);
 
   // Form states: Auto-Bustle System Players
@@ -89,6 +107,26 @@ export default function AdminHdaseBingo() {
     stake_4: { min: 1, max: 2, enabled: false },
   });
 
+  // Bot Pool Browsing & Editing states
+  const [bots, setBots] = useState<SystemBot[]>([]);
+  const [botPage, setBotPage] = useState(1);
+  const [totalBotPages, setTotalBotPages] = useState(1);
+  const [totalBots, setTotalBots] = useState(0);
+  const [botSearch, setBotSearch] = useState('');
+  const [loadingBots, setLoadingBots] = useState(false);
+
+  // Edit bot modal states
+  const [editingBot, setEditingBot] = useState<SystemBot | null>(null);
+  const [editBotName, setEditBotName] = useState('');
+  const [savingBotName, setSavingBotName] = useState(false);
+
+  // Add custom bot modal states
+  const [showAddBotModal, setShowAddBotModal] = useState(false);
+  const [newBotName, setNewBotName] = useState('');
+  const [addingBot, setAddingBot] = useState(false);
+
+  // Track initial load so polling NEVER stomps active user edits or toggles
+  const initialLoadedRef = useRef(false);
   const pollIntervalRef = useRef<any>(null);
 
   const triggerHaptic = (type: 'light' | 'medium' | 'heavy' = 'light') => {
@@ -117,9 +155,10 @@ export default function AdminHdaseBingo() {
     return headers;
   };
 
+  // Fetch Room data. Crucial: when isSilent is true, NEVER overwrite form states or toggles!
   const fetchHdaseRoom = useCallback(async (isSilent = false) => {
     try {
-      if (!isSilent) setLoading(true);
+      if (!isSilent && !initialLoadedRef.current) setLoading(true);
       const res = await fetch(`${API_URL}/admin/hdase-room`, {
         headers: getAuthHeaders(),
       });
@@ -131,21 +170,26 @@ export default function AdminHdaseBingo() {
         setBotCount(data.bot_count || 0);
         setLiveGames(data.live_games || []);
 
-        if (Array.isArray(r.stakes) && r.stakes.length === 4) {
-          setStakes(r.stakes.map(Number));
-        }
-        setSystemEnabled(r.system_players_enabled !== undefined ? Boolean(r.system_players_enabled) : true);
-        setScheduleStart(r.system_players_schedule_start || '00:00');
-        setScheduleEnd(r.system_players_schedule_end || '24:00');
-        setRiskPercent(Number(r.system_players_risk_percent ?? 25));
+        // ONLY initialize or update form states on initial explicit load or after manual save!
+        if (!isSilent || !initialLoadedRef.current) {
+          if (Array.isArray(r.stakes) && r.stakes.length === 4) {
+            setStakes(r.stakes.map(Number));
+          }
+          setSystemEnabled(r.system_players_enabled !== undefined ? Boolean(r.system_players_enabled) : true);
+          setScheduleStart(r.system_players_schedule_start || '00:00');
+          setScheduleEnd(r.system_players_schedule_end || '24:00');
+          setRiskPercent(Number(r.system_players_risk_percent ?? 25));
 
-        if (r.system_players_stake_configs) {
-          setStakeConfigs(prev => ({ ...prev, ...r.system_players_stake_configs }));
-        }
+          if (r.system_players_stake_configs) {
+            setStakeConfigs(prev => ({ ...prev, ...r.system_players_stake_configs }));
+          }
 
-        setWaiterEnabled(r.waiter_players_enabled !== undefined ? Boolean(r.waiter_players_enabled) : true);
-        if (r.waiter_players_stake_configs) {
-          setWaiterStakeConfigs(prev => ({ ...prev, ...r.waiter_players_stake_configs }));
+          setWaiterEnabled(r.waiter_players_enabled !== undefined ? Boolean(r.waiter_players_enabled) : true);
+          if (r.waiter_players_stake_configs) {
+            setWaiterStakeConfigs(prev => ({ ...prev, ...r.waiter_players_stake_configs }));
+          }
+
+          initialLoadedRef.current = true;
         }
       } else {
         if (!isSilent) showToast('error', 'Failed to load HDASE BINGO room details');
@@ -157,10 +201,34 @@ export default function AdminHdaseBingo() {
     }
   }, []);
 
+  // Fetch paginated bot pool
+  const fetchBots = useCallback(async (page = 1, search = '') => {
+    try {
+      setLoadingBots(true);
+      const res = await fetch(
+        `${API_URL}/admin/hdase-room/bots?page=${page}&limit=25&search=${encodeURIComponent(search)}`,
+        {
+          headers: getAuthHeaders(),
+        }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setBots(data.players || []);
+        setBotPage(data.page || 1);
+        setTotalBotPages(data.total_pages || 1);
+        setTotalBots(data.total || 0);
+      }
+    } catch {
+      showToast('error', 'Failed to load bot pool');
+    } finally {
+      setLoadingBots(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchHdaseRoom();
 
-    // Fast polling for live games monitoring every 3s
+    // Fast polling for live games monitoring every 3s — isSilent=true ensures form is NEVER overwritten!
     pollIntervalRef.current = setInterval(() => {
       fetchHdaseRoom(true);
     }, 3000);
@@ -169,6 +237,55 @@ export default function AdminHdaseBingo() {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };
   }, [fetchHdaseRoom]);
+
+  // Load bot pool when switching to pool tab or page changes
+  useEffect(() => {
+    if (activeTab === 'pool') {
+      fetchBots(botPage, botSearch);
+    }
+  }, [activeTab, botPage, fetchBots]);
+
+  // Instant optimistic toggle for System Players with auto-save
+  const toggleSystemPlayers = async () => {
+    triggerHaptic('medium');
+    const nextVal = !systemEnabled;
+    setSystemEnabled(nextVal);
+    try {
+      const res = await fetch(`${API_URL}/admin/hdase-room`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ system_players_enabled: nextVal }),
+      });
+      if (res.ok) {
+        showToast('success', `System players ${nextVal ? 'activated' : 'paused'}`);
+      } else {
+        showToast('error', 'Failed to update system players');
+      }
+    } catch {
+      showToast('error', 'Network error updating toggle');
+    }
+  };
+
+  // Instant optimistic toggle for Waiter Players with auto-save
+  const toggleWaiterPlayers = async () => {
+    triggerHaptic('medium');
+    const nextVal = !waiterEnabled;
+    setWaiterEnabled(nextVal);
+    try {
+      const res = await fetch(`${API_URL}/admin/hdase-room`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ waiter_players_enabled: nextVal }),
+      });
+      if (res.ok) {
+        showToast('success', `Waiter players ${nextVal ? 'activated' : 'disabled'}`);
+      } else {
+        showToast('error', 'Failed to update waiter players');
+      }
+    } catch {
+      showToast('error', 'Network error updating toggle');
+    }
+  };
 
   // Handle Save All Settings
   const handleSave = async () => {
@@ -194,9 +311,11 @@ export default function AdminHdaseBingo() {
 
       if (res.ok) {
         showToast('success', 'HDASE BINGO room settings saved successfully!');
-        fetchHdaseRoom(true);
+        // Update baseline
+        initialLoadedRef.current = false;
+        fetchHdaseRoom(false);
       } else {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         showToast('error', err.error || 'Failed to save settings');
       }
     } catch {
@@ -208,6 +327,11 @@ export default function AdminHdaseBingo() {
 
   // Handle Re-seed 1,000 Bots
   const handleReseed = async () => {
+    const confirmed = window.confirm(
+      'Re-seed 1,000 Ethiopian system players with unique creative handles (@, $, %, emojis) and sequential Telegram IDs (10000000000..)?'
+    );
+    if (!confirmed) return;
+
     triggerHaptic('heavy');
     setReseeding(true);
     try {
@@ -219,6 +343,9 @@ export default function AdminHdaseBingo() {
         const d = await res.json();
         setBotCount(d.bot_count || 1000);
         showToast('success', d.message || '1,000 bots seeded successfully!');
+        if (activeTab === 'pool') {
+          fetchBots(1, botSearch);
+        }
       } else {
         showToast('error', 'Failed to seed bots');
       }
@@ -226,6 +353,64 @@ export default function AdminHdaseBingo() {
       showToast('error', 'Network error seeding bots');
     } finally {
       setReseeding(false);
+    }
+  };
+
+  // Handle Edit Bot Handle
+  const handleSaveBotName = async () => {
+    if (!editingBot || !editBotName.trim()) return;
+    triggerHaptic('medium');
+    setSavingBotName(true);
+    try {
+      const cleanName = editBotName.trim();
+      const res = await fetch(`${API_URL}/admin/hdase-room/bots/${editingBot.id}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ first_name: cleanName }),
+      });
+      if (res.ok) {
+        setBots(prev => prev.map(b => (b.id === editingBot.id ? { ...b, first_name: cleanName } : b)));
+        showToast('success', `Bot handle updated to "${cleanName}"`);
+        setEditingBot(null);
+        setEditBotName('');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast('error', err.error || 'Failed to update bot name');
+      }
+    } catch {
+      showToast('error', 'Network error updating bot');
+    } finally {
+      setSavingBotName(false);
+    }
+  };
+
+  // Handle Add Custom Bot
+  const handleAddBot = async () => {
+    if (!newBotName.trim()) return;
+    triggerHaptic('medium');
+    setAddingBot(true);
+    try {
+      const cleanName = newBotName.trim();
+      const res = await fetch(`${API_URL}/admin/hdase-room/bots`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ first_name: cleanName }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        showToast('success', d.message || `Bot "${cleanName}" added to pool`);
+        setNewBotName('');
+        setShowAddBotModal(false);
+        setBotCount(prev => prev + 1);
+        fetchBots(1, botSearch);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast('error', err.error || 'Failed to add bot');
+      }
+    } catch {
+      showToast('error', 'Network error adding bot');
+    } finally {
+      setAddingBot(false);
     }
   };
 
@@ -248,240 +433,419 @@ export default function AdminHdaseBingo() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-4">
         <RefreshCw size={36} className="text-amber-500 animate-spin mb-3" />
-        <p className="font-black text-slate-700 text-sm tracking-wider uppercase">Loading HDASE BINGO Room...</p>
+        <p className="text-sm font-black text-slate-700">Loading HDASE BINGO Platform...</p>
+        <p className="text-xs text-slate-400 mt-1">Permanent Pro Room & System Players Setup</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-50 text-slate-800 pb-28">
-      {/* ─── STICKY HEADER ─── */}
-      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-200 px-4 py-3 shadow-xs flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={() => {
-              triggerHaptic('light');
-              navigate('/admin');
-            }}
-            className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 active:scale-95 transition-transform"
-          >
-            <ArrowLeft size={18} />
-          </button>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <Flame size={16} className="text-amber-500 fill-amber-500" />
-              <h1 className="font-black text-base text-slate-900 leading-tight">HDASE BINGO</h1>
-              <span className="bg-amber-100 text-amber-900 font-black text-[9px] px-1.5 py-0.5 rounded-full border border-amber-300">
-                OFFICIAL
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-400 font-medium">Room ID: {HDASE_ROOM_ID.slice(0, 8)}... • Platform Managed</p>
-          </div>
-        </div>
-
-        <button
-          onClick={() => {
-            triggerHaptic('light');
-            fetchHdaseRoom();
-          }}
-          className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 hover:bg-amber-100 active:scale-95 transition-transform"
-          title="Refresh Room"
-        >
-          <RefreshCw size={16} />
-        </button>
-      </div>
-
-      {/* ─── TOAST MESSAGE ─── */}
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-32">
+      {/* ─── TOAST NOTIFICATION ─── */}
       {toastMsg && (
         <div
-          className={`fixed top-16 left-4 right-4 z-50 p-3 rounded-2xl shadow-xl flex items-center space-x-2 animate-in fade-in slide-in-from-top-2 duration-200 ${
+          className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-4 py-2.5 rounded-2xl shadow-xl flex items-center space-x-2 text-xs font-black transition-all ${
             toastMsg.type === 'success'
-              ? 'bg-emerald-600 text-white border border-emerald-500'
-              : 'bg-rose-600 text-white border border-rose-500'
+              ? 'bg-emerald-600 text-white shadow-emerald-500/20'
+              : 'bg-rose-600 text-white shadow-rose-500/20'
           }`}
         >
-          {toastMsg.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-          <span className="font-bold text-xs flex-1">{toastMsg.text}</span>
+          {toastMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+          <span>{toastMsg.text}</span>
         </div>
       )}
 
-      <div className="p-4 space-y-4 max-w-xl mx-auto w-full">
-        {/* ─── PLATFORM STATUS & ZERO-DEDUCTION GUARANTEE BANNER ─── */}
-        <div className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700 rounded-3xl p-4 text-white shadow-md relative overflow-hidden border border-emerald-400/40">
-          <div className="absolute -right-4 -bottom-4 opacity-15 pointer-events-none">
-            <ShieldCheck size={130} />
+      {/* ─── HEADER BAR ─── */}
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 px-4 py-3 shadow-xs">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => {
+                triggerHaptic('light');
+                navigate('/admin');
+              }}
+              className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center active:scale-95 transition-transform"
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <div>
+              <div className="flex items-center space-x-1.5">
+                <Flame size={16} className="text-amber-500 fill-amber-500" />
+                <h1 className="font-black text-base text-slate-900 tracking-tight">HDASE BINGO</h1>
+                <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 uppercase tracking-wider">
+                  OFFICIAL
+                </span>
+              </div>
+              <p className="text-[10.5px] text-slate-400 font-semibold truncate max-w-[220px]">
+                Room ID: {HDASE_ROOM_ID.slice(0, 8)}... • Platform Managed
+              </p>
+            </div>
           </div>
 
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center space-x-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-300 animate-ping" />
-                <span className="font-black text-xs tracking-wider uppercase text-emerald-100">Permanent Official Room</span>
+          <button
+            onClick={() => {
+              triggerHaptic('light');
+              if (activeTab === 'settings') {
+                fetchHdaseRoom(false);
+              } else {
+                fetchBots(botPage, botSearch);
+              }
+            }}
+            className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center active:scale-95 transition-transform hover:bg-amber-100"
+            title="Refresh"
+          >
+            <RefreshCw size={16} />
+          </button>
+        </div>
+
+        {/* ─── TAB NAVIGATION ─── */}
+        <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-2xl mt-3">
+          <button
+            onClick={() => {
+              triggerHaptic('light');
+              setActiveTab('settings');
+            }}
+            className={`py-2 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${
+              activeTab === 'settings'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Sliders size={14} className={activeTab === 'settings' ? 'text-amber-500' : ''} />
+            <span>Settings & Monitor</span>
+          </button>
+
+          <button
+            onClick={() => {
+              triggerHaptic('light');
+              setActiveTab('pool');
+            }}
+            className={`py-2 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${
+              activeTab === 'pool'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Bot size={14} className={activeTab === 'pool' ? 'text-purple-600' : ''} />
+            <span>1,000 Bot Pool</span>
+            <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-purple-100 text-purple-700 font-black">
+              {botCount.toLocaleString()}
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* ─── TAB 1: SETTINGS & LIVE MONITOR ─── */}
+      {activeTab === 'settings' && (
+        <div className="p-4 space-y-4 max-w-xl mx-auto">
+          {/* Official Room Guaranteed Badge Card */}
+          <div className="bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 rounded-3xl p-4 text-white shadow-md relative overflow-hidden">
+            <div className="absolute right-0 top-0 bottom-0 w-32 bg-white/5 rounded-full blur-2xl -mr-8" />
+            <div className="relative z-10 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-200 bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-400/30">
+                  PERMANENT OFFICIAL ROOM
+                </span>
+                <span className="flex items-center space-x-1 text-xs font-black bg-white/20 px-2 py-0.5 rounded-full text-emerald-100 backdrop-blur-xs">
+                  <ShieldCheck size={13} />
+                  <span>PRO ACTIVE ✓</span>
+                </span>
               </div>
-              <span className="bg-white/20 backdrop-blur-xs font-black text-[10px] px-2 py-0.5 rounded-full border border-white/30 text-white">
-                PRO ACTIVE ✓
+              <h2 className="text-base font-black tracking-tight">Zero Admin Balance Required</h2>
+              <p className="text-[11px] text-emerald-100 leading-relaxed font-medium">
+                Unlike third-party agent rooms, <strong>HDASE BINGO</strong> never requires monthly Pro upgrades or deposit stakes. Waiter bots and system players operate 24/7 on platform logic — <strong>wins, losses, and joins never deduct or touch the admin wallet balance</strong>.
+              </p>
+            </div>
+          </div>
+
+          {/* ─── SECTION 1: ROOM STAKES (4 TIERS) ─── */}
+          <div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
+                  <Coins size={18} />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-800">Room Stakes (4 Tiers)</h3>
+                  <p className="text-[10px] text-slate-400 font-medium">Configure the 4 active game entry stakes for HDASE BINGO</p>
+                </div>
+              </div>
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
+                4 STAKES
               </span>
             </div>
 
-            <h2 className="font-black text-lg text-white mb-1">Zero Admin Balance Required</h2>
-            <p className="text-emerald-100 text-[11px] leading-relaxed">
-              Unlike third-party agent rooms, <strong>HDASE BINGO</strong> never requires monthly Pro upgrades or deposit stakes. Waiter bots and system players operate 24/7 on platform logic — <strong>wins, losses, and joins never deduct or touch the admin wallet balance.</strong>
-            </p>
-          </div>
-        </div>
-
-        {/* ─── SECTION 1: ROOM STAKES CONFIGURATION ─── */}
-        <div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
-                <Coins size={18} />
-              </div>
-              <div>
-                <h3 className="font-black text-sm text-slate-800">Room Stakes (4 Tiers)</h3>
-                <p className="text-[10px] text-slate-400 font-medium">Configure the 4 active game entry stakes for HDASE BINGO</p>
-              </div>
-            </div>
-            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-              4 STAKES
-            </span>
-          </div>
-
-          <div className="grid grid-cols-4 gap-2 pt-1">
-            {stakes.map((stk, idx) => (
-              <div key={idx} className="bg-slate-50 border border-slate-200 rounded-2xl p-2.5 flex flex-col items-center">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
-                  Tier {idx + 1}
-                </span>
-                <div className="flex items-center gap-0.5 w-full">
+            <div className="grid grid-cols-4 gap-2 pt-1">
+              {stakes.map((stk, idx) => (
+                <div key={idx} className="bg-slate-50 border border-slate-200 rounded-2xl p-2.5 text-center space-y-1">
+                  <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Tier {idx + 1}
+                  </span>
                   <input
                     type="number"
                     min={1}
                     value={stk}
                     onChange={(e) => handleStakeChange(idx, e.target.value)}
-                    className="w-full text-center font-black text-base text-slate-800 bg-white border border-slate-300 rounded-xl py-1 shadow-2xs focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                    className="w-full text-center font-black text-sm text-slate-900 bg-white border border-slate-200 rounded-xl py-1 focus:outline-none focus:ring-2 focus:ring-amber-400"
                   />
+                  <span className="text-[9px] font-bold text-slate-500 block">ETB</span>
                 </div>
-                <span className="text-[8.5px] font-bold text-slate-500 mt-1">ETB</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Quick Preset Buttons */}
-          <div className="flex items-center justify-end gap-1.5 pt-1">
-            <span className="text-[10px] font-bold text-slate-400">Presets:</span>
-            {[
-              [5, 10, 20, 35],
-              [10, 20, 50, 100],
-              [2, 5, 10, 25],
-            ].map((preset, pIdx) => (
-              <button
-                key={pIdx}
-                type="button"
-                onClick={() => {
-                  triggerHaptic('light');
-                  setStakes(preset);
-                }}
-                className="text-[10px] font-black px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
-              >
-                {preset.join('/')}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* ─── SECTION 2: SYSTEM PLAYERS (AUTO-BUSTLE) ─── */}
-        <div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center font-bold">
-                <Bot size={18} />
-              </div>
-              <div>
-                <h3 className="font-black text-sm text-slate-800">System Players (Auto-Bustle)</h3>
-                <p className="text-[10px] text-slate-400 font-medium">Automatic realistic player filling based on schedule</p>
-              </div>
+              ))}
             </div>
 
-            {/* Master Toggle */}
-            <button
-              onClick={() => {
-                triggerHaptic('medium');
-                setSystemEnabled(prev => !prev);
-              }}
-              className={`w-12 h-6 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer ${
-                systemEnabled ? 'bg-amber-500' : 'bg-slate-300'
-              }`}
-            >
-              <div
-                className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${
-                  systemEnabled ? 'translate-x-6' : 'translate-x-0'
-                }`}
-              />
-            </button>
+            {/* Quick Stake Preset Buttons */}
+            <div className="flex items-center justify-end space-x-1.5 pt-1">
+              <span className="text-[9px] font-bold text-slate-400">Presets:</span>
+              <button
+                onClick={() => {
+                  triggerHaptic('light');
+                  setStakes([5, 10, 20, 35]);
+                }}
+                className="text-[9.5px] font-bold px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700"
+              >
+                5/10/20/35
+              </button>
+              <button
+                onClick={() => {
+                  triggerHaptic('light');
+                  setStakes([10, 20, 50, 100]);
+                }}
+                className="text-[9.5px] font-bold px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700"
+              >
+                10/20/50/100
+              </button>
+              <button
+                onClick={() => {
+                  triggerHaptic('light');
+                  setStakes([2, 5, 10, 25]);
+                }}
+                className="text-[9.5px] font-bold px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700"
+              >
+                2/5/10/25
+              </button>
+            </div>
           </div>
 
-          {systemEnabled ? (
-            <div className="space-y-4 pt-1">
-              {/* Operating Schedule */}
-              <div className="bg-amber-50/60 border border-amber-200/70 rounded-2xl p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-1.5 text-amber-900 font-black text-xs">
-                    <Clock size={13} className="text-amber-600" />
-                    <span>Operating Hours (East Africa Time)</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={set24Hours}
-                    className="text-[9px] font-black bg-amber-200/80 hover:bg-amber-300 text-amber-900 px-2 py-0.5 rounded-full transition-colors"
-                  >
-                    24/7 ALL DAY
-                  </button>
+          {/* ─── SECTION 2: AUTO-BUSTLE SYSTEM PLAYERS SETTINGS ─── */}
+          <div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center font-bold">
+                  <Bot size={18} />
                 </div>
-
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <div>
-                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider block mb-1">
-                      Start Time
-                    </label>
-                    <input
-                      type="time"
-                      value={scheduleStart}
-                      onChange={(e) => setScheduleStart(e.target.value)}
-                      className="w-full bg-white border border-amber-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-wider block mb-1">
-                      End Time
-                    </label>
-                    <input
-                      type="time"
-                      value={scheduleEnd}
-                      onChange={(e) => setScheduleEnd(e.target.value)}
-                      className="w-full bg-white border border-amber-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                  </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-800">System Players (Auto-Bustle)</h3>
+                  <p className="text-[10px] text-slate-400 font-medium">Automatic realistic player filling based on schedule</p>
                 </div>
               </div>
 
-              {/* Per-Stake Bot Distribution */}
-              <div className="space-y-2">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                  Bot Counts Per Stake ({stakes.map(s => `${s} ETB`).join(', ')})
-                </p>
+              {/* Instant Toggle */}
+              <button
+                onClick={toggleSystemPlayers}
+                className={`w-12 h-6 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer ${
+                  systemEnabled ? 'bg-amber-500' : 'bg-slate-300'
+                }`}
+              >
+                <div
+                  className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${
+                    systemEnabled ? 'translate-x-6' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
 
+            {systemEnabled ? (
+              <div className="space-y-4 pt-1">
+                {/* Active Schedule Window */}
+                <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-xs text-slate-700 flex items-center gap-1.5">
+                      <Clock size={13} className="text-amber-500" />
+                      Active Schedule (24h)
+                    </span>
+                    <button
+                      onClick={set24Hours}
+                      className="text-[9px] font-black px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 hover:bg-amber-200"
+                    >
+                      Set 24/7 (Always ON)
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-[8.5px] font-bold text-slate-400 uppercase">Start Time</span>
+                      <input
+                        type="time"
+                        value={scheduleStart}
+                        onChange={(e) => setScheduleStart(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs font-black text-slate-800 mt-0.5"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[8.5px] font-bold text-slate-400 uppercase">End Time</span>
+                      <input
+                        type="time"
+                        value={scheduleEnd}
+                        onChange={(e) => setScheduleEnd(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-2 py-1 text-xs font-black text-slate-800 mt-0.5"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stakes Min / Max Bot Config */}
+                <div className="space-y-2">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    Bots per Tier (4 Tiers)
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {stakes.map((stk, idx) => {
+                      const key = `stake_${idx + 1}`;
+                      const cfg = stakeConfigs[key] || { min: 2, max: 5, enabled: idx < 2 };
+
+                      return (
+                        <div
+                          key={key}
+                          className={`p-3 rounded-2xl border transition-all ${
+                            cfg.enabled
+                              ? 'bg-amber-50/40 border-amber-300/80 shadow-2xs'
+                              : 'bg-slate-50 border-slate-200 opacity-60'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-black text-xs text-slate-800">{stk} ETB Game</span>
+                              <span className="text-[8px] font-bold text-slate-400 uppercase">Tier {idx + 1}</span>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={cfg.enabled}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setStakeConfigs(prev => ({
+                                  ...prev,
+                                  [key]: { ...cfg, enabled: checked },
+                                }));
+                              }}
+                              className="w-4 h-4 rounded text-amber-600 focus:ring-amber-400"
+                            />
+                          </div>
+
+                          {cfg.enabled && (
+                            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-amber-200/50">
+                              <div>
+                                <span className="text-[8px] font-bold text-slate-500 uppercase">Min Bots</span>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={cfg.max}
+                                  value={cfg.min}
+                                  onChange={(e) => {
+                                    const v = Math.max(1, parseInt(e.target.value) || 1);
+                                    setStakeConfigs(prev => ({
+                                      ...prev,
+                                      [key]: { ...cfg, min: v },
+                                    }));
+                                  }}
+                                  className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-black text-slate-800 mt-0.5"
+                                />
+                              </div>
+                              <div>
+                                <span className="text-[8px] font-bold text-slate-500 uppercase">Max Bots</span>
+                                <input
+                                  type="number"
+                                  min={cfg.min}
+                                  max={25}
+                                  value={cfg.max}
+                                  onChange={(e) => {
+                                    const v = Math.max(cfg.min, parseInt(e.target.value) || cfg.min);
+                                    setStakeConfigs(prev => ({
+                                      ...prev,
+                                      [key]: { ...cfg, max: v },
+                                    }));
+                                  }}
+                                  className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-black text-slate-800 mt-0.5"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Risk Percent */}
+                <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <span className="font-black text-xs text-slate-800 block">System Players Risk Rate</span>
+                    <span className="text-[9.5px] text-slate-400 font-medium">Standard default: 25% (saved for reference)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={riskPercent}
+                      onChange={(e) => setRiskPercent(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
+                      className="w-14 text-center font-black text-sm text-slate-800 bg-white border border-slate-300 rounded-xl py-1 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                    <span className="text-xs font-black text-slate-600">%</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-center text-xs font-semibold text-slate-400">
+                System players are currently paused for HDASE BINGO. Toggle switch above to activate.
+              </div>
+            )}
+          </div>
+
+          {/* ─── SECTION 3: WAITER PLAYERS SETTINGS ─── */}
+          <div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center font-bold">
+                  <UserCheck size={18} />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-800">Waiter Players</h3>
+                  <p className="text-[10px] text-slate-400 font-medium">Auto-join after 10s only when a real player is waiting</p>
+                </div>
+              </div>
+
+              {/* Instant Toggle */}
+              <button
+                onClick={toggleWaiterPlayers}
+                className={`w-12 h-6 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer ${
+                  waiterEnabled ? 'bg-purple-600' : 'bg-slate-300'
+                }`}
+              >
+                <div
+                  className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${
+                    waiterEnabled ? 'translate-x-6' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {waiterEnabled ? (
+              <div className="space-y-3 pt-1">
+                <div className="p-2.5 bg-purple-50/70 border border-purple-200 rounded-2xl text-[10.5px] text-purple-900 leading-relaxed">
+                  💡 <strong>Waiter Mode Rule:</strong> Bots join after 10 seconds only when at least 1 real player is in the lobby to start calling. For HDASE BINGO, this is fully platform-backed with zero admin wallet deductions.
+                </div>
+
+                {/* Waiter Stakes Config */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {stakes.map((stk, idx) => {
                     const key = `stake_${idx + 1}`;
-                    const cfg = stakeConfigs[key] || { min: 2, max: 5, enabled: idx < 2 };
+                    const wCfg = waiterStakeConfigs[key] || { min: 1, max: 2, enabled: idx < 2 };
 
                     return (
                       <div
                         key={key}
                         className={`p-3 rounded-2xl border transition-all ${
-                          cfg.enabled
-                            ? 'bg-amber-50/40 border-amber-300/80 shadow-2xs'
+                          wCfg.enabled
+                            ? 'bg-purple-50/40 border-purple-300/80 shadow-2xs'
                             : 'bg-slate-50 border-slate-200 opacity-60'
                         }`}
                       >
@@ -492,49 +856,49 @@ export default function AdminHdaseBingo() {
                           </div>
                           <input
                             type="checkbox"
-                            checked={cfg.enabled}
+                            checked={wCfg.enabled}
                             onChange={(e) => {
                               const checked = e.target.checked;
-                              setStakeConfigs(prev => ({
+                              setWaiterStakeConfigs(prev => ({
                                 ...prev,
-                                [key]: { ...cfg, enabled: checked },
+                                [key]: { ...wCfg, enabled: checked },
                               }));
                             }}
-                            className="w-4 h-4 rounded text-amber-600 focus:ring-amber-400"
+                            className="w-4 h-4 rounded text-purple-600 focus:ring-purple-400"
                           />
                         </div>
 
-                        {cfg.enabled && (
-                          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-amber-200/50">
+                        {wCfg.enabled && (
+                          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-purple-200/50">
                             <div>
-                              <span className="text-[8px] font-bold text-slate-500 uppercase">Min Bots</span>
+                              <span className="text-[8px] font-bold text-slate-500 uppercase">Min Waiters</span>
                               <input
                                 type="number"
                                 min={1}
-                                max={cfg.max}
-                                value={cfg.min}
+                                max={wCfg.max}
+                                value={wCfg.min}
                                 onChange={(e) => {
                                   const v = Math.max(1, parseInt(e.target.value) || 1);
-                                  setStakeConfigs(prev => ({
+                                  setWaiterStakeConfigs(prev => ({
                                     ...prev,
-                                    [key]: { ...cfg, min: v },
+                                    [key]: { ...wCfg, min: v },
                                   }));
                                 }}
                                 className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-black text-slate-800 mt-0.5"
                               />
                             </div>
                             <div>
-                              <span className="text-[8px] font-bold text-slate-500 uppercase">Max Bots</span>
+                              <span className="text-[8px] font-bold text-slate-500 uppercase">Max Waiters</span>
                               <input
                                 type="number"
-                                min={cfg.min}
-                                max={25}
-                                value={cfg.max}
+                                min={wCfg.min}
+                                max={10}
+                                value={wCfg.max}
                                 onChange={(e) => {
-                                  const v = Math.max(cfg.min, parseInt(e.target.value) || cfg.min);
-                                  setStakeConfigs(prev => ({
+                                  const v = Math.max(wCfg.min, parseInt(e.target.value) || wCfg.min);
+                                  setWaiterStakeConfigs(prev => ({
                                     ...prev,
-                                    [key]: { ...cfg, max: v },
+                                    [key]: { ...wCfg, max: v },
                                   }));
                                 }}
                                 className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-black text-slate-800 mt-0.5"
@@ -547,269 +911,454 @@ export default function AdminHdaseBingo() {
                   })}
                 </div>
               </div>
-
-              {/* Risk Percent */}
-              <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200 flex items-center justify-between">
-                <div>
-                  <span className="font-black text-xs text-slate-800 block">System Players Risk Rate</span>
-                  <span className="text-[9.5px] text-slate-400 font-medium">Standard default: 25% (saved for reference)</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={riskPercent}
-                    onChange={(e) => setRiskPercent(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
-                    className="w-14 text-center font-black text-sm text-slate-800 bg-white border border-slate-300 rounded-xl py-1 focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  />
-                  <span className="text-xs font-black text-slate-600">%</span>
-                </div>
+            ) : (
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-center text-xs font-semibold text-slate-400">
+                Waiter players are currently disabled for HDASE BINGO.
               </div>
-            </div>
-          ) : (
-            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-center text-xs font-semibold text-slate-400">
-              System players are currently paused for HDASE BINGO. Toggle switch above to activate.
-            </div>
-          )}
-        </div>
-
-        {/* ─── SECTION 3: WAITER PLAYERS SETTINGS ─── */}
-        <div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center font-bold">
-                <UserCheck size={18} />
-              </div>
-              <div>
-                <h3 className="font-black text-sm text-slate-800">Waiter Players</h3>
-                <p className="text-[10px] text-slate-400 font-medium">Auto-join after 10s only when a real player is waiting</p>
-              </div>
-            </div>
-
-            {/* Waiter Toggle */}
-            <button
-              onClick={() => {
-                triggerHaptic('medium');
-                setWaiterEnabled(prev => !prev);
-              }}
-              className={`w-12 h-6 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer ${
-                waiterEnabled ? 'bg-purple-600' : 'bg-slate-300'
-              }`}
-            >
-              <div
-                className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${
-                  waiterEnabled ? 'translate-x-6' : 'translate-x-0'
-                }`}
-              />
-            </button>
+            )}
           </div>
 
-          {waiterEnabled ? (
-            <div className="space-y-3 pt-1">
-              <div className="p-2.5 bg-purple-50/70 border border-purple-200 rounded-2xl text-[10.5px] text-purple-900 leading-relaxed">
-                💡 <strong>Waiter Mode Rule:</strong> Bots join after 10 seconds only when at least 1 real player is in the lobby to start calling. For HDASE BINGO, this is fully platform-backed with zero admin wallet deductions.
+          {/* ─── SECTION 4: LIVE MONITOR (STRICT 4 TIERS - NO DUPLICATE REPETITION) ─── */}
+          <div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold">
+                  <Activity size={18} />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-800">Live Monitor & Bot Pool</h3>
+                  <p className="text-[10px] text-slate-400 font-medium">Real-time status across active HDASE BINGO games</p>
+                </div>
               </div>
 
-              {/* Waiter Stakes Config */}
+              <button
+                onClick={handleReseed}
+                disabled={reseeding}
+                className="text-[10px] font-black px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1 active:scale-95 transition-transform disabled:opacity-50"
+              >
+                <RefreshCw size={11} className={reseeding ? 'animate-spin' : ''} />
+                <span>{reseeding ? 'Seeding...' : 'Re-seed 1k Pool'}</span>
+              </button>
+            </div>
+
+            {/* Bot Pool Summary Banner with Direct Link to Pool Tab */}
+            <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-3 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center font-black">
+                  🤖
+                </div>
+                <div>
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Ethiopian Bot Pool</p>
+                  <p className="text-sm font-black text-white">{botCount.toLocaleString()} Unique Bots Ready</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  triggerHaptic('light');
+                  setActiveTab('pool');
+                }}
+                className="text-[10px] font-black px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white shadow-sm flex items-center gap-1 active:scale-95 transition-all"
+              >
+                <span>View & Edit Pool</span>
+                <ChevronRight size={13} />
+              </button>
+            </div>
+
+            {/* Live Matches Across STRICT 4 Stakes (ZERO Duplicate Repetition) */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+                    Live Tables (4 Tiers Active)
+                  </span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">
+                    Strict 4 Stakes
+                  </span>
+                </div>
+                <span className="text-[9px] text-emerald-600 font-bold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live 3s Polling
+                </span>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {stakes.map((stk, idx) => {
-                  const key = `stake_${idx + 1}`;
-                  const wCfg = waiterStakeConfigs[key] || { min: 1, max: 2, enabled: idx < 2 };
-
+                  const g = liveGames.find(game => Number(game.stake) === Number(stk));
+                  const isCalling = g?.status === 'calling';
                   return (
                     <div
-                      key={key}
-                      className={`p-3 rounded-2xl border transition-all ${
-                        wCfg.enabled
-                          ? 'bg-purple-50/40 border-purple-300/80 shadow-2xs'
-                          : 'bg-slate-50 border-slate-200 opacity-60'
-                      }`}
+                      key={`tier-${idx}-${stk}`}
+                      className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2 shadow-2xs hover:border-slate-300 transition-colors"
                     >
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-black text-xs text-slate-800">{stk} ETB Game</span>
-                          <span className="text-[8px] font-bold text-slate-400 uppercase">Tier {idx + 1}</span>
+                          <span className="font-black text-xs text-slate-800">{stk} ETB</span>
+                          <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-slate-200/80 text-slate-600 uppercase">
+                            Tier {idx + 1}
+                          </span>
+                          <span
+                            className={`text-[8px] font-black px-1.5 py-0.2 rounded-full uppercase ${
+                              isCalling
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 animate-pulse'
+                                : 'bg-amber-100 text-amber-800 border border-amber-300'
+                            }`}
+                          >
+                            {isCalling ? `Calling (${g.called_count}/75)` : 'Waiting...'}
+                          </span>
                         </div>
-                        <input
-                          type="checkbox"
-                          checked={wCfg.enabled}
-                          onChange={(e) => {
-                            const checked = e.target.checked;
-                            setWaiterStakeConfigs(prev => ({
-                              ...prev,
-                              [key]: { ...wCfg, enabled: checked },
-                            }));
-                          }}
-                          className="w-4 h-4 rounded text-purple-600 focus:ring-purple-400"
-                        />
+                        <span className="font-black text-xs text-amber-700">{g?.prize_pool ?? 0} ETB Pot</span>
                       </div>
 
-                      {wCfg.enabled && (
-                        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-purple-200/50">
-                          <div>
-                            <span className="text-[8px] font-bold text-slate-500 uppercase">Min Waiters</span>
-                            <input
-                              type="number"
-                              min={1}
-                              max={wCfg.max}
-                              value={wCfg.min}
-                              onChange={(e) => {
-                                const v = Math.max(1, parseInt(e.target.value) || 1);
-                                setWaiterStakeConfigs(prev => ({
-                                  ...prev,
-                                  [key]: { ...wCfg, min: v },
-                                }));
-                              }}
-                              className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-black text-slate-800 mt-0.5"
-                            />
-                          </div>
-                          <div>
-                            <span className="text-[8px] font-bold text-slate-500 uppercase">Max Waiters</span>
-                            <input
-                              type="number"
-                              min={wCfg.min}
-                              max={10}
-                              value={wCfg.max}
-                              onChange={(e) => {
-                                const v = Math.max(wCfg.min, parseInt(e.target.value) || wCfg.min);
-                                setWaiterStakeConfigs(prev => ({
-                                  ...prev,
-                                  [key]: { ...wCfg, max: v },
-                                }));
-                              }}
-                              className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-black text-slate-800 mt-0.5"
-                            />
-                          </div>
+                      <div className="grid grid-cols-3 gap-1 pt-1 border-t border-slate-200/60 text-center">
+                        <div className="bg-white rounded-lg p-1 border border-slate-100">
+                          <span className="text-[7.5px] font-bold text-slate-400 block uppercase">Real</span>
+                          <span className="text-xs font-black text-emerald-600">{g?.real_count ?? 0}</span>
                         </div>
-                      )}
+                        <div className="bg-white rounded-lg p-1 border border-slate-100">
+                          <span className="text-[7.5px] font-bold text-slate-400 block uppercase">Bots</span>
+                          <span className="text-xs font-black text-amber-600">{g?.system_count ?? 0}</span>
+                        </div>
+                        <div className="bg-white rounded-lg p-1 border border-slate-100">
+                          <span className="text-[7.5px] font-bold text-slate-400 block uppercase">Waiters</span>
+                          <span className="text-xs font-black text-purple-600">{g?.waiter_count ?? 0}</span>
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
               </div>
             </div>
-          ) : (
-            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-center text-xs font-semibold text-slate-400">
-              Waiter players are currently disabled for HDASE BINGO.
-            </div>
-          )}
+          </div>
         </div>
+      )}
 
-        {/* ─── SECTION 4: LIVE MONITOR & 1,000 BOT POOL ─── */}
-        <div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold">
-                <Activity size={18} />
-              </div>
-              <div>
-                <h3 className="font-black text-sm text-slate-800">Live Monitor & Bot Pool</h3>
-                <p className="text-[10px] text-slate-400 font-medium">Real-time status across active HDASE BINGO games</p>
-              </div>
-            </div>
-
-            <button
-              onClick={handleReseed}
-              disabled={reseeding}
-              className="text-[10px] font-black px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1 active:scale-95 transition-transform disabled:opacity-50"
-            >
-              <RefreshCw size={11} className={reseeding ? 'animate-spin' : ''} />
-              <span>{reseeding ? 'Seeding...' : 'Re-seed 1k Pool'}</span>
-            </button>
-          </div>
-
-          {/* Bot Pool Counter Pill */}
-          <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-3 text-white flex items-center justify-between">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center font-black">
-                🤖
-              </div>
-              <div>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Ethiopian Bot Pool</p>
-                <p className="text-sm font-black text-white">{botCount.toLocaleString()} Unique Bots Ready</p>
-              </div>
-            </div>
-            <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              ACTIVE
-            </span>
-          </div>
-
-          {/* Live Matches Across 4 Stakes */}
-          <div className="space-y-2">
+      {/* ─── TAB 2: SYSTEM PLAYER POOL (1,000 BOTS VIEWER & NAME EDITOR) ─── */}
+      {activeTab === 'pool' && (
+        <div className="p-4 space-y-4 max-w-xl mx-auto">
+          {/* Pool Header with Stats and Actions */}
+          <div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                Live Tables ({liveGames.length} Active)
-              </span>
-              <span className="text-[9px] text-emerald-600 font-bold flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Live 3s Polling
-              </span>
+              <div className="flex items-center space-x-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center font-black">
+                  <Bot size={22} />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-800">System Player Pool</h3>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    {totalBots.toLocaleString()} Bots • Telegram IDs (10000000000..)
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setShowAddBotModal(true);
+                  }}
+                  className="text-[10px] font-black px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white flex items-center gap-1 shadow-sm active:scale-95 transition-all"
+                >
+                  <Plus size={12} />
+                  <span>Add Bot</span>
+                </button>
+                <button
+                  onClick={handleReseed}
+                  disabled={reseeding}
+                  className="text-[10px] font-black px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1 active:scale-95 transition-all disabled:opacity-50"
+                  title="Reseed Pool"
+                >
+                  <RefreshCw size={11} className={reseeding ? 'animate-spin' : ''} />
+                  <span>Reseed</span>
+                </button>
+              </div>
             </div>
 
-            {liveGames.length === 0 ? (
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-center text-xs font-bold text-slate-400">
-                No active games currently in progress for HDASE BINGO. Games spin up as players enter.
+            {/* Search Bar */}
+            <div className="relative">
+              <Search size={15} className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={botSearch}
+                onChange={(e) => {
+                  setBotSearch(e.target.value);
+                  setBotPage(1);
+                  fetchBots(1, e.target.value);
+                }}
+                placeholder="Search bot handle or name (e.g. @miki, Dani, ✨)..."
+                className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+              {botSearch && (
+                <button
+                  onClick={() => {
+                    setBotSearch('');
+                    fetchBots(1, '');
+                  }}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Bot List */}
+          <div className="space-y-2">
+            {loadingBots ? (
+              <div className="p-8 text-center bg-white rounded-3xl border border-gray-100 shadow-sm">
+                <RefreshCw size={24} className="text-amber-500 animate-spin mx-auto mb-2" />
+                <p className="text-xs font-black text-slate-600">Loading system players...</p>
+              </div>
+            ) : bots.length === 0 ? (
+              <div className="p-8 text-center bg-white rounded-3xl border border-gray-100 shadow-sm space-y-2">
+                <Bot size={32} className="text-slate-300 mx-auto" />
+                <p className="text-xs font-black text-slate-600">No system players found</p>
+                <p className="text-[11px] text-slate-400">Try clearing your search query or re-seed the pool.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {liveGames.map((g) => (
-                  <div key={g.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-black text-xs text-slate-800">{g.stake} ETB</span>
-                        <span className={`text-[8px] font-black px-1.5 py-0.2 rounded-full uppercase ${
-                          g.status === 'calling'
-                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 animate-pulse'
-                            : 'bg-amber-100 text-amber-800 border border-amber-300'
-                        }`}>
-                          {g.status === 'calling' ? `Calling (${g.called_count}/75)` : 'Waiting...'}
-                        </span>
+              <div className="space-y-1.5">
+                {bots.map((bot) => (
+                  <div
+                    key={bot.id}
+                    className="bg-white rounded-2xl p-3 border border-gray-100 shadow-xs flex items-center justify-between hover:border-amber-200 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-100 to-orange-100 text-amber-700 flex items-center justify-center font-black text-sm shrink-0">
+                        🤖
                       </div>
-                      <span className="font-black text-xs text-amber-700">{g.prize_pool} ETB Pot</span>
+                      <div className="min-w-0">
+                        <div className="flex items-center space-x-1.5">
+                          <p className="font-black text-xs text-slate-900 truncate">{bot.first_name}</p>
+                          <span className="text-[8px] font-black px-1.5 py-0.2 rounded bg-slate-100 text-slate-600">
+                            BOT
+                          </span>
+                        </div>
+                        <p className="text-[10px] font-mono text-slate-400 truncate">
+                          ID: <span className="text-slate-600 font-semibold">{bot.telegram_id || '10000000000'}</span>
+                          {bot.total_won > 0 && (
+                            <span className="ml-2 text-emerald-600 font-bold">🏆 {bot.total_won} ETB Won</span>
+                          )}
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-1 pt-1 border-t border-slate-200/60 text-center">
-                      <div className="bg-white rounded-lg p-1 border border-slate-100">
-                        <span className="text-[7.5px] font-bold text-slate-400 block uppercase">Real</span>
-                        <span className="text-xs font-black text-emerald-600">{g.real_count}</span>
-                      </div>
-                      <div className="bg-white rounded-lg p-1 border border-slate-100">
-                        <span className="text-[7.5px] font-bold text-slate-400 block uppercase">Bots</span>
-                        <span className="text-xs font-black text-amber-600">{g.system_count}</span>
-                      </div>
-                      <div className="bg-white rounded-lg p-1 border border-slate-100">
-                        <span className="text-[7.5px] font-bold text-slate-400 block uppercase">Waiters</span>
-                        <span className="text-xs font-black text-purple-600">{g.waiter_count}</span>
-                      </div>
-                    </div>
+                    <button
+                      onClick={() => {
+                        triggerHaptic('light');
+                        setEditingBot(bot);
+                        setEditBotName(bot.first_name);
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-amber-50 hover:text-amber-700 text-slate-600 border border-slate-200 text-[10px] font-black flex items-center gap-1 active:scale-95 transition-all shrink-0"
+                    >
+                      <Edit2 size={11} />
+                      <span>Edit</span>
+                    </button>
                   </div>
                 ))}
               </div>
             )}
+
+            {/* Pagination Controls */}
+            {totalBotPages > 1 && (
+              <div className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm flex items-center justify-between">
+                <button
+                  onClick={() => {
+                    triggerHaptic('light');
+                    if (botPage > 1) {
+                      const prevPage = botPage - 1;
+                      setBotPage(prevPage);
+                      fetchBots(prevPage, botSearch);
+                    }
+                  }}
+                  disabled={botPage <= 1}
+                  className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-black flex items-center gap-1 disabled:opacity-40 active:scale-95 transition-all"
+                >
+                  <ChevronLeft size={14} />
+                  <span>Prev</span>
+                </button>
+
+                <span className="text-xs font-black text-slate-600">
+                  Page {botPage} of {totalBotPages} ({totalBots} bots)
+                </span>
+
+                <button
+                  onClick={() => {
+                    triggerHaptic('light');
+                    if (botPage < totalBotPages) {
+                      const nextPage = botPage + 1;
+                      setBotPage(nextPage);
+                      fetchBots(nextPage, botSearch);
+                    }
+                  }}
+                  disabled={botPage >= totalBotPages}
+                  className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-black flex items-center gap-1 disabled:opacity-40 active:scale-95 transition-all"
+                >
+                  <span>Next</span>
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* ─── BOTTOM FLOATING SAVE ACTION BAR ─── */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200 p-3 pb-safe shadow-lg max-w-xl mx-auto">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-md active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer"
-        >
-          {saving ? (
-            <>
-              <RefreshCw size={18} className="animate-spin" />
-              <span>Saving HDASE BINGO Settings...</span>
-            </>
-          ) : (
-            <>
-              <Save size={18} />
-              <span>Save HDASE BINGO Settings</span>
-            </>
-          )}
-        </button>
-      </div>
+      {/* ─── BOTTOM FLOATING SAVE ACTION BAR (IN SETTINGS TAB) ─── */}
+      {activeTab === 'settings' && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200 p-3 pb-safe shadow-lg max-w-xl mx-auto">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-md active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer"
+          >
+            {saving ? (
+              <>
+                <RefreshCw size={18} className="animate-spin" />
+                <span>Saving HDASE BINGO Settings...</span>
+              </>
+            ) : (
+              <>
+                <Save size={18} />
+                <span>Save HDASE BINGO Settings</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* ─── MODAL: EDIT BOT NAME / HANDLE ─── */}
+      {editingBot && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center font-bold">
+                  <Edit2 size={16} />
+                </div>
+                <div>
+                  <h4 className="font-black text-sm text-slate-900">Edit Bot Handle</h4>
+                  <p className="text-[10px] text-slate-400">Telegram ID: {editingBot.telegram_id}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingBot(null)}
+                className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                Bot Name / Telegram Handle
+              </label>
+              <input
+                type="text"
+                value={editBotName}
+                onChange={(e) => setEditBotName(e.target.value)}
+                placeholder="e.g. @miki_01, ⚡Dani$, Alex%10..."
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                autoFocus
+              />
+              <p className="text-[10px] text-slate-400">
+                You can use handles like @name, symbols ($, %, _), and emojis.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              <button
+                onClick={() => setEditingBot(null)}
+                className="py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveBotName}
+                disabled={savingBotName || !editBotName.trim()}
+                className="py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50 transition-all"
+              >
+                {savingBotName ? (
+                  <>
+                    <RefreshCw size={13} className="animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check size={14} />
+                    <span>Save Handle</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL: ADD CUSTOM BOT ─── */}
+      {showAddBotModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center font-bold">
+                  <Plus size={18} />
+                </div>
+                <div>
+                  <h4 className="font-black text-sm text-slate-900">Add Custom Bot</h4>
+                  <p className="text-[10px] text-slate-400">Next Sequential 11-digit Telegram ID</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAddBotModal(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                Bot Handle / Name
+              </label>
+              <input
+                type="text"
+                value={newBotName}
+                onChange={(e) => setNewBotName(e.target.value)}
+                placeholder="e.g. @yared_vip, $Abebe$, 👑King_01..."
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                autoFocus
+              />
+              <p className="text-[10px] text-slate-400">
+                Will be automatically registered with the sequential Telegram ID pattern (10000000000..).
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              <button
+                onClick={() => setShowAddBotModal(false)}
+                className="py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddBot}
+                disabled={addingBot || !newBotName.trim()}
+                className="py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50 transition-all"
+              >
+                {addingBot ? (
+                  <>
+                    <RefreshCw size={13} className="animate-spin" />
+                    <span>Adding...</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus size={14} />
+                    <span>Add Bot to Pool</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

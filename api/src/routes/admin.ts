@@ -2567,14 +2567,37 @@ router.get('/hdase-room', requireAdmin, async (req: AuthRequest, res: Response) 
     // Fetch active games for HDASE BINGO room
     const { data: activeGames } = await supabase
       .from('bingo_games')
-      .select('id, stake, status, total_players, prize_pool, called_numbers, start_at')
+      .select('id, stake, status, total_players, prize_pool, called_numbers, start_at, created_at')
       .eq('room_id', roomId)
       .in('status', ['waiting', 'calling'])
-      .order('stake', { ascending: true });
+      .order('created_at', { ascending: false });
+
+    // Deduplicate: Keep strictly 1 latest active game per stake (prefer 'calling' if multiple, else newest)
+    const gamesByStake = new Map<number, any>();
+    const duplicateWaitersToFinish: string[] = [];
+
+    for (const g of (activeGames || [])) {
+      const s = Number(g.stake);
+      const existing = gamesByStake.get(s);
+      if (!existing) {
+        gamesByStake.set(s, g);
+      } else if (existing.status === 'waiting' && g.status === 'calling') {
+        duplicateWaitersToFinish.push(existing.id);
+        gamesByStake.set(s, g);
+      } else if (g.status === 'waiting') {
+        duplicateWaitersToFinish.push(g.id);
+      }
+    }
+
+    if (duplicateWaitersToFinish.length > 0) {
+      await supabase.from('bingo_games').update({ status: 'finished' }).in('id', duplicateWaitersToFinish);
+    }
+
+    const uniqueGames = Array.from(gamesByStake.values()).sort((a, b) => Number(a.stake) - Number(b.stake));
 
     // Enrich active games with real vs system vs waiter player counts
     const enrichedGames = await Promise.all(
-      (activeGames || []).map(async (g) => {
+      uniqueGames.map(async (g) => {
         const { data: pData } = await supabase
           .from('bingo_players')
           .select('telegram_id, is_system, is_waiter, cartela_number')
@@ -2717,6 +2740,155 @@ router.post('/hdase-room/reseed', requireAdmin, async (req: AuthRequest, res: Re
       success: true,
       message: `Successfully seeded ${count || 1000} system players for HDASE BINGO room`,
       bot_count: count || 1000,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /admin/hdase-room/bots — get paginated, searchable bots in HDASE BINGO pool
+router.get('/hdase-room/bots', requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit as string) || 25));
+    const search = ((req.query.search as string) || '').trim();
+    const offset = (page - 1) * limit;
+
+    let query = supabase
+      .from('system_players')
+      .select('id, first_name, telegram_id, total_won, created_at', { count: 'exact' })
+      .eq('room_id', HDASE_ROOM_ID)
+      .order('created_at', { ascending: true });
+
+    if (search) {
+      query = query.ilike('first_name', `%${search}%`);
+    }
+
+    let data: any[] | null = null;
+    let count: number | null = null;
+    const { data: qData, count: qCount, error } = await query.range(offset, offset + limit - 1);
+
+    if (error && error.code === '42703') {
+      let fbQuery = supabase
+        .from('system_players')
+        .select('id, first_name, total_won, created_at', { count: 'exact' })
+        .eq('room_id', HDASE_ROOM_ID)
+        .order('created_at', { ascending: true });
+      if (search) fbQuery = fbQuery.ilike('first_name', `%${search}%`);
+      const { data: fbData, count: fbCount, error: fbErr } = await fbQuery.range(offset, offset + limit - 1);
+      if (fbErr) throw fbErr;
+      data = fbData;
+      count = fbCount;
+    } else if (error) {
+      throw error;
+    } else {
+      data = qData;
+      count = qCount;
+    }
+
+    const enriched = (data || []).map((bot: any) => ({
+      ...bot,
+      telegram_id: bot.telegram_id || systemPlayerService.getBotTelegramId(bot.id, HDASE_ROOM_ID),
+    }));
+
+    res.json({
+      players: enriched,
+      total: count || 0,
+      page,
+      limit,
+      total_pages: Math.ceil((count || 0) / limit),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /admin/hdase-room/bots/:id — edit system player handle/name
+router.put('/hdase-room/bots/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const botId = req.params.id;
+    const { first_name } = req.body;
+
+    if (!first_name || !first_name.trim()) {
+      return res.status(400).json({ error: 'Valid Name or Handle is required' });
+    }
+
+    const cleanName = first_name.trim();
+    const { data, error } = await supabase
+      .from('system_players')
+      .update({ first_name: cleanName })
+      .eq('id', botId)
+      .eq('room_id', HDASE_ROOM_ID)
+      .select('id, first_name, telegram_id, total_won')
+      .single();
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json({
+      success: true,
+      message: `System player updated to "${cleanName}"`,
+      bot: {
+        ...data,
+        telegram_id: data?.telegram_id || systemPlayerService.getBotTelegramId(data?.id || botId, HDASE_ROOM_ID),
+      },
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /admin/hdase-room/bots — add custom bot to HDASE BINGO pool
+router.post('/hdase-room/bots', requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { first_name } = req.body;
+
+    if (!first_name || !first_name.trim()) {
+      return res.status(400).json({ error: 'Valid Name or Handle is required' });
+    }
+
+    const cleanName = first_name.trim();
+    const nextTelegramId = await systemPlayerService.getNextSystemTelegramId();
+    const tidStr = String(nextTelegramId);
+
+    let data: any = null;
+    const { data: insData, error: insErr } = await supabase
+      .from('system_players')
+      .insert({
+        room_id: HDASE_ROOM_ID,
+        first_name: cleanName,
+        telegram_id: tidStr,
+        total_won: 0,
+      })
+      .select('id, first_name, telegram_id, total_won')
+      .single();
+
+    if (insErr && insErr.code === '42703') {
+      const { data: fbData, error: fbErr } = await supabase
+        .from('system_players')
+        .insert({
+          room_id: HDASE_ROOM_ID,
+          first_name: cleanName,
+          total_won: 0,
+        })
+        .select('id, first_name, total_won')
+        .single();
+      if (fbErr) throw fbErr;
+      data = fbData;
+      systemPlayerService.setBotTelegramId(data.id, tidStr);
+      data.telegram_id = tidStr;
+    } else if (insErr) {
+      throw insErr;
+    } else {
+      data = insData;
+      systemPlayerService.setBotTelegramId(data.id, tidStr);
+    }
+
+    res.json({
+      success: true,
+      message: `Added system player "${cleanName}" with ID ${tidStr}`,
+      bot: data,
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
