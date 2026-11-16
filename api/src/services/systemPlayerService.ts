@@ -636,18 +636,10 @@ export class SystemPlayerService {
 
     const totalUnique = realUnique + systemUnique;
 
-    // Commission logic:
-    // ONLY taken from REAL players if real unique >= 3
-    // If real unique < 3: 0% commission!
-    // Total Derash grows with every cartela (real + system)
+    // Derash (Prize Pool) is always based on prize_percent (default 80% of total pot)
     const rawPot = totalCartelas * stakeAmt;
-    let realCommission = 0;
-    if (realUnique >= 3) {
-      const houseCutPercent = 100 - Number(cfg.prize_percent || 80);
-      realCommission = Math.floor((realCartelas * stakeAmt * houseCutPercent) / 100);
-    }
-
-    const prizePool = Math.max(0, rawPot - realCommission);
+    const prizePercent = Number(cfg.prize_percent || 80);
+    const prizePool = Math.floor((rawPot * prizePercent) / 100);
 
     await supabase.from('bingo_games').update({
       prize_pool: prizePool,

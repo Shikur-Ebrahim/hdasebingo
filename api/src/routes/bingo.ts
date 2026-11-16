@@ -326,15 +326,10 @@ router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
   const unique_players = unique_real + unique_sys;
   const total_cartelas = allRows.length;
 
-  // Derash = total cartelas × stake (pot grows per cartela bought)
-  // Commission only applies to REAL players if real unique players >= 3
+  // Derash (Prize Pool) is always based on prize_percent (default 80% of total pot)
   const rawPool = total_cartelas * stakeAmt;
-  let realCommission = 0;
-  if (unique_real >= 3) {
-    const houseCutPercent = 100 - Number(cfg.prize_percent || 80);
-    realCommission = Math.floor((realRows.length * stakeAmt * houseCutPercent) / 100);
-  }
-  const prizePool = Math.max(0, rawPool - realCommission);
+  const prizePercent = Number(cfg.prize_percent || 80);
+  const prizePool = Math.floor((rawPool * prizePercent) / 100);
 
   let newStartAt = game.start_at;
   // Trigger countdown from settings waiting_period_s when first player joins
@@ -422,12 +417,8 @@ router.post('/leave', validateTelegramAuth, async (req: AuthRequest, res) => {
 
   const cfg = await getSettings();
   const rawPool = total_cartelas * Number(game.stake);
-  let realCommission = 0;
-  if (unique_real >= 3) {
-    const houseCutPercent = 100 - Number(cfg.prize_percent || 80);
-    realCommission = Math.floor((realRem.length * Number(game.stake) * houseCutPercent) / 100);
-  }
-  const prizePool = Math.max(0, rawPool - realCommission);
+  const prizePercent = Number(cfg.prize_percent || 80);
+  const prizePool = Math.floor((rawPool * prizePercent) / 100);
 
   // If no cartelas remaining, reset countdown
   let newStartAt = game.start_at;

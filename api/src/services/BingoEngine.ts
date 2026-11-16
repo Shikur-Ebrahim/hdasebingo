@@ -46,6 +46,7 @@ class BingoEngine {
   private timer: ReturnType<typeof setInterval> | null = null;
   private busy = false;
   private playerManualModes = new Map<string, boolean>();
+  private gameLastCallTime = new Map<string, number>();
 
   setPlayerMode(telegramId: string, gameId?: string, isManual?: boolean) {
     if (isManual === undefined) return;
@@ -197,8 +198,9 @@ class BingoEngine {
     
     const players = pRows || [];
     const uniquePlayers = new Set(players.map((r: any) => r.telegram_id)).size;
+    const minPlayers = Math.max(2, Number(cfg.min_players || 2));
 
-    if (uniquePlayers < cfg.min_players) {
+    if (uniquePlayers < minPlayers) {
       if (players.length === 0) {
         // No players at all — reset timer to far future
         await supabase.from('bingo_games').update({
@@ -231,13 +233,14 @@ class BingoEngine {
       return;
     }
 
-    // 2+ unique players (real or system): START GAME!
+    // 2+ unique players (real, bot, or real + bot): START GAME!
+    this.gameLastCallTime.set(game.id, Date.now());
     await supabase.from('bingo_games').update({
       status: 'calling',
       called_numbers: [],
       updated_at: new Date().toISOString(),
     }).eq('id', game.id);
-    console.log(`🎰 Game #${formatGameId(game.id)} started with ${uniquePlayers} unique players! First call in ~3.5s.`);
+    console.log(`🎰 Game #${formatGameId(game.id)} started with ${uniquePlayers} unique players (min: ${minPlayers})! First call in ~3s.`);
   }
 
   private async refundAndResetGame(game: any, players: any[]) {
@@ -325,6 +328,7 @@ class BingoEngine {
     }).eq('id', game.id);
 
     systemPlayerService.cleanupGame(game.id);
+    this.gameLastCallTime.delete(game.id);
   }
 
   private async handleCalling(game: any) {
@@ -332,8 +336,8 @@ class BingoEngine {
     const cfg = await getSettings();
 
     // Check if interval has passed since last called ball
-    const callIntervalMs = cfg.call_interval_ms || 3500;
-    const lastCalledTime = game.last_called_at ? new Date(game.last_called_at).getTime() : 0;
+    const callIntervalMs = Number(cfg.call_interval_ms || 3000);
+    const lastCalledTime = this.gameLastCallTime.get(game.id) || (game.updated_at ? new Date(game.updated_at).getTime() : 0);
     const timeSinceLastCall = Date.now() - lastCalledTime;
 
     if (lastCalledTime > 0 && timeSinceLastCall < callIntervalMs) {
@@ -343,6 +347,7 @@ class BingoEngine {
     if (called.length >= 75) {
       // All 75 numbers called — finish with no winner
       console.log(`🎰 Game #${formatGameId(game.id)} finished: all 75 numbers called with no winner.`);
+      this.gameLastCallTime.delete(game.id);
       await supabase.from('bingo_games').update({
         status: 'finished',
         winner_first_name: 'No Winner',
@@ -370,11 +375,15 @@ class BingoEngine {
 
     const { error: updErr } = await supabase.from('bingo_games').update({
       called_numbers: newCalled,
-      last_called_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).eq('id', game.id).eq('status', 'calling');
 
-    if (updErr) return;
+    if (updErr) {
+      console.error(`❌ Failed to update called numbers for Game #${formatGameId(game.id)}:`, updErr);
+      return;
+    }
+
+    this.gameLastCallTime.set(game.id, Date.now());
 
     // Check winners after calling this number
     await this.checkWinners(game.id, newCalled, game.prize_pool, game.stake, game.room_id);
@@ -562,6 +571,7 @@ class BingoEngine {
       await this.awardAgentCommission(roomId, realCartelasCount, stake, gameId, realUniqueCount);
       await this.incrementRoomGames(roomId);
       systemPlayerService.cleanupGame(gameId);
+      this.gameLastCallTime.delete(gameId);
       this.scheduleFinishedGameCleanup(gameId);
 
       if (roomId) {
@@ -670,6 +680,7 @@ class BingoEngine {
       await this.awardAgentCommission(roomId, realCartelasCount, stake, gameId, realUniqueCount);
       await this.incrementRoomGames(roomId);
       systemPlayerService.cleanupGame(gameId);
+      this.gameLastCallTime.delete(gameId);
       this.scheduleFinishedGameCleanup(gameId);
 
       if (roomId) {
@@ -714,6 +725,7 @@ class BingoEngine {
 
     await this.incrementRoomGames(roomId);
     systemPlayerService.cleanupGame(gameId);
+    this.gameLastCallTime.delete(gameId);
     this.scheduleFinishedGameCleanup(gameId);
 
     if (roomId) {
@@ -978,6 +990,7 @@ class BingoEngine {
     await this.awardAgentCommission(game.room_id, realCartelasCount, stake, gameId, realUniqueCount);
     await this.incrementRoomGames(game.room_id);
     systemPlayerService.cleanupGame(gameId);
+    this.gameLastCallTime.delete(gameId);
     this.scheduleFinishedGameCleanup(gameId);
 
     if (game.room_id) {

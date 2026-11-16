@@ -1184,7 +1184,7 @@ export default function BingoGame() {
     const newUniquePlayers = isFirstCartela ? uniquePlayers + 1 : uniquePlayers;
     const newTotalCartelas = taken.length + 1;
     const rawPool = newTotalCartelas * stakeAmt;
-    setGame(prev => prev ? { ...prev, prize_pool: newUniquePlayers < 3 ? rawPool : Math.floor(rawPool * 0.8) } : prev);
+    setGame(prev => prev ? { ...prev, prize_pool: Math.floor(rawPool * 0.8) } : prev);
 
     try {
       const r = await fetch(`${API}/bingo/join`, {
@@ -1745,33 +1745,35 @@ export default function BingoGame() {
           )}
         </div>
 
-        {/* Bottom Action Bar: White Auto-Win Indicator or Black BINGO Claim Button */}
-        <div className="shrink-0 pt-0 pb-1 px-1 w-full max-w-[400px] mx-auto">
-          {autoMark ? (
-            /* MANUAL OFF / Auto-Win Active: Pure WHITE background bar, non-clickable */
-            <div className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-white via-amber-50/50 to-white border-2 border-amber-300/80 shadow-[0_2px_6px_rgba(180,83,9,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex items-center justify-center gap-2 text-amber-950 font-black text-xs tracking-wider uppercase select-none pointer-events-none">
-              <span className="text-sm">🤖</span>
-              <span>AUTO BINGO ACTIVE</span>
-              <span className="text-amber-500 animate-pulse font-black text-xs">⚡</span>
-            </div>
-          ) : bingoLockSeconds > 0 ? (
-            <button
-              disabled
-              className="w-full py-2 px-3 rounded-xl bg-gradient-to-b from-red-800 via-red-900 to-red-950 border border-red-500 text-red-200 font-black text-xs tracking-wider uppercase flex items-center justify-center gap-1.5 shadow-[0_2px_8px_rgba(185,28,28,0.4)] cursor-not-allowed select-none opacity-90"
-            >
-              <Lock size={14} className="text-red-400 animate-pulse" />
-              <span>🔒 {language === 'am' ? `ተቆልፏል (${bingoLockSeconds}ሰ)` : `LOCKED (${bingoLockSeconds}s)`}</span>
-            </button>
-          ) : (
-            /* MANUAL ON: Solid 3D BLACK button, only says BINGO without extra explanation */
-            <button
-              onClick={handleManualBingoClaim}
-              className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-slate-950 via-slate-900 to-black hover:from-slate-900 hover:to-slate-900 text-amber-300 font-black text-base sm:text-lg tracking-widest uppercase flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.2),inset_0_-1.5px_2px_rgba(0,0,0,0.8)] border-2 border-amber-400/80 ring-2 ring-amber-500/30 active:scale-95 transition-all cursor-pointer select-none animate-pulse"
-            >
-              <span className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">BINGO!</span>
-            </button>
-          )}
-        </div>
+        {/* Bottom Action Bar: Only visible if user has bought at least 1 cartela */}
+        {myCartelas.length > 0 && (
+          <div className="shrink-0 pt-0 pb-1 px-1 w-full max-w-[400px] mx-auto">
+            {autoMark ? (
+              /* MANUAL OFF / Auto-Win Active: Pure WHITE background bar, non-clickable */
+              <div className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-white via-amber-50/50 to-white border-2 border-amber-300/80 shadow-[0_2px_6px_rgba(180,83,9,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex items-center justify-center gap-2 text-amber-950 font-black text-xs tracking-wider uppercase select-none pointer-events-none">
+                <span className="text-sm">🤖</span>
+                <span>AUTO BINGO ACTIVE</span>
+                <span className="text-amber-500 animate-pulse font-black text-xs">⚡</span>
+              </div>
+            ) : bingoLockSeconds > 0 ? (
+              <button
+                disabled
+                className="w-full py-2 px-3 rounded-xl bg-gradient-to-b from-red-800 via-red-900 to-red-950 border border-red-500 text-red-200 font-black text-xs tracking-wider uppercase flex items-center justify-center gap-1.5 shadow-[0_2px_8px_rgba(185,28,28,0.4)] cursor-not-allowed select-none opacity-90"
+              >
+                <Lock size={14} className="text-red-400 animate-pulse" />
+                <span>🔒 {language === 'am' ? `ተቆልፏል (${bingoLockSeconds}ሰ)` : `LOCKED (${bingoLockSeconds}s)`}</span>
+              </button>
+            ) : (
+              /* MANUAL ON: Solid 3D BLACK button, only says BINGO without extra explanation */
+              <button
+                onClick={handleManualBingoClaim}
+                className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-slate-950 via-slate-900 to-black hover:from-slate-900 hover:to-slate-900 text-amber-300 font-black text-base sm:text-lg tracking-widest uppercase flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(0,0,0,0.5),inset_0_1px_1px_rgba(255,255,255,0.2),inset_0_-1.5px_2px_rgba(0,0,0,0.8)] border-2 border-amber-400/80 ring-2 ring-amber-500/30 active:scale-95 transition-all cursor-pointer select-none animate-pulse"
+              >
+                <span className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">BINGO!</span>
+              </button>
+            )}
+          </div>
+        )}
 
       </div>
     );
