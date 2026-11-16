@@ -106,7 +106,145 @@ const gameBotTargets = new Map<string, number>();
 // In-memory throttle to avoid firing bot inserts faster than interval (2-3s)
 const gameLastBotJoinTime = new Map<string, number>();
 
+export const SYSTEM_PLAYER_STARTING_TELEGRAM_ID = 10000000000n;
+
 export class SystemPlayerService {
+  private botTelegramIdCache = new Map<string, string>();
+
+  /**
+   * Determine the next available global system player telegram_id
+   */
+  async getNextSystemTelegramId(): Promise<bigint> {
+    try {
+      const { data, error } = await supabase
+        .from('system_players')
+        .select('telegram_id')
+        .not('telegram_id', 'is', null)
+        .order('telegram_id', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data && data.telegram_id) {
+        try {
+          const num = BigInt(data.telegram_id.replace(/\D/g, ''));
+          if (num >= SYSTEM_PLAYER_STARTING_TELEGRAM_ID) {
+            return num + 1n;
+          }
+        } catch {}
+      }
+    } catch {}
+
+    // Check cached in-memory IDs
+    let maxCached = SYSTEM_PLAYER_STARTING_TELEGRAM_ID - 1n;
+    for (const tid of this.botTelegramIdCache.values()) {
+      try {
+        const num = BigInt(tid.replace(/\D/g, ''));
+        if (num > maxCached) maxCached = num;
+      } catch {}
+    }
+
+    return maxCached >= SYSTEM_PLAYER_STARTING_TELEGRAM_ID ? maxCached + 1n : SYSTEM_PLAYER_STARTING_TELEGRAM_ID;
+  }
+
+  /**
+   * Get sequential telegram_id for a bot:
+   * 1. Check in-memory cache
+   * 2. If missing, compute sequential fallback
+   */
+  getBotTelegramId(botId: string, roomId?: string): string {
+    if (this.botTelegramIdCache.has(botId)) {
+      return this.botTelegramIdCache.get(botId)!;
+    }
+    const fallbackId = String(SYSTEM_PLAYER_STARTING_TELEGRAM_ID + BigInt(this.botTelegramIdCache.size));
+    this.botTelegramIdCache.set(botId, fallbackId);
+    return fallbackId;
+  }
+
+  setBotTelegramId(botId: string, tid: string) {
+    this.botTelegramIdCache.set(botId, tid);
+  }
+
+  /**
+   * Register bots with sequential telegram_ids starting from 10000000000
+   */
+  registerRoomBots(roomId: string, bots: { id: string; telegram_id?: string | null }[]) {
+    let maxExisting = SYSTEM_PLAYER_STARTING_TELEGRAM_ID - 1n;
+    for (const b of bots) {
+      if (b.telegram_id) {
+        this.botTelegramIdCache.set(b.id, b.telegram_id);
+        try {
+          const num = BigInt(b.telegram_id.replace(/\D/g, ''));
+          if (num > maxExisting) maxExisting = num;
+        } catch {}
+      }
+    }
+
+    let nextSeq = maxExisting >= SYSTEM_PLAYER_STARTING_TELEGRAM_ID ? maxExisting + 1n : SYSTEM_PLAYER_STARTING_TELEGRAM_ID;
+    for (const b of bots) {
+      if (!this.botTelegramIdCache.has(b.id)) {
+        const tid = String(nextSeq);
+        this.botTelegramIdCache.set(b.id, tid);
+        nextSeq += 1n;
+      }
+    }
+  }
+
+  /**
+   * Automatically backfills telegram_id on system_players table in batches if column exists
+   */
+  async backfillSystemPlayersTelegramId(): Promise<void> {
+    try {
+      const { data: allBots, error } = await supabase
+        .from('system_players')
+        .select('id, room_id, created_at')
+        .order('created_at', { ascending: true });
+
+      if (error || !allBots || allBots.length === 0) return;
+
+      const roomMap = new Map<string, typeof allBots>();
+      for (const b of allBots) {
+        const list = roomMap.get(b.room_id) || [];
+        list.push(b);
+        roomMap.set(b.room_id, list);
+      }
+
+      let currentSeq = SYSTEM_PLAYER_STARTING_TELEGRAM_ID;
+      for (const [, bots] of roomMap.entries()) {
+        for (const b of bots) {
+          const tid = String(currentSeq);
+          this.botTelegramIdCache.set(b.id, tid);
+          currentSeq += 1n;
+        }
+      }
+
+      console.log(`🤖 Cached sequential telegram_ids (10000000000..) for ${allBots.length} system players across ${roomMap.size} room(s)`);
+
+      // Try updating database rows if telegram_id column exists
+      for (const b of allBots.slice(0, 10)) {
+        const tid = this.botTelegramIdCache.get(b.id);
+        const { error: testErr } = await supabase.from('system_players').update({ telegram_id: tid }).eq('id', b.id);
+        if (testErr) {
+          if (testErr.code === '42703') {
+            // Column does not exist yet on DB schema
+            return;
+          }
+          break;
+        }
+      }
+
+      // Update in chunks
+      for (let i = 0; i < allBots.length; i += 50) {
+        const chunk = allBots.slice(i, i + 50);
+        await Promise.all(chunk.map(b => 
+          supabase.from('system_players').update({ telegram_id: this.botTelegramIdCache.get(b.id) }).eq('id', b.id)
+        ));
+      }
+      console.log(`✅ Backfilled sequential telegram_id on ${allBots.length} system_players in database!`);
+    } catch (e) {
+      console.warn('System player telegram_id backfill notice:', e);
+    }
+  }
+
   /**
    * Seed / Ensure 1,000 stylized system players exist for a given room
    */
@@ -143,20 +281,35 @@ export class SystemPlayerService {
       const allNames = generateStylizedSystemNames(targetCount);
       const namesToInsert = allNames.slice(existingCount, existingCount + needed);
 
+      const startTelegramId = await this.getNextSystemTelegramId();
+
       const batchSize = 100;
       let inserted = 0;
       for (let i = 0; i < namesToInsert.length; i += batchSize) {
-        const batch = namesToInsert.slice(i, i + batchSize).map(name => ({
+        const batch = namesToInsert.slice(i, i + batchSize).map((name, idx) => ({
           room_id: roomId,
           first_name: name,
+          telegram_id: String(startTelegramId + BigInt(existingCount + i + idx)),
           total_won: 0,
         }));
 
-        const { error: insErr } = await supabase.from('system_players').insert(batch);
+        let { error: insErr } = await supabase.from('system_players').insert(batch);
         if (insErr) {
-          if (insErr.code === 'PGRST205') break; // Table not yet created
-          console.error(`Batch insert error for system_players in room ${roomId}:`, insErr);
-          break;
+          if (insErr.code === '42703') {
+            // Column telegram_id does not exist yet: insert without it
+            const fallback = batch.map(({ telegram_id, ...r }) => r);
+            const { error: fbErr } = await supabase.from('system_players').insert(fallback);
+            if (fbErr) {
+              if (fbErr.code === 'PGRST205') break;
+              console.error(`Batch insert error for system_players in room ${roomId}:`, fbErr);
+              break;
+            }
+          } else if (insErr.code === 'PGRST205') {
+            break; // Table not yet created
+          } else {
+            console.error(`Batch insert error for system_players in room ${roomId}:`, insErr);
+            break;
+          }
         }
         inserted += batch.length;
       }
@@ -171,7 +324,7 @@ export class SystemPlayerService {
 
   /**
    * Reseed 1,000 fresh stylized system players with creative symbols (@, $, %, emojis)
-   * Guaranteed 100% unique names.
+   * Guaranteed 100% unique names and sequential telegram_ids starting from 10000000000.
    */
   async reseedSystemPlayersPool(roomId: string, targetCount = 1000): Promise<number> {
     try {
@@ -179,24 +332,33 @@ export class SystemPlayerService {
       await supabase.from('system_players').delete().eq('room_id', roomId);
 
       const allNames = generateStylizedSystemNames(targetCount);
+      const startTelegramId = await this.getNextSystemTelegramId();
+
       const batchSize = 100;
       let inserted = 0;
       for (let i = 0; i < allNames.length; i += batchSize) {
-        const batch = allNames.slice(i, i + batchSize).map(name => ({
+        const batch = allNames.slice(i, i + batchSize).map((name, idx) => ({
           room_id: roomId,
           first_name: name,
+          telegram_id: String(startTelegramId + BigInt(i + idx)),
           total_won: 0,
         }));
 
-        const { error: insErr } = await supabase.from('system_players').insert(batch);
+        let { error: insErr } = await supabase.from('system_players').insert(batch);
         if (insErr) {
-          console.error(`Batch insert error during reseed for room ${roomId}:`, insErr);
-          break;
+          if (insErr.code === '42703') {
+            const fallback = batch.map(({ telegram_id, ...r }) => r);
+            const { error: fbErr } = await supabase.from('system_players').insert(fallback);
+            if (fbErr) break;
+          } else {
+            console.error(`Batch insert error during reseed for room ${roomId}:`, insErr);
+            break;
+          }
         }
         inserted += batch.length;
       }
 
-      console.log(`🤖 Reseeded ${inserted} fresh unique stylized system players for room ${roomId}`);
+      console.log(`🤖 Reseeded ${inserted} fresh unique stylized system players for room ${roomId} (starting Telegram ID: ${startTelegramId})`);
       return inserted;
     } catch (e) {
       console.error(`Failed to reseed system players for room ${roomId}:`, e);
@@ -517,17 +679,31 @@ export class SystemPlayerService {
     }
 
     // Pick a random system player from the room pool who hasn't joined this game yet
-    const { data: poolBots, error: poolErr } = await supabase
+    let poolBots: any[] | null = null;
+    const { data: botsWithTid, error: poolErr } = await supabase
       .from('system_players')
-      .select('id, first_name')
+      .select('id, first_name, telegram_id')
       .eq('room_id', room.id)
       .limit(1000);
 
-    if (poolErr || !poolBots || poolBots.length === 0) {
+    if (poolErr && poolErr.code === '42703') {
+      const { data: fallbackBots } = await supabase
+        .from('system_players')
+        .select('id, first_name')
+        .eq('room_id', room.id)
+        .limit(1000);
+      poolBots = fallbackBots;
+    } else {
+      poolBots = botsWithTid;
+    }
+
+    if (!poolBots || poolBots.length === 0) {
       // Pool empty? Auto-seed the 1,000 pool in the background!
       this.seedSystemPlayersPool(room.id, 1000).catch(console.error);
       return;
     }
+
+    this.registerRoomBots(room.id, poolBots);
 
     const availableBots = poolBots.filter(b => !existingSystemPlayerIds.has(b.id));
     if (availableBots.length === 0) return;
@@ -592,9 +768,11 @@ export class SystemPlayerService {
     }
 
     // Insert cartelas for this bot
+    const botTelegramId = (chosenBot as any).telegram_id || this.getBotTelegramId(chosenBot.id, room.id);
+
     const botRows = chosenSeats.map(seat => ({
       game_id: game.id,
-      telegram_id: `sys_${chosenBot.id.replace(/-/g, '').slice(0, 10)}`,
+      telegram_id: botTelegramId,
       first_name: chosenBot.first_name,
       cartela_number: seat,
       card_matrix: generateBingoCard(),

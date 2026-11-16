@@ -21,6 +21,7 @@ import agentBankAdminRouter from './routes/agentBankAdmin';
 import { agentWithdrawRouter, adminAgentWithdrawRouter } from './routes/agentWithdraw';
 import channelProofsRouter from './routes/channelProofs';
 import systemPlayersRouter from './routes/systemPlayers';
+import { systemPlayerService } from './services/systemPlayerService';
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -54,5 +55,6 @@ app.use('/api/channel-proofs', channelProofsRouter);
 app.listen(PORT, () => {
   console.log(`🚀 API running on port ${PORT}`);
   bingoEngine.start();
+  systemPlayerService.backfillSystemPlayersTelegramId();
   startBroadcastScheduler();
 });

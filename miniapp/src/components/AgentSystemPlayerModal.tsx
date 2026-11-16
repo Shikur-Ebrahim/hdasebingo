@@ -1432,7 +1432,14 @@ export default function AgentSystemPlayerModal({
                                 <Edit2 size={11} />
                               </button>
                             </div>
-                            <p className="text-[9px] text-slate-400 font-bold">Verified System Player</p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <p className="text-[9px] text-slate-400 font-bold">Verified System Player</p>
+                              {bot.telegram_id && (
+                                <span className="text-[9px] font-mono font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                  ID: {bot.telegram_id}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <div className="text-right">

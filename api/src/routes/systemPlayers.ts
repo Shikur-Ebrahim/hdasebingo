@@ -493,7 +493,7 @@ router.get('/pool', validateTelegramAuth, async (req: AuthRequest, res: Response
     const offset = (page - 1) * limit;
     let query = supabase
       .from('system_players')
-      .select('id, first_name, total_won, created_at', { count: 'exact' })
+      .select('id, first_name, telegram_id, total_won, created_at', { count: 'exact' })
       .eq('room_id', roomId)
       .order('total_won', { ascending: false })
       .order('created_at', { ascending: false });
@@ -502,13 +502,37 @@ router.get('/pool', validateTelegramAuth, async (req: AuthRequest, res: Response
       query = query.ilike('first_name', `%${search}%`);
     }
 
-    const { data, count, error: qErr } = await query.range(offset, offset + limit - 1);
-    if (qErr && qErr.code !== 'PGRST205') {
+    let data: any[] | null = null;
+    let count: number | null = null;
+    const { data: qData, count: qCount, error: qErr } = await query.range(offset, offset + limit - 1);
+    if (qErr && qErr.code === '42703') {
+      // telegram_id column not added yet in database schema — fallback
+      let fbQuery = supabase
+        .from('system_players')
+        .select('id, first_name, total_won, created_at', { count: 'exact' })
+        .eq('room_id', roomId)
+        .order('total_won', { ascending: false })
+        .order('created_at', { ascending: false });
+      if (search) fbQuery = fbQuery.ilike('first_name', `%${search}%`);
+      const { data: fbData, count: fbCount, error: fbErr } = await fbQuery.range(offset, offset + limit - 1);
+      if (fbErr && fbErr.code !== 'PGRST205') return res.status(500).json({ error: fbErr.message });
+      data = fbData;
+      count = fbCount;
+    } else if (qErr && qErr.code !== 'PGRST205') {
       return res.status(500).json({ error: qErr.message });
+    } else {
+      data = qData;
+      count = qCount;
     }
 
+    // Ensure every single system player has its sequential 11-digit telegram_id (10000000000..)
+    const enriched = (data || []).map((bot: any) => ({
+      ...bot,
+      telegram_id: bot.telegram_id || systemPlayerService.getBotTelegramId(bot.id, roomId),
+    }));
+
     res.json({
-      players: data || [],
+      players: enriched,
       total: count || 0,
       page,
       limit,
@@ -576,23 +600,44 @@ router.post('/add-bot', validateTelegramAuth, async (req: AuthRequest, res: Resp
     }
 
     const cleanName = first_name.trim();
-    const { data, error: insErr } = await supabase
+    const nextTelegramId = await systemPlayerService.getNextSystemTelegramId();
+    const tidStr = String(nextTelegramId);
+
+    let data: any = null;
+    const { data: insData, error: insErr } = await supabase
       .from('system_players')
       .insert({
         room_id: targetRoomId,
         first_name: cleanName,
+        telegram_id: tidStr,
         total_won: 0,
       })
-      .select('id, first_name, total_won')
+      .select('id, first_name, telegram_id, total_won')
       .single();
 
-    if (insErr) {
+    if (insErr && insErr.code === '42703') {
+      const { data: fbData, error: fbErr } = await supabase
+        .from('system_players')
+        .insert({
+          room_id: targetRoomId,
+          first_name: cleanName,
+          total_won: 0,
+        })
+        .select('id, first_name, total_won')
+        .single();
+      if (fbErr) return res.status(500).json({ error: fbErr.message });
+      data = { ...fbData, telegram_id: tidStr };
+    } else if (insErr) {
       return res.status(500).json({ error: insErr.message });
+    } else {
+      data = insData;
     }
+
+    systemPlayerService.setBotTelegramId(data.id, tidStr);
 
     res.json({
       success: true,
-      message: `Added system player "${cleanName}" to room pool`,
+      message: `Added system player "${cleanName}" (ID: ${tidStr}) to room pool`,
       bot: data,
     });
   } catch (err: any) {

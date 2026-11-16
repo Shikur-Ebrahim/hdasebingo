@@ -423,7 +423,7 @@ class BingoEngine {
 
     const notify = async (chatId: string, text: string) => {
       try {
-        if (token && !chatId.startsWith('sys_')) {
+        if (token && !chatId.startsWith('sys_') && !chatId.startsWith('10000000')) {
           await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
