@@ -95,7 +95,7 @@ router.get('/current', validateTelegramAuth, async (req: AuthRequest, res) => {
 
   const { data: rows } = await supabase
     .from('bingo_players')
-    .select('cartela_number, telegram_id, card_matrix')
+    .select('cartela_number, telegram_id, card_matrix, first_name, is_system, is_waiter')
     .eq('game_id', game.id);
 
   const taken_cartelas = (rows || []).map((p: any) => Number(p.cartela_number));
@@ -106,11 +106,17 @@ router.get('/current', validateTelegramAuth, async (req: AuthRequest, res) => {
   // Backward compat: my_card = first cartela
   const my_card = my_cartelas.length > 0 ? my_cartelas[0] : null;
 
-  // Build full map of cartela matrices for instant 0ms celebration rendering without network fetch!
+  // Build full map of cartela matrices and player details for spectator and celebration rendering
   const cartela_matrices: Record<number, number[][]> = {};
+  const cartela_players: Record<number, { first_name?: string; is_system?: boolean; is_waiter?: boolean }> = {};
   for (const r of rows || []) {
-    if (r.cartela_number && r.card_matrix) {
-      cartela_matrices[r.cartela_number] = r.card_matrix;
+    if (r.cartela_number) {
+      if (r.card_matrix) cartela_matrices[r.cartela_number] = r.card_matrix;
+      cartela_players[r.cartela_number] = {
+        first_name: r.first_name || undefined,
+        is_system: Boolean(r.is_system),
+        is_waiter: Boolean(r.is_waiter),
+      };
     }
   }
 
@@ -169,6 +175,7 @@ router.get('/current', validateTelegramAuth, async (req: AuthRequest, res) => {
     game,
     last_finished_game,
     cartela_matrices,
+    cartela_players,
     taken_cartelas,
     unique_players,
     my_card,

@@ -1,13 +1,15 @@
 /**
- * AgentLiveGameViewer — Dedicated Live Bingo Game Spectator / Monitor for Agents
- * Shows the exact live game board:
+ * AgentLiveGameViewer — 3D Advanced Live Bingo Game Spectator / Monitor for Agents
+ * Mirrors the exact 3D advanced user bingo experience:
  * 1. Top stats bar (ID, Prize Pool, Players, Called Numbers 1/75, LIVE badge)
- * 2. 1-75 Master Called Numbers Board (color-coded BINGO rows)
- * 3. Current Called Ball banner with Letter, Number, Amharic pronunciation & audio
- * 4. Active Cartelas in play (exact 5x5 grids with marked balls & star center)
- * 5. Quick Stake Switcher (10 ETB, 20 ETB, 50 ETB, 100 ETB)
+ * 2. 1-75 Master Called Numbers Board (3D gradient tiles, glowing pulse on latest)
+ * 3. 3D Calling Sphere Row (52px 3D Black Sphere with specular reflection, Amharic word, 5 mini 3D spheres)
+ * 4. Crisp Sound Calling (WebAudio + HTML5 Audio with 1-75 Amharic voices & celebration audio)
+ * 5. Cartelas in Play (3D cartela cards with B-I-N-G-O header, star center, live marked numbers & pattern detection)
+ * 6. Quick Stake Switcher (5 ETB, 10 ETB, 20 ETB, 35 ETB or custom room stakes with live indicators)
+ * 7. Full-screen Winner Celebration Modal with 3D Trophy, BINGO badge & winning 5x5 card
  */
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import WebApp from '@twa-dev/sdk';
 import {
   ArrowLeft,
@@ -17,7 +19,6 @@ import {
   Volume2,
   VolumeX,
   Share2,
-  Copy,
   Check,
   RefreshCw,
   Users,
@@ -25,6 +26,9 @@ import {
   Gamepad2,
   RotateCcw,
   X,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
 } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL || '/api';
@@ -164,9 +168,13 @@ export default function AgentLiveGameViewer({
   const [takenCartelas, setTakenCartelas] = useState<number[]>([]);
   const [uniquePlayers, setUniquePlayers] = useState<number>(0);
   const [cartelaMatrices, setCartelaMatrices] = useState<Record<number, number[][]>>({});
+  const [cartelaPlayers, setCartelaPlayers] = useState<Record<number, { first_name?: string; is_system?: boolean; is_waiter?: boolean }>>({});
   const [stakeStatuses, setStakeStatuses] = useState<Record<number, { status: string; players: number; pool: number }>>({});
 
-  // Default sound is ON (matching BingoGame.tsx and persisted to localStorage)
+  // Active view: 'all' to see 2-col grid, or specific cartela number for zoomed view
+  const [focusedCartela, setFocusedCartela] = useState<number | 'all'>('all');
+
+  // Sound toggle (persisted to localStorage)
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     try {
       return localStorage.getItem('bingo_sound') !== 'false';
@@ -435,7 +443,7 @@ export default function AgentLiveGameViewer({
       if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
       celebrationTimerRef.current = setTimeout(() => {
         setCelebration(null);
-      }, 8000);
+      }, 10000);
     },
     [playSpecial]
   );
@@ -461,6 +469,9 @@ export default function AgentLiveGameViewer({
           setTakenCartelas(Array.isArray(data.taken_cartelas) ? data.taken_cartelas : []);
           const matrices: Record<number, number[][]> = data.cartela_matrices || {};
           setCartelaMatrices(matrices);
+          if (data.cartela_players) {
+            setCartelaPlayers(data.cartela_players);
+          }
 
           // Update live statuses across all stakes in this room
           if (Array.isArray(data.room_stakes)) {
@@ -591,7 +602,6 @@ export default function AgentLiveGameViewer({
     return () => clearInterval(t);
   }, [game]);
 
-  // Min 2 players required to start any game
   const playerCount = Math.max(
     uniquePlayers,
     game?.total_players || 0,
@@ -599,10 +609,7 @@ export default function AgentLiveGameViewer({
   );
   const hasMinPlayers = playerCount >= 2;
 
-  // ── Start Audio Trigger (game_start.mp3) ───────────────────────────────────
-  // Plays ONLY when the game ACTUALLY starts:
-  // 1. Min players fulfilled (>= 2 players) AND countdown hits 0s, OR
-  // 2. Game actively transitions to 'calling' before balls are called
+  // Start Audio Trigger (game_start.mp3)
   useEffect(() => {
     if (!game) return;
     if (!soundEnabled) return;
@@ -612,7 +619,6 @@ export default function AgentLiveGameViewer({
 
     const calledCount = (game.called_numbers || []).length;
 
-    // Must have at least 2 players to start! Never play when waiting for 2nd player!
     const isCountingDownToZero =
       hasMinPlayers &&
       game.status === 'waiting' &&
@@ -647,82 +653,184 @@ export default function AgentLiveGameViewer({
 
   const called = game?.called_numbers || [];
   const lastNum = called.length > 0 ? called[called.length - 1] : null;
-  const recentCalls = [...called].reverse().slice(0, 4);
+  const recentCalls = [...called].reverse().slice(0, 6);
 
   // Active cartelas to render
-  const activeCartelaList = Object.entries(cartelaMatrices).map(([num, matrix]) => ({
-    cartela_number: Number(num),
-    card_matrix: matrix,
-  }));
+  const activeCartelaList = useMemo(() => {
+    return Object.entries(cartelaMatrices).map(([numStr, matrix]) => {
+      const num = Number(numStr);
+      return {
+        cartela_number: num,
+        card_matrix: matrix,
+        player: cartelaPlayers[num] || null,
+      };
+    });
+  }, [cartelaMatrices, cartelaPlayers]);
 
   const formatGameId = (id: string) => {
     if (!id) return '';
     return id.replace(/-/g, '').slice(0, 8).toUpperCase();
   };
 
+  // Render a single 3D Cartela Card matching the user's bingo page
+  const renderCartelaCard = (card: { cartela_number: number; card_matrix: number[][]; player?: { first_name?: string; is_system?: boolean; is_waiter?: boolean } | null }, isSingle = false) => {
+    const winCells = getWinningCells(card.card_matrix, called);
+    const winTitle = getWinningPatternTitle(card.card_matrix, called);
+    const hasPattern = winCells.size > 0;
+
+    return (
+      <div className="rounded-2xl overflow-hidden border-2 border-amber-300 shadow-md bg-white transition-all">
+        {/* Colorful B-I-N-G-O Header */}
+        <div className="grid grid-cols-5">
+          {BINGO_LETTERS.map((l) => (
+            <div
+              key={l}
+              className={`flex items-center justify-center font-black text-white ${
+                isSingle ? 'py-1.5 text-xs' : 'py-1 text-[10px]'
+              }`}
+              style={{ background: LETTER_BG[l] }}
+            >
+              {l}
+            </div>
+          ))}
+        </div>
+
+        {/* 5x5 Number Grid */}
+        <div className="grid grid-cols-5 gap-[2px] p-[2px] bg-amber-50/60">
+          {Array.from({ length: 5 }).flatMap((_, r) =>
+            Array.from({ length: 5 }, (_, c) => {
+              const num = card.card_matrix[r]?.[c] ?? 0;
+              const isFree = num === 0 || (r === 2 && c === 2);
+              const isCalled = called.includes(num);
+              const marked = isFree || isCalled;
+              const isWinCell = winCells.has(`${r}-${c}`);
+              const isLast = num === lastNum;
+
+              return (
+                <div
+                  key={`${r}-${c}`}
+                  className={`aspect-square flex items-center justify-center font-black rounded transition-all select-none ${
+                    isSingle ? 'text-xs' : 'text-[10px]'
+                  } ${
+                    isFree
+                      ? 'bg-amber-400 text-amber-950 font-black shadow-xs'
+                      : isWinCell
+                      ? 'bg-emerald-500 text-white font-black shadow-md ring-2 ring-amber-300 scale-105 z-10 animate-pulse'
+                      : isLast
+                      ? 'bg-gradient-to-b from-yellow-300 via-amber-400 to-yellow-500 text-amber-950 font-black shadow-md ring-2 ring-orange-500 scale-105 z-10'
+                      : marked
+                      ? 'bg-gradient-to-b from-amber-400 via-orange-500 to-amber-600 text-white font-black shadow-[0_1px_2px_rgba(234,88,12,0.4),inset_0_0.5px_0.5px_rgba(255,255,255,0.8)]'
+                      : 'bg-white text-slate-800 border border-slate-100 shadow-2xs'
+                  }`}
+                >
+                  {isFree ? '★' : num}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Footer: Cartela Number + Player Name + Pattern Status */}
+        <div className="py-1 px-2 flex items-center justify-between bg-white border-t border-amber-200 text-[9px] font-black">
+          <div className="flex items-center gap-1 text-amber-800 uppercase truncate">
+            <LayoutGrid size={10} className="text-amber-500 shrink-0" />
+            <span>#{card.cartela_number}</span>
+            {card.player?.first_name && (
+              <span className="text-slate-500 font-bold truncate max-w-[80px]">
+                • {card.player.first_name}
+              </span>
+            )}
+          </div>
+          {hasPattern ? (
+            <span className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+              {winTitle}
+            </span>
+          ) : (
+            <span className="text-slate-400">
+              {card.player?.is_waiter ? 'WAITER' : card.player?.is_system ? 'BOT' : 'IN PLAY'}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="fixed inset-0 z-[250] bg-slate-50 flex flex-col overflow-hidden select-none animate-in slide-in-from-bottom duration-300">
-      {/* ── Top Bar Header ── */}
-      <div className="bg-white/95 backdrop-blur-md border-b border-amber-200/80 px-4 py-2.5 flex items-center justify-between shrink-0 shadow-2xs">
-        <div className="flex items-center space-x-2.5">
+    <div className="fixed inset-0 z-[250] bg-slate-50 flex flex-col overflow-hidden select-none animate-in slide-in-from-bottom duration-300 font-sans">
+      {/* ── Top Bar Header (Matches User's Bingo Header) ── */}
+      <div className="bg-white/95 backdrop-blur-md border-b border-amber-200/80 px-3 py-2 flex items-center justify-between shrink-0 shadow-2xs">
+        <div className="flex items-center space-x-2">
           <button
             type="button"
             onClick={() => {
               haptic('light');
               onClose();
             }}
-            className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700 active:scale-95 transition-all"
+            className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700 active:scale-95 transition-all cursor-pointer"
             title="Back to Agent Panel"
           >
             <ArrowLeft size={16} />
           </button>
           <div>
             <div className="flex items-center space-x-1.5">
-              <h2 className="font-black text-sm text-slate-900 tracking-tight">
-                {roomName || "Agent's Room"}
+              <h2 className="font-black text-sm text-slate-900 tracking-tight truncate max-w-[150px]">
+                {roomName || "Agent Room"}
               </h2>
               <span className="flex items-center space-x-1 bg-emerald-100 text-emerald-800 text-[9px] font-black px-2 py-0.5 rounded-full border border-emerald-300">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Live Monitor</span>
+                <span>Spectator 3D</span>
               </span>
             </div>
             <p className="text-[10px] text-slate-400 font-bold">
-              Real-time Spectator • {selectedStake} ETB Table
+              Live Monitor • {selectedStake} ETB Table
             </p>
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
-          {/* Sound Toggle */}
+        <div className="flex items-center space-x-1.5">
+          {/* 3D Sound Toggle Button */}
           <button
             type="button"
             onClick={toggleSound}
-            className={`w-8 h-8 rounded-xl flex items-center justify-center border transition-all active:scale-95 ${
+            className={`h-7 px-2.5 rounded-xl border flex items-center justify-center gap-1 active:scale-90 transition-all cursor-pointer ${
               soundEnabled
-                ? 'bg-amber-100 border-amber-300 text-amber-700 shadow-2xs'
-                : 'bg-slate-100 border-slate-200 text-slate-400'
+                ? 'bg-gradient-to-b from-blue-400 via-blue-500 to-blue-600 text-white border-blue-300 shadow-[0_2px_4px_rgba(37,99,235,0.35),inset_0_1px_0_rgba(255,255,255,0.8)]'
+                : 'bg-gradient-to-b from-slate-100 to-slate-200 text-slate-400 border-slate-300 shadow-[inset_0_1px_1px_rgba(0,0,0,0.1)]'
             }`}
-            title={soundEnabled ? 'Mute Audio' : 'Unmute Audio'}
+            title={soundEnabled ? 'Mute audio' : 'Unmute audio'}
           >
-            {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+            {soundEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
           </button>
 
-          {/* Share Room Button */}
+          {/* Share Button */}
           <button
             type="button"
             onClick={handleShare}
-            className="w-8 h-8 rounded-xl bg-orange-50 border border-orange-200 text-orange-600 flex items-center justify-center active:scale-95 transition-all"
-            title="Copy Game Invite Link"
+            className="w-7 h-7 rounded-xl bg-orange-50 border border-orange-200 text-orange-600 flex items-center justify-center active:scale-95 transition-all"
+            title="Share Room Link"
           >
-            {copiedLink ? <Check size={14} className="text-emerald-600" /> : <Share2 size={14} />}
+            {copiedLink ? <Check size={13} className="text-emerald-600" /> : <Share2 size={13} />}
+          </button>
+
+          {/* Close X Button */}
+          <button
+            type="button"
+            onClick={() => {
+              haptic('light');
+              onClose();
+            }}
+            className="w-7 h-7 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center active:scale-95 transition-all hover:bg-slate-200"
+            title="Close"
+          >
+            <X size={14} />
           </button>
         </div>
       </div>
 
-      {/* ── Quick Stake Preset Switcher Bar ── */}
-      <div className="bg-amber-50/70 border-b border-amber-200/60 px-3 py-1.5 flex items-center justify-between gap-1.5 shrink-0">
-        <span className="text-[10px] font-black text-amber-900/80 uppercase tracking-wider pl-1 shrink-0">
-          Stakes:
+      {/* ── Quick Stake Switcher Bar (5, 10, 20, 35 ETB) ── */}
+      <div className="bg-gradient-to-r from-amber-50 via-white to-amber-50 border-b border-amber-200/60 px-2.5 py-1.5 flex items-center justify-between gap-1 shrink-0">
+        <span className="text-[9px] font-black text-amber-900/80 uppercase tracking-wider pl-1 shrink-0">
+          STAKES:
         </span>
         <div className="flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
           {effectiveStakes.map((stk) => {
@@ -742,6 +850,7 @@ export default function AgentLiveGameViewer({
                     setGame(null);
                     setTakenCartelas([]);
                     setCartelaMatrices({});
+                    setFocusedCartela('all');
                     introPlayedRef.current = null;
                   }
                 }}
@@ -751,18 +860,16 @@ export default function AgentLiveGameViewer({
                     : isCalling
                     ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-500/30 border border-emerald-400'
                     : hasWaitingPlayers
-                    ? 'bg-emerald-50 text-emerald-800 border-2 border-emerald-400 shadow-2xs'
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-400 shadow-2xs'
                     : 'bg-white text-slate-600 border border-slate-200/90 hover:bg-slate-50'
                 }`}
               >
-                {/* Pulsing dot for live calling game */}
                 {!isActive && isCalling && (
                   <span className="relative flex h-2 w-2 shrink-0">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
                   </span>
                 )}
-
                 <span>{stk} ETB</span>
               </button>
             );
@@ -770,14 +877,303 @@ export default function AgentLiveGameViewer({
         </div>
       </div>
 
-      {/* ── Full-Screen Celebration Overlay ── */}
+      {/* ── Main Spectator Content Container ── */}
+      <div className="flex-1 flex flex-col overflow-y-auto px-2 py-1.5 space-y-1.5" style={{ scrollbarWidth: 'none' }}>
+        {loading && !game ? (
+          <div className="flex flex-col items-center justify-center py-24 space-y-3">
+            <RefreshCw size={28} className="animate-spin text-amber-500" />
+            <p className="text-xs font-black text-slate-500">Connecting to {selectedStake} ETB table...</p>
+          </div>
+        ) : (
+          <>
+            {/* ── Top Game Stats Bar (3D Card) ── */}
+            <div className="shrink-0 flex items-center justify-between bg-white px-3 py-1.5 rounded-2xl border-2 border-amber-300/80 shadow-[0_2px_6px_rgba(180,83,9,0.08)]">
+              <div className="text-slate-700 text-[10px] font-black tracking-wide">
+                ID: {game ? formatGameId(game.id) : '----'}
+              </div>
+              <div className="flex items-center gap-1 text-amber-700 text-[10px] font-black">
+                <Trophy size={11} className="text-amber-500" />
+                <span>{game?.prize_pool ?? (selectedStake * takenCartelas.length)} ETB</span>
+              </div>
+              <div className="flex items-center gap-1 text-blue-700 text-[10px] font-black">
+                <LayoutGrid size={11} className="text-blue-500" />
+                <span>{takenCartelas.length} Cards</span>
+              </div>
+              <div className="flex items-center gap-1 text-emerald-700 text-[10px] font-black">
+                <Clock size={11} className="text-emerald-500" />
+                <span>{called.length}/75</span>
+              </div>
+              <div>
+                {game?.status === 'calling' ? (
+                  <span className="text-[8.5px] bg-red-500 text-white px-2 py-0.5 rounded-full font-black animate-pulse shadow-xs">
+                    LIVE
+                  </span>
+                ) : game?.status === 'waiting' ? (
+                  <span className="text-[8.5px] bg-amber-400 text-amber-950 px-2 py-0.5 rounded-full font-black shadow-xs">
+                    {countdown !== null && countdown > 0 ? `${countdown}s` : 'WAITING'}
+                  </span>
+                ) : (
+                  <span className="text-[8.5px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-black">
+                    FINISHED
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* ── 1-75 Master Tracker Board (Exact 3D Grid from BingoGame.tsx) ── */}
+            <div className="shrink-0 bg-white/95 rounded-2xl border-2 border-amber-300/80 shadow-[0_2px_8px_rgba(180,83,9,0.08)] px-2 py-1.5 w-full max-w-[420px] mx-auto">
+              <div className="flex flex-col gap-[2px]">
+                {BINGO_LETTERS.map((letter, rowIdx) => (
+                  <div key={letter} className="flex items-center gap-1">
+                    {/* BINGO Letter Header Pill */}
+                    <div
+                      className="w-4 h-[15.5px] rounded-[3px] flex items-center justify-center font-black text-[9px] text-white shrink-0 shadow-2xs"
+                      style={{ background: LETTER_BG[letter] }}
+                    >
+                      {letter}
+                    </div>
+
+                    {/* 15 Numbers in this Row */}
+                    <div
+                      className="flex-1 grid gap-[2px]"
+                      style={{ gridTemplateColumns: 'repeat(15, minmax(0, 1fr))' }}
+                    >
+                      {Array.from({ length: 15 }, (_, i) => {
+                        const num = rowIdx * 15 + i + 1;
+                        const isCalled = called.includes(num);
+                        const isLatest = lastNum === num;
+
+                        return (
+                          <div
+                            key={num}
+                            className={`h-[15.5px] rounded-[2px] flex items-center justify-center text-[8px] font-black transition-all select-none ${
+                              isLatest
+                                ? 'bg-gradient-to-b from-yellow-300 via-amber-400 to-yellow-500 text-amber-950 font-black shadow-[0_0_8px_rgba(245,158,11,0.9),0_1.5px_2px_rgba(0,0,0,0.2),inset_0_1px_1px_rgba(255,255,255,0.95)] border border-amber-200 ring-2 ring-orange-500 animate-pulse scale-110 z-20'
+                                : isCalled
+                                ? 'bg-gradient-to-b from-amber-400 via-orange-500 to-amber-600 text-white font-black shadow-[0_1px_2px_rgba(234,88,12,0.4),inset_0_0.5px_0.5px_rgba(255,255,255,0.8),inset_0_-0.5px_0.5px_rgba(180,83,9,0.4)] border border-amber-300'
+                                : 'bg-gradient-to-b from-white via-[#fafbfe] to-[#ebeff8] text-slate-500 font-bold border border-slate-200/80 shadow-[0_0.5px_1px_rgba(0,0,0,0.05),inset_0_0.5px_0_rgba(255,255,255,0.95)]'
+                            }`}
+                          >
+                            {num}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ── 3D Calling Sphere Row (Exact Match from BingoGame.tsx) ── */}
+            <div className="shrink-0 bg-gradient-to-b from-white via-amber-50/20 to-white rounded-2xl border-2 border-amber-300/80 shadow-[0_3px_10px_rgba(180,83,9,0.1),inset_0_1px_0_rgba(255,255,255,0.9)] px-2.5 py-1.5 w-full max-w-[420px] mx-auto">
+              <div className="flex items-center justify-between gap-2">
+                {/* LEFT: 52px 3D Black Calling Sphere with Specular Reflection Arc */}
+                <div
+                  className="rounded-full flex flex-col items-center justify-center font-black relative overflow-hidden shrink-0 border-2 border-slate-700/80 shadow-[0_5px_14px_rgba(0,0,0,0.7),inset_0_2.5px_4px_rgba(255,255,255,0.5),inset_0_-3.5px_6px_rgba(0,0,0,0.95)]"
+                  style={{
+                    width: '52px',
+                    height: '52px',
+                    minWidth: '52px',
+                    minHeight: '52px',
+                    background: 'radial-gradient(circle at 30% 25%, #64748b 0%, #1e293b 25%, #0f172a 55%, #020617 85%, #000000 100%)',
+                  }}
+                >
+                  <div
+                    className="absolute top-1 left-2 w-4 h-2.5 rounded-full pointer-events-none transform -rotate-25"
+                    style={{ background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0) 80%)' }}
+                  />
+                  <span className="text-[8.5px] leading-none font-black text-amber-300 drop-shadow-[0_1px_1px_rgba(0,0,0,1)] tracking-widest uppercase">
+                    {lastNum ? getLetter(lastNum) : 'BINGO'}
+                  </span>
+                  <span className="text-white text-xl leading-none font-black drop-shadow-[0_2px_4px_rgba(0,0,0,1)] tracking-tight">
+                    {lastNum ?? '?'}
+                  </span>
+                </div>
+
+                {/* MIDDLE: Amharic Word ABOVE + Up to 5 Mini 3D Black Spheres BELOW */}
+                <div className="flex-1 min-w-0 flex flex-col justify-center items-start gap-1">
+                  <div className="w-full">
+                    <span className="text-amber-950 font-black text-xs sm:text-sm tracking-wide drop-shadow-[0_0.5px_0_rgba(255,255,255,0.9)] truncate block leading-tight">
+                      {lastNum ? (AMHARIC_NUM[lastNum] || '') : (
+                        game?.status === 'waiting'
+                          ? (countdown !== null && countdown > 0 ? `Game starting in ${countdown}s...` : 'Waiting for players...')
+                          : 'Waiting for calls...'
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    {recentCalls.slice(1, 6).map((num, idx) => (
+                      <div
+                        key={`${num}-${idx}`}
+                        className="rounded-full flex flex-col items-center justify-center font-black relative overflow-hidden shrink-0 border border-slate-700/80 shadow-[0_2px_5px_rgba(0,0,0,0.55),inset_0_1px_1.5px_rgba(255,255,255,0.4)]"
+                        style={{
+                          width: '25px',
+                          height: '25px',
+                          minWidth: '25px',
+                          minHeight: '25px',
+                          background: 'radial-gradient(circle at 30% 25%, #64748b 0%, #1e293b 30%, #0f172a 70%, #000000 100%)',
+                        }}
+                      >
+                        <div
+                          className="absolute top-0.5 left-0.5 w-1.5 h-1 rounded-full pointer-events-none transform -rotate-20"
+                          style={{ background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.65) 0%, rgba(255,255,255,0) 80%)' }}
+                        />
+                        <span className="text-[5.5px] leading-none font-black text-amber-300 drop-shadow-[0_0.5px_0.5px_rgba(0,0,0,1)]">
+                          {getLetter(num)}
+                        </span>
+                        <span className="text-white text-[10px] leading-none font-black drop-shadow-[0_1px_1px_rgba(0,0,0,1)]">
+                          {num}
+                        </span>
+                      </div>
+                    ))}
+                    {recentCalls.length <= 1 && (
+                      <span className="text-slate-400 text-[10px] font-semibold italic">Waiting for calls...</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* RIGHT: Live Indicator Badge */}
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <div className="bg-amber-100 text-amber-900 px-2 py-0.5 rounded-lg border border-amber-300 text-[9px] font-black uppercase flex items-center gap-1">
+                    <Sparkles size={10} className="text-amber-600" />
+                    <span>AUDIO ON</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Cartela Selector & View Switcher Bar ── */}
+            <div className="shrink-0 flex items-center justify-between px-1 pt-1">
+              <div className="flex items-center gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptic('light');
+                    setFocusedCartela('all');
+                  }}
+                  className={`px-2.5 py-1 rounded-xl text-[10px] font-black transition-all active:scale-95 ${
+                    focusedCartela === 'all'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-white text-slate-600 border border-slate-200'
+                  }`}
+                >
+                  All ({activeCartelaList.length})
+                </button>
+                {activeCartelaList.map((card) => {
+                  const isFocused = focusedCartela === card.cartela_number;
+                  return (
+                    <button
+                      key={card.cartela_number}
+                      type="button"
+                      onClick={() => {
+                        haptic('light');
+                        setFocusedCartela(card.cartela_number);
+                      }}
+                      className={`px-2 py-1 rounded-xl text-[10px] font-black transition-all active:scale-95 shrink-0 ${
+                        isFocused
+                          ? 'bg-amber-500 text-white shadow-xs'
+                          : 'bg-white text-slate-600 border border-slate-200'
+                      }`}
+                    >
+                      #{card.cartela_number}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <span className="text-[9px] font-black text-amber-900 uppercase bg-amber-100 px-2 py-0.5 rounded-md border border-amber-300 shrink-0 ml-1">
+                CARTELAS
+              </span>
+            </div>
+
+            {/* ── Active Cartelas Section (3D Grid) ── */}
+            <div className="flex-1 min-h-0 overflow-y-auto px-0.5 pb-2" style={{ scrollbarWidth: 'none' }}>
+              {activeCartelaList.length === 0 ? (
+                /* Empty / Waiting Preview Card */
+                <div className="w-full max-w-[280px] mx-auto relative mt-2 pointer-events-none">
+                  <div className="rounded-2xl overflow-hidden border-2 border-amber-300 bg-white shadow-md">
+                    <div className="grid grid-cols-5">
+                      {BINGO_LETTERS.map((l) => (
+                        <div
+                          key={l}
+                          className="flex items-center justify-center py-1 font-black text-white text-xs"
+                          style={{ background: LETTER_BG[l] }}
+                        >
+                          {l}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-5 gap-[2px] p-[2px] bg-amber-50/60">
+                      {Array.from({ length: 5 }).flatMap((_, r) =>
+                        Array.from({ length: 5 }, (_, c) => {
+                          const isFree = r === 2 && c === 2;
+                          const num = isFree ? '★' : c * 15 + r + (c % 2 === 0 ? 3 : 8);
+                          return (
+                            <div
+                              key={`${r}-${c}`}
+                              className={`aspect-square flex items-center justify-center font-black text-xs rounded ${
+                                isFree
+                                  ? 'bg-amber-400 text-amber-950'
+                                  : 'bg-white text-slate-800 shadow-2xs border border-slate-100'
+                              }`}
+                            >
+                              {num}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-xs z-10 p-3 text-center">
+                      <div className="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center mb-1.5 border border-amber-500/30">
+                        <Clock size={18} className="animate-pulse text-amber-400" />
+                      </div>
+                      <h3 className="text-amber-300 font-black text-sm uppercase tracking-wider mb-0.5">
+                        {game?.status === 'calling' ? 'Game Active' : 'Waiting for Players'}
+                      </h3>
+                      <p className="text-white text-[9px] font-bold uppercase tracking-wider">
+                        {countdown !== null && countdown > 0
+                          ? `Starting in ${countdown} seconds`
+                          : 'Cartelas will appear here when purchased'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : focusedCartela !== 'all' ? (
+                /* Focused Single Cartela (Large View) */
+                <div className="w-full max-w-[340px] mx-auto pt-1">
+                  {(() => {
+                    const card = activeCartelaList.find((c) => c.cartela_number === focusedCartela) || activeCartelaList[0];
+                    return renderCartelaCard(card, true);
+                  })()}
+                </div>
+              ) : (
+                /* All Cartelas in 2-Column Responsive Grid */
+                <div
+                  className={`grid gap-2 w-full max-w-[420px] mx-auto pt-1 ${
+                    activeCartelaList.length === 1 ? 'grid-cols-1 max-w-[280px]' : 'grid-cols-2'
+                  }`}
+                >
+                  {activeCartelaList.map((card) => (
+                    <div key={card.cartela_number} className="w-full">
+                      {renderCartelaCard(card, activeCartelaList.length === 1)}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── Full-Screen Winner Celebration Modal (Matches BingoGame.tsx) ── */}
       {celebration && (
         <div
-          className="absolute inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-sm overflow-y-auto"
+          className="fixed inset-0 z-[300] flex items-center justify-center p-3 bg-black/65 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200"
           onClick={() => setCelebration(null)}
         >
           <div
-            className="bg-white border-2 border-amber-300 rounded-3xl p-4 text-center max-w-sm w-full shadow-2xl flex flex-col items-center relative my-auto"
+            className="bg-white border-2 border-amber-300 rounded-3xl p-4 text-center max-w-sm w-full shadow-2xl flex flex-col items-center relative my-auto animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Dismiss button */}
@@ -790,7 +1186,7 @@ export default function AgentLiveGameViewer({
               <X size={16} className="text-slate-500" />
             </button>
 
-            {/* REMATCH */}
+            {/* REMATCH State */}
             {celebration.winner_name === 'REMATCH' ? (
               <>
                 <div className="mb-2 flex justify-center">
@@ -799,16 +1195,16 @@ export default function AgentLiveGameViewer({
                 <h2 className="text-3xl font-black text-orange-500 mb-2">REMATCH!</h2>
                 <div className="bg-amber-50/80 rounded-2xl p-3 mb-3 w-full border border-amber-200">
                   <p className="text-orange-600 font-black text-sm mb-1">
-                    Game ended with no single winner!
+                    Multiple players hit Bingo at the same time!
                   </p>
                   <p className="text-slate-600 text-xs font-semibold">
-                    Stakes have been refunded.
+                    Stakes have been refunded to all players.
                   </p>
                 </div>
               </>
             ) : (
               <>
-                {/* Trophy + BINGO! badge */}
+                {/* 3D Trophy + BINGO! Badge */}
                 <div className="flex flex-col items-center mb-3">
                   <div className="mb-1 flex justify-center">
                     <Trophy
@@ -821,10 +1217,10 @@ export default function AgentLiveGameViewer({
                   </div>
                 </div>
 
-                {/* Winner info card */}
+                {/* Winner Info Card */}
                 <div className="w-full bg-amber-50/80 rounded-2xl p-3 mb-3 border border-amber-200/80 shadow-2xs">
                   <p className="text-amber-800 text-[9px] uppercase tracking-widest mb-1 font-black">
-                    WINNER
+                    WINNER CLAIM
                   </p>
                   <p className="text-slate-900 font-black text-2xl leading-tight">
                     {celebration.winner_name}
@@ -839,7 +1235,7 @@ export default function AgentLiveGameViewer({
                   </div>
                 </div>
 
-                {/* Winner 5×5 cartela grid */}
+                {/* Winner 5x5 Cartela Grid */}
                 {celebration.winner_matrix ? (() => {
                   const winCells = getWinningCells(celebration.winner_matrix, celebration.called);
                   const winTitle = getWinningPatternTitle(celebration.winner_matrix, celebration.called);
@@ -847,7 +1243,7 @@ export default function AgentLiveGameViewer({
                     <div className="w-full rounded-2xl overflow-hidden border-2 border-amber-300 mb-3 shadow-md bg-white">
                       {/* B-I-N-G-O header */}
                       <div className="grid grid-cols-5">
-                        {BINGO_LETTERS.map(l => (
+                        {BINGO_LETTERS.map((l) => (
                           <div
                             key={l}
                             className="flex items-center justify-center py-1.5 font-black text-white text-sm"
@@ -862,7 +1258,7 @@ export default function AgentLiveGameViewer({
                         {Array.from({ length: 5 }).flatMap((_, r) =>
                           Array.from({ length: 5 }).map((_, c) => {
                             const num = celebration.winner_matrix![r][c];
-                            const isFree = num === 0;
+                            const isFree = num === 0 || (r === 2 && c === 2);
                             const isWin = winCells.has(`${r}-${c}`);
                             const isCalled = celebration.called?.map(Number).includes(Number(num));
                             return (
@@ -902,273 +1298,6 @@ export default function AgentLiveGameViewer({
           </div>
         </div>
       )}
-
-      {/* ── Scrollable Game Area ── */}
-      <div className="flex-1 overflow-y-auto px-2 pt-2 pb-6 space-y-2.5" style={{ scrollbarWidth: 'none' }}>
-        {loading && !game ? (
-          <div className="flex flex-col items-center justify-center py-24 space-y-3">
-            <RefreshCw size={28} className="animate-spin text-amber-500" />
-            <p className="text-xs font-black text-slate-500">Connecting to {selectedStake} ETB table...</p>
-          </div>
-        ) : (
-          <>
-            {/* ── Top Game Stats Bar (Exact Match from Screenshot 1) ── */}
-            <div className="flex items-center justify-between bg-white px-3 py-2 rounded-2xl border border-amber-200/90 shadow-2xs">
-              <div className="text-slate-700 text-[10px] font-black tracking-wide">
-                ID: {game ? formatGameId(game.id) : '----'}
-              </div>
-              <div className="flex items-center gap-1 text-amber-700 text-[10px] font-black">
-                <Trophy size={11} className="text-amber-500" />
-                <span>{game?.prize_pool ?? 0} ETB</span>
-              </div>
-              <div className="flex items-center gap-1 text-blue-700 text-[10px] font-black">
-                <LayoutGrid size={11} className="text-blue-500" />
-                <span>{takenCartelas.length}</span>
-              </div>
-              <div className="flex items-center gap-1 text-emerald-700 text-[10px] font-black">
-                <Clock size={11} className="text-emerald-500" />
-                <span>{called.length}/75</span>
-              </div>
-              <div>
-                {game?.status === 'calling' ? (
-                  <span className="text-[9px] bg-red-500/10 text-red-600 px-2 py-0.5 rounded-full font-black animate-pulse border border-red-200">
-                    LIVE
-                  </span>
-                ) : game?.status === 'waiting' ? (
-                  <span className="text-[9px] bg-amber-500/10 text-amber-600 px-2 py-0.5 rounded-full font-black border border-amber-200">
-                    WAITING
-                  </span>
-                ) : (
-                  <span className="text-[9px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-black border border-slate-200">
-                    FINISHED
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* ── 1-75 Master Tracker Board (Exact Match from Screenshot 1) ── */}
-            <div className="bg-white rounded-2xl px-2 py-2 border-2 border-amber-200/90 shadow-sm">
-              <div className="flex flex-col gap-[3px]">
-                {BINGO_LETTERS.map((letter, rowIdx) => (
-                  <div key={letter} className="flex items-center gap-1.5">
-                    {/* BINGO Letter Header Pill */}
-                    <div
-                      className="w-4 shrink-0 flex items-center justify-center font-black text-[11px]"
-                      style={{ color: LETTER_COLOR[letter] }}
-                    >
-                      {letter}
-                    </div>
-
-                    {/* 15 Numbers in this Row */}
-                    <div
-                      className="flex-1 grid gap-[2px]"
-                      style={{ gridTemplateColumns: 'repeat(15, minmax(0, 1fr))' }}
-                    >
-                      {Array.from({ length: 15 }, (_, i) => {
-                        const num = rowIdx * 15 + i + 1;
-                        const isCalled = called.includes(num);
-                        const isLatest = lastNum === num;
-
-                        return (
-                          <div
-                            key={num}
-                            className={`h-[20px] rounded-[3px] flex items-center justify-center text-[8px] font-black transition-all ${
-                              isLatest
-                                ? 'bg-amber-400 text-amber-950 shadow-md ring-2 ring-orange-500 font-black scale-105 z-10'
-                                : isCalled
-                                ? 'bg-orange-500 text-white shadow-2xs'
-                                : 'bg-slate-100 text-slate-400'
-                            }`}
-                          >
-                            {num}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* ── Caller Row (Exact Match from Screenshot 1) ── */}
-            <div className="bg-white rounded-2xl border-2 border-amber-200/90 shadow-sm px-3.5 py-2.5 w-full max-w-[340px] mx-auto">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {recentCalls.length === 0 ? (
-                    <span className="text-amber-700 text-xs font-black animate-pulse py-2">
-                      {takenCartelas.length === 0
-                        ? 'Waiting for players...'
-                        : !hasMinPlayers
-                        ? (countdown !== null && countdown > 0
-                            ? `Waiting for 2nd player (${countdown}s)...`
-                            : 'Waiting for 2nd player...')
-                        : (countdown !== null && countdown > 0
-                            ? `Game starting in ${countdown}s...`
-                            : 'Game starting...')}
-                    </span>
-                  ) : (
-                    recentCalls.map((num, idx) => {
-                      const l = getLetter(num);
-                      const isFirst = idx === 0;
-                      if (isFirst) {
-                        return (
-                          <div key={`${num}-${idx}`} className="flex items-center gap-2.5">
-                            <div className="w-12 h-12 flex flex-col items-center justify-center rounded-full font-black border-2 border-amber-400 bg-amber-100/90 shadow-md animate-in zoom-in-90">
-                              <span
-                                style={{ color: LETTER_COLOR[l] }}
-                                className="text-[10px] leading-none font-black"
-                              >
-                                {l}
-                              </span>
-                              <span className="text-slate-900 text-xl leading-none font-black">
-                                {num}
-                              </span>
-                            </div>
-                            <span className="text-amber-800 font-black text-sm">
-                              {AMHARIC_NUM[num]}
-                            </span>
-                          </div>
-                        );
-                      }
-                      return (
-                        <div
-                          key={`${num}-${idx}`}
-                          className="w-7 h-7 flex flex-col items-center justify-center rounded-full border border-amber-200 bg-amber-50/70"
-                        >
-                          <span
-                            style={{ color: LETTER_COLOR[l] }}
-                            className="text-[7px] leading-none font-black"
-                          >
-                            {l}
-                          </span>
-                          <span className="text-slate-700 text-[10px] leading-none font-black">
-                            {num}
-                          </span>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={toggleSound}
-                    className={`w-9 h-9 rounded-xl border flex items-center justify-center active:scale-90 transition-all ${
-                      soundEnabled
-                        ? 'bg-amber-100 border-amber-400 text-amber-700 shadow-2xs'
-                        : 'bg-slate-100 border-slate-200 text-slate-400'
-                    }`}
-                  >
-                    {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* ── Active Cartelas Section (Exact Match from Screenshot 1) ── */}
-            <div className="w-full flex flex-col gap-1.5 pt-1">
-              <div className="flex items-center justify-between px-1">
-                <span className="text-amber-900 text-[11px] font-black tracking-wider uppercase">
-                  CARTELAS ({activeCartelaList.length})
-                </span>
-                <span className="text-emerald-700 text-[9px] font-black uppercase tracking-wider bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
-                  ALL ACTIVE
-                </span>
-              </div>
-
-              {activeCartelaList.length === 0 ? (
-                <div className="bg-white rounded-2xl p-6 border-2 border-dashed border-amber-200 text-center space-y-3">
-                  <div className="w-12 h-12 bg-amber-50 rounded-2xl mx-auto flex items-center justify-center text-amber-600">
-                    <Gamepad2 size={24} />
-                  </div>
-                  <div>
-                    <p className="text-xs font-black text-slate-800">
-                      No Cartelas Purchased Yet at {selectedStake} ETB
-                    </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
-                      Players will appear here as soon as they select their cartelas.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleShare}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black text-xs shadow-xs active:scale-95 transition-all"
-                  >
-                    <Share2 size={13} />
-                    <span>Invite Players to Room</span>
-                  </button>
-                </div>
-              ) : (
-                <div
-                  className={`grid gap-2.5 w-full ${
-                    activeCartelaList.length === 1
-                      ? 'grid-cols-1 max-w-[280px] mx-auto'
-                      : 'grid-cols-2'
-                  }`}
-                >
-                  {activeCartelaList.map((card) => (
-                    <div key={card.cartela_number} className="w-full">
-                      <div className="rounded-2xl overflow-hidden border-2 border-amber-300 shadow-md bg-white">
-                        {/* B-I-N-G-O Colorful Header */}
-                        <div className="grid grid-cols-5">
-                          {BINGO_LETTERS.map((l) => (
-                            <div
-                              key={l}
-                              className="flex items-center justify-center py-0.5 font-black text-white text-[10px]"
-                              style={{ background: LETTER_BG[l] }}
-                            >
-                              {l}
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* 5x5 Number Grid with Star in Center */}
-                        <div className="grid grid-cols-5 gap-[2px] p-[3px] bg-amber-50/60">
-                          {Array.from({ length: 5 }).flatMap((_, r) =>
-                            Array.from({ length: 5 }, (_, c) => {
-                              const num = card.card_matrix[r]?.[c] ?? 0;
-                              const isFree = num === 0;
-                              const isCalled = called.includes(num);
-                              const marked = isFree || isCalled;
-                              const isLast = num === lastNum;
-
-                              return (
-                                <div
-                                  key={`${r}-${c}`}
-                                  className={`aspect-square flex items-center justify-center font-black text-[11px] rounded transition-all select-none ${
-                                    isFree
-                                      ? 'bg-amber-400 text-amber-950 font-black'
-                                      : isLast
-                                      ? 'bg-orange-500 text-white shadow-md ring-2 ring-amber-300 scale-105 z-10'
-                                      : marked
-                                      ? 'bg-emerald-500 text-white'
-                                      : 'bg-white text-slate-800 border border-slate-100 shadow-2xs'
-                                  }`}
-                                >
-                                  {isFree ? '★' : num}
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-
-                        {/* Cartela Number Footer */}
-                        <div className="py-1 px-2 flex items-center justify-center bg-white border-t border-amber-200">
-                          <p className="text-amber-800 font-black text-[9px] tracking-wider uppercase flex items-center gap-1.5">
-                            <LayoutGrid size={11} className="text-amber-500 shrink-0" />
-                            <span>CARTELA {card.cartela_number}</span>
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
     </div>
   );
 }
