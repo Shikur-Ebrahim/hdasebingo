@@ -225,6 +225,23 @@ const handleProProofSubmit = async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ error: error || 'Unauthorized' });
     }
 
+    // 1. Check if there is already an unverified pending request for this room
+    const { data: existingPending } = await supabase
+      .from('pro_upgrade_requests')
+      .select('id, created_at, amount, status')
+      .eq('room_id', targetRoomId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingPending) {
+      return res.status(400).json({
+        error: 'You already have an upgrade receipt under review by management. Please wait until it is verified before submitting again.',
+        pending_request: existingPending,
+      });
+    }
+
     const transferAmount = Number(amount) || Number(room.system_players_monthly_price ?? 1000);
 
     const { data: request, error: insErr } = await supabase
@@ -247,6 +264,67 @@ const handleProProofSubmit = async (req: AuthRequest, res: Response) => {
 
     if (insErr) {
       return res.status(500).json({ error: insErr.message });
+    }
+
+    // 2. Send instant Telegram notification to Admins (just like agent withdrawals)
+    try {
+      const { data: admins } = await supabase
+        .from('users')
+        .select('telegram_id')
+        .eq('role', 'admin');
+
+      const botToken = process.env.BOT_TOKEN;
+      if (botToken && admins && admins.length > 0) {
+        const safeAgentName = (user.username ? `@${user.username}` : user.first_name || 'Agent').replace(/[_*[\]]/g, '\\$&');
+        const safeRoomName = (room.room_name || 'Room').replace(/[_*[\]]/g, '\\$&');
+        const safeBank = (bank_type || 'CBE').toUpperCase().replace(/[_*[\]]/g, '\\$&');
+        const safeAccName = (account_name || '').replace(/[_*[\]]/g, '\\$&');
+        const safeAccNum = (account_number || '').replace(/[_*[\]]/g, '\\$&');
+        const safeReqId = (request?.id || '').slice(0, 8).toUpperCase().replace(/[_*[\]]/g, '\\$&');
+
+        const caption =
+          `🤖 *New System Pro Upgrade Request!*\n\n` +
+          `👤 *Agent:* ${safeAgentName}\n` +
+          `🚪 *Room:* ${safeRoomName}\n` +
+          `💰 *Amount:* *${transferAmount.toLocaleString()} ETB*\n` +
+          `🏦 *Bank:* ${safeBank}\n` +
+          (safeAccNum ? `🔢 *Account:* \`${safeAccNum}\` (${safeAccName})\n` : '') +
+          `📋 *Ref:* \`${safeReqId}\`\n\n` +
+          `👉 Check *Admin Dashboard → System Pro Requests*`;
+
+        for (const a of admins) {
+          if (!a.telegram_id) continue;
+          let sent = false;
+          if (screenshot_url && screenshot_url.startsWith('http')) {
+            try {
+              const photoRes = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: a.telegram_id,
+                  photo: screenshot_url,
+                  caption,
+                  parse_mode: 'Markdown',
+                }),
+              });
+              if (photoRes.ok) sent = true;
+            } catch {}
+          }
+          if (!sent) {
+            await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: a.telegram_id,
+                text: caption,
+                parse_mode: 'Markdown',
+              }),
+            }).catch(() => {});
+          }
+        }
+      }
+    } catch (notifyErr) {
+      console.error('[SystemPlayers] Admin Telegram notification error:', notifyErr);
     }
 
     res.json({
@@ -586,6 +664,24 @@ router.get('/admin/requests', validateTelegramAuth, async (req: AuthRequest, res
     res.json(data || []);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ── ADMIN: GET /api/system-players/admin/pending-count ──────────────────────
+router.get('/admin/pending-count', validateTelegramAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { count, error } = await supabase
+      .from('pro_upgrade_requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending');
+
+    if (error && error.code !== 'PGRST205') {
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json({ pending: count || 0 });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message, pending: 0 });
   }
 });
 

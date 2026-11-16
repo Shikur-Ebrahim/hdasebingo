@@ -10,6 +10,7 @@ import AgentStakeConfigModal from '../components/AgentStakeConfigModal';
 import AgentSystemPlayerModal from '../components/AgentSystemPlayerModal';
 import VideoGuideButton from '../components/VideoGuideButton';
 import { syncManifestWithRoom } from '../lib/pwa';
+import { supabase } from '../lib/supabase';
 import {
   Bot,
   Users,
@@ -228,6 +229,15 @@ export default function Agent() {
   useEffect(() => {
     if (activeTab === 'pro' && room?.id) {
       fetchProStatus();
+      const ch = supabase
+        .channel(`pro-req-room-${room.id}-${Date.now()}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'pro_upgrade_requests', filter: `room_id=eq.${room.id}` }, () => {
+          fetchProStatus();
+        })
+        .subscribe();
+      return () => {
+        supabase.removeChannel(ch);
+      };
     }
   }, [activeTab, room?.id, fetchProStatus]);
 
@@ -261,6 +271,10 @@ export default function Agent() {
 
   const handleSubmitTransferProof = async () => {
     if (!room?.id) return;
+    if (proData?.pending_request && proData.pending_request.status === 'pending') {
+      setProError('You already have a transfer receipt under review by management. Please wait for verification.');
+      return;
+    }
     if (!proofScreenshot) {
       setProError('Please select a transfer screenshot or receipt');
       return;
@@ -2000,143 +2014,194 @@ export default function Agent() {
                 )}
               </div>
 
-              {/* Upload Proof Form (Mobile-first, NO native popup select!) */}
-              <div className="pt-2 border-t border-slate-100 space-y-3">
-                <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider block">
-                  Submit Receipt / Transfer Proof
-                </span>
-
-                {/* Mobile Bank Selector Button Group */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider block">
-                    Paying To Bank Account
-                  </label>
-                  {proData?.manager_accounts && proData.manager_accounts.length > 0 && (
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {proData.manager_accounts.map((acc: any) => {
-                        const isSelected = selectedManagerAccId === acc.id;
-                        return (
-                          <button
-                            key={acc.id}
-                            type="button"
-                            onClick={() => {
-                              triggerHaptic('light');
-                              setSelectedManagerAccId(acc.id);
-                            }}
-                            className={`py-2 px-1.5 rounded-xl text-center border transition-all flex flex-col items-center justify-center ${
-                              isSelected
-                                ? 'bg-amber-500 text-white border-amber-600 shadow-xs ring-2 ring-amber-300'
-                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            <span className="text-[11px] font-black uppercase tracking-wide">{acc.bank_type}</span>
-                            <span className={`text-[9px] truncate max-w-full font-bold ${isSelected ? 'text-amber-100' : 'text-slate-400'}`}>
-                              {acc.account_name}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Selected Account Info Bar */}
-                  {(() => {
-                    const activeAcc = proData?.manager_accounts?.find((a: any) => a.id === selectedManagerAccId) || proData?.manager_accounts?.[0];
-                    if (!activeAcc) return null;
-                    const isCopied = copiedAccount === activeAcc.account_number;
-                    return (
-                      <div className="p-2.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex items-center justify-between text-xs mt-1">
-                        <div className="space-y-0.5 min-w-0 pr-2">
-                          <span className="text-[9px] font-black uppercase tracking-wider text-amber-800 block truncate">
-                            Transfer to {activeAcc.bank_type?.toUpperCase()} ({activeAcc.account_name})
-                          </span>
-                          <p className="font-mono font-black text-slate-800 text-xs truncate">
-                            {activeAcc.account_number}
+              {/* If already has an unverified pending request, do not allow uploading again */}
+              {proData?.pending_request && proData.pending_request.status === 'pending' ? (
+                <div className="pt-2 border-t border-slate-100 space-y-3">
+                  <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-300/80 shadow-xs space-y-3 animate-in fade-in">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <Clock size={16} />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black text-amber-950">
+                            Upgrade Receipt Under Review
+                          </h4>
+                          <p className="text-[10px] text-amber-700 font-bold">
+                            Submitted on {new Date(proData.pending_request.created_at).toLocaleDateString()}
                           </p>
                         </div>
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-200 text-amber-900 flex items-center gap-1 shadow-2xs">
+                        <Clock size={10} /> Pending
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-white border border-amber-200/60 flex items-center justify-between text-xs font-bold text-slate-700">
+                      <span>Submitted Amount:</span>
+                      <span className="font-black text-amber-600 text-sm">{proData.pending_request.amount} ETB</span>
+                    </div>
+
+                    {proData.pending_request.screenshot_url && (
+                      <div className="space-y-1">
+                        <span className="text-[9px] font-black uppercase text-amber-800 tracking-wider">
+                          Uploaded Screenshot
+                        </span>
+                        <div className="relative rounded-xl overflow-hidden border border-amber-200 bg-white max-h-48 flex items-center justify-center p-1">
+                          <img
+                            src={proData.pending_request.screenshot_url}
+                            alt="Receipt Preview"
+                            className="max-h-44 object-contain rounded-lg"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="p-2.5 rounded-xl bg-amber-100/70 border border-amber-200 text-[10px] text-amber-900 font-bold flex items-start gap-2">
+                      <AlertCircle size={15} className="text-amber-600 shrink-0 mt-0.5" />
+                      <span>Management is currently verifying your bank transfer proof. You cannot upload a new receipt while this request is pending. Pro Level 1 will activate once approved.</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Upload Proof Form (Mobile-first, NO native popup select!) */
+                <div className="pt-2 border-t border-slate-100 space-y-3">
+                  <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider block">
+                    Submit Receipt / Transfer Proof
+                  </span>
+
+                  {/* Mobile Bank Selector Button Group */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider block">
+                      Paying To Bank Account
+                    </label>
+                    {proData?.manager_accounts && proData.manager_accounts.length > 0 && (
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {proData.manager_accounts.map((acc: any) => {
+                          const isSelected = selectedManagerAccId === acc.id;
+                          return (
+                            <button
+                              key={acc.id}
+                              type="button"
+                              onClick={() => {
+                                triggerHaptic('light');
+                                setSelectedManagerAccId(acc.id);
+                              }}
+                              className={`py-2 px-1.5 rounded-xl text-center border transition-all flex flex-col items-center justify-center ${
+                                isSelected
+                                  ? 'bg-amber-500 text-white border-amber-600 shadow-xs ring-2 ring-amber-300'
+                                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              <span className="text-[11px] font-black uppercase tracking-wide">{acc.bank_type}</span>
+                              <span className={`text-[9px] truncate max-w-full font-bold ${isSelected ? 'text-amber-100' : 'text-slate-400'}`}>
+                                {acc.account_name}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Selected Account Info Bar */}
+                    {(() => {
+                      const activeAcc = proData?.manager_accounts?.find((a: any) => a.id === selectedManagerAccId) || proData?.manager_accounts?.[0];
+                      if (!activeAcc) return null;
+                      const isCopied = copiedAccount === activeAcc.account_number;
+                      return (
+                        <div className="p-2.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex items-center justify-between text-xs mt-1">
+                          <div className="space-y-0.5 min-w-0 pr-2">
+                            <span className="text-[9px] font-black uppercase tracking-wider text-amber-800 block truncate">
+                              Transfer to {activeAcc.bank_type?.toUpperCase()} ({activeAcc.account_name})
+                            </span>
+                            <p className="font-mono font-black text-slate-800 text-xs truncate">
+                              {activeAcc.account_number}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(activeAcc.account_number);
+                              setCopiedAccount(activeAcc.account_number);
+                              triggerHaptic('light');
+                              setTimeout(() => setCopiedAccount(null), 2500);
+                            }}
+                            className="px-2.5 py-1 rounded-xl bg-white border border-amber-300 text-amber-800 text-[10px] font-black shrink-0 shadow-2xs hover:bg-amber-50 active:scale-95 transition"
+                          >
+                            {isCopied ? 'Copied!' : 'Copy'}
+                          </button>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 block mb-1">Amount (ETB)</label>
+                    <input
+                      type="number"
+                      value={transferAmount}
+                      onChange={(e) => setTransferAmount(e.target.value)}
+                      className="w-full text-xs font-black bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:border-amber-400"
+                      placeholder="1000"
+                    />
+                  </div>
+
+                  {/* File picker */}
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 block mb-1">Receipt Screenshot</label>
+                    {proofPreviewUrl ? (
+                      <div className="relative rounded-2xl overflow-hidden border border-slate-200 max-h-48 bg-slate-100 flex items-center justify-center">
+                        <img src={proofPreviewUrl} alt="Receipt preview" className="max-h-48 object-contain" />
                         <button
-                          type="button"
                           onClick={() => {
-                            navigator.clipboard.writeText(activeAcc.account_number);
-                            setCopiedAccount(activeAcc.account_number);
-                            triggerHaptic('light');
-                            setTimeout(() => setCopiedAccount(null), 2500);
+                            setProofScreenshot(null);
+                            setProofPreviewUrl(null);
                           }}
-                          className="px-2.5 py-1 rounded-xl bg-white border border-amber-300 text-amber-800 text-[10px] font-black shrink-0 shadow-2xs hover:bg-amber-50 active:scale-95 transition"
+                          className="absolute top-2 right-2 p-1 bg-black/60 text-white rounded-full hover:bg-black"
                         >
-                          {isCopied ? 'Copied!' : 'Copy'}
+                          <X size={14} />
                         </button>
                       </div>
-                    );
-                  })()}
-                </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-200 rounded-2xl hover:border-amber-400 cursor-pointer bg-slate-50/50 hover:bg-amber-50/20 transition">
+                        <UploadCloud size={20} className="text-slate-400 mb-1" />
+                        <span className="text-xs font-bold text-slate-600">Tap to upload receipt image</span>
+                        <span className="text-[9px] text-slate-400">JPG, PNG, WebP screenshot</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setProofScreenshot(file);
+                              setProofPreviewUrl(URL.createObjectURL(file));
+                            }
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
 
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1">Amount (ETB)</label>
-                  <input
-                    type="number"
-                    value={transferAmount}
-                    onChange={(e) => setTransferAmount(e.target.value)}
-                    className="w-full text-xs font-black bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:border-amber-400"
-                    placeholder="1000"
-                  />
+                  <button
+                    onClick={handleSubmitTransferProof}
+                    disabled={submittingProof || !proofScreenshot}
+                    className="w-full py-2.5 px-4 rounded-2xl bg-emerald-600 text-white font-black text-xs hover:bg-emerald-700 transition flex items-center justify-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed shadow-xs active:scale-[0.98]"
+                  >
+                    {submittingProof ? (
+                      <>
+                        <RefreshCw size={13} className="animate-spin" />
+                        <span>Uploading & Submitting Receipt...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send size={13} />
+                        <span>Submit Receipt for Approval</span>
+                      </>
+                    )}
+                  </button>
                 </div>
-
-                {/* File picker */}
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1">Receipt Screenshot</label>
-                  {proofPreviewUrl ? (
-                    <div className="relative rounded-2xl overflow-hidden border border-slate-200 max-h-48 bg-slate-100 flex items-center justify-center">
-                      <img src={proofPreviewUrl} alt="Receipt preview" className="max-h-48 object-contain" />
-                      <button
-                        onClick={() => {
-                          setProofScreenshot(null);
-                          setProofPreviewUrl(null);
-                        }}
-                        className="absolute top-2 right-2 p-1 bg-black/60 text-white rounded-full hover:bg-black"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-200 rounded-2xl hover:border-amber-400 cursor-pointer bg-slate-50/50 hover:bg-amber-50/20 transition">
-                      <UploadCloud size={20} className="text-slate-400 mb-1" />
-                      <span className="text-xs font-bold text-slate-600">Tap to upload receipt image</span>
-                      <span className="text-[9px] text-slate-400">JPG, PNG, WebP screenshot</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            setProofScreenshot(file);
-                            setProofPreviewUrl(URL.createObjectURL(file));
-                          }
-                        }}
-                      />
-                    </label>
-                  )}
-                </div>
-
-                <button
-                  onClick={handleSubmitTransferProof}
-                  disabled={submittingProof || !proofScreenshot}
-                  className="w-full py-2.5 px-4 rounded-2xl bg-emerald-600 text-white font-black text-xs hover:bg-emerald-700 transition flex items-center justify-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed shadow-xs active:scale-[0.98]"
-                >
-                  {submittingProof ? (
-                    <>
-                      <RefreshCw size={13} className="animate-spin" />
-                      <span>Uploading & Submitting Receipt...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Send size={13} />
-                      <span>Submit Receipt for Approval</span>
-                    </>
-                  )}
-                </button>
-              </div>
+              )}
             </div>
 
             {/* Quick Launcher Card */}

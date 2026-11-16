@@ -3,6 +3,7 @@ import { useGameStore } from '../store/gameStore';
 import { Users, UserCog, ArrowDownToLine, ArrowUpFromLine, Landmark, CreditCard, Gamepad2, Settings2, Radio, Building2, Video, Megaphone, BadgeDollarSign, Percent, ShieldCheck, QrCode, Sparkles, Coins, Bot } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
+import { supabase } from '../lib/supabase';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -12,6 +13,7 @@ export default function Admin() {
     pendingDeposits: 0, 
     pendingWithdrawals: 0, 
     pendingTransfers: 0,
+    pendingSystemPro: 0,
     unpostedProofDeposits: 0,
     unpostedProofWithdrawals: 0
   });
@@ -21,21 +23,51 @@ export default function Admin() {
     const fetchStats = async () => {
       try {
         const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
-        const res = await fetch(`${API_URL}/admin/stats`, {
-          headers: { 'x-telegram-init-data': initData }
-        });
-        if (res.ok) setStats(await res.json());
+        const pwaToken = typeof window !== 'undefined' ? (localStorage.getItem('hdase_pwa_token') || localStorage.getItem('pwa_token')) : null;
+        const headers: Record<string, string> = {};
+        if (initData) headers['x-telegram-init-data'] = initData;
+        if (pwaToken) {
+          headers['x-pwa-token'] = pwaToken;
+          headers['x-pwa-auth'] = pwaToken;
+          headers['Authorization'] = `Bearer ${pwaToken}`;
+        }
 
-        const agRes = await fetch(`${API_URL}/admin/agent-withdrawals/pending-count`, {
-          headers: { 'x-telegram-init-data': initData }
-        });
+        const res = await fetch(`${API_URL}/admin/stats`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          setStats(data);
+        }
+
+        const agRes = await fetch(`${API_URL}/admin/agent-withdrawals/pending-count`, { headers });
         if (agRes.ok) {
           const agData = await agRes.json();
           setPendingAgentWithdrawals(agData.pending || 0);
         }
       } catch (err) {}
     };
+
     fetchStats();
+
+    // Realtime subscription for live badge count updates
+    const channel = supabase
+      .channel(`admin-stats-realtime-${Date.now()}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pro_upgrade_requests' }, () => {
+        fetchStats();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'deposits' }, () => {
+        fetchStats();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawals' }, () => {
+        fetchStats();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_withdrawals' }, () => {
+        fetchStats();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   if (!user || (user.role !== 'admin' && user.role !== 'worker')) {
@@ -248,6 +280,11 @@ export default function Admin() {
                 </div>
                 <div className="flex items-center justify-center space-x-1.5">
                   <span className="font-bold text-sm text-slate-700 text-center">{mod.title}</span>
+                  {mod.id === 'system_pro' && (stats.pendingSystemPro ?? 0) > 0 && (
+                    <span className="bg-amber-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-md animate-pulse shadow-sm">
+                      {stats.pendingSystemPro}
+                    </span>
+                  )}
                   {mod.id === 'financial_audit' && stats.pendingTransfers > 0 && (
                     <span className="bg-rose-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-md animate-pulse shadow-sm">
                       {stats.pendingTransfers}

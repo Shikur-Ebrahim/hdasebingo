@@ -400,7 +400,7 @@ router.delete('/deposits/:id/reject', async (req, res) => {
 // Get admin stats (pending counts)
 router.get('/stats', async (req, res) => {
   try {
-    const [depRes, withRes, trRes, postedDepRow, postedWithRow, appDepsRes, appWithsRes] = await Promise.all([
+    const [depRes, withRes, trRes, postedDepRow, postedWithRow, appDepsRes, appWithsRes, proReqRes] = await Promise.all([
       supabase.from('deposits').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
       supabase.from('withdrawals').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
       supabase.from('worker_transfers').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
@@ -408,6 +408,7 @@ router.get('/stats', async (req, res) => {
       supabase.from('settings').select('value').eq('key', 'posted_withdraw_ids').single(),
       supabase.from('deposits').select('id').eq('status', 'approved').limit(100),
       supabase.from('withdrawals').select('id').eq('status', 'approved').limit(100),
+      supabase.from('pro_upgrade_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
     ]);
 
     let postedDepIds: string[] = [];
@@ -433,6 +434,7 @@ router.get('/stats', async (req, res) => {
       pendingDeposits: depRes.count || 0,
       pendingWithdrawals: withRes.count || 0,
       pendingTransfers: trRes.count || 0,
+      pendingSystemPro: proReqRes.count || 0,
       unpostedProofDeposits,
       unpostedProofWithdrawals,
     });
