@@ -73,6 +73,8 @@ interface AgentRoom {
   system_players_enabled?: boolean;
   system_players_pro_level?: number;
   system_players_pro_expires_at?: string | null;
+  system_players_risk_percent?: number;
+  system_players_monthly_price?: number;
   created_at: string;
 }
 
@@ -205,6 +207,8 @@ export default function Agent() {
     (room?.system_players_pro_level && (!room?.system_players_pro_expires_at || new Date(room.system_players_pro_expires_at).getTime() > Date.now()))
   );
 
+  const proPrice = Number(proData?.monthly_price ?? room?.system_players_monthly_price ?? 1000);
+
   const fetchProStatus = useCallback(async () => {
     if (!room?.id) return;
     try {
@@ -216,6 +220,9 @@ export default function Agent() {
       if (res.ok) {
         const data = await res.json();
         setProData(data);
+        if (data.monthly_price) {
+          setTransferAmount(String(data.monthly_price));
+        }
         if (data.manager_accounts && data.manager_accounts.length > 0 && !selectedManagerAccId) {
           setSelectedManagerAccId(data.manager_accounts[0].id);
         }
@@ -1865,7 +1872,7 @@ export default function Agent() {
                   ) : (
                     <div>
                       <span className="text-[9px] text-amber-200/80 font-bold block uppercase tracking-wider">Fee</span>
-                      <span className="text-sm font-black text-amber-300">1,000 ETB / month</span>
+                      <span className="text-sm font-black text-amber-300">{formatAmount(proPrice)} ETB / month</span>
                     </div>
                   )}
                 </div>
@@ -1893,7 +1900,7 @@ export default function Agent() {
                     <h4 className="text-xs font-black uppercase tracking-wide">Method 1: 1-Click Wallet Upgrade</h4>
                   </div>
                   <p className="text-[10px] text-slate-400">
-                    Pay 1,000 ETB directly from your Agent Wallet balance.
+                    Pay {formatAmount(proPrice)} ETB directly from your Agent Wallet balance.
                   </p>
                 </div>
                 <div className="text-right">
@@ -1906,9 +1913,9 @@ export default function Agent() {
 
               <button
                 onClick={handle1ClickUpgrade}
-                disabled={proUpgrading || (user?.main_balance || 0) < 1000}
+                disabled={proUpgrading || (user?.main_balance || 0) < proPrice}
                 className={`w-full py-2.5 px-4 rounded-2xl font-black text-xs transition flex items-center justify-center space-x-2 shadow-sm active:scale-[0.98] ${
-                  (user?.main_balance || 0) >= 1000
+                  (user?.main_balance || 0) >= proPrice
                     ? 'bg-gradient-to-r from-amber-500 via-amber-600 to-orange-500 text-white hover:opacity-95'
                     : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
                 }`}
@@ -1918,15 +1925,15 @@ export default function Agent() {
                     <RefreshCw size={14} className="animate-spin" />
                     <span>Processing Upgrade...</span>
                   </>
-                ) : (user?.main_balance || 0) >= 1000 ? (
+                ) : (user?.main_balance || 0) >= proPrice ? (
                   <>
                     <Zap size={14} className="fill-current" />
-                    <span>{isProActive ? 'Extend PRO Level 1 (1,000 ETB)' : '1-Click Upgrade Now (1,000 ETB)'}</span>
+                    <span>{isProActive ? `Extend PRO Level 1 (${formatAmount(proPrice)} ETB)` : `1-Click Upgrade Now (${formatAmount(proPrice)} ETB)`}</span>
                   </>
                 ) : (
                   <>
                     <AlertCircle size={14} />
-                    <span>Insufficient Wallet Balance (Need 1,000 ETB)</span>
+                    <span>Insufficient Wallet Balance (Need {formatAmount(proPrice)} ETB)</span>
                   </>
                 )}
               </button>
@@ -1940,7 +1947,7 @@ export default function Agent() {
                   <h4 className="text-xs font-black uppercase tracking-wide">Method 2: Bank Transfer & Verification</h4>
                 </div>
                 <p className="text-[10px] text-slate-400">
-                  Transfer 1,000 ETB to one of our official manager accounts and upload the receipt screenshot.
+                  Transfer {formatAmount(proPrice)} ETB to one of our official manager accounts and upload the receipt screenshot.
                 </p>
               </div>
 

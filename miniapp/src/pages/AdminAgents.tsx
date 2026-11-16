@@ -46,6 +46,10 @@ interface AgentRoom {
   promoter_id?: string | null;
   promoter_name?: string | null;
   promoter_telegram_id?: string | null;
+  system_players_risk_percent?: number;
+  system_players_monthly_price?: number;
+  system_players_enabled?: boolean;
+  system_players_pro_level?: number;
 }
 
 interface AgentUser {
@@ -76,6 +80,8 @@ export default function AdminAgents() {
   const [newCommissionRate, setNewCommissionRate] = useState<number>(7); // default 7%
   const [newIsPinned, setNewIsPinned] = useState(false); // default not pinned
   const [newIsPrivate, setNewIsPrivate] = useState(false); // default not private (public)
+  const [newRiskPercent, setNewRiskPercent] = useState<number>(25); // default 25%
+  const [newMonthlyPrice, setNewMonthlyPrice] = useState<number>(1000); // default 1000 ETB
   const [newPromoterId, setNewPromoterId] = useState(''); // promoter UUID (optional)
   const [assigning, setAssigning] = useState(false);
 
@@ -95,6 +101,8 @@ export default function AdminAgents() {
   const [editCommissionRate, setEditCommissionRate] = useState<number>(7);
   const [editIsPinned, setEditIsPinned] = useState(false);
   const [editIsPrivate, setEditIsPrivate] = useState(false);
+  const [editRiskPercent, setEditRiskPercent] = useState<number>(25);
+  const [editMonthlyPrice, setEditMonthlyPrice] = useState<number>(1000);
   const [editPromoterId, setEditPromoterId] = useState('');
   const [editRoomGames, setEditRoomGames] = useState('0');
   const [savingEdit, setSavingEdit] = useState(false);
@@ -154,6 +162,8 @@ export default function AdminAgents() {
         setNewCommissionRate(data.room?.commission_rate ?? 7);
         setNewIsPinned(Boolean(data.room?.is_pinned));
         setNewIsPrivate(Boolean(data.room?.is_private));
+        setNewRiskPercent(data.room?.system_players_risk_percent ?? 25);
+        setNewMonthlyPrice(data.room?.system_players_monthly_price ?? 1000);
         setNewPromoterId(data.room?.promoter_id || '');
       } else {
         const err = await res.json();
@@ -200,6 +210,8 @@ export default function AdminAgents() {
           commission_rate: Number(newCommissionRate) || 7,
           is_pinned: Boolean(newIsPinned),
           is_private: Boolean(newIsPrivate),
+          system_players_risk_percent: Number(newRiskPercent) >= 0 ? Number(newRiskPercent) : 25,
+          system_players_monthly_price: Number(newMonthlyPrice) >= 0 ? Number(newMonthlyPrice) : 1000,
           promoter_id: newPromoterId.trim() || null,
         })
       });
@@ -311,6 +323,8 @@ export default function AdminAgents() {
     setEditCommissionRate(room.commission_rate ?? 7);
     setEditIsPinned(Boolean(room.is_pinned));
     setEditIsPrivate(Boolean(room.is_private));
+    setEditRiskPercent(room.system_players_risk_percent !== undefined && room.system_players_risk_percent !== null ? Number(room.system_players_risk_percent) : 25);
+    setEditMonthlyPrice(room.system_players_monthly_price !== undefined && room.system_players_monthly_price !== null ? Number(room.system_players_monthly_price) : 1000);
     setEditPromoterId(room.promoter_id || '');
     setEditRoomGames(String(room.total_games || 0));
   };
@@ -329,6 +343,8 @@ export default function AdminAgents() {
           commission_rate: Number(editCommissionRate) || 7,
           is_pinned: Boolean(editIsPinned),
           is_private: Boolean(editIsPrivate),
+          system_players_risk_percent: Number(editRiskPercent) >= 0 ? Number(editRiskPercent) : 25,
+          system_players_monthly_price: Number(editMonthlyPrice) >= 0 ? Number(editMonthlyPrice) : 1000,
           promoter_id: editPromoterId.trim() || null,
           total_games: Number(editRoomGames) || 0,
         })
@@ -645,6 +661,75 @@ export default function AdminAgents() {
                     </div>
                   </div>
 
+                  {/* System Players (AI Bots) Settings Card */}
+                  <div className="bg-amber-50/60 p-3 rounded-2xl border border-amber-200/70 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-7 h-7 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">
+                          🤖
+                        </div>
+                        <div>
+                          <span className="text-xs font-black text-slate-800">System Player (AI Bots)</span>
+                          <p className="text-[9px] text-slate-400 font-medium">Risk percentage & monthly Pro fee</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* Risk % */}
+                      <div className="bg-white rounded-xl border border-amber-200/80 p-2 shadow-xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[9px] font-black text-slate-600 uppercase flex items-center space-x-1">
+                            <Percent size={10} className="text-amber-600" />
+                            <span>Risk Amount</span>
+                          </label>
+                          <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded-md">
+                            {newRiskPercent || 0}%
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={0.5}
+                            value={newRiskPercent}
+                            onChange={e => setNewRiskPercent(Math.max(0, Math.min(100, Number(e.target.value))))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs font-black text-slate-800 outline-none focus:border-amber-500"
+                            placeholder="25"
+                          />
+                          <span className="text-[10px] font-bold text-slate-400">%</span>
+                        </div>
+                        <p className="text-[8px] text-slate-400 font-medium">Default: 25%</p>
+                      </div>
+
+                      {/* Monthly Price */}
+                      <div className="bg-white rounded-xl border border-amber-200/80 p-2 shadow-xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[9px] font-black text-slate-600 uppercase flex items-center space-x-1">
+                            <DollarSign size={10} className="text-sky-600" />
+                            <span>Pro Monthly</span>
+                          </label>
+                          <span className="text-[9px] font-black text-sky-700 bg-sky-100 px-1.5 py-0.2 rounded-md">
+                            ETB
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <input
+                            type="number"
+                            min={0}
+                            step={50}
+                            value={newMonthlyPrice}
+                            onChange={e => setNewMonthlyPrice(Math.max(0, Number(e.target.value)))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs font-black text-slate-800 outline-none focus:border-sky-500"
+                            placeholder="1000"
+                          />
+                        </div>
+                        <p className="text-[8px] text-slate-400 font-medium">Default: 1,000 ETB</p>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Pin Room to Top Switch */}
                   <div className="flex items-center justify-between bg-amber-50/50 border border-amber-200/70 p-2.5 rounded-xl">
                     <div className="flex items-center space-x-2">
@@ -825,6 +910,12 @@ export default function AdminAgents() {
                         }`}>
                           {room.status}
                         </span>
+                        {room.system_players_enabled || (room.system_players_pro_level && room.system_players_pro_level > 0) ? (
+                          <span className="inline-flex items-center space-x-0.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-2xs">
+                            <span>🤖</span>
+                            <span>PRO</span>
+                          </span>
+                        ) : null}
                       </div>
                       <p className="text-[10px] text-slate-400 font-medium truncate">
                         Agent: <span className="font-bold text-slate-700">{room.agent_name || 'Agent'}</span> (TG: {room.agent_telegram_id || room.agent_id})
@@ -890,6 +981,34 @@ export default function AdminAgents() {
                     <div className="bg-white rounded-lg p-1 border border-slate-100">
                       <p className="text-slate-400 font-semibold uppercase text-[8px]">Games</p>
                       <p className="font-black text-violet-600">{room.total_games || 0}</p>
+                    </div>
+                  </div>
+
+                  {/* System Players (Bots) Risk & Monthly Pro Price */}
+                  <div className="grid grid-cols-2 gap-2 bg-gradient-to-r from-amber-50/70 to-orange-50/50 p-2 rounded-xl border border-amber-200/60 text-[10px]">
+                    <div className="bg-white rounded-lg p-1.5 border border-amber-100 flex items-center justify-between shadow-2xs">
+                      <div className="flex items-center space-x-1.5 min-w-0">
+                        <span className="text-xs shrink-0">🤖</span>
+                        <div className="min-w-0">
+                          <p className="text-slate-400 font-bold uppercase text-[8px] leading-tight truncate">Bot Risk Amount</p>
+                          <p className="font-black text-amber-700 leading-tight">
+                            {room.system_players_risk_percent ?? 25}%
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[8px] font-bold text-amber-600/80 bg-amber-50 px-1 py-0.5 rounded shrink-0">Default 25%</span>
+                    </div>
+                    <div className="bg-white rounded-lg p-1.5 border border-amber-100 flex items-center justify-between shadow-2xs">
+                      <div className="flex items-center space-x-1.5 min-w-0">
+                        <span className="text-xs shrink-0">⚡</span>
+                        <div className="min-w-0">
+                          <p className="text-slate-400 font-bold uppercase text-[8px] leading-tight truncate">Pro Monthly Price</p>
+                          <p className="font-black text-sky-700 leading-tight">
+                            {Number(room.system_players_monthly_price ?? 1000).toLocaleString('en-US')} ETB
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[8px] font-bold text-sky-600/80 bg-sky-50 px-1 py-0.5 rounded shrink-0">Default 1k</span>
                     </div>
                   </div>
 
@@ -993,6 +1112,75 @@ export default function AdminAgents() {
                     placeholder="7"
                   />
                   <span className="text-[11px] font-bold text-slate-400">% (Default: 7%)</span>
+                </div>
+              </div>
+
+              {/* System Players (AI Bots) Settings Card */}
+              <div className="bg-amber-50/60 p-3 rounded-2xl border border-amber-200/70 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-7 h-7 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">
+                      🤖
+                    </div>
+                    <div>
+                      <span className="text-xs font-black text-slate-800">System Player (AI Bots) Settings</span>
+                      <p className="text-[9px] text-slate-400 font-medium">Risk percentage & monthly Pro fee</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Risk % */}
+                  <div className="bg-white rounded-xl border border-amber-200/80 p-2 shadow-xs space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[9px] font-black text-slate-600 uppercase flex items-center space-x-1">
+                        <Percent size={10} className="text-amber-600" />
+                        <span>Risk Amount</span>
+                      </label>
+                      <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded-md">
+                        {editRiskPercent || 0}%
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={0.5}
+                            value={editRiskPercent}
+                            onChange={e => setEditRiskPercent(Math.max(0, Math.min(100, Number(e.target.value))))}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs font-black text-slate-800 outline-none focus:border-amber-500"
+                            placeholder="25"
+                          />
+                          <span className="text-[10px] font-bold text-slate-400">%</span>
+                        </div>
+                        <p className="text-[8px] text-slate-400 font-medium">Default: 25%</p>
+                      </div>
+
+                  {/* Monthly Price */}
+                  <div className="bg-white rounded-xl border border-amber-200/80 p-2 shadow-xs space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[9px] font-black text-slate-600 uppercase flex items-center space-x-1">
+                        <DollarSign size={10} className="text-sky-600" />
+                        <span>Pro Monthly</span>
+                      </label>
+                      <span className="text-[9px] font-black text-sky-700 bg-sky-100 px-1.5 py-0.2 rounded-md">
+                        ETB
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <input
+                        type="number"
+                        min={0}
+                        step={50}
+                        value={editMonthlyPrice}
+                        onChange={e => setEditMonthlyPrice(Math.max(0, Number(e.target.value)))}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs font-black text-slate-800 outline-none focus:border-sky-500"
+                        placeholder="1000"
+                      />
+                    </div>
+                    <p className="text-[8px] text-slate-400 font-medium">Default: 1,000 ETB</p>
+                  </div>
                 </div>
               </div>
 

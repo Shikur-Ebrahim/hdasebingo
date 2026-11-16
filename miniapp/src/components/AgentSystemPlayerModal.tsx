@@ -554,7 +554,7 @@ export default function AgentSystemPlayerModal({
               )}
             </div>
             <p className="text-[10px] text-slate-500 font-bold">
-              {roomName} • {isProActive ? `Active (${daysRemaining}d remaining)` : '1,000 ETB / month'}
+              {roomName} • {isProActive ? `Active (${daysRemaining}d remaining)` : `${monthlyPrice.toLocaleString('en-US')} ETB / month`}
             </p>
           </div>
         </div>
@@ -633,13 +633,13 @@ export default function AgentSystemPlayerModal({
                 <div className="flex-1">
                   <h4 className="text-xs font-black text-amber-900">Pro Level 1 Upgrade Required</h4>
                   <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
-                    To activate System Players for this room, upgrade to <b>Pro Level 1</b> (1,000 ETB/month).
+                    To activate System Players for this room, upgrade to <b>Pro Level 1</b> ({monthlyPrice.toLocaleString('en-US')} ETB/month).
                   </p>
                   <button
                     onClick={() => setActiveTab('upgrade')}
                     className="mt-2 px-3 py-1.5 rounded-xl bg-amber-500 text-white text-[11px] font-black shadow-xs hover:bg-amber-600 active:scale-95 transition-all"
                   >
-                    Upgrade Now (1,000 ETB) →
+                    Upgrade Now ({monthlyPrice.toLocaleString('en-US')} ETB) →
                   </button>
                 </div>
               </div>
@@ -1339,7 +1339,7 @@ export default function AgentSystemPlayerModal({
                   className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-xs uppercase tracking-wider shadow-md hover:from-amber-600 hover:to-orange-600 active:scale-95 transition-all flex items-center justify-center gap-2"
                 >
                   <Zap size={14} />
-                  <span>Upgrade to Pro Level 1 (1,000 ETB)</span>
+                  <span>Upgrade to Pro Level 1 ({monthlyPrice.toLocaleString('en-US')} ETB)</span>
                 </button>
               </div>
             ) : (
