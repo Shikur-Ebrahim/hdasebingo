@@ -23,7 +23,6 @@ const SETTING_FIELDS: SettingField[] = [
   { key: 'second_deposit_bonus_pct', label: '2nd Deposit Bonus', icon: <Gift size={16} />, type: 'number', unit: '%', color: 'text-blue-600', bg: 'bg-blue-50', defaultValue: 3 },
   { key: 'invitation_reward_pct', label: 'Invite Reward', icon: <Users size={16} />, type: 'number', unit: '%', color: 'text-violet-600', bg: 'bg-violet-50', defaultValue: 10 },
   { key: 'support_username', label: 'Support Team User', icon: <Headphones size={16} />, type: 'text', color: 'text-orange-600', bg: 'bg-orange-50', defaultValue: 'hdasebingo_admin' },
-  { key: 'support_phone_usa', label: 'USA Support Phone', icon: <Phone size={16} />, type: 'text', color: 'text-blue-700', bg: 'bg-blue-50', defaultValue: '+1 (984) 378-9510' },
   { key: 'support_phone_eth', label: 'Ethiopia Support Phone', icon: <Phone size={16} />, type: 'text', color: 'text-green-700', bg: 'bg-green-50', defaultValue: '+251996598686' },
   { key: 'channel_link', label: 'Official Group Link', icon: <Users size={16} />, type: 'text', color: 'text-indigo-600', bg: 'bg-indigo-50', defaultValue: 'https://t.me/HdasebingoG' },
   { key: 'announcement_message', label: 'Announcement Message', icon: <Megaphone size={16} />, type: 'textarea', color: 'text-fuchsia-600', bg: 'bg-fuchsia-50', defaultValue: '' },
@@ -151,7 +150,6 @@ export default function AdminSettings() {
   };
 
   // Read phone values from DB (falls back to hardcoded defaults)
-  const usaPhone = values['support_phone_usa'] || '+1 (984) 378-9510';
   let ethPhone = values['support_phone_eth'] || '+251996598686';
   if ((ethPhone.startsWith('09') || ethPhone.startsWith('07')) && ethPhone.length === 10) {
     ethPhone = '+251' + ethPhone.slice(1);
@@ -193,7 +191,7 @@ export default function AdminSettings() {
           </div>
         ) : (
           <>
-            {/* ── SUPPORT CONTACT NUMBERS (DIRECTLY EDITABLE) ─────────────── */}
+            {/* ── SUPPORT CONTACT NUMBER (ETHIOPIA) ─────────────── */}
             <div className="space-y-2">
               {/* Section label */}
               <div className="flex items-center space-x-2 px-0.5">
@@ -201,83 +199,27 @@ export default function AdminSettings() {
                   <PhoneCall size={13} className="text-emerald-600" />
                 </div>
                 <span className="text-[10.5px] font-black text-slate-500 uppercase tracking-widest">
-                  Support Contact Numbers
+                  Support Contact Phone (Ethiopia)
                 </span>
               </div>
 
-              {/* Two phone cards side-by-side with direct edit & save */}
-              <div className="grid grid-cols-2 gap-2.5">
+              {/* Ethiopia Card */}
+              <div className="relative bg-white rounded-2xl border border-green-100 shadow-sm overflow-hidden flex flex-col justify-between">
+                {/* Ethiopian flag stripe: green / yellow / red */}
+                <div className="h-[3px] w-full" style={{ background: 'linear-gradient(90deg, #078930 0%, #FCDD09 50%, #DA121A 100%)' }} />
 
-                {/* ── USA Card ────────────────────────────────────────────── */}
-                <div className="relative bg-white rounded-2xl border border-blue-100 shadow-sm overflow-hidden flex flex-col justify-between">
-                  {/* USA flag-colored top stripe */}
-                  <div className="h-[3px] w-full" style={{ background: 'linear-gradient(90deg, #002868 0%, #BF0A30 50%, #FFFFFF 100%)' }} />
-
-                  <div className="p-2.5 space-y-2">
-                    {/* Flag + label */}
-                    <div className="flex items-center space-x-1.5">
-                      <span className="text-xl leading-none" role="img" aria-label="USA">🇺🇸</span>
-                      <div>
-                        <p className="text-[9.5px] font-black text-slate-700 uppercase tracking-wide leading-none">United States</p>
-                        <p className="text-[8px] text-slate-400 leading-none mt-0.5">USA Support Line</p>
-                      </div>
-                    </div>
-
-                    {/* Editable Number Input */}
-                    <input
-                      type="text"
-                      value={values['support_phone_usa'] ?? '+1 (984) 378-9510'}
-                      onChange={(e) => setValues(prev => ({ ...prev, support_phone_usa: e.target.value }))}
-                      className="w-full text-center font-black text-[11px] text-emerald-700 bg-emerald-50/90 border border-emerald-200 focus:border-blue-500 focus:bg-white outline-none rounded-xl px-1.5 py-1.5 transition-all"
-                      placeholder="+1 (xxx) xxx-xxxx"
-                    />
-
-                    {/* Action buttons: Save & Call */}
-                    <div className="grid grid-cols-2 gap-1.5 pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => handleSave('support_phone_usa')}
-                        disabled={saving === 'support_phone_usa'}
-                        className="h-7 bg-slate-800 hover:bg-slate-900 active:scale-95 disabled:opacity-50 text-white rounded-lg flex items-center justify-center space-x-1 transition-all shadow-xs"
-                      >
-                        {saving === 'support_phone_usa' ? (
-                          <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <>
-                            <Save size={11} />
-                            <span className="text-[10px] font-black">Save</span>
-                          </>
-                        )}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleCall(usaPhone)}
-                        className="h-7 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-lg flex items-center justify-center space-x-1 transition-all shadow-xs"
-                      >
-                        <Phone size={11} />
-                        <span className="text-[10px] font-black">Call</span>
-                      </button>
+                <div className="p-3 space-y-2.5">
+                  {/* Flag + label */}
+                  <div className="flex items-center space-x-2">
+                    <span className="text-2xl leading-none" role="img" aria-label="Ethiopia">🇪🇹</span>
+                    <div>
+                      <p className="text-[11px] font-black text-slate-800 uppercase tracking-wide leading-none">Ethiopia Direct Line</p>
+                      <p className="text-[9px] text-slate-400 leading-none mt-1">Official Ethiopia Player Support Line</p>
                     </div>
                   </div>
-                </div>
 
-                {/* ── Ethiopia Card ────────────────────────────────────────── */}
-                <div className="relative bg-white rounded-2xl border border-green-100 shadow-sm overflow-hidden flex flex-col justify-between">
-                  {/* Ethiopian flag stripe: green / yellow / red */}
-                  <div className="h-[3px] w-full" style={{ background: 'linear-gradient(90deg, #078930 0%, #FCDD09 50%, #DA121A 100%)' }} />
-
-                  <div className="p-2.5 space-y-2">
-                    {/* Flag + label */}
-                    <div className="flex items-center space-x-1.5">
-                      <span className="text-xl leading-none" role="img" aria-label="Ethiopia">🇪🇹</span>
-                      <div>
-                        <p className="text-[9.5px] font-black text-slate-700 uppercase tracking-wide leading-none">Ethiopia</p>
-                        <p className="text-[8px] text-slate-400 leading-none mt-0.5">ETH Support Line</p>
-                      </div>
-                    </div>
-
-                    {/* Editable Number Input (auto formats 09/07 to +251) */}
+                  {/* Editable Number Input (auto formats 09/07 to +251) */}
+                  <div className="flex items-center space-x-2">
                     <input
                       type="text"
                       value={values['support_phone_eth'] ?? '+251996598686'}
@@ -288,44 +230,42 @@ export default function AdminSettings() {
                         }
                         setValues(prev => ({ ...prev, support_phone_eth: val }));
                       }}
-                      className="w-full text-center font-black text-[11px] text-emerald-700 bg-emerald-50/90 border border-emerald-200 focus:border-green-500 focus:bg-white outline-none rounded-xl px-1.5 py-1.5 transition-all"
+                      className="flex-1 text-center font-black text-xs text-emerald-700 bg-emerald-50/90 border border-emerald-200 focus:border-green-500 focus:bg-white outline-none rounded-xl px-2.5 py-2 transition-all font-mono"
                       placeholder="+2519xxxxxxxx"
                     />
 
                     {/* Action buttons: Save & Call */}
-                    <div className="grid grid-cols-2 gap-1.5 pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => handleSave('support_phone_eth')}
-                        disabled={saving === 'support_phone_eth'}
-                        className="h-7 bg-slate-800 hover:bg-slate-900 active:scale-95 disabled:opacity-50 text-white rounded-lg flex items-center justify-center space-x-1 transition-all shadow-xs"
-                      >
-                        {saving === 'support_phone_eth' ? (
-                          <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <>
-                            <Save size={11} />
-                            <span className="text-[10px] font-black">Save</span>
-                          </>
-                        )}
-                      </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSave('support_phone_eth')}
+                      disabled={saving === 'support_phone_eth'}
+                      className="h-9 px-3 bg-slate-800 hover:bg-slate-900 active:scale-95 disabled:opacity-50 text-white rounded-xl flex items-center justify-center space-x-1.5 transition-all shadow-xs"
+                    >
+                      {saving === 'support_phone_eth' ? (
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <Save size={12} />
+                          <span className="text-[11px] font-black">Save</span>
+                        </>
+                      )}
+                    </button>
 
-                      <button
-                        type="button"
-                        onClick={() => handleCall(ethPhone)}
-                        className="h-7 bg-green-600 hover:bg-green-700 active:scale-95 text-white rounded-lg flex items-center justify-center space-x-1 transition-all shadow-xs"
-                      >
-                        <Phone size={11} />
-                        <span className="text-[10px] font-black">Call</span>
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCall(ethPhone)}
+                      className="h-9 px-3 bg-green-600 hover:bg-green-700 active:scale-95 text-white rounded-xl flex items-center justify-center space-x-1.5 transition-all shadow-xs"
+                    >
+                      <Phone size={12} />
+                      <span className="text-[11px] font-black">Call</span>
+                    </button>
                   </div>
                 </div>
               </div>
 
               {/* Helper note */}
               <p className="text-[9px] text-slate-400 text-center font-medium">
-                Edit numbers directly above and tap Save • Changes sync to all pages instantly
+                Edit number directly above and tap Save • Changes sync to all pages instantly
               </p>
             </div>
 

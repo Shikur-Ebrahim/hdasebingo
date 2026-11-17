@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { t } from '../lib/translations';
-import { Gift, ArrowDownToLine, Share2, PlusCircle, Info, DoorOpen, Users, Gamepad2, RefreshCw, ChevronDown, Clapperboard, Play, X, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { Gift, ArrowDownToLine, Share2, PlusCircle, Info, DoorOpen, Users, Gamepad2, RefreshCw, ChevronDown, Clapperboard, Play, X, Sparkles, Volume2, VolumeX, Headphones } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { supabase } from '../lib/supabase';
@@ -107,7 +107,6 @@ export default function Home() {
   const [showHomeFilterDropdown, setShowHomeFilterDropdown] = useState(false);
   const [homeRoomSearch, setHomeRoomSearch] = useState('');
   const [showHomeSearchBar, setShowHomeSearchBar] = useState(false);
-  const [supportPhoneUsa, setSupportPhoneUsa] = useState('+1 (984) 378-9510');
   const [supportPhoneEth, setSupportPhoneEth] = useState('+251996598686');
   const [supportUsername, setSupportUsername] = useState('Mosque_Dona');
 
@@ -293,7 +292,6 @@ export default function Home() {
       .then(r => r.json())
       .then(data => {
         // Phone numbers from DB
-        if (data?.support_phone_usa) setSupportPhoneUsa(data.support_phone_usa);
         if (data?.support_phone_eth) setSupportPhoneEth(data.support_phone_eth);
         if (data?.username) setSupportUsername(data.username);
 
@@ -611,24 +609,9 @@ export default function Home() {
             </div>
           </div>
 
-          {/* ── Phone numbers & Support indicator — bottom corners ── */}
+          {/* ── Support & Ethiopia phone numbers — bottom corners ── */}
           <div className="absolute bottom-1.5 left-2 right-2 flex justify-between items-center pointer-events-none z-20">
-            {/* USA — bottom left */}
-            <button
-              type="button"
-              onClick={e => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
-                window.location.href = `tel:${supportPhoneUsa.replace(/[\s()\-]/g, '')}`;
-              }}
-              className="pointer-events-auto flex items-center gap-1 p-0.5 rounded text-black active:scale-95 active:opacity-75 transition-all shrink-0"
-            >
-              <span className="text-[14px] leading-none" role="img" aria-label="USA">🇺🇸</span>
-              <span className="text-[10.5px] font-black leading-none tracking-tight">{supportPhoneUsa}</span>
-            </button>
-
-            {/* Center "SUPPORT" badge with arrows pointing toward USA & Ethiopia */}
+            {/* SUPPORT button — bottom left (in place of USA phone) */}
             <button
               type="button"
               onClick={e => {
@@ -643,13 +626,12 @@ export default function Home() {
                   window.open(tgUrl, '_blank');
                 }
               }}
-              className="pointer-events-auto flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-cyan-400 via-cyan-400 to-teal-400 text-slate-900 border border-cyan-200/90 shadow-2xs active:scale-95 transition-all select-none"
+              className="pointer-events-auto flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-cyan-400 via-cyan-400 to-teal-400 text-slate-900 border border-cyan-200/90 shadow-2xs active:scale-95 transition-all select-none shrink-0"
             >
-              <span className="text-xs font-black text-slate-900 leading-none">←</span>
-              <span className="text-[9px] font-black tracking-widest uppercase leading-none">
+              <Headphones size={11} className="stroke-[2.5]" />
+              <span className="text-[9.5px] font-black tracking-widest uppercase leading-none">
                 SUPPORT
               </span>
-              <span className="text-xs font-black text-slate-900 leading-none">→</span>
             </button>
 
             {/* Ethiopia — bottom right */}

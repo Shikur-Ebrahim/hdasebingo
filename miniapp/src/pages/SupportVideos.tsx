@@ -19,7 +19,6 @@ interface SupportVideo {
 }
 
 const CATEGORIES = [
-  { id: 'system_player', label: 'System Player',  emoji: '🤖', gradient: 'from-amber-500 to-orange-600',   bg: 'bg-amber-50 border-amber-200',      text: 'text-amber-700' },
   { id: 'how_to_play', label: 'How to Play',     emoji: '🎮', gradient: 'from-emerald-500 to-teal-600',   bg: 'bg-emerald-50 border-emerald-200',  text: 'text-emerald-700' },
   { id: 'deposit',     label: 'Deposit',          emoji: '💰', gradient: 'from-yellow-400 to-amber-500',   bg: 'bg-yellow-50 border-yellow-200',    text: 'text-yellow-700' },
   { id: 'withdraw',    label: 'Withdraw',         emoji: '💸', gradient: 'from-rose-500 to-pink-600',      bg: 'bg-rose-50 border-rose-200',         text: 'text-rose-700' },
@@ -50,12 +49,10 @@ export default function SupportVideos() {
   const [contact, setContact] = useState<{
     username: string;
     channel: string;
-    support_phone_usa: string;
     support_phone_eth: string;
   }>({
     username: 'hdasebingo_admin',
     channel: 'https://t.me/HdasebingoG',
-    support_phone_usa: '+1 (984) 378-9510',
     support_phone_eth: '+251996598686',
   });
   const [copiedType, setCopiedType] = useState<string | null>(null);
@@ -72,7 +69,6 @@ export default function SupportVideos() {
           setContact({
             username: (data.username || 'hdasebingo_admin').replace(/^@/, '').trim(),
             channel: data.channel || 'https://t.me/HdasebingoG',
-            support_phone_usa: data.support_phone_usa || '+1 (984) 378-9510',
             support_phone_eth: data.support_phone_eth || '+251996598686',
           });
         }
@@ -248,8 +244,8 @@ export default function SupportVideos() {
       <div className="absolute top-0 right-0 w-44 h-44 bg-violet-100/60 rounded-full blur-2xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-36 h-36 bg-amber-50/80 rounded-full blur-2xl pointer-events-none" />
 
-      {/* 2 Call Cards (Ethiopia & USA) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 z-10 relative">
+      {/* Ethiopia Call Card */}
+      <div className="z-10 relative mb-1">
         {/* Ethiopia Support Card */}
         <div className="bg-slate-50/80 hover:bg-slate-50 border border-slate-200/80 rounded-2xl p-3 flex flex-col justify-between transition-colors shadow-2xs">
           <div className="flex items-center justify-between mb-2">
@@ -279,39 +275,6 @@ export default function SupportVideos() {
             >
               {copiedType === 'eth' ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} className="text-slate-500" />}
               <span>{copiedType === 'eth' ? (language === 'am' ? 'ተቀድቷል!' : 'Copied!') : (language === 'am' ? 'ቅዳ' : 'Copy')}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* USA Support Card */}
-        <div className="bg-slate-50/80 hover:bg-slate-50 border border-slate-200/80 rounded-2xl p-3 flex flex-col justify-between transition-colors shadow-2xs">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center space-x-2.5 min-w-0">
-              <span className="text-2xl shrink-0" role="img" aria-label="USA">🇺🇸</span>
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">
-                  {language === 'am' ? 'የአሜሪካ ቀጥታ መስመር' : 'USA & International'}
-                </p>
-                <p className="font-mono font-black text-[13px] text-slate-900 tracking-wide truncate">
-                  {contact.support_phone_usa}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-1.5 mt-1">
-            <button
-              onClick={() => handleCall(contact.support_phone_usa)}
-              className="py-2 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-white text-xs font-black flex items-center justify-center space-x-1.5 shadow-sm shadow-blue-600/20 transition-transform"
-            >
-              <Phone size={13} className="fill-current" />
-              <span>{language === 'am' ? 'ደውል' : 'Call'}</span>
-            </button>
-            <button
-              onClick={() => handleCopy(contact.support_phone_usa, 'usa')}
-              className="py-2 px-3 rounded-xl bg-white hover:bg-slate-100 active:scale-95 text-slate-700 text-xs font-bold flex items-center justify-center space-x-1.5 border border-slate-200/80 shadow-2xs transition-transform"
-            >
-              {copiedType === 'usa' ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} className="text-slate-500" />}
-              <span>{copiedType === 'usa' ? (language === 'am' ? 'ተቀድቷል!' : 'Copied!') : (language === 'am' ? 'ቅዳ' : 'Copy')}</span>
             </button>
           </div>
         </div>
