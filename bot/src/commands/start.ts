@@ -61,7 +61,9 @@ export async function startCommand(ctx: Context) {
   const channelUrl = settings.channel_url;
 
   const HDASE_OFFICIAL_ROOM_ID = 'd7c9114a-e112-426f-8f9b-13c00050279c';
-  const effectiveRoomId = userRecord?.room_id || roomId || HDASE_OFFICIAL_ROOM_ID;
+  // If user has a previous room in DB (different from default) or explicit roomId, keep it!
+  const targetRoomId = roomId || (userRecord?.room_id && userRecord.room_id !== HDASE_OFFICIAL_ROOM_ID ? userRecord.room_id : null) || userRecord?.room_id || null;
+  const effectiveRoomId = targetRoomId || HDASE_OFFICIAL_ROOM_ID;
   let invitedRoomName: string | null = null;
   if (effectiveRoomId && effectiveRoomId !== HDASE_OFFICIAL_ROOM_ID) {
     try {
@@ -72,10 +74,14 @@ export async function startCommand(ctx: Context) {
     }
   }
 
-  // Construct play URL with room parameter pointing to effective room (defaulting to official HDASE room)
+  // Construct play URL:
+  // If user has a specific previous room or was explicitly invited, direct to that room.
+  // Otherwise, use clean miniAppUrl so it defaults dynamically without forcing a room.
   let playUrl = miniAppUrl;
-  const sep = playUrl.includes('?') ? '&' : '?';
-  playUrl = `${playUrl}${sep}room=${encodeURIComponent(effectiveRoomId)}&startapp=room_${encodeURIComponent(effectiveRoomId)}`;
+  if (targetRoomId && targetRoomId !== HDASE_OFFICIAL_ROOM_ID) {
+    const sep = playUrl.includes('?') ? '&' : '?';
+    playUrl = `${playUrl}${sep}room=${encodeURIComponent(targetRoomId)}&startapp=room_${encodeURIComponent(targetRoomId)}`;
+  }
 
   const botUsername = 'hdasebingo_bot';
   const invitePayload = effectiveRoomId ? `ref_${user.id}_room_${effectiveRoomId}` : `ref_${user.id}`;

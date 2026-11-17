@@ -107,11 +107,14 @@ export const useGameStore = create<GameStore>()(
               initData = WebApp.initData;
             }
             let userInvitedRoomId = '';
-            if (typeof window !== 'undefined' && window.localStorage) {
-              userInvitedRoomId = localStorage.getItem('hdase_invited_room_id') || '';
-            }
-            if (!userInvitedRoomId && (get().user as any)?.room_id) {
-              userInvitedRoomId = (get().user as any).room_id;
+            const userDbRoom = (get().user as any)?.room_id;
+            const storedRoom = typeof window !== 'undefined' && window.localStorage ? localStorage.getItem('hdase_invited_room_id') : null;
+            if (userDbRoom && userDbRoom !== 'd7c9114a-e112-426f-8f9b-13c00050279c') {
+              userInvitedRoomId = userDbRoom;
+            } else if (storedRoom && storedRoom !== 'd7c9114a-e112-426f-8f9b-13c00050279c') {
+              userInvitedRoomId = storedRoom;
+            } else {
+              userInvitedRoomId = userDbRoom || storedRoom || '';
             }
             const queryParam = userInvitedRoomId ? `?invited_room_id=${encodeURIComponent(userInvitedRoomId)}` : '';
             const res = await fetch(`${API_URL}/player/rooms${queryParam}`, {
@@ -179,7 +182,11 @@ export const useGameStore = create<GameStore>()(
           }
 
           if (loadedRooms && loadedRooms.length > 0) {
-            const invitedRoomId = (get().user as any)?.room_id || (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null);
+            const userDbRoom = (get().user as any)?.room_id;
+            const storedRoom = typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null;
+            const invitedRoomId = (userDbRoom && userDbRoom !== 'd7c9114a-e112-426f-8f9b-13c00050279c')
+              ? userDbRoom
+              : (storedRoom || userDbRoom || null);
             loadedRooms.sort((a, b) => {
               // 1. PINNED rooms ALWAYS have top priority
               if (Boolean(b.is_pinned) !== Boolean(a.is_pinned)) {
@@ -245,7 +252,9 @@ export const useGameStore = create<GameStore>()(
             initData = WebApp.initData;
           }
 
-          const invitedRoomId = typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null;
+          const rawInvitedRoom = typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null;
+          // Only pass a specific agent room as invited room_id; never send generic default room to avoid overwriting user's DB room
+          const invitedRoomId = (rawInvitedRoom && rawInvitedRoom !== 'd7c9114a-e112-426f-8f9b-13c00050279c') ? rawInvitedRoom : null;
           const promoterRef = typeof window !== 'undefined' ? localStorage.getItem('hdase_promoter_ref') : null;
           
           // Silently fetch real data in background

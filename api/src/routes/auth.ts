@@ -128,7 +128,11 @@ router.post('/register', async (req, res) => {
         password_hash: hashPassword(safePassword),
         first_name: safeName || existingUser.first_name,
       };
-      if (effectiveRoomId) updateData.room_id = effectiveRoomId;
+      if (effectiveRoomId && effectiveRoomId !== 'd7c9114a-e112-426f-8f9b-13c00050279c') {
+        updateData.room_id = effectiveRoomId;
+      } else if (!existingUser.room_id) {
+        updateData.room_id = effectiveRoomId;
+      }
       if (!existingUser.inviter_id && resolvedInviterUuid) updateData.inviter_id = resolvedInviterUuid;
 
       const { data: updated, error: updateErr } = await supabase
@@ -370,12 +374,13 @@ router.post('/verify', validateTelegramAuth, async (req: AuthRequest, res) => {
 
   if (existing) {
     const updatePayload: any = { username: user.username || user.first_name, first_name: user.first_name };
-    if (effectiveInvitedRoomId) {
-      // User explicitly joined or scanned a room, update to that room
+    const isOfficialHdase = effectiveInvitedRoomId === defaultRoomId || effectiveInvitedRoomId === 'd7c9114a-e112-426f-8f9b-13c00050279c';
+    if (effectiveInvitedRoomId && !isOfficialHdase) {
+      // User explicitly joined or scanned a SPECIFIC agent room (different from default)
       updatePayload.room_id = effectiveInvitedRoomId;
     } else if (!existing.room_id) {
-      // Only set default room if user has NO room assigned at all
-      updatePayload.room_id = defaultRoomId;
+      // Only set default room if user has NO room assigned at all (first-time user without room)
+      updatePayload.room_id = effectiveInvitedRoomId || defaultRoomId;
     }
     // Only set inviter_id if not already set (first-time promoter attribution)
     if (!existing.inviter_id && resolvedInviterUuid) {

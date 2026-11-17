@@ -248,8 +248,13 @@ function App() {
         }
       }
       if (detectedRoomId) {
-        localStorage.setItem('hdase_invited_room_id', detectedRoomId);
-        syncManifestWithRoom(detectedRoomId, detectedPromoterRef);
+        const HDASE_OFFICIAL_ROOM_ID = 'd7c9114a-e112-426f-8f9b-13c00050279c';
+        const existingStoredRoom = typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null;
+        // Never overwrite an existing stored agent room with the generic default HDASE room!
+        if (detectedRoomId !== HDASE_OFFICIAL_ROOM_ID || !existingStoredRoom) {
+          localStorage.setItem('hdase_invited_room_id', detectedRoomId);
+          syncManifestWithRoom(detectedRoomId, detectedPromoterRef);
+        }
       }
       if (detectedPromoterRef) {
         localStorage.setItem('hdase_promoter_ref', detectedPromoterRef);
@@ -318,6 +323,11 @@ function App() {
 
   useEffect(() => {
     if (user?.room_id) {
+      const HDASE_OFFICIAL_ROOM_ID = 'd7c9114a-e112-426f-8f9b-13c00050279c';
+      const existingStoredRoom = typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null;
+      if (user.room_id !== HDASE_OFFICIAL_ROOM_ID || !existingStoredRoom) {
+        localStorage.setItem('hdase_invited_room_id', user.room_id);
+      }
       syncManifestWithRoom(user.room_id, user.telegram_id || user.id);
     }
   }, [user?.room_id, user?.telegram_id, user?.id]);

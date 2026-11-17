@@ -35,13 +35,14 @@ export async function upsertUser(telegramId: string, username: string, firstName
 
     const updatePayload: any = { username, first_name: firstName };
     
-    // If the user was explicitly invited to a room (via invite link), update to that room
-    if (resolvedRoomId) {
+    // If the user was explicitly invited to a specific room (via invite link), update to that room.
+    // If user already has a previous room, NEVER overwrite it with the default official room!
+    if (resolvedRoomId && resolvedRoomId !== HDASE_OFFICIAL_ROOM_ID) {
       updatePayload.room_id = resolvedRoomId;
     } else if (!existing.room_id) {
       // ONLY set room if user has NO room assigned (null): default to official HDASE BINGO room!
       // If user already has a room (from PWA or prior room), keep it as is!
-      updatePayload.room_id = HDASE_OFFICIAL_ROOM_ID;
+      updatePayload.room_id = resolvedRoomId || HDASE_OFFICIAL_ROOM_ID;
     }
 
     if (!existing.inviter_id && resolvedInviterUuid) {

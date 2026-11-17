@@ -136,14 +136,28 @@ export default function Home() {
     setTimeout(() => setManualRefreshing(false), 500);
   };
 
-  // User's assigned/invited room (persisted during registration or friend invite)
-  const userInvitedRoomId = (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null) || (user as any)?.room_id || null;
+  // User's assigned/invited room: prioritize user's actual assigned agent room from DB/localStorage.
+  // If user has a previous room, NEVER fall back to HDASE official room!
+  const userDbRoomId = (user as any)?.room_id;
+  const storedRoomId = typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null;
+  const HDASE_OFFICIAL_ROOM_ID = 'd7c9114a-e112-426f-8f9b-13c00050279c';
+
+  const userInvitedRoomId = useMemo(() => {
+    // 1. If DB has an agent's room (not official), use it
+    if (userDbRoomId && userDbRoomId !== HDASE_OFFICIAL_ROOM_ID) return userDbRoomId;
+    // 2. If localStorage has an agent's room (not official), use it
+    if (storedRoomId && storedRoomId !== HDASE_OFFICIAL_ROOM_ID) return storedRoomId;
+    // 3. Otherwise fall back to user's assigned room or stored room (or null if brand new)
+    return userDbRoomId || storedRoomId || null;
+  }, [userDbRoomId, storedRoomId]);
+
   const activeRoom = useMemo(() => {
     if (userInvitedRoomId) {
       const found = rooms.find(r => r.id === userInvitedRoomId);
       if (found) return found;
     }
-    const official = rooms.find(r => r.room_name === 'HDASE BINGO' || r.id === 'd7c9114a-e112-426f-8f9b-13c00050279c');
+    // Only if user has NO assigned/previous room, default to official HDASE room
+    const official = rooms.find(r => r.room_name === 'HDASE BINGO' || r.id === HDASE_OFFICIAL_ROOM_ID);
     if (official) return official;
     const pinned = rooms.find(r => r.is_pinned);
     if (pinned) return pinned;

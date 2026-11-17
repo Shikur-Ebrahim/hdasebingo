@@ -163,9 +163,20 @@ export default function BingoGame() {
 
   const urlStake = searchParams.get("stake");
   const urlRoom = searchParams.get("room");
-  const userRoomId = (user as any)?.room_id || (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null);
+  const userDbRoomId = (user as any)?.room_id;
+  const storedRoomId = typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null;
+  const HDASE_OFFICIAL_ROOM_ID = 'd7c9114a-e112-426f-8f9b-13c00050279c';
+
+  // Determine user's effective room: prioritize user's actual previous/assigned agent room
+  const userRoomId = useMemo(() => {
+    if (urlRoom && urlRoom !== HDASE_OFFICIAL_ROOM_ID) return urlRoom;
+    if (userDbRoomId && userDbRoomId !== HDASE_OFFICIAL_ROOM_ID) return userDbRoomId;
+    if (storedRoomId && storedRoomId !== HDASE_OFFICIAL_ROOM_ID) return storedRoomId;
+    return urlRoom || userDbRoomId || storedRoomId || null;
+  }, [urlRoom, userDbRoomId, storedRoomId]);
+
   const defaultHdaseRoom = rooms.find(r => r.room_name?.toUpperCase().includes('HDASE')) || rooms.find(r => r.is_pinned) || rooms[0];
-  const effectiveRoomId = urlRoom || userRoomId || defaultHdaseRoom?.id || null;
+  const effectiveRoomId = userRoomId || defaultHdaseRoom?.id || null;
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(effectiveRoomId);
   const [selectedStake, setSelectedStake] = useState<number | null>(urlStake ? Number(urlStake) : null);
   const [roomsRefreshing, setRoomsRefreshing] = useState(false);
@@ -315,8 +326,8 @@ export default function BingoGame() {
     });
   };
 
-  // User's invited/assigned room - localStorage has the LATEST scan, DB is fallback
-  const userInvitedRoomId = (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null) || (user as any)?.room_id || null;
+  // User's invited/assigned room: uses userRoomId which preserves previous agent room
+  const userInvitedRoomId = userRoomId;
 
   // Filter/sort rooms in BingoGame rooms page
   const filteredRooms = [...rooms]
