@@ -182,6 +182,7 @@ export default function BingoGame() {
   const [activeCartelaIdx, setActiveCartelaIdx] = useState(0);
   const [uniquePlayers, setUniquePlayers] = useState<number>(0);
   const [homeGames, setHomeGames] = useState<Record<number, { pool: number; start_at?: string; status: string; players: number }>>({});
+  const fetchPoolsRef = useRef<() => void>(() => {});
   const [homeTimeLeft, setHomeTimeLeft] = useState<Record<number, number>>({});
   const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
     try {
@@ -360,11 +361,13 @@ export default function BingoGame() {
   useEffect(() => {
     if (selectedStake) return;
     let isMounted = true;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
 
     const fetchPools = async () => {
+      if (document.visibilityState === 'hidden') return;
       let loadedPools: any[] | null = null;
       try {
-        const url = `${API}/bingo/pools${selectedRoomId ? `?room=${selectedRoomId}` : ''}`;
+        const url = `${API}/bingo/pools${selectedRoomId ? `?room=${selectedRoomId}` : ''}&_t=${Date.now()}`;
         const r = await fetch(url, { headers: hdrs() });
         if (r.ok) {
           const d = await r.json();
@@ -377,7 +380,8 @@ export default function BingoGame() {
         let q = supabase
           .from('bingo_games')
           .select('id, stake, prize_pool, total_players, start_at, status, room_id')
-          .in('status', ['waiting', 'calling']);
+          .in('status', ['waiting', 'calling'])
+          .order('created_at', { ascending: false });
         if (selectedRoomId) q = q.eq('room_id', selectedRoomId);
         const { data: dbGames } = await q;
         if (dbGames) {
@@ -394,17 +398,30 @@ export default function BingoGame() {
       if (loadedPools && isMounted) {
         const p: Record<number, any> = {};
         loadedPools.forEach((g: any) => {
-          p[Number(g.stake)] = {
-            pool: g.prize_pool,
+          const s = Number(g.stake);
+          p[s] = {
+            pool: Number(g.prize_pool || 0),
             start_at: g.start_at,
             status: g.status,
-            players: g.unique_players,
+            players: Number(g.unique_players || 0),
           };
         });
         setHomeGames(p);
       }
     };
+
+    fetchPoolsRef.current = fetchPools;
     fetchPools();
+
+    // Fast polling fallback: every 1.2s to guarantee instant sync of derash, players, and countdown
+    pollTimer = setInterval(fetchPools, 1200);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchPools();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     // Listen to table changes so home page updates in real-time
     const ch = supabase.channel('home_pools')
@@ -416,7 +433,12 @@ export default function BingoGame() {
       })
       .subscribe();
 
-    return () => { isMounted = false; supabase.removeChannel(ch); };
+    return () => {
+      isMounted = false;
+      if (pollTimer) clearInterval(pollTimer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      supabase.removeChannel(ch);
+    };
   }, [selectedStake, selectedRoomId]);
 
   // Tick timer for stake screen
@@ -424,19 +446,31 @@ export default function BingoGame() {
     if (selectedStake) return;
     const update = () => {
       if (document.visibilityState === 'hidden') return;
+      let shouldRefresh = false;
       setHomeTimeLeft(prev => {
         const next: Record<number, number> = {};
         for (const [stake, g] of Object.entries(homeGames)) {
           const pCount = Number(g.players || 0);
-          if (g.status === 'waiting' && g.start_at && pCount > 0) {
+          if (g.status === 'waiting' && g.start_at && pCount >= 2) {
             const diff = Math.ceil((new Date(g.start_at).getTime() - Date.now()) / 1000);
-            next[Number(stake)] = (diff > 0 && diff <= 120) ? diff : 0;
+            if (diff > 0 && diff <= 120) {
+              next[Number(stake)] = diff;
+            } else {
+              next[Number(stake)] = 0;
+              // Transition from counting down to 0: immediately refresh to flip to calling!
+              if (prev[Number(stake)] && prev[Number(stake)] > 0) {
+                shouldRefresh = true;
+              }
+            }
           } else {
             next[Number(stake)] = 0;
           }
         }
         return next;
       });
+      if (shouldRefresh) {
+        fetchPoolsRef.current();
+      }
     };
     update();
     const id = setInterval(update, 1000);
@@ -912,9 +946,9 @@ export default function BingoGame() {
     if (!selectedStake) return;
     // CRITICAL: Never wipe out the active calling board or cartelas while finishing or celebrating!
     if (isFinishingRef.current || celebrationRef.current) return;
-    setLoading(true);
+    if (!gameIdRef.current) setLoading(true);
     try {
-      const url = `${API}/bingo/current?stake=${selectedStake}${selectedRoomId ? `&room=${selectedRoomId}` : ''}`;
+      const url = `${API}/bingo/current?stake=${selectedStake}${selectedRoomId ? `&room=${selectedRoomId}` : ''}&_t=${Date.now()}`;
       const r = await fetch(url, { headers: hdrs() });
       if (r.ok) {
         if (isFinishingRef.current || celebrationRef.current) return;
@@ -957,6 +991,22 @@ export default function BingoGame() {
             setManuallyMarked(new Set());
             setBingoLockSeconds(0);
           }
+        }
+
+        if (Array.isArray(d.room_stakes)) {
+          setHomeGames(prev => {
+            const next = { ...prev };
+            d.room_stakes.forEach((s: any) => {
+              const st = Number(s.stake);
+              next[st] = {
+                pool: Number(s.prize_pool || 0),
+                status: s.status,
+                players: Number(s.total_players || 0),
+                start_at: prev[st]?.start_at,
+              };
+            });
+            return next;
+          });
         }
       }
     } catch { } finally { setLoading(false); }
@@ -1020,17 +1070,27 @@ export default function BingoGame() {
     return () => clearInterval(id);
   }, [game?.status, game?.start_at, fetchState]);
 
-  // Fast polling fallback: keeps game state sync'd with zero delay (1s interval)
+  // Fast polling: keeps game state, players, cartelas, derash & status sync'd with zero lag (1.2s interval)
   useEffect(() => {
     if (!selectedStake) return;
     const pollId = setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
       if (isFinishingRef.current || celebrationRef.current) return;
-      if (game?.status === 'calling' || (game?.status === 'waiting' && timeLeft <= 2)) {
+      fetchState();
+    }, 1200);
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && !isFinishingRef.current && !celebrationRef.current) {
         fetchState();
       }
-    }, 1000);
-    return () => clearInterval(pollId);
-  }, [selectedStake, game?.status, timeLeft, fetchState]);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      clearInterval(pollId);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [selectedStake, fetchState]);
 
   const called = game?.called_numbers ?? [];
   const lastNum = called.length > 0 ? Number(called[called.length - 1]) : null;
@@ -1362,11 +1422,20 @@ export default function BingoGame() {
   const initial = user?.first_name ? user.first_name.charAt(0).toUpperCase() : "U";
   let statusTxt = "Finished", statusCls = "text-slate-400";
   if (game?.status === "waiting") {
-    if (timeLeft > 86400) { statusTxt = "Waiting..."; statusCls = "text-orange-400"; }
-    else if (timeLeft === 0) { statusTxt = "Ready!"; statusCls = "text-emerald-400 animate-pulse"; }
-    else { statusTxt = `${timeLeft}s`; statusCls = "text-orange-400"; }
+    if (timeLeft > 86400 || (uniquePlayers < 2 && (game.total_players || 0) < 2)) {
+      statusTxt = "Waiting..."; 
+      statusCls = "text-orange-400"; 
+    } else if (timeLeft === 0) { 
+      statusTxt = "Calling..."; 
+      statusCls = "text-emerald-400 animate-pulse"; 
+    } else { 
+      statusTxt = `${timeLeft}s`; 
+      statusCls = "text-amber-500 font-black"; 
+    }
+  } else if (game?.status === "calling") { 
+    statusTxt = "Calling"; 
+    statusCls = "text-emerald-500 animate-pulse font-black"; 
   }
-  else if (game?.status === "calling") { statusTxt = "Active"; statusCls = "text-emerald-400"; }
 
   const Header = () => (
     <div className="px-4 py-3 border-b border-slate-100 bg-white shadow-2xs flex items-center justify-between shrink-0 transition-colors">
@@ -1490,7 +1559,10 @@ export default function BingoGame() {
               const players = hg?.players || 0;
               const isCalling = hg?.status === 'calling';
               const tl = homeTimeLeft[opt.value] || 0;
-              const isCountingDown = hg?.status === 'waiting' && players > 0 && tl > 0 && tl <= 120;
+              const isCountingDown = hg?.status === 'waiting' && players >= 2 && tl > 0 && tl <= 120;
+              const isStarting = hg?.status === 'waiting' && players >= 2 && tl === 0 && hg?.start_at && (new Date(hg.start_at).getTime() <= Date.now() + 4000);
+              const isLiveCalling = isCalling || isStarting;
+              const displayPool = pool > 0 ? pool : (players >= 2 ? Math.floor(players * opt.value * (players >= 3 ? 0.8 : 1)) : 0);
 
               const THEMES = [
                 { gradient: 'from-[#2979ff] to-[#1565c0]' }, // Blue
@@ -1521,7 +1593,7 @@ export default function BingoGame() {
                     className={`h-16 bg-gradient-to-r ${theme.gradient} flex items-center justify-center relative rounded-t-2xl`}
                   >
                     <span className="text-white font-black text-3xl tracking-tight drop-shadow-xs select-none">
-                      {pool || 0}
+                      {displayPool || 0}
                     </span>
                     <div className="absolute top-2 right-2 bg-white/25 backdrop-blur-xs text-white text-[8.5px] font-black px-1.5 py-0.5 rounded tracking-wider select-none">
                       ETB
@@ -1538,13 +1610,13 @@ export default function BingoGame() {
                     <div className="flex-1 flex flex-col items-center">
                       <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider">{t[language].bingo.status}</span>
                       <span className={`text-[11px] font-black mt-0.5 ${
-                        isCalling
+                        isLiveCalling
                           ? 'text-emerald-500 animate-pulse'
                           : isCountingDown
                           ? 'text-amber-500'
                           : 'text-orange-400'
                       }`}>
-                        {isCalling ? 'Calling...' : isCountingDown ? `${tl}s...` : 'Waiting...'}
+                        {isLiveCalling ? 'Calling...' : isCountingDown ? `${tl}s...` : 'Waiting...'}
                       </span>
                     </div>
                   </div>
@@ -2189,26 +2261,38 @@ export default function BingoGame() {
                 {showStakeDropdown && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowStakeDropdown(false)} />
-                    <div className="absolute top-[calc(100%+8px)] left-0 w-32 bg-white border border-amber-200 rounded-xl shadow-xl z-50 overflow-hidden">
-                      {roomStakes.map(val => (
-                        <button
-                          key={val}
-                          onClick={() => {
-                            setSelectedStake(val);
-                            setSearchParams(params => {
-                              params.set('stake', String(val));
-                              if (selectedRoomId) params.set('room', selectedRoomId);
-                              return params;
-                            });
-                            setGame(null); setMyCard(null); setMyCartelas([]); pendingPurchasesRef.current.clear(); setActiveCartelaIdx(0); setTaken([]);
-                            setShowStakeDropdown(false);
-                          }}
-                          className={`w-full text-left px-4 py-3 flex items-center justify-between border-b border-slate-100 last:border-0 hover:bg-amber-50 active:bg-amber-100 transition-colors ${selectedStake === val ? 'text-amber-600 font-black' : 'text-slate-700'}`}
-                        >
-                          <span className="font-black text-sm">{val} ETB</span>
-                          {selectedStake === val && <div className="w-2 h-2 rounded-full bg-amber-500" />}
-                        </button>
-                      ))}
+                    <div className="absolute top-[calc(100%+8px)] left-0 w-36 bg-white border border-amber-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                      {roomStakes.map(val => {
+                        const hg = homeGames[val];
+                        const isCall = hg?.status === 'calling';
+                        const pCount = hg?.players || 0;
+                        return (
+                          <button
+                            key={val}
+                            onClick={() => {
+                              setSelectedStake(val);
+                              setSearchParams(params => {
+                                params.set('stake', String(val));
+                                if (selectedRoomId) params.set('room', selectedRoomId);
+                                return params;
+                              });
+                              setGame(null); setMyCard(null); setMyCartelas([]); pendingPurchasesRef.current.clear(); setActiveCartelaIdx(0); setTaken([]);
+                              setShowStakeDropdown(false);
+                            }}
+                            className={`w-full text-left px-3 py-2.5 flex items-center justify-between border-b border-slate-100 last:border-0 hover:bg-amber-50 active:bg-amber-100 transition-colors ${selectedStake === val ? 'text-amber-600 font-black' : 'text-slate-700'}`}
+                          >
+                            <span className="font-black text-xs">{val} ETB</span>
+                            <div className="flex items-center gap-1.5">
+                              {isCall ? (
+                                <span className="text-[9px] bg-emerald-100 text-emerald-700 font-black px-1.5 py-0.5 rounded-full animate-pulse">Live</span>
+                              ) : pCount > 0 ? (
+                                <span className="text-[9px] bg-slate-100 text-slate-600 font-bold px-1.5 py-0.5 rounded-full">{pCount}p</span>
+                              ) : null}
+                              {selectedStake === val && <div className="w-2 h-2 rounded-full bg-amber-500" />}
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   </>
                 )}
@@ -2222,9 +2306,9 @@ export default function BingoGame() {
             </div>
             <div className="grid grid-cols-5 gap-1.5">
               <div className="bg-white/90 border border-amber-200/70 rounded-xl py-1.5 text-center shadow-2xs"><p className="text-[8px] text-slate-400 font-bold uppercase">{t[language].bingo.stake}</p><p className="text-xs font-black text-slate-800">{game.stake} ETB</p></div>
-              <div className="bg-white/90 border border-amber-200/70 rounded-xl py-1.5 text-center shadow-2xs"><p className="text-[8px] text-slate-400 font-bold uppercase">{t[language].bingo.players}</p><p className="text-xs font-black text-emerald-600">{uniquePlayers}</p></div>
+              <div className="bg-white/90 border border-amber-200/70 rounded-xl py-1.5 text-center shadow-2xs"><p className="text-[8px] text-slate-400 font-bold uppercase">{t[language].bingo.players}</p><p className="text-xs font-black text-emerald-600">{Math.max(uniquePlayers, game.total_players || 0, taken.length > 0 ? 1 : 0)}</p></div>
               <div className="bg-white/90 border border-amber-200/70 rounded-xl py-1.5 text-center shadow-2xs"><p className="text-[8px] text-slate-400 font-bold uppercase">{t[language].bingo.cartelas}</p><p className="text-xs font-black text-blue-600">{taken.length}</p></div>
-              <div className="bg-white/90 border border-amber-200/70 rounded-xl py-1.5 text-center shadow-2xs"><p className="text-[8px] text-slate-400 font-bold uppercase">{t[language].bingo.derash}</p><p className="text-xs font-black text-amber-600">{game.prize_pool} ETB</p></div>
+              <div className="bg-white/90 border border-amber-200/70 rounded-xl py-1.5 text-center shadow-2xs"><p className="text-[8px] text-slate-400 font-bold uppercase">{t[language].bingo.derash}</p><p className="text-xs font-black text-amber-600">{game.prize_pool || 0} ETB</p></div>
               <div className="bg-white/90 border border-amber-200/70 rounded-xl py-1.5 text-center shadow-2xs"><p className="text-[8px] text-slate-400 font-bold uppercase">{t[language].bingo.status}</p><p className={`text-xs font-black ${statusCls}`}>{statusTxt}</p></div>
             </div>
           </div>

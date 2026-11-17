@@ -34,6 +34,7 @@ export default function Home() {
   const location = useLocation();
 
   const [homeGames, setHomeGames] = useState<Record<number, { pool: number; start_at?: string; status: string; players: number }>>({});
+  const fetchPoolsRef = useRef<() => void>(() => {});
   const [homeTimeLeft, setHomeTimeLeft] = useState<Record<number, number>>({});
   const [announcement, setAnnouncement] = useState<{ message: string; maxViews: number } | null>(null);
   const [showAnnouncement, setShowAnnouncement] = useState(false);
@@ -132,7 +133,7 @@ export default function Home() {
 
   const handleManualRefresh = async () => {
     setManualRefreshing(true);
-    await fetchRooms();
+    await Promise.allSettled([fetchRooms(), fetchPoolsRef.current()]);
     setTimeout(() => setManualRefreshing(false), 500);
   };
 
@@ -161,8 +162,10 @@ export default function Home() {
 
   useEffect(() => {
     let isMounted = true;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
 
     const fetchPools = async () => {
+      if (document.visibilityState === 'hidden') return;
       let loadedPools: any[] | null = null;
       try {
         const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
@@ -171,7 +174,7 @@ export default function Home() {
         if (initData) hdrs['x-telegram-init-data'] = initData;
         if (token) hdrs['Authorization'] = `Bearer ${token}`;
 
-        const url = `${API_URL}/bingo/pools?room=${activeRoomId}`;
+        const url = `${API_URL}/bingo/pools?room=${activeRoomId}&_t=${Date.now()}`;
         const r = await fetch(url, { headers: hdrs });
         if (r.ok) {
           const d = await r.json();
@@ -184,7 +187,8 @@ export default function Home() {
           .from('bingo_games')
           .select('id, stake, prize_pool, total_players, start_at, status, room_id')
           .in('status', ['waiting', 'calling'])
-          .eq('room_id', activeRoomId);
+          .eq('room_id', activeRoomId)
+          .order('created_at', { ascending: false });
 
         const { data: dbGames } = await q;
         if (dbGames && dbGames.length > 0) {
@@ -198,23 +202,33 @@ export default function Home() {
         }
       }
 
-      if (isMounted) {
+      if (isMounted && loadedPools) {
         const p: Record<number, any> = {};
-        if (loadedPools) {
-          loadedPools.forEach((g: any) => {
-            p[Number(g.stake)] = {
-              pool: g.prize_pool || 0,
-              start_at: g.start_at,
-              status: g.status,
-              players: g.unique_players || 0,
-            };
-          });
-        }
+        loadedPools.forEach((g: any) => {
+          const s = Number(g.stake);
+          p[s] = {
+            pool: Number(g.prize_pool || 0),
+            start_at: g.start_at,
+            status: g.status,
+            players: Number(g.unique_players || 0),
+          };
+        });
         setHomeGames(p);
       }
     };
 
+    fetchPoolsRef.current = fetchPools;
     fetchPools();
+
+    // Fast polling fallback: every 1.2s to guarantee instant sync of derash, players, and countdown
+    pollTimer = setInterval(fetchPools, 1200);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchPools();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     const ch = supabase.channel(`home_pools_${activeRoomId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bingo_games' }, () => {
@@ -227,6 +241,8 @@ export default function Home() {
 
     return () => {
       isMounted = false;
+      if (pollTimer) clearInterval(pollTimer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       supabase.removeChannel(ch);
     };
   }, [activeRoomId]);
@@ -234,19 +250,31 @@ export default function Home() {
   useEffect(() => {
     const update = () => {
       if (document.visibilityState === 'hidden') return;
+      let shouldRefresh = false;
       setHomeTimeLeft(prev => {
         const next: Record<number, number> = {};
         for (const [stake, g] of Object.entries(homeGames)) {
           const pCount = Number(g.players || 0);
-          if (g.status === 'waiting' && g.start_at && pCount > 0) {
+          if (g.status === 'waiting' && g.start_at && pCount >= 2) {
             const diff = Math.ceil((new Date(g.start_at).getTime() - Date.now()) / 1000);
-            next[Number(stake)] = (diff > 0 && diff <= 120) ? diff : 0;
+            if (diff > 0 && diff <= 120) {
+              next[Number(stake)] = diff;
+            } else {
+              next[Number(stake)] = 0;
+              // Transition from counting down to 0: immediately refresh to flip to calling!
+              if (prev[Number(stake)] && prev[Number(stake)] > 0) {
+                shouldRefresh = true;
+              }
+            }
           } else {
             next[Number(stake)] = 0;
           }
         }
         return next;
       });
+      if (shouldRefresh) {
+        fetchPoolsRef.current();
+      }
     };
     update();
     const id = setInterval(update, 1000);
@@ -666,7 +694,10 @@ export default function Home() {
             const players = hg?.players || 0;
             const isCalling = hg?.status === 'calling';
             const timeLeft = homeTimeLeft[stake] || 0;
-            const isCountingDown = hg?.status === 'waiting' && players > 0 && timeLeft > 0 && timeLeft <= 120;
+            const isCountingDown = hg?.status === 'waiting' && players >= 2 && timeLeft > 0 && timeLeft <= 120;
+            const isStarting = hg?.status === 'waiting' && players >= 2 && timeLeft === 0 && hg?.start_at && (new Date(hg.start_at).getTime() <= Date.now() + 4000);
+            const isLiveCalling = isCalling || isStarting;
+            const displayPool = pool > 0 ? pool : (players >= 2 ? Math.floor(players * stake * (players >= 3 ? 0.8 : 1)) : 0);
 
             const THEMES = [
               { gradient: 'from-[#2979ff] to-[#1565c0]' }, // Blue
@@ -693,7 +724,7 @@ export default function Home() {
                   className={`h-16 bg-gradient-to-r ${theme.gradient} flex items-center justify-center relative rounded-t-2xl`}
                 >
                   <span className="text-white font-black text-3xl tracking-tight drop-shadow-xs select-none">
-                    {pool || 0}
+                    {displayPool || 0}
                   </span>
                   <div className="absolute top-2 right-2 bg-white/25 backdrop-blur-xs text-white text-[8.5px] font-black px-1.5 py-0.5 rounded tracking-wider select-none">
                     ETB
@@ -710,13 +741,13 @@ export default function Home() {
                   <div className="flex-1 flex flex-col items-center">
                     <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider">STATUS</span>
                     <span className={`text-[11px] font-black mt-0.5 ${
-                      isCalling
+                      isLiveCalling
                         ? 'text-emerald-500 animate-pulse'
                         : isCountingDown
                         ? 'text-amber-500'
                         : 'text-orange-400'
                     }`}>
-                      {isCalling ? 'Calling...' : isCountingDown ? `${timeLeft}s...` : 'Waiting...'}
+                      {isLiveCalling ? 'Calling...' : isCountingDown ? `${timeLeft}s...` : 'Waiting...'}
                     </span>
                   </div>
                 </div>

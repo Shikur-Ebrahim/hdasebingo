@@ -6,14 +6,30 @@ import { getSettings } from './adminSettings';
 
 const router = Router();
 
+// In-memory cache for fast, sub-millisecond responses to frequent polling
+let poolsCache: { [key: string]: { time: number; pools: any[] } } = {};
+
+export function invalidatePoolsCache() {
+  poolsCache = {};
+}
+
 // ── GET /api/bingo/pools ── server-side unique player count (public, bypasses RLS) ──
 router.get('/pools', async (req, res) => {
   const roomId = (req.query.room || req.query.roomId) as string | undefined;
+  const cacheKey = roomId || '__all__';
+  const now = Date.now();
+
+  // Return cached result if under 400ms old to handle high-frequency polling with ultra-low latency
+  if (poolsCache[cacheKey] && (now - poolsCache[cacheKey].time) < 400) {
+    res.json({ pools: poolsCache[cacheKey].pools });
+    return;
+  }
 
   let query = supabase
     .from('bingo_games')
-    .select('id, stake, prize_pool, total_players, start_at, status, room_id')
-    .in('status', ['waiting', 'calling']);
+    .select('id, stake, prize_pool, total_players, start_at, status, room_id, created_at')
+    .in('status', ['waiting', 'calling'])
+    .order('created_at', { ascending: false });
 
   if (roomId) {
     query = query.eq('room_id', roomId);
@@ -21,30 +37,63 @@ router.get('/pools', async (req, res) => {
 
   const { data: games } = await query;
 
-  if (!games || games.length === 0) { res.json({ pools: [] }); return; }
+  if (!games || games.length === 0) {
+    poolsCache[cacheKey] = { time: now, pools: [] };
+    res.json({ pools: [] });
+    return;
+  }
 
-  const ids = games.map(g => g.id);
+  // Deduplicate by stake: keep the primary active game per stake
+  // Priority: 'calling' game wins over 'waiting' game; otherwise newer created_at wins
+  const stakeMap = new Map<number, any>();
+  for (const g of games) {
+    const s = Number(g.stake);
+    if (!stakeMap.has(s)) {
+      stakeMap.set(s, g);
+    } else {
+      const existing = stakeMap.get(s);
+      if (existing.status !== 'calling' && g.status === 'calling') {
+        stakeMap.set(s, g);
+      }
+    }
+  }
+
+  const activeGames = Array.from(stakeMap.values());
+  const ids = activeGames.map(g => g.id);
+
   const { data: rows } = await supabase
     .from('bingo_players')
     .select('game_id, telegram_id')
     .in('game_id', ids);
 
-  // Count unique players per game
+  // Count unique players & total cartelas per game
   const uniqueMap: Record<string, Set<string>> = {};
+  const cartelaMap: Record<string, number> = {};
   (rows || []).forEach((r: any) => {
     if (!uniqueMap[r.game_id]) uniqueMap[r.game_id] = new Set();
     uniqueMap[r.game_id].add(r.telegram_id);
+    cartelaMap[r.game_id] = (cartelaMap[r.game_id] || 0) + 1;
   });
 
-  const pools = games.map(g => ({
-    stake: g.stake,
-    prize_pool: g.prize_pool,
-    start_at: g.start_at,
-    status: g.status,
-    unique_players: uniqueMap[g.id]?.size || g.total_players || 0,
-    room_id: g.room_id,
-  }));
+  const pools = activeGames.map(g => {
+    const uCount = uniqueMap[g.id]?.size || Number(g.total_players || 0);
+    const cCount = cartelaMap[g.id] || uCount;
+    const stakeAmt = Number(g.stake);
+    const prizePercent = uCount >= 3 ? 80 : 100;
+    const computedDerash = Math.floor((cCount * stakeAmt * prizePercent) / 100);
+    const finalDerash = Math.max(Number(g.prize_pool || 0), computedDerash);
 
+    return {
+      stake: stakeAmt,
+      prize_pool: finalDerash,
+      start_at: g.start_at,
+      status: g.status,
+      unique_players: uCount,
+      room_id: g.room_id,
+    };
+  });
+
+  poolsCache[cacheKey] = { time: now, pools };
   res.json({ pools });
 });
 
@@ -121,6 +170,15 @@ router.get('/current', optionalTelegramAuth, async (req: AuthRequest, res) => {
   }
 
   const cfg = await getSettings();
+
+  // Instantaneous live Derash & unique players recalculation
+  const totalCartelas = taken_cartelas.length;
+  const rawPot = totalCartelas * Number(game.stake);
+  const prizePercent = unique_players >= 3 ? Number(cfg.prize_percent || 80) : 100;
+  const calculatedDerash = Math.floor((rawPot * prizePercent) / 100);
+  const finalDerash = Math.max(Number(game.prize_pool || 0), calculatedDerash);
+  game.prize_pool = finalDerash;
+  game.total_players = Math.max(Number(game.total_players || 0), unique_players);
 
   // Find if a game recently finished (< 15s ago) so celebration is guaranteed to display
   let last_finished_game: any = null;
@@ -346,6 +404,8 @@ router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
     updated_at: new Date().toISOString()
   }).eq('id', game.id);
 
+  invalidatePoolsCache();
+
   res.json({
     success: true,
     cartela_number: seat,
@@ -416,6 +476,7 @@ router.post('/leave', validateTelegramAuth, async (req: AuthRequest, res) => {
   const total_cartelas = allRem.length;
 
   const cfg = await getSettings();
+
   const rawPool = total_cartelas * Number(game.stake);
   const prizePercent = unique_players >= 3 ? Number(cfg.prize_percent || 80) : 100;
   const prizePool = Math.floor((rawPool * prizePercent) / 100);
@@ -434,6 +495,8 @@ router.post('/leave', validateTelegramAuth, async (req: AuthRequest, res) => {
     start_at: newStartAt,
     updated_at: new Date().toISOString()
   }).eq('id', game.id);
+
+  invalidatePoolsCache();
 
   res.json({
     success: true,
