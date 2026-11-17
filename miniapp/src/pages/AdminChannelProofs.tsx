@@ -3,7 +3,7 @@ import {
   ArrowLeft, Download, Send, RefreshCw, Settings2, CheckCircle2,
   ArrowDownToLine, ArrowUpFromLine,
   ExternalLink, Sparkles, Check, AlertCircle, Eye,
-  Plus, Minus, Clock, RotateCcw, Trash2, Bot
+  Plus, Minus, Clock, RotateCcw, Trash2, Bot, Trophy, Dices
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
@@ -27,6 +27,7 @@ interface DepositItem {
     first_name?: string;
     username?: string;
   };
+  is_system?: boolean;
 }
 
 interface WithdrawalItem {
@@ -49,6 +50,7 @@ interface WithdrawalItem {
     first_name?: string;
     username?: string;
   };
+  is_system?: boolean;
 }
 
 interface ProofSettings {
@@ -112,6 +114,25 @@ export default function AdminChannelProofs() {
   const [depositDataUrl, setDepositDataUrl] = useState<string | null>(null);
   const [withdrawalDataUrl, setWithdrawalDataUrl] = useState<string | null>(null);
 
+  // System Proofs Generator State
+  const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
+  const [generatorCount, setGeneratorCount] = useState(10);
+  const [depositMinInput, setDepositMinInput] = useState(50);
+  const [depositMaxInput, setDepositMaxInput] = useState(1000);
+  const [withdrawMinInput, setWithdrawMinInput] = useState(100);
+  const [withdrawMaxInput, setWithdrawMaxInput] = useState(5000);
+  const [preferWinners, setPreferWinners] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Real vs System Counts & Available Methods from DB
+  const [realDepositsCount, setRealDepositsCount] = useState(0);
+  const [systemDepositsCount, setSystemDepositsCount] = useState(0);
+  const [realWithdrawalsCount, setRealWithdrawalsCount] = useState(0);
+  const [systemWithdrawalsCount, setSystemWithdrawalsCount] = useState(0);
+  const [availableDepositMethods, setAvailableDepositMethods] = useState<Array<{ id: string; name?: string; type: string }>>([]);
+  const [availableWithdrawalMethods, setAvailableWithdrawalMethods] = useState<Array<{ id: string; type: string }>>([]);
+  const [winnerBotsCount, setWinnerBotsCount] = useState(0);
+
   // Canvas refs
   const depositCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const withdrawalCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -130,6 +151,27 @@ export default function AdminChannelProofs() {
         WebApp.HapticFeedback.notificationOccurred('success');
       }
     } catch {}
+  };
+
+  // Robust Auth Headers (works in Telegram Mini App, PWA, and browser)
+  const getAuthHeaders = (): Record<string, string> => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const initData = (typeof WebApp !== 'undefined' && WebApp.initData)
+      ? WebApp.initData
+      : (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.initData)
+        ? (window as any).Telegram.WebApp.initData
+        : '';
+    if (initData) headers['x-telegram-init-data'] = initData;
+
+    const pwaToken = typeof window !== 'undefined'
+      ? (localStorage.getItem('hdase_pwa_token') || localStorage.getItem('pwa_token'))
+      : null;
+    if (pwaToken) {
+      headers['x-pwa-token'] = pwaToken;
+      headers['x-pwa-auth'] = pwaToken;
+      headers['Authorization'] = `Bearer ${pwaToken}`;
+    }
+    return headers;
   };
 
   // Helper: Exact Player Name (No Masking)
@@ -168,6 +210,8 @@ export default function AdminChannelProofs() {
     if (t === 'dashen') return 'Dashen Bank';
     if (t === 'amhara') return 'Amhara Bank';
     if (t === 'ebirr') return 'eBirr';
+    if (t === 'wegagen') return 'Wegagen';
+    if (t === 'mpesa') return 'M-Pesa';
     return name || type || 'Telebirr';
   };
 
@@ -175,15 +219,22 @@ export default function AdminChannelProofs() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
       const res = await fetch(`${API_URL}/channel-proofs/data`, {
-        headers: { 'x-telegram-init-data': initData },
+        headers: getAuthHeaders(),
       });
       if (res.ok) {
         const json = await res.json();
         setSettings(json.settings);
         setUnpostedDeposits(json.unpostedDepositsCount || 0);
         setUnpostedWithdrawals(json.unpostedWithdrawalsCount || 0);
+
+        setRealDepositsCount(json.realDepositsCount || 0);
+        setSystemDepositsCount(json.systemDepositsCount || 0);
+        setRealWithdrawalsCount(json.realWithdrawalsCount || 0);
+        setSystemWithdrawalsCount(json.systemWithdrawalsCount || 0);
+        setAvailableDepositMethods(json.availableDepositMethods || []);
+        setAvailableWithdrawalMethods(json.availableWithdrawalMethods || []);
+        setWinnerBotsCount(json.winnerBotsCount || 0);
         
         const depList = json.unpostedDeposits || json.recentDeposits || [];
         const withList = json.unpostedWithdrawals || json.recentWithdrawals || [];
@@ -201,13 +252,81 @@ export default function AdminChannelProofs() {
         // Sync batch size with settings threshold on first load
         setDepositBatchSize(prev => (prev === 10 && json.settings.depositThreshold) ? json.settings.depositThreshold : prev);
         setWithdrawBatchSize(prev => (prev === 10 && json.settings.withdrawThreshold) ? json.settings.withdrawThreshold : prev);
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        setPostErrorMsg(errJson.error || 'Failed to load channel proofs');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching channel proofs data:', err);
+      setPostErrorMsg(err.message || 'Error fetching proofs');
     } finally {
       setLoading(false);
     }
   }, []);
+
+  // ── Generate System Player Proofs ─────────────────────────────────────────────
+  const handleGenerateSystemProofs = async (presetCount?: number) => {
+    const countToUse = presetCount || generatorCount;
+    setIsGenerating(true);
+    setPostErrorMsg(null);
+    setPostSuccessMsg(null);
+    triggerHaptic('medium');
+
+    try {
+      const isDep = activeTab === 'deposit';
+      const minVal = isDep ? depositMinInput : withdrawMinInput;
+      const maxVal = isDep ? depositMaxInput : withdrawMaxInput;
+
+      const res = await fetch(`${API_URL}/channel-proofs/generate-system-proofs`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          type: activeTab,
+          count: countToUse,
+          min_deposit: minVal,
+          max_deposit: maxVal,
+          min_withdraw: minVal,
+          max_withdraw: maxVal,
+          prefer_winners: preferWinners,
+        }),
+      });
+
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Failed to generate system proofs');
+
+      setPostSuccessMsg(d.message || `✅ በተሳካ ሁኔታ ${countToUse} የሲስተም ${isDep ? 'ዲፖዚቶች' : 'ክፍያዎች'} ተፈጥረው ከእውነተኛ ጋር ተቀላቅለዋል!`);
+      triggerSuccessHaptic();
+      await fetchData();
+    } catch (err: any) {
+      setPostErrorMsg(err.message || 'Failed to generate system proofs');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // ── Clear Unposted System Proofs ──────────────────────────────────────────────
+  const handleClearSystemProofs = async () => {
+    if (!window.confirm(`እርግጠኛ ነዎት ያልተለጠፉ የሲስተም ${activeTab === 'deposit' ? 'ዲፖዚቶችን' : 'ክፍያዎችን'} ከኪው ማፅዳት ይፈልጋሉ?`)) {
+      return;
+    }
+    triggerHaptic('medium');
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_URL}/channel-proofs/clear-system-proofs`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ type: activeTab }),
+      });
+      if (res.ok) {
+        setPostSuccessMsg('የሲስተም ተጫዋች ፕሩፎች ኪው ፀድቷል');
+        await fetchData();
+      }
+    } catch (err: any) {
+      setPostErrorMsg(err.message || 'Failed to clear system proofs');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -939,13 +1058,9 @@ export default function AdminChannelProofs() {
   // Automatic background cache sync so R2 ALWAYS has fresh high-res canvas images with real data
   useEffect(() => {
     if (depositDataUrl && recentDeposits.length > 0) {
-      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
       fetch(`${API_URL}/channel-proofs/sync-cache`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-telegram-init-data': initData,
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ type: 'deposit', image_base64: depositDataUrl }),
       }).catch(() => {});
     }
@@ -953,13 +1068,9 @@ export default function AdminChannelProofs() {
 
   useEffect(() => {
     if (withdrawalDataUrl && recentWithdrawals.length > 0) {
-      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
       fetch(`${API_URL}/channel-proofs/sync-cache`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-telegram-init-data': initData,
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ type: 'withdrawal', image_base64: withdrawalDataUrl }),
       }).catch(() => {});
     }
@@ -1001,13 +1112,9 @@ export default function AdminChannelProofs() {
     setIsSendingToTg(true);
     setPostErrorMsg(null);
     try {
-      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
       const res = await fetch(`${API_URL}/channel-proofs/send-to-me`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-telegram-init-data': initData,
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           type: activeTab,
           image_base64: dataUrl,
@@ -1053,13 +1160,9 @@ export default function AdminChannelProofs() {
     setPostSuccessMsg(null);
 
     try {
-      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
       const res = await fetch(`${API_URL}/channel-proofs/post`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-telegram-init-data': initData,
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           type: activeTab,
           image_base64: dataUrl,
@@ -1092,13 +1195,9 @@ export default function AdminChannelProofs() {
     triggerHaptic('medium');
     setIsResettingHistory(true);
     try {
-      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
       const res = await fetch(`${API_URL}/channel-proofs/reset-history`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-telegram-init-data': initData,
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ type: activeTab }),
       });
       if (res.ok) {
@@ -1118,13 +1217,9 @@ export default function AdminChannelProofs() {
   const handleToggleItemPosted = async (id: string, action: 'post' | 'unpost') => {
     triggerHaptic('light');
     try {
-      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
       const res = await fetch(`${API_URL}/channel-proofs/mark-item`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-telegram-init-data': initData,
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ type: activeTab, id, action }),
       });
       if (res.ok) {
@@ -1143,13 +1238,9 @@ export default function AdminChannelProofs() {
     setPostErrorMsg(null);
 
     try {
-      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
       const res = await fetch(`${API_URL}/channel-proofs/settings`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-telegram-init-data': initData,
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           depositThreshold: formDepositThreshold,
           depositEnabled: formDepositEnabled,
@@ -1209,14 +1300,28 @@ export default function AdminChannelProofs() {
         </div>
 
         <div className="flex items-center space-x-1.5">
-          <Link
-            to="/admin/system-proofs"
-            className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 rounded-xl text-[11px] font-bold flex items-center gap-1 active:scale-95 transition-all shadow-xs"
-            title="ወደ ሲስተም ተጫዋቾች ፕሩፍ ቀይር (System Player Proofs)"
+          <button
+            onClick={() => {
+              triggerHaptic('light');
+              setIsGeneratorOpen(!isGeneratorOpen);
+            }}
+            className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1.5 active:scale-95 transition-all shadow-xs ${
+              isGeneratorOpen
+                ? 'bg-indigo-600 text-white border border-indigo-700'
+                : 'bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800'
+            }`}
+            title="የሲስተም ተጫዋቾች ፕሩፍ ማመንጫ (System Proofs Generator)"
           >
-            <Bot size={14} className="text-indigo-600" />
-            <span className="hidden sm:inline">System Proofs</span>
-          </Link>
+            <Bot size={14} className={isGeneratorOpen ? 'text-white' : 'text-indigo-600'} />
+            <span>+ System Bots</span>
+            {(activeTab === 'deposit' ? systemDepositsCount : systemWithdrawalsCount) > 0 && (
+              <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-black ${
+                isGeneratorOpen ? 'bg-white text-indigo-700' : 'bg-indigo-200 text-indigo-900'
+              }`}>
+                {activeTab === 'deposit' ? systemDepositsCount : systemWithdrawalsCount}
+              </span>
+            )}
+          </button>
           <button
             onClick={() => setIsSettingsOpen(!isSettingsOpen)}
             className="w-9 h-9 rounded-xl bg-slate-100 active:bg-slate-200 flex items-center justify-center text-slate-700 active:scale-95 transition-all relative"
@@ -1413,6 +1518,172 @@ export default function AdminChannelProofs() {
         </div>
       </div>
 
+      {/* ── 1-CLICK SYSTEM PROOFS GENERATOR (Directly in Channel Proofs) ── */}
+      {isGeneratorOpen && (
+        <div className="mx-4 mb-3 bg-gradient-to-br from-indigo-50/90 via-white to-purple-50/80 border-2 border-indigo-200/90 rounded-2xl p-4 shadow-sm animate-fadeIn space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black shadow-xs">
+                <Bot size={16} />
+              </div>
+              <div>
+                <h3 className="font-black text-xs uppercase tracking-wider text-indigo-950 flex items-center gap-1.5">
+                  <span>1-Click System Proof Generator</span>
+                </h3>
+                <p className="text-[10px] text-indigo-700/80 font-medium">
+                  Automatically mix realistic {activeTab === 'deposit' ? 'deposits' : 'cash-outs'} with real players
+                </p>
+              </div>
+            </div>
+            {winnerBotsCount > 0 && (
+              <span className="flex items-center gap-1 text-[10px] font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300">
+                <Trophy size={11} className="text-amber-600" />
+                <span>{winnerBotsCount} Winners Pool</span>
+              </span>
+            )}
+          </div>
+
+          {/* Sourced Methods Banner */}
+          <div className="p-2.5 bg-white/90 rounded-xl border border-indigo-100 text-[11px] text-slate-700 flex items-start gap-2">
+            <Sparkles size={14} className="text-indigo-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-slate-900">
+                {activeTab === 'deposit'
+                  ? `⚡ Sourcing from ${availableDepositMethods.length} Active Database Methods:`
+                  : `⚡ Sourcing from ${availableWithdrawalMethods.length} Active Database Methods:`
+                }
+              </p>
+              <p className="text-[10px] text-slate-500 font-medium">
+                {activeTab === 'deposit'
+                  ? availableDepositMethods.map(m => m.name || m.type).join(' • ')
+                  : availableWithdrawalMethods.map(m => m.type.toUpperCase()).join(' • ')
+                }
+              </p>
+            </div>
+          </div>
+
+          {/* Amount Range inputs */}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div>
+              <label className="font-bold text-slate-600 text-[10px] block mb-1">
+                {activeTab === 'deposit' ? 'Min Deposit (ዝቅተኛ)' : 'Min Cashout (ዝቅተኛ)'}
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={activeTab === 'deposit' ? depositMinInput : withdrawMinInput}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (activeTab === 'deposit') setDepositMinInput(v);
+                    else setWithdrawMinInput(v);
+                  }}
+                  className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl font-black text-slate-800 text-xs focus:outline-hidden focus:border-indigo-400"
+                />
+                <span className="absolute right-2.5 top-2 text-[10px] font-black text-slate-400">ETB</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="font-bold text-slate-600 text-[10px] block mb-1">
+                {activeTab === 'deposit' ? 'Max Deposit (ከፍተኛ)' : 'Max Cashout (ከፍተኛ)'}
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={activeTab === 'deposit' ? depositMaxInput : withdrawMaxInput}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (activeTab === 'deposit') setDepositMaxInput(v);
+                    else setWithdrawMaxInput(v);
+                  }}
+                  className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl font-black text-slate-800 text-xs focus:outline-hidden focus:border-indigo-400"
+                />
+                <span className="absolute right-2.5 top-2 text-[10px] font-black text-slate-400">ETB</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quantity Presets */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[10px] font-bold text-slate-600">
+                የሚፈጠረው ብዛት (Quantity):
+              </label>
+              <span className="text-[10px] font-black text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded-full">
+                {generatorCount} {activeTab === 'deposit' ? 'ዲፖዚቶች' : 'ክፍያዎች'}
+              </span>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              {[10, 20, 30, 50].map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => {
+                    triggerHaptic('light');
+                    setGeneratorCount(num);
+                  }}
+                  className={`py-1.5 rounded-xl font-black text-xs transition-all active:scale-95 ${
+                    generatorCount === num
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  +{num}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Prioritize winners checkbox */}
+          <label className="flex items-center gap-2 cursor-pointer pt-1 text-xs text-slate-700 select-none">
+            <input
+              type="checkbox"
+              checked={preferWinners}
+              onChange={(e) => setPreferWinners(e.target.checked)}
+              className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+            />
+            <span className="font-bold text-[11px]">
+              ያሸነፉ ቦቶችን አስቀድም (Prioritize Winner Bots)
+            </span>
+          </label>
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => handleGenerateSystemProofs()}
+              disabled={isGenerating}
+              className={`flex-1 py-3 text-white rounded-xl font-black text-xs shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 ${
+                activeTab === 'deposit' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'
+              }`}
+            >
+              {isGenerating ? (
+                <>
+                  <RefreshCw size={14} className="animate-spin" />
+                  <span>በማመንጨት ላይ...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles size={14} />
+                  <span>GENERATE {generatorCount} SYSTEM {activeTab === 'deposit' ? 'DEPOSITS' : 'CASHOUTS'}</span>
+                </>
+              )}
+            </button>
+
+            {(activeTab === 'deposit' ? systemDepositsCount : systemWithdrawalsCount) > 0 && (
+              <button
+                type="button"
+                onClick={handleClearSystemProofs}
+                className="px-3 py-3 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-300 text-slate-600 hover:text-rose-600 rounded-xl font-bold text-xs transition-all active:scale-95"
+                title="የሲስተም ኪው አፅዳ"
+              >
+                Clear Queue
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Progress & Milestone Card */}
       <div className="px-4 mb-3">
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
@@ -1452,6 +1723,23 @@ export default function AdminChannelProofs() {
                 🚀 Threshold Reached!
               </span>
             )}
+          </div>
+
+          {/* Mixed Queue Breakdown (Real + System Bots) */}
+          <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                <span>👤</span>
+                <span>{activeTab === 'deposit' ? realDepositsCount : realWithdrawalsCount} Real</span>
+              </span>
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200 flex items-center gap-1">
+                <span>🤖</span>
+                <span>{activeTab === 'deposit' ? systemDepositsCount : systemWithdrawalsCount} System</span>
+              </span>
+            </div>
+            <span className="text-[10px] font-black text-slate-500">
+              = {activeUnposted} Mixed Total Ready
+            </span>
           </div>
         </div>
       </div>
@@ -1681,11 +1969,20 @@ export default function AdminChannelProofs() {
                             {index + 1}
                           </span>
                           <div>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-xs font-black text-slate-900">{playerName}</span>
                               <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">
                                 {method}
                               </span>
+                              {item.is_system ? (
+                                <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                  🤖 System
+                                </span>
+                              ) : (
+                                <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  👤 Real
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
                               <Clock size={10} />
@@ -1753,11 +2050,20 @@ export default function AdminChannelProofs() {
                             {index + 1}
                           </span>
                           <div>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-xs font-black text-slate-900">{winnerName}</span>
                               <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200">
                                 {method}
                               </span>
+                              {item.is_system ? (
+                                <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                  🤖 System
+                                </span>
+                              ) : (
+                                <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  👤 Real
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
                               <Clock size={10} />

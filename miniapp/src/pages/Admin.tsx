@@ -89,7 +89,6 @@ export default function Admin() {
     // ── TOP PRIORITY BUTTONS ─────────────────────────────────────────────────
     { id: 'hdase_bingo', title: 'HDASE BINGO Room', icon: Flame, color: 'text-amber-500', bg: 'bg-amber-100', show: isAdmin },
     { id: 'channel_proofs', title: 'Channel Proofs', icon: Sparkles, color: 'text-emerald-600', bg: 'bg-emerald-100', show: isAdmin },
-    { id: 'system_proofs', title: 'System Proofs', icon: Bot, color: 'text-indigo-600', bg: 'bg-indigo-100', show: isAdmin },
     { id: 'broadcast', title: 'Broadcast', icon: Radio, color: 'text-pink-600', bg: 'bg-pink-100', show: isAdmin },
     { id: 'agent_withdrawals', title: 'Agent & Promoter Withdrawals', icon: BadgeDollarSign, color: 'text-amber-600', bg: 'bg-amber-100', show: isAdmin },
     { id: 'system_pro', title: 'System Pro Requests', icon: Bot, color: 'text-amber-600', bg: 'bg-amber-100', show: isAdmin },
@@ -276,7 +275,6 @@ export default function Admin() {
             support_videos: '/admin/support-videos',
             hdase_qr: '/admin/hdase-qr',
             channel_proofs: '/admin/channel-proofs',
-            system_proofs: '/admin/system-proofs',
             system_pro: '/admin/system-pro',
             hdase_bingo: '/admin/hdase-bingo',
           };

@@ -19,7 +19,6 @@ import Rules from './pages/Rules';
 import Support from './pages/Support';
 import AdminHdaseQr from './pages/AdminHdaseQr';
 import AdminChannelProofs from './pages/AdminChannelProofs';
-import AdminSystemProofs from './pages/AdminSystemProofs';
 import AdminAgencyWithdrawalFee from './pages/AdminAgencyWithdrawalFee';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
@@ -512,7 +511,7 @@ function App() {
           <Route path="/admin/support-videos" element={<AdminSupportVideos />} />
           <Route path="/admin/hdase-qr" element={<AdminHdaseQr />} />
           <Route path="/admin/channel-proofs" element={<AdminChannelProofs />} />
-          <Route path="/admin/system-proofs" element={<AdminSystemProofs />} />
+          <Route path="/admin/system-proofs" element={<Navigate to="/admin/channel-proofs" replace />} />
           <Route path="/admin/room-ranking" element={<AdminRoomRanking />} />
           <Route path="/admin/system-pro" element={<AdminSystemPro />} />
           <Route path="/admin/hdase-bingo" element={<AdminHdaseBingo />} />

@@ -1,7 +1,9 @@
 import { Router, Response, NextFunction } from 'express';
+import crypto from 'crypto';
 import { AuthRequest, validateTelegramAuth } from '../middleware/auth';
 import { supabase } from '../services/supabase';
 import { uploadToR2 } from '../services/r2';
+import { generateStylizedSystemNames } from '../services/systemPlayerService';
 
 const router = Router();
 
@@ -86,10 +88,141 @@ export async function resolveProofChannel(customChannel?: string | null): Promis
   return DEFAULT_PROOF_CHANNEL;
 }
 
+// ── Helpers for Dynamically Tracking Database Deposit & Withdrawal Methods ───
+export async function getActiveDepositMethods(): Promise<Array<{ id: string; name?: string; type: string }>> {
+  try {
+    const { data } = await supabase
+      .from('deposit_methods')
+      .select('id, name, type, is_active')
+      .eq('is_active', true);
+    if (data && data.length > 0) {
+      return data.map(d => ({
+        id: d.id,
+        name: d.name || d.type,
+        type: d.type || 'telebirr'
+      }));
+    }
+  } catch (err) {
+    console.error('Failed to query deposit_methods:', err);
+  }
+
+  return [
+    { id: 'cbe', name: 'Zahara', type: 'cbe' },
+    { id: 'telebirr', name: 'Zahara', type: 'telebirr' },
+    { id: 'dashen', name: 'Zahara', type: 'dashen' },
+    { id: 'boa', name: 'Zahara', type: 'boa' },
+    { id: 'awash', name: 'Zahara', type: 'awash' }
+  ];
+}
+
+export async function getActiveWithdrawalMethods(): Promise<Array<{ id: string; type: string }>> {
+  try {
+    const { data } = await supabase
+      .from('withdrawal_methods')
+      .select('id, type, is_active')
+      .eq('is_active', true);
+    if (data && data.length > 0) {
+      return data.map(w => ({
+        id: w.id,
+        type: w.type || 'telebirr'
+      }));
+    }
+  } catch (err) {
+    console.error('Failed to query withdrawal_methods:', err);
+  }
+
+  return [
+    { id: 'telebirr', type: 'telebirr' },
+    { id: 'cbe', type: 'cbe' },
+    { id: 'boa', type: 'boa' },
+    { id: 'dashen', type: 'dashen' },
+    { id: 'awash', type: 'awash' }
+  ];
+}
+
+// ── Realistic Amount Rounding ─────────────────────────────────────────────────
+export function getRandomDepositAmount(min = 50, max = 1000): number {
+  const steps = [50, 75, 100, 150, 200, 250, 300, 400, 500, 600, 750, 800, 1000];
+  const filtered = steps.filter(s => s >= min && s <= max);
+  if (filtered.length > 0) {
+    return filtered[Math.floor(Math.random() * filtered.length)];
+  }
+  const raw = Math.floor(Math.random() * (max - min + 1)) + min;
+  return Math.max(min, Math.min(max, Math.round(raw / 25) * 25));
+}
+
+export function getRandomWithdrawalAmount(min = 100, max = 5000): number {
+  const steps = [100, 150, 200, 250, 300, 400, 500, 600, 750, 800, 1000, 1200, 1500, 2000, 2500, 3000, 3500, 4000, 5000];
+  const filtered = steps.filter(s => s >= min && s <= max);
+  if (filtered.length > 0) {
+    return filtered[Math.floor(Math.random() * filtered.length)];
+  }
+  const raw = Math.floor(Math.random() * (max - min + 1)) + min;
+  return Math.max(min, Math.min(max, Math.round(raw / 50) * 50));
+}
+
+// ── Helper to fetch bot candidates prioritizing winners ───────────────────────
+export async function getBotCandidates(count: number, preferWinners = true): Promise<Array<{ id: string; first_name: string; total_won?: number }>> {
+  try {
+    let query = supabase.from('system_players').select('id, telegram_id, first_name, total_won');
+    if (preferWinners) {
+      query = query.gt('total_won', 0).order('total_won', { ascending: false });
+    }
+    const { data } = await query.limit(Math.max(count * 3, 50));
+    let candidates = (data || []).map(b => ({
+      id: b.id || b.telegram_id || `bot_${Math.random()}`,
+      first_name: (b.first_name || 'Player').trim(),
+      total_won: Number(b.total_won) || 0
+    }));
+
+    if (candidates.length < count) {
+      const fallbackNames = generateStylizedSystemNames(count - candidates.length + 20);
+      for (const name of fallbackNames) {
+        candidates.push({
+          id: `bot_${Math.random().toString(36).slice(2, 9)}`,
+          first_name: name,
+          total_won: 500
+        });
+      }
+    }
+
+    return candidates.sort(() => Math.random() - 0.5).slice(0, count);
+  } catch {
+    const fallbackNames = generateStylizedSystemNames(count + 10);
+    return fallbackNames.slice(0, count).map(name => ({
+      id: `bot_${Math.random().toString(36).slice(2, 9)}`,
+      first_name: name,
+      total_won: 300
+    }));
+  }
+}
+
+// ── Natural Interleaving of Real and System Proofs ────────────────────────────
+export function interleaveProofs<T extends { created_at?: string; updated_at?: string }>(realList: T[], sysList: T[]): T[] {
+  if (realList.length === 0) return sysList;
+  if (sysList.length === 0) return realList;
+
+  const result: T[] = [];
+  let rIdx = 0;
+  let sIdx = 0;
+  const ratio = Math.max(1, Math.round(sysList.length / Math.max(1, realList.length)));
+
+  while (rIdx < realList.length || sIdx < sysList.length) {
+    if (rIdx < realList.length) {
+      result.push(realList[rIdx++]);
+    }
+    for (let k = 0; k < ratio && sIdx < sysList.length; k++) {
+      result.push(sysList[sIdx++]);
+    }
+  }
+
+  return result;
+}
+
 // ── GET /api/channel-proofs/data ──────────────────────────────────────────────
 router.get('/data', validateTelegramAuth, requireAdminOrWorker, async (req: AuthRequest, res) => {
   try {
-    // 1. Fetch settings
+    // 1. Fetch settings including system player queues
     const { data: settingsRows } = await supabase
       .from('settings')
       .select('key, value')
@@ -105,7 +238,9 @@ router.get('/data', validateTelegramAuth, requireAdminOrWorker, async (req: Auth
         'last_channel_post_deposit_image',
         'last_channel_post_withdraw_image',
         'posted_deposit_ids',
-        'posted_withdraw_ids'
+        'posted_withdraw_ids',
+        'system_proof_deposits',
+        'system_proof_withdrawals'
       ]);
 
     const sMap = Object.fromEntries((settingsRows || []).map(r => [r.key, r.value]));
@@ -144,7 +279,11 @@ router.get('/data', validateTelegramAuth, requireAdminOrWorker, async (req: Auth
       postedWithdrawIds = [];
     }
 
-    // 2. Fetch approved deposits (up to 100 for batching and queue management)
+    // 2. Fetch active deposit and withdrawal methods from database
+    const availableDepositMethods = await getActiveDepositMethods();
+    const availableWithdrawalMethods = await getActiveWithdrawalMethods();
+
+    // 3. Fetch approved real deposits (up to 100)
     const { data: depositsRaw } = await supabase
       .from('deposits')
       .select('id, telegram_id, amount, status, created_at, updated_at, deposit_methods(id, name, type), users!deposits_telegram_id_fkey(first_name, username)')
@@ -152,7 +291,7 @@ router.get('/data', validateTelegramAuth, requireAdminOrWorker, async (req: Auth
       .order('updated_at', { ascending: false })
       .limit(100);
 
-    // 3. Fetch approved withdrawals (up to 100 for batching and queue management)
+    // 4. Fetch approved real withdrawals (up to 100)
     const { data: withdrawalsRaw } = await supabase
       .from('withdrawals')
       .select('id, telegram_id, method_id, amount, net_amount, fee_amount, account_name, account_number, status, created_at, updated_at, withdrawal_methods(id, type)')
@@ -160,7 +299,7 @@ router.get('/data', validateTelegramAuth, requireAdminOrWorker, async (req: Auth
       .order('updated_at', { ascending: false })
       .limit(100);
 
-    // Enrich withdrawals with user names
+    // Enrich real withdrawals with user names
     let enrichedWithdrawals: any[] = withdrawalsRaw || [];
     if (enrichedWithdrawals.length > 0) {
       const tgIds = [...new Set(enrichedWithdrawals.map(w => w.telegram_id))];
@@ -172,13 +311,45 @@ router.get('/data', validateTelegramAuth, requireAdminOrWorker, async (req: Auth
       const userMap = usersData ? Object.fromEntries(usersData.map(u => [u.telegram_id, u])) : {};
       enrichedWithdrawals = enrichedWithdrawals.map(w => ({
         ...w,
-        users: userMap[w.telegram_id] || null
+        users: userMap[w.telegram_id] || null,
+        is_system: false
       }));
     }
 
-    // 4. Filter unposted (NOT yet posted) approved transactions
-    const unpostedDeposits = (depositsRaw || []).filter(d => !postedDepositIds.includes(d.id));
-    const unpostedWithdrawals = enrichedWithdrawals.filter(w => !postedWithdrawIds.includes(w.id));
+    // 5. Parse system player proofs from settings
+    let systemDeposits: any[] = [];
+    try {
+      systemDeposits = JSON.parse(sMap.system_proof_deposits || '[]');
+      if (!Array.isArray(systemDeposits)) systemDeposits = [];
+    } catch {
+      systemDeposits = [];
+    }
+
+    let systemWithdrawals: any[] = [];
+    try {
+      systemWithdrawals = JSON.parse(sMap.system_proof_withdrawals || '[]');
+      if (!Array.isArray(systemWithdrawals)) systemWithdrawals = [];
+    } catch {
+      systemWithdrawals = [];
+    }
+
+    // 6. Filter unposted (NOT yet posted) transactions
+    const unpostedRealDeposits = (depositsRaw || []).filter(d => !postedDepositIds.includes(d.id)).map(d => ({ ...d, is_system: false }));
+    const unpostedSysDeposits = systemDeposits.filter(d => !postedDepositIds.includes(d.id));
+
+    const unpostedRealWithdrawals = enrichedWithdrawals.filter(w => !postedWithdrawIds.includes(w.id));
+    const unpostedSysWithdrawals = systemWithdrawals.filter(w => !postedWithdrawIds.includes(w.id));
+
+    // 7. Naturally combine and interleave real and system player proofs
+    const combinedDeposits = interleaveProofs(unpostedRealDeposits, unpostedSysDeposits);
+    const combinedWithdrawals = interleaveProofs(unpostedRealWithdrawals, unpostedSysWithdrawals);
+
+    // Count winner bots in pool
+    let winnerBotsCount = 0;
+    try {
+      const { count } = await supabase.from('system_players').select('*', { count: 'exact', head: true }).gt('total_won', 0);
+      winnerBotsCount = count || 0;
+    } catch {}
 
     res.json({
       settings: {
@@ -192,18 +363,177 @@ router.get('/data', validateTelegramAuth, requireAdminOrWorker, async (req: Auth
         lastDepositImage: sMap.last_channel_post_deposit_image || null,
         lastWithdrawImage: sMap.last_channel_post_withdraw_image || null,
       },
-      unpostedDepositsCount: unpostedDeposits.length,
-      unpostedWithdrawalsCount: unpostedWithdrawals.length,
-      unpostedDeposits,
-      unpostedWithdrawals,
-      recentDeposits: unpostedDeposits,
-      recentWithdrawals: unpostedWithdrawals,
+      unpostedDepositsCount: combinedDeposits.length,
+      unpostedWithdrawalsCount: combinedWithdrawals.length,
+      realDepositsCount: unpostedRealDeposits.length,
+      systemDepositsCount: unpostedSysDeposits.length,
+      realWithdrawalsCount: unpostedRealWithdrawals.length,
+      systemWithdrawalsCount: unpostedSysWithdrawals.length,
+      unpostedDeposits: combinedDeposits,
+      unpostedWithdrawals: combinedWithdrawals,
+      recentDeposits: combinedDeposits,
+      recentWithdrawals: combinedWithdrawals,
       postedDepositIdsCount: postedDepositIds.length,
       postedWithdrawIdsCount: postedWithdrawIds.length,
+      availableDepositMethods,
+      availableWithdrawalMethods,
+      winnerBotsCount,
     });
   } catch (err: any) {
     console.error('Error fetching channel proofs data:', err);
     res.status(500).json({ error: err.message || 'Internal server error' });
+  }
+});
+
+// ── POST /api/channel-proofs/generate-system-proofs ───────────────────────────
+router.post('/generate-system-proofs', validateTelegramAuth, requireAdminOrWorker, async (req: AuthRequest, res) => {
+  try {
+    const {
+      type = 'both', // 'deposit' | 'withdrawal' | 'both'
+      count = 10,
+      min_deposit = 50,
+      max_deposit = 1000,
+      min_withdraw = 100,
+      max_withdraw = 5000,
+      prefer_winners = true
+    } = req.body;
+
+    const requestedCount = Math.min(100, Math.max(1, parseInt(count, 10) || 10));
+    const activeDepMethods = await getActiveDepositMethods();
+    const activeWithMethods = await getActiveWithdrawalMethods();
+
+    // Fetch existing system proofs from settings
+    const { data: rows } = await supabase
+      .from('settings')
+      .select('key, value')
+      .in('key', ['system_proof_deposits', 'system_proof_withdrawals', 'posted_deposit_ids', 'posted_withdraw_ids']);
+
+    const sMap = Object.fromEntries((rows || []).map(r => [r.key, r.value]));
+    let existingSysDeposits: any[] = [];
+    try { existingSysDeposits = JSON.parse(sMap.system_proof_deposits || '[]'); } catch { existingSysDeposits = []; }
+    let existingSysWithdrawals: any[] = [];
+    try { existingSysWithdrawals = JSON.parse(sMap.system_proof_withdrawals || '[]'); } catch { existingSysWithdrawals = []; }
+
+    let postedDepIds: string[] = [];
+    try { postedDepIds = JSON.parse(sMap.posted_deposit_ids || '[]'); } catch { postedDepIds = []; }
+    let postedWithIds: string[] = [];
+    try { postedWithIds = JSON.parse(sMap.posted_withdraw_ids || '[]'); } catch { postedWithIds = []; }
+
+    const newDeposits: any[] = [];
+    const newWithdrawals: any[] = [];
+    const now = Date.now();
+
+    if (type === 'deposit' || type === 'both') {
+      const candidates = await getBotCandidates(requestedCount, prefer_winners !== false);
+      for (let i = 0; i < candidates.length; i++) {
+        const c = candidates[i];
+        const method = activeDepMethods[Math.floor(Math.random() * activeDepMethods.length)];
+        const amount = getRandomDepositAmount(Number(min_deposit) || 50, Number(max_deposit) || 1000);
+        const ts = new Date(now - (i * 7 + Math.floor(Math.random() * 15)) * 60 * 1000).toISOString();
+
+        newDeposits.push({
+          id: `sys-dep-${crypto.randomUUID()}`,
+          telegram_id: c.id,
+          amount,
+          status: 'approved',
+          created_at: ts,
+          updated_at: ts,
+          deposit_methods: {
+            id: method.id,
+            name: method.name || method.type,
+            type: method.type
+          },
+          users: {
+            first_name: c.first_name,
+            username: c.first_name
+          },
+          is_system: true
+        });
+      }
+    }
+
+    if (type === 'withdrawal' || type === 'both') {
+      const candidates = await getBotCandidates(requestedCount, prefer_winners !== false);
+      for (let i = 0; i < candidates.length; i++) {
+        const c = candidates[i];
+        const method = activeWithMethods[Math.floor(Math.random() * activeWithMethods.length)];
+        const amount = getRandomWithdrawalAmount(Number(min_withdraw) || 100, Number(max_withdraw) || 5000);
+        const ts = new Date(now - (i * 9 + Math.floor(Math.random() * 20)) * 60 * 1000).toISOString();
+
+        newWithdrawals.push({
+          id: `sys-wth-${crypto.randomUUID()}`,
+          telegram_id: c.id,
+          method_id: method.id,
+          amount,
+          net_amount: amount,
+          fee_amount: 0,
+          account_name: c.first_name,
+          account_number: `09${Math.floor(10000000 + Math.random() * 90000000)}`,
+          status: 'approved',
+          created_at: ts,
+          updated_at: ts,
+          withdrawal_methods: {
+            id: method.id,
+            type: method.type
+          },
+          users: {
+            first_name: c.first_name,
+            username: c.first_name
+          },
+          is_system: true
+        });
+      }
+    }
+
+    const combinedSysDeposits = [...newDeposits, ...existingSysDeposits].slice(0, 300);
+    const combinedSysWithdrawals = [...newWithdrawals, ...existingSysWithdrawals].slice(0, 300);
+
+    const updates = [];
+    if (newDeposits.length > 0) {
+      updates.push({ key: 'system_proof_deposits', value: JSON.stringify(combinedSysDeposits) });
+    }
+    if (newWithdrawals.length > 0) {
+      updates.push({ key: 'system_proof_withdrawals', value: JSON.stringify(combinedSysWithdrawals) });
+    }
+
+    if (updates.length > 0) {
+      await supabase.from('settings').upsert(updates, { onConflict: 'key' });
+    }
+
+    const unpostedDepCount = combinedSysDeposits.filter(d => !postedDepIds.includes(d.id)).length;
+    const unpostedWithCount = combinedSysWithdrawals.filter(w => !postedWithIds.includes(w.id)).length;
+
+    res.json({
+      success: true,
+      generatedDeposits: newDeposits.length,
+      generatedWithdrawals: newWithdrawals.length,
+      unpostedSystemDeposits: unpostedDepCount,
+      unpostedSystemWithdrawals: unpostedWithCount,
+      message: `በተሳካ ሁኔታ ${newDeposits.length + newWithdrawals.length} የሲስተም ተጫዋች ፕሩፎች ተፈጥረው ከእውነተኛ ጋር ተቀላቅለዋል!`
+    });
+  } catch (err: any) {
+    console.error('Error generating system proofs:', err);
+    res.status(500).json({ error: err.message || 'Failed to generate system proofs' });
+  }
+});
+
+// ── POST /api/channel-proofs/clear-system-proofs ──────────────────────────────
+router.post('/clear-system-proofs', validateTelegramAuth, requireAdminOrWorker, async (req: AuthRequest, res) => {
+  try {
+    const { type = 'all' } = req.body;
+    const updates = [];
+    if (type === 'deposit' || type === 'all') {
+      updates.push({ key: 'system_proof_deposits', value: '[]' });
+    }
+    if (type === 'withdrawal' || type === 'all') {
+      updates.push({ key: 'system_proof_withdrawals', value: '[]' });
+    }
+    if (updates.length > 0) {
+      await supabase.from('settings').upsert(updates, { onConflict: 'key' });
+    }
+    res.json({ success: true, message: 'System player proof queue cleared' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to clear system proofs' });
   }
 });
 
