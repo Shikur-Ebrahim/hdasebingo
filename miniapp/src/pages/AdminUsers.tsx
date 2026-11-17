@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Search, RefreshCw, Users, ChevronRight, X, Wallet, Gift, ArrowDownCircle, ArrowUpCircle, Shield, UserCheck, AlertCircle, CheckCircle2, Minus, Plus } from 'lucide-react';
+import { ArrowLeft, Search, RefreshCw, Users, ChevronRight, X, Wallet, Gift, ArrowDownCircle, ArrowUpCircle, Shield, UserCheck, AlertCircle, CheckCircle2, Minus, Plus, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { useGameStore } from '../store/gameStore';
@@ -79,6 +79,12 @@ export default function AdminUsers() {
   // Role change state
   const [roleSaving, setRoleSaving] = useState(false);
 
+  // Reset password state
+  const [resetPassValue, setResetPassValue] = useState('');
+  const [showResetPass, setShowResetPass] = useState(false);
+  const [resetPassLoading, setResetPassLoading] = useState(false);
+  const [resetPassMsg, setResetPassMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   const searchTimer = useRef<any>(null);
   const LIMIT = 20;
 
@@ -117,6 +123,8 @@ export default function AdminUsers() {
         setAdjField('main_balance');
         setAdjAmount('');
         setAdjNote('');
+        setResetPassValue('');
+        setResetPassMsg(null);
       }
     } catch (err) { console.error(err); }
     finally { setDetailLoading(false); }
@@ -213,6 +221,36 @@ export default function AdminUsers() {
       }
     } catch { showToast('error', 'Network error'); }
     finally { setStatusSaving(false); }
+  };
+
+  const handleResetPassword = async () => {
+    if (!selected) return;
+    const clean = resetPassValue.trim();
+    if (!clean || clean.length < 4) {
+      setResetPassMsg({ type: 'error', text: 'Password must be at least 4 characters • ቢያንስ 4 ፊደል' });
+      return;
+    }
+    setResetPassLoading(true);
+    setResetPassMsg(null);
+    try {
+      const res = await fetch(`${API_URL}/admin/users/${selected.telegram_id}/reset-password`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({ new_password: clean }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        setResetPassMsg({ type: 'success', text: `Password successfully reset to: ${clean}` });
+        showToast('success', `Password reset to ${clean}!`);
+      } else {
+        setResetPassMsg({ type: 'error', text: d.error || 'Failed to reset password' });
+        showToast('error', d.error || 'Failed to reset password');
+      }
+    } catch (e: any) {
+      setResetPassMsg({ type: 'error', text: e.message || 'Network error' });
+    } finally {
+      setResetPassLoading(false);
+    }
   };
 
   return (
@@ -465,6 +503,85 @@ export default function AdminUsers() {
                       🚫 Inactive
                     </button>
                   </div>
+                </div>
+
+                {/* ─── RESET USER PASSWORD ─── */}
+                <div className="bg-white border border-amber-200/90 rounded-2xl p-3 mb-3 shadow-2xs">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center space-x-1.5">
+                      <div className="w-5 h-5 rounded-md bg-amber-100 text-amber-700 flex items-center justify-center">
+                        <KeyRound size={12} />
+                      </div>
+                      <p className="text-[11px] font-black text-slate-800">Reset Password • የይለፍ ቃል ቀይር</p>
+                    </div>
+                    <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/60 font-mono">
+                      ID: {selected.telegram_id}
+                    </span>
+                  </div>
+
+                  <p className="text-[9.5px] text-slate-400 mb-2 leading-tight">
+                    Enter any new password for this user. The player can use their Telegram ID and this password to log in on PWA.
+                  </p>
+
+                  {resetPassMsg && (
+                    <div className={`p-2 rounded-xl mb-2 text-xs flex items-center space-x-1.5 ${
+                      resetPassMsg.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+                    }`}>
+                      {resetPassMsg.type === 'success' ? <CheckCircle2 size={13} className="shrink-0" /> : <AlertCircle size={13} className="shrink-0" />}
+                      <span className="font-bold text-[10.5px]">{resetPassMsg.text}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center space-x-2 mb-2">
+                    <div className="relative flex-1">
+                      <input
+                        type={showResetPass ? 'text' : 'password'}
+                        placeholder="Enter new password (e.g. 123456)"
+                        value={resetPassValue}
+                        onChange={e => {
+                          setResetPassValue(e.target.value);
+                          setResetPassMsg(null);
+                        }}
+                        className="w-full border border-slate-200 focus:border-amber-400 outline-none rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 pr-8 bg-slate-50/50"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowResetPass(p => !p)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        {showResetPass ? <EyeOff size={13} /> : <Eye size={13} />}
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const randomPass = Math.floor(100000 + Math.random() * 900000).toString();
+                        setResetPassValue(randomPass);
+                        setShowResetPass(true);
+                        setResetPassMsg(null);
+                      }}
+                      className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl text-[10px] font-black border border-amber-200/80 active:scale-95 transition-all shrink-0"
+                      title="Generate random 6-digit password"
+                    >
+                      🎲 6-Digit
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={handleResetPassword}
+                    disabled={resetPassLoading || !resetPassValue.trim()}
+                    className="w-full py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-black rounded-xl flex items-center justify-center space-x-1.5 active:scale-95 transition-all disabled:opacity-50 shadow-xs"
+                  >
+                    {resetPassLoading ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <KeyRound size={13} />
+                        <span>Save & Reset Password</span>
+                      </>
+                    )}
+                  </button>
                 </div>
 
                 {/* ─── RECENT TRANSACTIONS ─── */}

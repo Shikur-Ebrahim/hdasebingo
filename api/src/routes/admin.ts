@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { AuthRequest, validateTelegramAuth } from '../middleware/auth';
+import { AuthRequest, validateTelegramAuth, hashPassword } from '../middleware/auth';
 import { supabase } from '../services/supabase';
 import { getWithdrawalFeeSettings, saveWithdrawalFeeSettings, calculateWithdrawalFee } from '../services/withdrawalFee';
 import { getAgencyWithdrawalFeeSettings, saveAgencyWithdrawalFeeSettings, calculateAgencyWithdrawalFee } from '../services/agencyWithdrawalFee';
@@ -813,6 +813,51 @@ router.put('/users/:telegramId/status', async (req, res) => {
   const { error } = await supabase.from('users').update({ status }).eq('telegram_id', req.params.telegramId);
   if (error) { res.status(500).json({ error: error.message }); return; }
   res.json({ success: true });
+});
+
+router.put('/users/:telegramId/reset-password', async (req, res) => {
+  const { new_password } = req.body || {};
+  const safePassword = (new_password || '').toString().trim();
+  if (!safePassword || safePassword.length < 4) {
+    res.status(400).json({ error: 'Password must be at least 4 characters • የይለፍ ቃል ቢያንስ 4 ፊደል መሆን አለበት' });
+    return;
+  }
+
+  const { data: user, error: userErr } = await supabase
+    .from('users')
+    .select('id, telegram_id, username, first_name')
+    .eq('telegram_id', req.params.telegramId)
+    .maybeSingle();
+
+  if (userErr || !user) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  const password_hash = hashPassword(safePassword);
+  const { error: updateErr } = await supabase
+    .from('users')
+    .update({ password_hash })
+    .eq('telegram_id', req.params.telegramId);
+
+  if (updateErr) {
+    res.status(500).json({ error: updateErr.message });
+    return;
+  }
+
+  // Notify user on Telegram if applicable
+  try {
+    const msg = `🔐 *Password Reset by Admin*\n\nYour account password has been updated by administrator.\n\n🔑 *New Password:* \`${safePassword}\`\n🆔 *Telegram ID:* \`${user.telegram_id}\`\n\nYou can use this Telegram ID and password to log in on the Web / PWA app!`;
+    await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: user.telegram_id, text: msg, parse_mode: 'Markdown' })
+    });
+  } catch (e) {
+    // Non-blocking notification
+  }
+
+  res.json({ success: true, message: `Password reset successfully to: ${safePassword}` });
 });
 
 // ─── WORKERS ───────────────────────────────────────────────────────────────────

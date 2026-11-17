@@ -22,6 +22,7 @@ export function PWAAuthModal() {
   const [activeTab, setActiveTab] = useState<'register' | 'login'>('register');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [loginIdentifier, setLoginIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState('');
@@ -179,8 +180,9 @@ export function PWAAuthModal() {
     setError(null);
     setSuccessMsg(null);
 
-    if (phone.length !== 9 || (!phone.startsWith('9') && !phone.startsWith('7'))) {
-      setError('Please enter your 9-digit Ethiopian phone number starting with 9 or 7.');
+    const cleanId = loginIdentifier.trim();
+    if (!cleanId) {
+      setError('Please enter your Telegram ID or phone number • የቴሌግራም ID ወይም ስልክ ቁጥር ያስገቡ');
       return;
     }
 
@@ -195,7 +197,7 @@ export function PWAAuthModal() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          phone_number: phone,
+          identifier: cleanId,
           password,
         }),
       });
@@ -438,31 +440,27 @@ export function PWAAuthModal() {
             {/* ── LOGIN FORM (WHITE THEME) ─────────────────────────────────── */}
             {activeTab === 'login' && (
               <form onSubmit={handleLogin} className="space-y-3">
-                {/* Phone with fixed +251 badge */}
+                {/* Telegram ID or Phone Number */}
                 <div>
-                  <div className="flex items-center justify-between mb-1 ml-1">
-                    <label className="text-[11px] font-bold text-slate-700">
-                      Phone Number • ስልክ ቁጥር
-                    </label>
-                    <span className="text-[10px] text-amber-600 font-mono font-bold">
-                      {phone.length}/9 digits
-                    </span>
-                  </div>
-                  <div className="flex rounded-xl overflow-hidden border border-slate-200 focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/20 transition-all bg-slate-50">
-                    <div className="px-3 py-2.5 bg-amber-50/80 border-r border-slate-200 flex items-center space-x-1.5 select-none shrink-0">
-                      <span className="text-sm">🇪🇹</span>
-                      <span className="text-slate-900 font-mono font-black text-xs">+251</span>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1 ml-1">
+                    Telegram ID or Phone • የቴሌግራም ID ወይም ስልክ ቁጥር
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <UserIcon size={16} />
                     </div>
                     <input
-                      type="tel"
-                      inputMode="numeric"
+                      type="text"
                       required
-                      value={phone}
-                      onChange={handlePhoneChange}
-                      placeholder="9xxxxxxxx or 7xxxxxxxx"
-                      className="flex-1 px-3 py-2.5 bg-transparent text-slate-900 text-sm font-mono placeholder:text-slate-400 outline-none"
+                      value={loginIdentifier}
+                      onChange={(e) => { setLoginIdentifier(e.target.value); setError(null); }}
+                      placeholder="e.g. 8921867837 or 09xxxxxxxx"
+                      className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 rounded-xl text-slate-900 text-sm placeholder:text-slate-400 outline-none transition-all font-mono"
                     />
                   </div>
+                  <p className="text-[10px] text-slate-500 mt-1 ml-1">
+                    Enter your numeric Telegram ID (from Profile) or registered phone number
+                  </p>
                 </div>
 
                 {/* Password */}

@@ -191,36 +191,58 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// ── POST /api/auth/login — PWA & Web Visitor Login ────────────────────────────
+// ── POST /api/auth/login — PWA & Web Visitor Login (by Telegram ID or Phone) ────────────
 router.post('/login', async (req, res) => {
   try {
-    const { phone_number, password } = req.body || {};
-
-    const cleanPhone = normalizeEthiopianPhone(phone_number);
-    if (!cleanPhone) {
-      res.status(400).json({
-        error: 'Invalid Ethiopian phone number. Must be 9 digits starting with 9 or 7.'
-      });
-      return;
-    }
-
+    const { identifier, phone_number, telegram_id, password } = req.body || {};
+    const rawIdentifier = (identifier || telegram_id || phone_number || '').toString().trim();
     const safePassword = (password || '').toString();
-    if (!safePassword) {
-      res.status(400).json({ error: 'Please enter your password.' });
+
+    if (!rawIdentifier) {
+      res.status(400).json({ error: 'Please enter your Telegram ID or phone number • የቴሌግራም ID ወይም ስልክ ቁጥር ያስገቡ' });
       return;
     }
 
-    const telegramId = `251${cleanPhone}`;
+    if (!safePassword) {
+      res.status(400).json({ error: 'Please enter your password • የይለፍ ቃል ያስገቡ' });
+      return;
+    }
 
-    // Lookup user by phone number stored in telegram_id
-    const { data: user, error } = await supabase
+    const cleanId = rawIdentifier.replace(/^@/, '').trim();
+
+    // 1. First, search by exact telegram_id (matches numeric Telegram ID like "8921867837" or phone-based "251912345678")
+    let { data: user } = await supabase
       .from('users')
       .select('*')
-      .eq('telegram_id', telegramId)
+      .eq('telegram_id', cleanId)
       .maybeSingle();
 
-    if (error || !user) {
-      res.status(401).json({ error: 'Account not found. Please register first.' });
+    // 2. If not found, check if input is an Ethiopian phone number (e.g. "0912345678", "912345678", "+251912345678")
+    if (!user) {
+      const cleanPhone = normalizeEthiopianPhone(cleanId);
+      if (cleanPhone) {
+        const phoneTgId = `251${cleanPhone}`;
+        const { data: phoneUser } = await supabase
+          .from('users')
+          .select('*')
+          .or(`telegram_id.eq.${phoneTgId},phone_number.eq.${cleanPhone},phone_number.eq.+251${cleanPhone}`)
+          .maybeSingle();
+        if (phoneUser) user = phoneUser;
+      }
+    }
+
+    // 3. If still not found, check by username
+    if (!user) {
+      const { data: unameUser } = await supabase
+        .from('users')
+        .select('*')
+        .ilike('username', cleanId)
+        .maybeSingle();
+      if (unameUser) user = unameUser;
+    }
+
+    if (!user) {
+      res.status(401).json({ error: 'Account not found. Please check your Telegram ID / phone or register first.' });
       return;
     }
 
@@ -231,14 +253,14 @@ router.post('/login', async (req, res) => {
 
     if (!user.password_hash) {
       res.status(400).json({
-        error: 'No password has been set for this account yet. Please register to create your password.'
+        error: 'No password has been set for this account yet. Open the bot on Telegram and save a password in Profile!'
       });
       return;
     }
 
     const isMatch = verifyPassword(safePassword, user.password_hash);
     if (!isMatch) {
-      res.status(401).json({ error: 'Incorrect password. Please try again.' });
+      res.status(401).json({ error: 'Incorrect password. Please try again • የተሳሳተ ይለፍ ቃል' });
       return;
     }
 
@@ -246,6 +268,65 @@ router.post('/login', async (req, res) => {
     res.json({ success: true, user, token });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Login failed' });
+  }
+});
+
+// ── POST /api/auth/set-password — Set or Update Password (Telegram Mini App & PWA) ──
+router.post('/set-password', validateTelegramAuth, async (req: AuthRequest, res) => {
+  try {
+    const { new_password, password, current_password } = req.body || {};
+    const safeNew = (new_password || password || '').toString().trim();
+    const safeCurr = (current_password || '').toString().trim();
+
+    if (!safeNew || safeNew.length < 4) {
+      res.status(400).json({ error: 'Password must be at least 4 characters • የይለፍ ቃል ቢያንስ 4 ፊደል መሆን አለበት' });
+      return;
+    }
+
+    const telegramId = req.telegramUser!.id.toString();
+    const { data: user, error: userErr } = await supabase
+      .from('users')
+      .select('*')
+      .eq('telegram_id', telegramId)
+      .maybeSingle();
+
+    if (userErr || !user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // If caller is in PWA (not Telegram WebApp initData verified) and already has a password, verify current password
+    const isTelegramVerified = Boolean(req.headers['x-telegram-init-data']);
+    if (user.password_hash && !isTelegramVerified) {
+      if (!safeCurr) {
+        res.status(400).json({ error: 'Please enter your current password • የድሮውን ይለፍ ቃል ያስገቡ' });
+        return;
+      }
+      const isMatch = verifyPassword(safeCurr, user.password_hash);
+      if (!isMatch) {
+        res.status(400).json({ error: 'Current password is incorrect • ያስገቡት የድሮ ይለፍ ቃል የተሳሳተ ነው' });
+        return;
+      }
+    }
+
+    const newHash = hashPassword(safeNew);
+    const { error: updateErr } = await supabase
+      .from('users')
+      .update({ password_hash: newHash })
+      .eq('id', user.id);
+
+    if (updateErr) {
+      res.status(500).json({ error: updateErr.message });
+      return;
+    }
+
+    res.json({
+      success: true,
+      message: 'Password saved successfully! You can now log into the PWA app using your Telegram ID and this password. • የይለፍ ቃልዎ ተቀምጧል!',
+      user: { ...user, password_hash: newHash },
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to save password' });
   }
 });
 
