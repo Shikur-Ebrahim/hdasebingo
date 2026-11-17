@@ -20,6 +20,7 @@ import agentBankRouter from './routes/agentBank';
 import agentBankAdminRouter from './routes/agentBankAdmin';
 import { agentWithdrawRouter, adminAgentWithdrawRouter } from './routes/agentWithdraw';
 import channelProofsRouter from './routes/channelProofs';
+import systemProofsRouter from './routes/systemProofs';
 import systemPlayersRouter from './routes/systemPlayers';
 import { systemPlayerService } from './services/systemPlayerService';
 import { supabase } from './services/supabase';
@@ -112,6 +113,7 @@ app.use('/api/admin/agent-bank', agentBankAdminRouter);
 app.use('/api/agent-withdraw', agentWithdrawRouter);
 app.use('/api/admin/agent-withdrawals', adminAgentWithdrawRouter);
 app.use('/api/channel-proofs', channelProofsRouter);
+app.use('/api/system-proofs', systemProofsRouter);
 
 app.listen(PORT, () => {
   console.log(`🚀 API running on port ${PORT}`);

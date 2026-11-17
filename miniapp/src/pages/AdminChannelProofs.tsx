@@ -3,7 +3,7 @@ import {
   ArrowLeft, Download, Send, RefreshCw, Settings2, CheckCircle2,
   ArrowDownToLine, ArrowUpFromLine,
   ExternalLink, Sparkles, Check, AlertCircle, Eye,
-  Plus, Minus, Clock, RotateCcw, Trash2
+  Plus, Minus, Clock, RotateCcw, Trash2, Bot
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
@@ -1209,6 +1209,14 @@ export default function AdminChannelProofs() {
         </div>
 
         <div className="flex items-center space-x-1.5">
+          <Link
+            to="/admin/system-proofs"
+            className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 rounded-xl text-[11px] font-bold flex items-center gap-1 active:scale-95 transition-all shadow-xs"
+            title="ወደ ሲስተም ተጫዋቾች ፕሩፍ ቀይር (System Player Proofs)"
+          >
+            <Bot size={14} className="text-indigo-600" />
+            <span className="hidden sm:inline">System Proofs</span>
+          </Link>
           <button
             onClick={() => setIsSettingsOpen(!isSettingsOpen)}
             className="w-9 h-9 rounded-xl bg-slate-100 active:bg-slate-200 flex items-center justify-center text-slate-700 active:scale-95 transition-all relative"
