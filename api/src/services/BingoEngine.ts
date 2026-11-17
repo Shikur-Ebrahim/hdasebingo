@@ -218,8 +218,8 @@ class BingoEngine {
 
       // Has the release time (default 60s) expired?
       if (waitingDurationSec >= releaseTimeoutSec) {
-        console.log(`⏰ Game #${formatGameId(game.id)} (Stake: ${game.stake}): Release time reached (${Math.round(waitingDurationSec)}s >= ${releaseTimeoutSec}s). Refunding ${players.length} cartelas and releasing player.`);
-        await this.refundAndResetGame(game, players);
+        console.log(`⏰ Game #${formatGameId(game.id)} (Stake: ${game.stake}): Release time reached (${Math.round(waitingDurationSec)}s >= ${releaseTimeoutSec}s). Refunding cartelas and releasing player.`);
+        await this.refundAndResetGame(game);
         return;
       }
 
@@ -250,12 +250,39 @@ class BingoEngine {
     console.log(`🎰 Game #${formatGameId(game.id)} started with ${uniquePlayers} unique players (min: ${minPlayers})! Stake: ${game.stake} ETB | Derash: ${prizePool} ETB | First call in ~3s.`);
   }
 
-  private async refundAndResetGame(game: any, players: any[]) {
+  private async refundAndResetGame(game: any) {
     const stake = Number(game.stake);
     const botToken = process.env.BOT_TOKEN;
 
+    // 1. ATOMIC DELETE FIRST: Delete all players for this game and retrieve only those actually deleted!
+    // This guarantees that concurrent cancel requests (/leave) cannot double-refund!
+    const { data: deletedRows, error: delErr } = await supabase
+      .from('bingo_players')
+      .delete()
+      .eq('game_id', game.id)
+      .select('id, telegram_id, cartela_number, bonus_used, main_used, is_system, is_waiter, waiter_agent_id, waiter_stake_deducted');
+
+    if (delErr) {
+      console.error(`❌ Error deleting players during refund for game #${formatGameId(game.id)}:`, delErr);
+      return;
+    }
+
+    const players = deletedRows || [];
+    if (players.length === 0) {
+      console.log(`ℹ️ No players left to refund for expired game #${formatGameId(game.id)} (already cancelled).`);
+      await supabase.from('bingo_games').update({
+        start_at: new Date(Date.now() + 86400000 * 365).toISOString(),
+        prize_pool: 0,
+        total_players: 0,
+        real_players_count: 0,
+        system_players_count: 0,
+        updated_at: new Date().toISOString()
+      }).eq('id', game.id);
+      return;
+    }
+
     // Filter only REAL players for refund
-    const realPlayers = (players || []).filter(p => !p.is_system);
+    const realPlayers = players.filter((p: any) => !p.is_system);
 
     // Group real players by telegram_id — summing bonus_used and main_used per user
     const userRefunds: Record<string, { bonusAmt: number; mainAmt: number; count: number }> = {};
@@ -263,8 +290,12 @@ class BingoEngine {
       if (!userRefunds[p.telegram_id]) {
         userRefunds[p.telegram_id] = { bonusAmt: 0, mainAmt: 0, count: 0 };
       }
-      userRefunds[p.telegram_id].bonusAmt += Number(p.bonus_used || 0);
-      userRefunds[p.telegram_id].mainAmt  += Number(p.main_used  || 0);
+      let m = Number(p.main_used || 0);
+      let b = Number(p.bonus_used || 0);
+      if (m === 0 && b === 0) m = stake;
+      if (m + b > stake) m = Math.max(0, stake - b);
+      userRefunds[p.telegram_id].bonusAmt += b;
+      userRefunds[p.telegram_id].mainAmt  += m;
       userRefunds[p.telegram_id].count    += 1;
     }
 
@@ -299,7 +330,7 @@ class BingoEngine {
     }
 
     // Refund waiter players back to the Room Owner / Agent Balance
-    const waiterPlayers = (players || []).filter((p: any) => p.is_waiter && p.waiter_agent_id);
+    const waiterPlayers = players.filter((p: any) => p.is_waiter && p.waiter_agent_id);
     for (const wp of waiterPlayers) {
       const stakeToRefund = Number(wp.waiter_stake_deducted || wp.main_used || stake || 0);
       if (stakeToRefund > 0) {
@@ -321,8 +352,7 @@ class BingoEngine {
       }
     }
 
-    // Clean up players for this game and reset status
-    await supabase.from('bingo_players').delete().eq('game_id', game.id);
+    // Reset game state
     await supabase.from('bingo_games').update({
       start_at: new Date(Date.now() + 86400000 * 365).toISOString(),
       prize_pool: 0,

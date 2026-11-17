@@ -189,6 +189,7 @@ export default function BingoGame() {
   const [maxPlayers, setMaxPlayers] = useState<number>(300);
   const [maxCartelasPerUser, setMaxCartelasPerUser] = useState<number>(4);
   const pendingPurchasesRef = useRef<Set<number>>(new Set());
+  const pendingCancelsRef = useRef<Set<number>>(new Set());
   const [myCartelas, setMyCartelas] = useState<Array<{ cartela_number: number; card_matrix: number[][] }>>([]);
   const [activeCartelaIdx, setActiveCartelaIdx] = useState(0);
   const [uniquePlayers, setUniquePlayers] = useState<number>(0);
@@ -273,6 +274,7 @@ export default function BingoGame() {
       setMyCard(null);
       setMyCartelas([]);
       pendingPurchasesRef.current.clear();
+      pendingCancelsRef.current.clear();
       setActiveCartelaIdx(0);
       setTaken([]);
     }
@@ -868,6 +870,7 @@ export default function BingoGame() {
         setMyCard(null);
         setMyCartelas([]);
         pendingPurchasesRef.current.clear();
+      pendingCancelsRef.current.clear();
         setActiveCartelaIdx(0);
         setTaken([]);
         setManuallyMarked(new Set());
@@ -1183,6 +1186,10 @@ export default function BingoGame() {
       setAuthModalOpen(true);
       return;
     }
+    // Prevent action if this seat is currently being cancelled or purchased
+    if (pendingCancelsRef.current.has(seat) || pendingPurchasesRef.current.has(seat)) {
+      return;
+    }
     // Deduplicate distinct seats selected in state or pending in-flight
     const allSelectedNumbers = new Set<number>([
       ...myCartelas.map(c => c.cartela_number),
@@ -1207,13 +1214,20 @@ export default function BingoGame() {
 
   const handleCancelCartela = async (seat: number) => {
     if (!game || game.status !== 'waiting') return;
-    if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
-
-    pendingPurchasesRef.current.delete(seat);
-    setErrMsg('');
+    // Strict Guard: Prevent double-click or spam cancelling
+    if (pendingCancelsRef.current.has(seat)) return;
+    // Strict Guard: If purchase of this seat is currently in-flight, do not allow cancel until buy finishes
+    if (pendingPurchasesRef.current.has(seat)) {
+      setErrMsg(language === 'am' ? 'እባክዎ ግዢው እስኪጠናቀቅ ይጠብቁ...' : 'Purchase in progress, please wait...');
+      return;
+    }
 
     const existing = myCartelas.find(c => c.cartela_number === seat);
     if (!existing) return;
+
+    pendingCancelsRef.current.add(seat);
+    setErrMsg('');
+    if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
 
     setMyCartelas(prev => prev.filter(c => c.cartela_number !== seat));
     setTaken(prev => prev.filter(n => n !== seat));
@@ -1236,12 +1250,14 @@ export default function BingoGame() {
         refreshUser();
         fetchState();
       } else {
+        const errData = await res.json().catch(() => ({}));
         setMyCartelas(prev => prev.some(c => c.cartela_number === seat) ? prev : [...prev, existing]);
         setTaken(prev => prev.includes(seat) ? prev : [...prev, seat]);
         useGameStore.setState(s => ({
           user: s.user ? { ...s.user, main_balance: Math.max(0, Number(s.user.main_balance || 0) - stakeAmt) } : s.user
         }));
-        setErrMsg('Could not cancel cartela');
+        setErrMsg(errData.error || (language === 'am' ? 'ካርቴላውን መሰረዝ አልተቻለም' : 'Could not cancel cartela'));
+        refreshUser();
       }
     } catch {
       setMyCartelas(prev => prev.some(c => c.cartela_number === seat) ? prev : [...prev, existing]);
@@ -1249,7 +1265,10 @@ export default function BingoGame() {
       useGameStore.setState(s => ({
         user: s.user ? { ...s.user, main_balance: Math.max(0, Number(s.user.main_balance || 0) - stakeAmt) } : s.user
       }));
-      setErrMsg('Network error');
+      setErrMsg(language === 'am' ? 'የኔትወርክ ችግር' : 'Network error');
+      refreshUser();
+    } finally {
+      pendingCancelsRef.current.delete(seat);
     }
   };
 
@@ -1330,6 +1349,10 @@ export default function BingoGame() {
   const joinGame = async (seat: number, matrix: number[][]) => {
     initWebAudio();
     if (!game || game.status !== "waiting") {
+      pendingPurchasesRef.current.delete(seat);
+      return;
+    }
+    if (pendingCancelsRef.current.has(seat)) {
       pendingPurchasesRef.current.delete(seat);
       return;
     }
@@ -2029,8 +2052,9 @@ export default function BingoGame() {
                   return (
                     <button
                       key={n}
+                      disabled={pendingCancelsRef.current.has(n) || pendingPurchasesRef.current.has(n)}
                       onClick={() => handleCancelCartela(n)}
-                      className="aspect-square flex flex-col items-center justify-center rounded-[7px] text-[9.5px] font-black bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-600 text-white shadow-[0_2.5px_6px_rgba(16,185,129,0.45),inset_0_1px_1px_rgba(255,255,255,0.7),inset_0_-1px_1.5px_rgba(5,150,105,0.5)] ring-2 ring-emerald-300 active:scale-90 transition-all z-10 cursor-pointer"
+                      className="aspect-square flex flex-col items-center justify-center rounded-[7px] text-[9.5px] font-black bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-600 text-white shadow-[0_2.5px_6px_rgba(16,185,129,0.45),inset_0_1px_1px_rgba(255,255,255,0.7),inset_0_-1px_1.5px_rgba(5,150,105,0.5)] ring-2 ring-emerald-300 active:scale-90 transition-all z-10 cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
                       title={language === 'am' ? 'ለመሰረዝ ይጫኑ' : 'Tap to cancel'}
                     >
                       <span className="leading-none text-[8.5px] font-black">{n}</span>
@@ -2081,11 +2105,12 @@ export default function BingoGame() {
                   {/* 3D Floating Raised Cancel Button at Top-Right */}
                   <button
                     type="button"
+                    disabled={pendingCancelsRef.current.has(c.cartela_number) || pendingPurchasesRef.current.has(c.cartela_number)}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleCancelCartela(c.cartela_number);
                     }}
-                    className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 rounded-full bg-gradient-to-b from-red-400 via-red-500 to-red-600 text-white font-black flex items-center justify-center text-[9px] shadow-[0_2px_5px_rgba(220,38,38,0.5),inset_0_1px_1px_rgba(255,255,255,0.7)] border border-white hover:scale-110 active:scale-90 active:translate-y-0.5 transition-all cursor-pointer z-30"
+                    className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 rounded-full bg-gradient-to-b from-red-400 via-red-500 to-red-600 text-white font-black flex items-center justify-center text-[9px] shadow-[0_2px_5px_rgba(220,38,38,0.5),inset_0_1px_1px_rgba(255,255,255,0.7)] border border-white hover:scale-110 active:scale-90 active:translate-y-0.5 transition-all cursor-pointer z-30 disabled:opacity-50 disabled:pointer-events-none"
                     title={language === 'am' ? 'ሰርዝ' : 'Cancel cartela'}
                   >
                     ✕
@@ -2167,6 +2192,7 @@ export default function BingoGame() {
                   setMyCard(null);
                   setMyCartelas([]);
                   pendingPurchasesRef.current.clear();
+      pendingCancelsRef.current.clear();
                   setActiveCartelaIdx(0);
                   setTaken([]);
                 }} 
@@ -2225,6 +2251,7 @@ export default function BingoGame() {
                                 setMyCard(null);
                                 setMyCartelas([]);
                                 pendingPurchasesRef.current.clear();
+      pendingCancelsRef.current.clear();
                                 setActiveCartelaIdx(0);
                                 setTaken([]);
                               }
@@ -2287,7 +2314,7 @@ export default function BingoGame() {
                                 if (selectedRoomId) params.set('room', selectedRoomId);
                                 return params;
                               });
-                              setGame(null); setMyCard(null); setMyCartelas([]); pendingPurchasesRef.current.clear(); setActiveCartelaIdx(0); setTaken([]);
+                              setGame(null); setMyCard(null); setMyCartelas([]); pendingPurchasesRef.current.clear(); pendingCancelsRef.current.clear(); setActiveCartelaIdx(0); setTaken([]);
                               setShowStakeDropdown(false);
                             }}
                             className={`w-full text-left px-3 py-2.5 flex items-center justify-between border-b border-slate-100 last:border-0 hover:bg-amber-50 active:bg-amber-100 transition-colors ${selectedStake === val ? 'text-amber-600 font-black' : 'text-slate-700'}`}
