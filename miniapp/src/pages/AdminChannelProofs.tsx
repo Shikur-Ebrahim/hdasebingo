@@ -3,7 +3,7 @@ import {
   ArrowLeft, Download, Send, RefreshCw, Settings2, CheckCircle2,
   ArrowDownToLine, ArrowUpFromLine,
   ExternalLink, Sparkles, Check, AlertCircle, Eye,
-  Plus, Minus, Clock, RotateCcw, Trash2, Bot, Trophy, Dices
+  Plus, Minus, Clock, RotateCcw, Trash2, Bot, Trophy, Dices, Percent
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
@@ -37,6 +37,7 @@ interface WithdrawalItem {
   amount: number | string;
   net_amount?: number | string;
   fee_amount?: number | string;
+  fee_percent?: number | string;
   account_name?: string;
   account_number?: string;
   status: string;
@@ -89,6 +90,14 @@ export default function AdminChannelProofs() {
   const [recentWithdrawals, setRecentWithdrawals] = useState<WithdrawalItem[]>([]);
   const [unpostedDepositsList, setUnpostedDepositsList] = useState<DepositItem[]>([]);
   const [unpostedWithdrawalsList, setUnpostedWithdrawalsList] = useState<WithdrawalItem[]>([]);
+  const [feeSettings, setFeeSettings] = useState<{
+    is_enabled: boolean;
+    tier1_max_amount: number;
+    tier1_fee_percent: number;
+    tier2_max_amount: number;
+    tier2_fee_percent: number;
+    tier3_fee_percent: number;
+  } | null>(null);
 
   // Batch size per flyer (editable from 10)
   const [depositBatchSize, setDepositBatchSize] = useState<number>(10);
@@ -235,6 +244,7 @@ export default function AdminChannelProofs() {
         setAvailableDepositMethods(json.availableDepositMethods || []);
         setAvailableWithdrawalMethods(json.availableWithdrawalMethods || []);
         setWinnerBotsCount(json.winnerBotsCount || 0);
+        if (json.feeSettings) setFeeSettings(json.feeSettings);
         
         const depList = json.unpostedDeposits || json.recentDeposits || [];
         const withList = json.unpostedWithdrawals || json.recentWithdrawals || [];
@@ -1562,6 +1572,24 @@ export default function AdminChannelProofs() {
             </div>
           </div>
 
+          {/* Tiered Withdrawal Fee Notice */}
+          {activeTab === 'withdrawal' && feeSettings?.is_enabled && (
+            <div className="p-2.5 bg-amber-50/90 rounded-xl border border-amber-200/90 text-[11px] text-amber-900 flex items-start gap-2">
+              <Percent size={14} className="text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-amber-950">
+                  ደረጃውን የጠበቀ የመውጫ ክፍያ (Tiered Fee Applied):
+                </p>
+                <p className="text-[10px] text-amber-800 font-medium mt-0.5">
+                  Tier 1 (≤ {Number(feeSettings.tier1_max_amount || 2000).toLocaleString()} ETB): {feeSettings.tier1_fee_percent}% • Tier 2 (≤ {Number(feeSettings.tier2_max_amount || 10000).toLocaleString()} ETB): {feeSettings.tier2_fee_percent}% • Tier 3: {feeSettings.tier3_fee_percent}%
+                </p>
+                <p className="text-[9.5px] text-amber-700/90 font-semibold mt-0.5">
+                  ምሳሌ፦ 800 ብር ሲወጣ 3% ተቀንሶ የተጣራ 776 ብር በፖስተሩ ላይ ይወጣል።
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Amount Range inputs */}
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div>
@@ -2075,8 +2103,13 @@ export default function AdminChannelProofs() {
                         <div className="flex items-center gap-3">
                           <div className="text-right">
                             <span className="text-xs font-black text-rose-700 block">
-                              {amt.toLocaleString()} ETB
+                              +{amt.toLocaleString()} ETB
                             </span>
+                            {item.fee_amount && Number(item.fee_amount) > 0 ? (
+                              <span className="text-[9px] text-slate-400 font-bold block">
+                                ጠቅላላ፦ {Number(item.amount).toLocaleString()} (-{Number(item.fee_amount)} ክፍያ)
+                              </span>
+                            ) : null}
                             <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
                               isInFlyer ? 'bg-rose-200 text-rose-900' : 'bg-slate-100 text-slate-500'
                             }`}>

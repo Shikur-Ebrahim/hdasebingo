@@ -4,6 +4,7 @@ import { AuthRequest, validateTelegramAuth } from '../middleware/auth';
 import { supabase } from '../services/supabase';
 import { uploadToR2 } from '../services/r2';
 import { generateStylizedSystemNames } from '../services/systemPlayerService';
+import { getWithdrawalFeeSettings, calculateWithdrawalFee } from '../services/withdrawalFee';
 
 const router = Router();
 
@@ -333,6 +334,46 @@ router.get('/data', validateTelegramAuth, requireAdminOrWorker, async (req: Auth
       systemWithdrawals = [];
     }
 
+    // Fetch active tiered withdrawal fee settings to guarantee net_amount reflects exact fee
+    const feeSettings = await getWithdrawalFeeSettings();
+
+    // Ensure all system withdrawals have exact net_amount and fee_amount computed from current fee settings
+    systemWithdrawals = systemWithdrawals.map(w => {
+      const amt = Number(w.amount || 0);
+      const feeCalc = calculateWithdrawalFee(amt, 'user', feeSettings);
+      return {
+        ...w,
+        amount: amt,
+        fee_percent: feeCalc.fee_percent,
+        fee_amount: feeCalc.fee_amount,
+        net_amount: feeCalc.net_amount,
+        is_system: true,
+      };
+    });
+
+    // Also ensure real withdrawals have fee_amount and net_amount computed if null or uncalculated
+    enrichedWithdrawals = enrichedWithdrawals.map(w => {
+      const amt = Number(w.amount || 0);
+      let net = w.net_amount;
+      let fee = w.fee_amount;
+      let pct = w.fee_percent;
+      if (net === undefined || net === null || Number(net) === amt) {
+        const feeCalc = calculateWithdrawalFee(amt, 'user', feeSettings);
+        net = feeCalc.net_amount;
+        fee = feeCalc.fee_amount;
+        pct = feeCalc.fee_percent;
+      }
+      return {
+        ...w,
+        amount: amt,
+        fee_percent: Number(pct || 0),
+        fee_amount: Number(fee || 0),
+        net_amount: Number(net || amt),
+        users: w.users || null,
+        is_system: false,
+      };
+    });
+
     // 6. Filter unposted (NOT yet posted) transactions
     const unpostedRealDeposits = (depositsRaw || []).filter(d => !postedDepositIds.includes(d.id)).map(d => ({ ...d, is_system: false }));
     const unpostedSysDeposits = systemDeposits.filter(d => !postedDepositIds.includes(d.id));
@@ -378,6 +419,7 @@ router.get('/data', validateTelegramAuth, requireAdminOrWorker, async (req: Auth
       availableDepositMethods,
       availableWithdrawalMethods,
       winnerBotsCount,
+      feeSettings,
     });
   } catch (err: any) {
     console.error('Error fetching channel proofs data:', err);
@@ -452,12 +494,15 @@ router.post('/generate-system-proofs', validateTelegramAuth, requireAdminOrWorke
       }
     }
 
+    const feeSettings = await getWithdrawalFeeSettings();
+
     if (type === 'withdrawal' || type === 'both') {
       const candidates = await getBotCandidates(requestedCount, prefer_winners !== false);
       for (let i = 0; i < candidates.length; i++) {
         const c = candidates[i];
         const method = activeWithMethods[Math.floor(Math.random() * activeWithMethods.length)];
         const amount = getRandomWithdrawalAmount(Number(min_withdraw) || 100, Number(max_withdraw) || 5000);
+        const feeCalc = calculateWithdrawalFee(amount, 'user', feeSettings);
         const ts = new Date(now - (i * 9 + Math.floor(Math.random() * 20)) * 60 * 1000).toISOString();
 
         newWithdrawals.push({
@@ -465,8 +510,9 @@ router.post('/generate-system-proofs', validateTelegramAuth, requireAdminOrWorke
           telegram_id: c.id,
           method_id: method.id,
           amount,
-          net_amount: amount,
-          fee_amount: 0,
+          net_amount: feeCalc.net_amount,
+          fee_amount: feeCalc.fee_amount,
+          fee_percent: feeCalc.fee_percent,
           account_name: c.first_name,
           account_number: `09${Math.floor(10000000 + Math.random() * 90000000)}`,
           status: 'approved',
