@@ -112,11 +112,40 @@ class BingoEngine {
       .order('created_at', { ascending: false });
 
     const gamesMap = new Map<string, any>();
+    const duplicateWaitersToClean: string[] = [];
+
     for (const g of activeGames || []) {
       const key = `${g.room_id}_${g.stake}`;
       if (!gamesMap.has(key)) {
         gamesMap.set(key, g);
+      } else {
+        const existing = gamesMap.get(key);
+        // Priority: 'calling' game wins over 'waiting' game
+        if (existing.status === 'waiting' && g.status === 'calling') {
+          if (!existing.total_players || existing.total_players === 0) {
+            duplicateWaitersToClean.push(existing.id);
+          }
+          gamesMap.set(key, g);
+        } else if (existing.status === 'calling' && g.status === 'waiting') {
+          if (!g.total_players || g.total_players === 0) {
+            duplicateWaitersToClean.push(g.id);
+          }
+        } else if (existing.status === 'waiting' && g.status === 'waiting') {
+          // If both waiting, keep the one with players or the newer one
+          if ((Number(g.total_players) || 0) > (Number(existing.total_players) || 0)) {
+            if (!existing.total_players || existing.total_players === 0) {
+              duplicateWaitersToClean.push(existing.id);
+            }
+            gamesMap.set(key, g);
+          } else if (!g.total_players || g.total_players === 0) {
+            duplicateWaitersToClean.push(g.id);
+          }
+        }
       }
+    }
+
+    if (duplicateWaitersToClean.length > 0) {
+      await supabase.from('bingo_games').update({ status: 'finished' }).in('id', duplicateWaitersToClean);
     }
 
     for (const room of rooms) {

@@ -94,8 +94,8 @@ export default function AdminHdaseBingo() {
   const [stakeConfigs, setStakeConfigs] = useState<Record<string, StakeConfig>>({
     stake_1: { min: 2, max: 5, enabled: true },
     stake_2: { min: 2, max: 5, enabled: true },
-    stake_3: { min: 1, max: 3, enabled: false },
-    stake_4: { min: 1, max: 2, enabled: false },
+    stake_3: { min: 1, max: 3, enabled: true },
+    stake_4: { min: 1, max: 2, enabled: true },
   });
 
   // Form states: Waiter Players

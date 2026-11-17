@@ -76,6 +76,10 @@ router.get('/pools', async (req, res) => {
       const existing = stakeMap.get(s);
       if (existing.status !== 'calling' && g.status === 'calling') {
         stakeMap.set(s, g);
+      } else if (existing.status === 'waiting' && g.status === 'waiting') {
+        if ((Number(g.total_players) || 0) > (Number(existing.total_players) || 0)) {
+          stakeMap.set(s, g);
+        }
       }
     }
   }
@@ -238,11 +242,29 @@ router.get('/current', optionalTelegramAuth, async (req: AuthRequest, res) => {
   if (roomId) {
     const { data: activeGames } = await supabase
       .from('bingo_games')
-      .select('stake, status, prize_pool, total_players')
+      .select('stake, status, prize_pool, total_players, created_at')
       .eq('room_id', roomId)
-      .in('status', ['waiting', 'calling']);
+      .in('status', ['waiting', 'calling'])
+      .order('created_at', { ascending: false });
+
     if (activeGames) {
-      room_stakes = activeGames.map((g: any) => ({
+      const stakeDedup = new Map<number, any>();
+      for (const g of activeGames) {
+        const s = Number(g.stake);
+        if (!stakeDedup.has(s)) {
+          stakeDedup.set(s, g);
+        } else {
+          const existing = stakeDedup.get(s);
+          if (existing.status !== 'calling' && g.status === 'calling') {
+            stakeDedup.set(s, g);
+          } else if (existing.status === 'waiting' && g.status === 'waiting') {
+            if ((Number(g.total_players) || 0) > (Number(existing.total_players) || 0)) {
+              stakeDedup.set(s, g);
+            }
+          }
+        }
+      }
+      room_stakes = Array.from(stakeDedup.values()).map((g: any) => ({
         stake: Number(g.stake),
         status: g.status,
         prize_pool: Number(g.prize_pool || 0),

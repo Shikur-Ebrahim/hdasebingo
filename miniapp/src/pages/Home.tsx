@@ -136,35 +136,26 @@ export default function Home() {
     setTimeout(() => setManualRefreshing(false), 500);
   };
 
-  // User's assigned/invited room: prioritize user's actual assigned agent room from DB/localStorage.
-  // If user has a previous room, NEVER fall back to HDASE official room!
   const userDbRoomId = (user as any)?.room_id;
   const storedRoomId = typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null;
   const HDASE_OFFICIAL_ROOM_ID = 'd7c9114a-e112-426f-8f9b-13c00050279c';
 
-  const userInvitedRoomId = useMemo(() => {
-    // 1. If DB has an agent's room (not official), use it
-    if (userDbRoomId && userDbRoomId !== HDASE_OFFICIAL_ROOM_ID) return userDbRoomId;
-    // 2. If localStorage has an agent's room (not official), use it
-    if (storedRoomId && storedRoomId !== HDASE_OFFICIAL_ROOM_ID) return storedRoomId;
-    // 3. Otherwise fall back to user's assigned room or stored room (or null if brand new)
-    return userDbRoomId || storedRoomId || null;
-  }, [userDbRoomId, storedRoomId]);
-
   const activeRoom = useMemo(() => {
-    if (userInvitedRoomId) {
-      const found = rooms.find(r => r.id === userInvitedRoomId);
+    // 1. If user explicitly selected or has assigned room in DB/store or localStorage, respect it!
+    const effectiveRoomId = userDbRoomId || storedRoomId;
+    if (effectiveRoomId) {
+      const found = rooms.find(r => r.id === effectiveRoomId);
       if (found) return found;
     }
-    // Only if user has NO assigned/previous room, default to official HDASE room
+    // 2. Default to official HDASE room
     const official = rooms.find(r => r.room_name === 'HDASE BINGO' || r.id === HDASE_OFFICIAL_ROOM_ID);
     if (official) return official;
     const pinned = rooms.find(r => r.is_pinned);
     if (pinned) return pinned;
     return rooms[0] || null;
-  }, [rooms, userInvitedRoomId]);
+  }, [rooms, userDbRoomId, storedRoomId]);
 
-  const activeRoomId = activeRoom?.id || 'd7c9114a-e112-426f-8f9b-13c00050279c';
+  const activeRoomId = activeRoom?.id || HDASE_OFFICIAL_ROOM_ID;
   const activeStakes = useMemo(() => {
     if (activeRoom && Array.isArray(activeRoom.stakes) && activeRoom.stakes.length === 4) {
       return activeRoom.stakes.map(Number);
@@ -219,12 +210,20 @@ export default function Home() {
         const p: Record<number, any> = {};
         loadedPools.forEach((g: any) => {
           const s = Number(g.stake);
-          p[s] = {
-            pool: Number(g.prize_pool || 0),
-            start_at: g.start_at,
-            status: g.status,
-            players: Number(g.unique_players || 0),
-          };
+          const pool = Number(g.prize_pool || 0);
+          const players = Number(g.unique_players || 0);
+          const status = g.status;
+
+          if (!p[s]) {
+            p[s] = { pool, start_at: g.start_at, status, players };
+          } else {
+            // Priority: calling over waiting; higher player count over 0 players
+            if (p[s].status !== 'calling' && status === 'calling') {
+              p[s] = { pool, start_at: g.start_at, status, players };
+            } else if (p[s].status === status && players > p[s].players) {
+              p[s] = { pool, start_at: g.start_at, status, players };
+            }
+          }
         });
         setHomeGames(p);
       }
@@ -586,7 +585,7 @@ export default function Home() {
           {/* Scrolling marquee strip — live room names */}
           <div className="absolute top-1 left-0 right-0 overflow-hidden py-1.5 bg-amber-50/80 border-b border-amber-200/60 pointer-events-none" style={{ top: '4px' }}>
             {(() => {
-              const publicOrUserRooms = rooms.filter(r => !r.is_private || (userInvitedRoomId && r.id === userInvitedRoomId));
+              const publicOrUserRooms = rooms.filter(r => !r.is_private || (activeRoomId && r.id === activeRoomId));
               return publicOrUserRooms.length > 0 ? (
                 <div className="flex whitespace-nowrap animate-marquee">
                   {[...publicOrUserRooms, ...publicOrUserRooms].map((room, i) => (

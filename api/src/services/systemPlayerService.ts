@@ -1,12 +1,12 @@
 import { supabase } from './supabase';
 import { generateBingoCard } from './BingoEngine';
 
-// Default stake target ranges: 1st & 2nd stakes ON, 3rd & 4th stakes default OFF
+// Default stake target ranges: all 4 stakes ON by default when System Players are activated
 export const DEFAULT_STAKE_CONFIGS = {
   stake_1: { min: 4, max: 15, enabled: true },
   stake_2: { min: 3, max: 9, enabled: true },
-  stake_3: { min: 2, max: 5, enabled: false },
-  stake_4: { min: 2, max: 4, enabled: false },
+  stake_3: { min: 2, max: 5, enabled: true },
+  stake_4: { min: 2, max: 4, enabled: true },
 };
 
 // Default Waiter Player configs: all stakes default OFF, 1-2 bots each, 1 cartela each (backed by Agent Balance)
@@ -582,10 +582,10 @@ export class SystemPlayerService {
     const tierConfig = configs[tier] || DEFAULT_STAKE_CONFIGS[tier as keyof typeof DEFAULT_STAKE_CONFIGS] || {
       min: 2,
       max: 5,
-      enabled: tier === 'stake_1' || tier === 'stake_2',
+      enabled: true,
     };
 
-    const defaultEnabled = (tier === 'stake_1' || tier === 'stake_2');
+    const defaultEnabled = true;
     const isStakeEnabled = tierConfig.enabled !== undefined ? Boolean(tierConfig.enabled) : defaultEnabled;
 
     // Check if normal Auto-Bustle is eligible:

@@ -91,12 +91,12 @@ export default function AgentSystemPlayerModal({
   const [managerAccounts, setManagerAccounts] = useState<ManagerAccount[]>([]);
   const [pendingRequest, setPendingRequest] = useState<any | null>(null);
 
-  // Stake configs (1st & 2nd stakes ON, 3rd & 4th stakes default OFF)
+  // Stake configs (all 4 stakes default ON when Pro active)
   const [stakeConfigs, setStakeConfigs] = useState<StakeConfigs>({
     stake_1: { min: 4, max: 15, enabled: true },
     stake_2: { min: 3, max: 9, enabled: true },
-    stake_3: { min: 2, max: 5, enabled: false },
-    stake_4: { min: 2, max: 4, enabled: false },
+    stake_3: { min: 2, max: 5, enabled: true },
+    stake_4: { min: 2, max: 4, enabled: true },
   });
 
   // Waiter Player states (All stakes default OFF, backed by Agent Balance)
@@ -185,8 +185,8 @@ export default function AgentSystemPlayerModal({
         setStakeConfigs({
           stake_1: { min: 4, max: 15, enabled: true, ...data.stake_configs.stake_1 },
           stake_2: { min: 3, max: 9, enabled: true, ...data.stake_configs.stake_2 },
-          stake_3: { min: 2, max: 5, enabled: false, ...data.stake_configs.stake_3 },
-          stake_4: { min: 2, max: 4, enabled: false, ...data.stake_configs.stake_4 },
+          stake_3: { min: 2, max: 5, enabled: true, ...data.stake_configs.stake_3 },
+          stake_4: { min: 2, max: 4, enabled: true, ...data.stake_configs.stake_4 },
         });
       }
 

@@ -412,12 +412,19 @@ export default function BingoGame() {
         const p: Record<number, any> = {};
         loadedPools.forEach((g: any) => {
           const s = Number(g.stake);
-          p[s] = {
-            pool: Number(g.prize_pool || 0),
-            start_at: g.start_at,
-            status: g.status,
-            players: Number(g.unique_players || 0),
-          };
+          const pool = Number(g.prize_pool || 0);
+          const players = Number(g.unique_players || 0);
+          const status = g.status;
+
+          if (!p[s]) {
+            p[s] = { pool, start_at: g.start_at, status, players };
+          } else {
+            if (p[s].status !== 'calling' && status === 'calling') {
+              p[s] = { pool, start_at: g.start_at, status, players };
+            } else if (p[s].status === status && players > p[s].players) {
+              p[s] = { pool, start_at: g.start_at, status, players };
+            }
+          }
         });
         setHomeGames(p);
       }
@@ -1012,12 +1019,19 @@ export default function BingoGame() {
             const next = { ...prev };
             d.room_stakes.forEach((s: any) => {
               const st = Number(s.stake);
-              next[st] = {
-                pool: Number(s.prize_pool || 0),
-                status: s.status,
-                players: Number(s.total_players || 0),
-                start_at: prev[st]?.start_at,
-              };
+              const pool = Number(s.prize_pool || 0);
+              const players = Number(s.total_players || 0);
+              const status = s.status;
+
+              if (!next[st]) {
+                next[st] = { pool, status, players, start_at: prev[st]?.start_at };
+              } else {
+                if (next[st].status !== 'calling' && status === 'calling') {
+                  next[st] = { pool, status, players, start_at: prev[st]?.start_at };
+                } else if (next[st].status === status && players > next[st].players) {
+                  next[st] = { pool, status, players, start_at: prev[st]?.start_at };
+                }
+              }
             });
             return next;
           });
