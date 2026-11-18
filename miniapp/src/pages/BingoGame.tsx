@@ -779,6 +779,7 @@ export default function BingoGame() {
   const finishingDelayTimerRef = useRef<any>(null);
   const lastPlayedBallRef = useRef<number | null>(null);
   const isFinishingRef = useRef(false);
+  const finishingGameRef = useRef<any>(null);
   const finishedCartelasRef = useRef<MyCard[]>([]);
   const [isFinishing, setIsFinishing] = useState(false);
   const cartelaMatricesRef = useRef<Record<number, number[][]>>({});
@@ -799,14 +800,42 @@ export default function BingoGame() {
     }
   }, [game?.id, game?.status, autoMark]);
 
-  // Delayed celebration trigger: shows the winning called ball on screen & marks it on cartela for 1.2s before celebration popup!
+  const dismissCelebration = useCallback(() => {
+    if (celebrationTimerRef.current) {
+      clearTimeout(celebrationTimerRef.current);
+      celebrationTimerRef.current = null;
+    }
+    if (finishingDelayTimerRef.current) {
+      clearTimeout(finishingDelayTimerRef.current);
+      finishingDelayTimerRef.current = null;
+    }
+    setIsFinishing(false);
+    isFinishingRef.current = false;
+    finishingGameRef.current = null;
+    setCelebration(null);
+    celebrationRef.current = null;
+    finishedCartelasRef.current = [];
+    setMyCard(null);
+    setMyCartelas([]);
+    pendingPurchasesRef.current.clear();
+    pendingCancelsRef.current.clear();
+    setActiveCartelaIdx(0);
+    setTaken([]);
+    setManuallyMarked(new Set());
+    setBingoLockSeconds(0);
+    setGame(prev => prev ? { ...prev, status: 'waiting', called_numbers: [], total_players: 0, prize_pool: 0 } : prev);
+    fetchStateRef.current();
+    refreshUserRef.current();
+  }, []);
+
+  // Delayed celebration trigger: shows the winning called ball on screen & marks it on cartela for EXACTLY 3 SECONDS before celebration popup!
   const triggerCelebration = useCallback((finGame: any) => {
     if (!finGame || finGame.status !== 'finished') return;
     if (celebratedGamesRef.current.has(finGame.id)) return;
     if (!finGame.winner_cartela && finGame.winner_first_name !== 'REMATCH') return;
 
-    // Guard: ignore stale games > 12s old
-    if (finGame.finished_at && (Date.now() - new Date(finGame.finished_at).getTime()) > 12000) {
+    // Guard: ignore stale games > 20s old
+    if (finGame.finished_at && (Date.now() - new Date(finGame.finished_at).getTime()) > 20000) {
       celebratedGamesRef.current.add(finGame.id);
       return;
     }
@@ -817,14 +846,21 @@ export default function BingoGame() {
       celebratedGamesRef.current.delete(oldest);
     }
 
+    // Immediately mark as finishing and save the finished game reference!
+    isFinishingRef.current = true;
+    setIsFinishing(true);
+    finishingGameRef.current = finGame;
+
+    // Preserve the user's cartelas so they remain on screen with marked numbers!
+    if (myCartelas && myCartelas.length > 0) {
+      finishedCartelasRef.current = myCartelas;
+    }
+
     // 1. Ensure game state is updated with this finished game's final called numbers & state
-    setGame(prev => {
-      if (!prev) return finGame;
-      return {
-        ...prev,
-        ...finGame,
-        called_numbers: finGame.called_numbers || prev.called_numbers,
-      };
+    setGame({
+      ...finGame,
+      status: 'finished',
+      called_numbers: finGame.called_numbers || [],
     });
 
     const finalCalled = finGame.called_numbers || [];
@@ -839,63 +875,44 @@ export default function BingoGame() {
       }
     }
 
-    // 3. Keep live calling board visible for 1.2s so the user clearly sees:
+    // 3. Keep live calling board visible for EXACTLY 3 SECONDS (3000ms):
     // - The final ball called in the caller circle
     // - The final number marked in orange on the winning cartela!
-    if (myCartelas && myCartelas.length > 0) {
-      finishedCartelasRef.current = myCartelas;
-    }
-    setIsFinishing(true);
-    isFinishingRef.current = true;
-
+    // - "Waiting..." is NEVER visible!
     if (finishingDelayTimerRef.current) clearTimeout(finishingDelayTimerRef.current);
     finishingDelayTimerRef.current = setTimeout(() => {
       finishingDelayTimerRef.current = null;
       setIsFinishing(false);
       isFinishingRef.current = false;
 
-      // 4. Play "Bingo!" / stop sound now!
+      // 4. Play "Bingo!" / win sound now!
       playSpecial('bingo_win');
 
-      // 5. Auto-dismiss matches bingo_win.mp3 duration + viewing time (minimum 4s)
-      let durationMs = 4000;
+      // 5. Auto-dismiss matches bingo_win.mp3 duration + viewing time (minimum 5s)
+      let durationMs = 5000;
       try {
         const audioBuffer = audioBufferCache.current.get('/audio/bingo/bingo_win.mp3');
         if (audioBuffer && audioBuffer.duration > 0) {
-          durationMs = Math.max(3800, Math.ceil(audioBuffer.duration * 1000) + 1200);
+          durationMs = Math.max(5000, Math.ceil(audioBuffer.duration * 1000) + 1200);
         }
       } catch {}
 
       if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
       celebrationTimerRef.current = setTimeout(() => {
-        celebrationTimerRef.current = null;
-        setCelebration(null);
-        celebrationRef.current = null;
-        setIsFinishing(false);
-        isFinishingRef.current = false;
-        finishedCartelasRef.current = [];
-        setMyCard(null);
-        setMyCartelas([]);
-        pendingPurchasesRef.current.clear();
-      pendingCancelsRef.current.clear();
-        setActiveCartelaIdx(0);
-        setTaken([]);
-        setManuallyMarked(new Set());
-        setBingoLockSeconds(0);
-        setGame(prev => prev ? { ...prev, status: 'waiting', called_numbers: [], total_players: 0, prize_pool: 0 } : prev);
-        fetchStateRef.current();
-        refreshUserRef.current();
+        dismissCelebration();
       }, durationMs);
 
       if (finGame.winner_first_name === 'REMATCH') {
-        setCelebration({
+        const celObj = {
           winner_name: 'REMATCH',
           winner_cartela: 0,
           winner_prize: 0,
           winner_matrix: null,
           iWon: false,
           called: [...finalCalled],
-        });
+        };
+        setCelebration(celObj);
+        celebrationRef.current = celObj;
         return;
       }
 
@@ -905,14 +922,16 @@ export default function BingoGame() {
       const winningMatrix = localCard || cachedCard || null;
 
       // 6. NOW show the celebration popup!
-      setCelebration({
+      const celObj = {
         winner_name: finGame.winner_first_name || 'Player',
         winner_cartela: finGame.winner_cartela || 0,
         winner_prize: finGame.winner_prize || 0,
         winner_matrix: winningMatrix,
         iWon,
         called: [...finalCalled],
-      });
+      };
+      setCelebration(celObj);
+      celebrationRef.current = celObj;
 
       // If 2-way tie, fetch winners list in background
       if (finGame.winner_first_name && finGame.winner_first_name.includes(' & ')) {
@@ -920,7 +939,11 @@ export default function BingoGame() {
           .then(r => r.json())
           .then(data => {
             if (data?.winners) {
-              setCelebration(prev => prev ? { ...prev, winners_list: data.winners } : prev);
+              setCelebration(prev => {
+                const next = prev ? { ...prev, winners_list: data.winners } : prev;
+                celebrationRef.current = next;
+                return next;
+              });
             }
           }).catch(() => {});
       } else if (!winningMatrix && finGame.winner_cartela) {
@@ -929,38 +952,16 @@ export default function BingoGame() {
           .then(r => r.json())
           .then(data => {
             if (data?.matrix) {
-              setCelebration(prev => prev ? { ...prev, winner_matrix: data.matrix } : prev);
+              setCelebration(prev => {
+                const next = prev ? { ...prev, winner_matrix: data.matrix } : prev;
+                celebrationRef.current = next;
+                return next;
+              });
             }
           }).catch(() => {});
       }
-    }, 2000);
-  }, [user?.telegram_id, myCartelas, playSpecial, playCallAudio]);
-
-  const dismissCelebration = useCallback(() => {
-    if (celebrationTimerRef.current) {
-      clearTimeout(celebrationTimerRef.current);
-      celebrationTimerRef.current = null;
-    }
-    if (finishingDelayTimerRef.current) {
-      clearTimeout(finishingDelayTimerRef.current);
-      finishingDelayTimerRef.current = null;
-    }
-    setIsFinishing(false);
-    isFinishingRef.current = false;
-    setCelebration(null);
-    celebrationRef.current = null;
-    finishedCartelasRef.current = [];
-    setMyCard(null);
-    setMyCartelas([]);
-    pendingPurchasesRef.current.clear();
-    setActiveCartelaIdx(0);
-    setTaken([]);
-    setManuallyMarked(new Set());
-    setBingoLockSeconds(0);
-    setGame(prev => prev ? { ...prev, status: 'waiting', called_numbers: [], total_players: 0, prize_pool: 0 } : prev);
-    fetchStateRef.current();
-    refreshUserRef.current();
-  }, []);
+    }, 3000);
+  }, [user?.telegram_id, myCartelas, playSpecial, playCallAudio, dismissCelebration]);
 
 
   const fetchState = useCallback(async () => {
@@ -994,15 +995,17 @@ export default function BingoGame() {
         }
         
         // Guarantee celebration popup fires even if WebSocket was delayed or dropped!
-        if (d.last_finished_game) {
+        if (d.last_finished_game && !celebratedGamesRef.current.has(d.last_finished_game.id)) {
           triggerCelebration(d.last_finished_game);
+          return;
         }
 
         if (d.game) {
-          setGame(d.game);
-          if (d.game.status === 'finished') {
+          if (d.game.status === 'finished' && !celebratedGamesRef.current.has(d.game.id)) {
             triggerCelebration(d.game);
+            return;
           }
+          setGame(d.game);
           setTaken(d.taken_cartelas ?? []);
           setMyCard(d.my_card ?? null);
           if (d.game.id !== gameIdRef.current) {
@@ -1051,13 +1054,17 @@ export default function BingoGame() {
         if (Number(g.stake) === selectedStake && (!selectedRoomId || g.room_id === selectedRoomId)) {
           const bg = g as BGame;
           // Guard: if finishing or celebrating this game, ignore updates from any different game!
-          if ((isFinishingRef.current || celebrationRef.current) && bg.id !== gameIdRef.current) {
+          if (isFinishingRef.current || celebrationRef.current) {
+            if (bg.id === finishingGameRef.current?.id && bg.status === 'finished') {
+              finishingGameRef.current = { ...finishingGameRef.current, ...bg };
+            }
+            return;
+          }
+          if (bg.status === 'finished') {
+            triggerCelebration(bg);
             return;
           }
           setGame(bg);
-          if (bg.status === 'finished') {
-            triggerCelebration(bg);
-          }
         }
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "bingo_games" }, () => {
@@ -1065,6 +1072,7 @@ export default function BingoGame() {
         fetchState();
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "bingo_players" }, ({ new: p }) => {
+        if (isFinishingRef.current || celebrationRef.current) return;
         const np = p as { game_id: string; cartela_number: number; card_matrix?: number[][]; telegram_id: string };
         if (np.game_id === gameIdRef.current) {
           if (np.cartela_number && np.card_matrix) {
@@ -1120,7 +1128,10 @@ export default function BingoGame() {
     };
   }, [selectedStake, fetchState]);
 
-  const called = game?.called_numbers ?? [];
+  const activeGame = (isFinishing || celebration) && finishingGameRef.current
+    ? finishingGameRef.current
+    : game;
+  const called = activeGame?.called_numbers ?? [];
   const lastNum = called.length > 0 ? Number(called[called.length - 1]) : null;
 
 
@@ -1800,8 +1811,8 @@ export default function BingoGame() {
 
         {/* Top Info Bar */}
         <div className="flex items-center justify-between bg-gradient-to-r from-white via-amber-50/60 to-white px-2 py-0.5 rounded-lg border border-amber-200/80 shadow-[0_1.5px_3px_rgba(0,0,0,0.04),inset_0_1px_0_rgba(255,255,255,0.9)] shrink-0">
-          <div className="text-slate-600 text-[8px] font-black">ID: {formatGameId(game.id)}</div>
-          <div className="flex items-center gap-1 text-amber-700 text-[8px] font-black"><Trophy size={9} className="text-amber-500"/> {game.prize_pool} ETB</div>
+          <div className="text-slate-600 text-[8px] font-black">ID: {formatGameId(activeGame?.id || game?.id || '')}</div>
+          <div className="flex items-center gap-1 text-amber-700 text-[8px] font-black"><Trophy size={9} className="text-amber-500"/> {activeGame?.prize_pool ?? game?.prize_pool ?? 0} ETB</div>
           <div className="flex items-center gap-1 text-blue-700 text-[8px] font-black"><LayoutGrid size={9} className="text-blue-500"/> {taken.length}</div>
           <div className="flex items-center gap-1 text-emerald-700 text-[8px] font-black"><Clock size={9} className="text-emerald-500"/> {called.length}/75</div>
           <div className="text-[7px] bg-red-500/10 text-red-600 px-1.5 py-0.2 rounded-full font-black animate-pulse border border-red-200">LIVE</div>
@@ -1864,10 +1875,10 @@ export default function BingoGame() {
                 style={{ background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0) 80%)' }}
               />
               <span className="text-[8.5px] leading-none font-black text-amber-300 drop-shadow-[0_1px_1px_rgba(0,0,0,1)] tracking-widest uppercase">
-                {lastNum ? currentLetter : 'BINGO'}
+                {lastNum ? currentLetter : (isFinishing || celebration ? 'BINGO' : 'BINGO')}
               </span>
               <span className="text-white text-xl leading-none font-black drop-shadow-[0_2px_4px_rgba(0,0,0,1)] tracking-tight">
-                {lastNum ?? '?'}
+                {lastNum ?? (isFinishing || celebration ? '★' : '?')}
               </span>
             </div>
 
@@ -1876,7 +1887,7 @@ export default function BingoGame() {
               {/* Amharic Voice Word - Positioned ABOVE the 5 mini balls */}
               <div className="w-full">
                 <span className="text-amber-950 font-black text-xs sm:text-sm tracking-wide drop-shadow-[0_0.5px_0_rgba(255,255,255,0.9)] truncate block leading-tight">
-                  {lastNum ? (AMHARIC_NUM[lastNum] || '') : 'በመጠባበቅ ላይ...'}
+                  {lastNum ? (AMHARIC_NUM[lastNum] || '') : (isFinishing || celebration ? 'ቢንጎ ተጠናቋል!' : 'በመጠባበቅ ላይ...')}
                 </span>
               </div>
 
@@ -2014,6 +2025,12 @@ export default function BingoGame() {
                       <Lock size={14} className="text-red-400 animate-pulse" />
                       <span>🔒 {language === 'am' ? `ተቆልፏል (${bingoLockSeconds}ሰ)` : `LOCKED (${bingoLockSeconds}s)`}</span>
                     </button>
+                  ) : (isFinishing || celebration) ? (
+                    <div className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-white via-amber-50/50 to-white border-2 border-amber-300/80 shadow-[0_2px_6px_rgba(180,83,9,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex items-center justify-center gap-2 text-amber-950 font-black text-xs tracking-wider uppercase select-none pointer-events-none">
+                      <span className="text-sm">🏆</span>
+                      <span>{language === 'am' ? 'ጨዋታው ተጠናቋል!' : 'GAME FINISHED!'}</span>
+                      <span className="text-amber-500 animate-pulse font-black text-xs">✨</span>
+                    </div>
                   ) : (
                     /* MANUAL ON: Solid 3D BLACK button, only says BINGO without extra explanation */
                     <button
@@ -2380,20 +2397,32 @@ export default function BingoGame() {
 
       {/* Winner Celebration */}
       {celebration && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-sm overflow-y-auto" onClick={dismissCelebration}>
-          <div className="bg-white border-2 border-amber-300 rounded-3xl p-4 text-center max-w-sm w-full shadow-2xl flex flex-col items-center relative" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 pb-20 bg-black/70 backdrop-blur-sm overflow-y-auto" onClick={dismissCelebration}>
+          <div className="bg-white border-2 border-amber-300 rounded-3xl p-3 sm:p-4 text-center max-w-[340px] sm:max-w-sm w-full max-h-[85dvh] overflow-y-auto shadow-2xl flex flex-col items-center relative my-auto scrollbar-none" onClick={e => e.stopPropagation()}>
             {/* Close button */}
             <button
               onClick={dismissCelebration}
-              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-sm font-black active:scale-90 transition-all z-20 cursor-pointer shadow-xs" title="Close"><X size={16} className="text-slate-500" /></button>
+              className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-xs font-black active:scale-90 transition-all z-20 cursor-pointer shadow-xs" title="Close"><X size={15} className="text-slate-500" /></button>
             {/* -- REMATCH -- */}
             {celebration.winner_name === 'REMATCH' ? (<>
-              <div className="mb-2 flex justify-center"><RotateCcw size={48} className="text-orange-500 animate-spin" /></div>
-              <h2 className="text-3xl font-black text-orange-500 mb-2">{t[language].bingo.rematch}</h2>
-              <div className="bg-amber-50/80 rounded-2xl p-3 mb-3 w-full border border-amber-200">
-                <p className="text-orange-600 font-black text-sm mb-1">{t[language].bingo.tieDesc}</p>
-                <p className="text-slate-600 text-xs font-semibold">{t[language].bingo.stakeRefunded}</p>
-                <p className="text-slate-400 text-xs mt-1 font-semibold">{t[language].bingo.newGameStarts}</p>
+              <div className="mb-2 flex justify-center"><RotateCcw size={40} className="text-orange-500 animate-spin" /></div>
+              <h2 className="text-2xl font-black text-orange-500 mb-1.5">{t[language].bingo.rematch}</h2>
+              <div className="bg-amber-50/80 rounded-2xl p-2.5 mb-2 w-full border border-amber-200">
+                <p className="text-orange-600 font-black text-xs mb-1">{t[language].bingo.tieDesc}</p>
+                <p className="text-slate-600 text-[11px] font-semibold">{t[language].bingo.stakeRefunded}</p>
+                <p className="text-slate-400 text-[10px] mt-1 font-semibold">{t[language].bingo.newGameStarts}</p>
+              </div>
+              <div className="flex flex-col items-center gap-1 mt-1 shrink-0 pb-1">
+                <p className="text-slate-500 text-[10px] font-black uppercase tracking-wider animate-pulse flex items-center gap-1">
+                  <Clock size={11} className="text-amber-500 animate-spin" />
+                  {t[language].bingo.returning}
+                </p>
+                <button
+                  onClick={dismissCelebration}
+                  className="text-xs text-amber-700 hover:text-amber-900 font-black underline underline-offset-2 cursor-pointer active:scale-95 transition-transform"
+                >
+                  {language === 'am' ? 'ወደ ጨዋታው ተመለስ' : 'Return to Game'}
+                </button>
               </div>
 
             {/* -- 2-WAY TIE\u2b50 */}
@@ -2451,25 +2480,36 @@ export default function BingoGame() {
                   </div>
                 )}
                 
-                <p className="text-slate-400 text-[10px] font-black uppercase tracking-wider animate-pulse">{t[language].bingo.returning}</p>
+                <div className="flex flex-col items-center gap-1 mt-1 shrink-0 pb-1">
+                  <p className="text-slate-500 text-[10px] font-black uppercase tracking-wider animate-pulse flex items-center gap-1">
+                    <Clock size={11} className="text-amber-500 animate-spin" />
+                    {t[language].bingo.returning}
+                  </p>
+                  <button
+                    onClick={dismissCelebration}
+                    className="text-xs text-amber-700 hover:text-amber-900 font-black underline underline-offset-2 cursor-pointer active:scale-95 transition-transform"
+                  >
+                    {language === 'am' ? 'ወደ ጨዋታው ተመለስ' : 'Return to Game'}
+                  </button>
+                </div>
   
               {/* \u2b50  -- */}
             </>) : (<>
               {/* Trophy + BINGO label - NO overlap */}
-              <div className="flex flex-col items-center mb-3">
-                <div className="mb-1 flex justify-center"><Trophy size={52} className="text-amber-500 animate-bounce drop-shadow-md" /></div>
-                <div className="bg-amber-400 text-amber-950 px-7 py-1.5 rounded-full font-black text-2xl tracking-widest shadow-md">
+              <div className="flex flex-col items-center mb-2 mt-0.5 shrink-0">
+                <div className="mb-1 flex justify-center"><Trophy size={36} className="text-amber-500 animate-bounce drop-shadow-md" /></div>
+                <div className="bg-amber-400 text-amber-950 px-5 py-1 rounded-full font-black text-xl tracking-widest shadow-md">
                   BINGO!
                 </div>
               </div>
 
               {/* Winner info */}
-              <div className="w-full bg-amber-50/80 rounded-2xl p-3 mb-3 border border-amber-200/80 shadow-2xs">
-                <p className="text-amber-800 text-[9px] uppercase tracking-widest mb-1 font-black">{t[language].bingo.winner}</p>
-                <p className="text-slate-900 font-black text-2xl leading-tight">{celebration.winner_name}</p>
-                <p className="text-amber-700 text-xs font-bold mt-0.5 flex items-center justify-center gap-1.5"><LayoutGrid size={12} className="text-amber-500 shrink-0" /> {t[language].bingo.cartelaNum.trim()} {celebration.winner_cartela}</p>
-                <div className="mt-2 inline-block bg-emerald-500 text-white px-6 py-1.5 rounded-full font-black text-lg shadow-[0_4px_16px_rgba(16,185,129,0.4)]">
-                  <Trophy size={18} className="text-amber-200 inline mr-1.5 -mt-0.5" />{celebration.winner_prize} ETB
+              <div className="w-full bg-amber-50/80 rounded-2xl p-2 sm:p-2.5 mb-2 border border-amber-200/80 shadow-2xs shrink-0">
+                <p className="text-amber-800 text-[8.5px] uppercase tracking-widest mb-0.5 font-black">{t[language].bingo.winner}</p>
+                <p className="text-slate-900 font-black text-xl leading-tight truncate px-1">{celebration.winner_name}</p>
+                <p className="text-amber-700 text-[11px] font-bold mt-0.5 flex items-center justify-center gap-1"><LayoutGrid size={11} className="text-amber-500 shrink-0" /> {t[language].bingo.cartelaNum.trim()} {celebration.winner_cartela}</p>
+                <div className="mt-1.5 inline-block bg-emerald-500 text-white px-5 py-1 rounded-full font-black text-base shadow-[0_3px_12px_rgba(16,185,129,0.35)]">
+                  <Trophy size={15} className="text-amber-200 inline mr-1 -mt-0.5" />{celebration.winner_prize} ETB
                 </div>
               </div>
 
@@ -2478,22 +2518,22 @@ export default function BingoGame() {
                 const winCells = getWinningCells(celebration.winner_matrix, celebration.called);
                 const winTitle = getWinningPatternTitle(celebration.winner_matrix, celebration.called);
                 return (
-                  <div className="w-full rounded-2xl overflow-hidden border-2 border-amber-300 mb-3 shadow-md bg-white">
+                  <div className="w-full rounded-2xl overflow-hidden border-2 border-amber-300 mb-2 shadow-md bg-white shrink-0">
                     {/* BINGO header */}
                     <div className="grid grid-cols-5">
                       {BINGO_LETTERS.map(l => (
-                        <div key={l} className="flex items-center justify-center py-1.5 font-black text-white text-sm" style={{ background: LETTER_BG[l] }}>{l}</div>
+                        <div key={l} className="flex items-center justify-center py-1 font-black text-white text-xs" style={{ background: LETTER_BG[l] }}>{l}</div>
                       ))}
                     </div>
                     {/* Card grid */}
-                    <div className="grid grid-cols-5 gap-[2px] p-[2px] bg-amber-50/60">
+                    <div className="grid grid-cols-5 gap-[1px] p-[1px] bg-amber-50/60">
                       {Array.from({ length: 5 }).flatMap((_, r) => Array.from({ length: 5 }).map((_, c) => {
                         const num = celebration.winner_matrix![r][c];
                         const isFree = num === 0;
                         const isWin = winCells.has(`${r}-${c}`);
                         const isCalled = celebration.called?.map(Number).includes(Number(num));
                         return (
-                          <div key={`${r}-${c}`} className={`aspect-square flex items-center justify-center font-black text-xs rounded transition-all ${
+                          <div key={`${r}-${c}`} className={`aspect-square flex items-center justify-center font-black text-[10px] sm:text-xs rounded transition-all ${
                             isFree
                               ? 'bg-amber-400 text-amber-950 font-black'
                               : isWin
@@ -2508,23 +2548,34 @@ export default function BingoGame() {
                       }))}
                     </div>
                     {/* Cartela label + Winning Rule Tag */}
-                    <div className="py-2 px-3 flex items-center justify-between bg-white border-t border-amber-200">
-                      <p className="text-amber-800 font-black text-[11px] tracking-wider uppercase flex items-center gap-1.5"><LayoutGrid size={13} className="text-amber-500" /> {t[language].bingo.cartelaNum.trim()} {celebration.winner_cartela}</p>
-                      <span className="text-emerald-700 text-[10px] font-black uppercase tracking-wider bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300 shadow-2xs">
+                    <div className="py-1.5 px-2.5 flex items-center justify-between bg-white border-t border-amber-200">
+                      <p className="text-amber-800 font-black text-[10px] tracking-wider uppercase flex items-center gap-1"><LayoutGrid size={11} className="text-amber-500" /> {t[language].bingo.cartelaNum.trim()} {celebration.winner_cartela}</p>
+                      <span className="text-emerald-700 text-[9px] font-black uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 shadow-2xs">
                         {winTitle}
                       </span>
                     </div>
                   </div>
                 );
               })() : (
-                <div className="w-full bg-amber-50/80 rounded-2xl p-4 mb-3 border border-amber-200 flex flex-col items-center">
-                  <div className="flex justify-center mb-1"><Clock size={28} className="animate-spin text-amber-500" /></div>
+                <div className="w-full bg-amber-50/80 rounded-2xl p-3 mb-2 border border-amber-200 flex flex-col items-center shrink-0">
+                  <div className="flex justify-center mb-1"><Clock size={24} className="animate-spin text-amber-500" /></div>
                   <p className="text-amber-800 text-xs font-bold">Loading winning cartela...</p>
                 </div>
               )}
 
-              {/* Auto-dismiss indicator */}
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-wider animate-pulse">{t[language].bingo.returning}</p>
+              {/* Auto-dismiss indicator & Return Action */}
+              <div className="flex flex-col items-center gap-1 mt-1 shrink-0 pb-1">
+                <p className="text-slate-500 text-[10px] font-black uppercase tracking-wider animate-pulse flex items-center gap-1">
+                  <Clock size={11} className="text-amber-500 animate-spin" />
+                  {t[language].bingo.returning}
+                </p>
+                <button
+                  onClick={dismissCelebration}
+                  className="text-xs text-amber-700 hover:text-amber-900 font-black underline underline-offset-2 cursor-pointer active:scale-95 transition-transform"
+                >
+                  {language === 'am' ? 'ወደ ጨዋታው ተመለስ' : 'Return to Game'}
+                </button>
+              </div>
             </>)}
 
           </div>
