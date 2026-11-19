@@ -46,6 +46,20 @@ interface WaiterStakeConfig {
   enabled: boolean;
 }
 
+const DEFAULT_STAKE_CONFIGS: Record<string, StakeConfig> = {
+  stake_1: { min: 2, max: 5, enabled: true },
+  stake_2: { min: 2, max: 5, enabled: true },
+  stake_3: { min: 1, max: 3, enabled: true },
+  stake_4: { min: 1, max: 2, enabled: true },
+};
+
+const DEFAULT_WAITER_STAKE_CONFIGS: Record<string, WaiterStakeConfig> = {
+  stake_1: { min: 1, max: 2, enabled: true },
+  stake_2: { min: 1, max: 2, enabled: true },
+  stake_3: { min: 1, max: 2, enabled: false },
+  stake_4: { min: 1, max: 2, enabled: false },
+};
+
 interface LiveGameInfo {
   id: string;
   stake: number;
@@ -204,14 +218,22 @@ export default function AdminHdaseBingo() {
           setScheduleEnd(rawEnd || '24:00');
           setRiskPercent(Number(r.system_players_risk_percent ?? 25));
 
-          if (r.system_players_stake_configs) {
-            setStakeConfigs(prev => ({ ...prev, ...r.system_players_stake_configs }));
-          }
+          const rawConfigs = r.system_players_stake_configs || {};
+          setStakeConfigs({
+            stake_1: { ...DEFAULT_STAKE_CONFIGS.stake_1, ...(rawConfigs.stake_1 || {}) },
+            stake_2: { ...DEFAULT_STAKE_CONFIGS.stake_2, ...(rawConfigs.stake_2 || {}) },
+            stake_3: { ...DEFAULT_STAKE_CONFIGS.stake_3, ...(rawConfigs.stake_3 || {}) },
+            stake_4: { ...DEFAULT_STAKE_CONFIGS.stake_4, ...(rawConfigs.stake_4 || {}) },
+          });
 
           setWaiterEnabled(r.waiter_players_enabled !== undefined ? Boolean(r.waiter_players_enabled) : true);
-          if (r.waiter_players_stake_configs) {
-            setWaiterStakeConfigs(prev => ({ ...prev, ...r.waiter_players_stake_configs }));
-          }
+          const rawWaiter = r.waiter_players_stake_configs || {};
+          setWaiterStakeConfigs({
+            stake_1: { ...DEFAULT_WAITER_STAKE_CONFIGS.stake_1, ...(rawWaiter.stake_1 || {}) },
+            stake_2: { ...DEFAULT_WAITER_STAKE_CONFIGS.stake_2, ...(rawWaiter.stake_2 || {}) },
+            stake_3: { ...DEFAULT_WAITER_STAKE_CONFIGS.stake_3, ...(rawWaiter.stake_3 || {}) },
+            stake_4: { ...DEFAULT_WAITER_STAKE_CONFIGS.stake_4, ...(rawWaiter.stake_4 || {}) },
+          });
 
           initialLoadedRef.current = true;
         }
@@ -409,10 +431,37 @@ export default function AdminHdaseBingo() {
       });
 
       if (res.ok) {
-        showToast('success', `${room?.room_name || 'Room'} settings saved successfully!`);
-        // Update baseline
-        initialLoadedRef.current = false;
-        fetchHdaseRoom(false, selectedRoomId);
+        const savedData = await res.json().catch(() => ({}));
+        const updatedRoom = savedData.room;
+        if (updatedRoom) {
+          setRoom(updatedRoom);
+          if (Array.isArray(updatedRoom.stakes) && updatedRoom.stakes.length === 4) {
+            setStakes(updatedRoom.stakes.map(Number));
+          }
+          setSystemEnabled(updatedRoom.system_players_enabled !== undefined ? Boolean(updatedRoom.system_players_enabled) : true);
+          setScheduleStart(updatedRoom.system_players_schedule_start || '00:00');
+          setScheduleEnd(updatedRoom.system_players_schedule_end || '24:00');
+          setRiskPercent(Number(updatedRoom.system_players_risk_percent ?? 25));
+
+          const rawConfigs = updatedRoom.system_players_stake_configs || {};
+          setStakeConfigs({
+            stake_1: { ...DEFAULT_STAKE_CONFIGS.stake_1, ...(rawConfigs.stake_1 || {}) },
+            stake_2: { ...DEFAULT_STAKE_CONFIGS.stake_2, ...(rawConfigs.stake_2 || {}) },
+            stake_3: { ...DEFAULT_STAKE_CONFIGS.stake_3, ...(rawConfigs.stake_3 || {}) },
+            stake_4: { ...DEFAULT_STAKE_CONFIGS.stake_4, ...(rawConfigs.stake_4 || {}) },
+          });
+
+          setWaiterEnabled(updatedRoom.waiter_players_enabled !== undefined ? Boolean(updatedRoom.waiter_players_enabled) : true);
+          const rawWaiter = updatedRoom.waiter_players_stake_configs || {};
+          setWaiterStakeConfigs({
+            stake_1: { ...DEFAULT_WAITER_STAKE_CONFIGS.stake_1, ...(rawWaiter.stake_1 || {}) },
+            stake_2: { ...DEFAULT_WAITER_STAKE_CONFIGS.stake_2, ...(rawWaiter.stake_2 || {}) },
+            stake_3: { ...DEFAULT_WAITER_STAKE_CONFIGS.stake_3, ...(rawWaiter.stake_3 || {}) },
+            stake_4: { ...DEFAULT_WAITER_STAKE_CONFIGS.stake_4, ...(rawWaiter.stake_4 || {}) },
+          });
+        }
+        showToast('success', `${updatedRoom?.room_name || room?.room_name || 'Room'} settings saved successfully!`);
+        initialLoadedRef.current = true;
       } else {
         const err = await res.json().catch(() => ({}));
         showToast('error', err.error || 'Failed to save settings');
@@ -992,14 +1041,29 @@ export default function AdminHdaseBingo() {
                                 <input
                                   type="number"
                                   min={1}
-                                  max={cfg.max}
-                                  value={cfg.min}
+                                  max={100}
+                                  value={cfg.min === 0 ? '' : cfg.min}
                                   onChange={(e) => {
-                                    const v = Math.max(1, parseInt(e.target.value) || 1);
-                                    setStakeConfigs(prev => ({
-                                      ...prev,
-                                      [key]: { ...cfg, min: v },
-                                    }));
+                                    const raw = e.target.value;
+                                    const val = raw === '' ? 0 : Math.max(1, parseInt(raw) || 1);
+                                    setStakeConfigs(prev => {
+                                      const current = prev[key] || { min: 2, max: 5, enabled: true };
+                                      return {
+                                        ...prev,
+                                        [key]: { ...current, min: val },
+                                      };
+                                    });
+                                  }}
+                                  onBlur={() => {
+                                    setStakeConfigs(prev => {
+                                      const current = prev[key] || { min: 2, max: 5, enabled: true };
+                                      const safeMin = Math.max(1, current.min || 1);
+                                      const safeMax = Math.max(safeMin, current.max || safeMin);
+                                      return {
+                                        ...prev,
+                                        [key]: { ...current, min: safeMin, max: safeMax },
+                                      };
+                                    });
                                   }}
                                   className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-black text-slate-800 mt-0.5"
                                 />
@@ -1008,15 +1072,30 @@ export default function AdminHdaseBingo() {
                                 <span className="text-[8px] font-bold text-slate-500 uppercase">Max Bots</span>
                                 <input
                                   type="number"
-                                  min={cfg.min}
-                                  max={25}
-                                  value={cfg.max}
+                                  min={1}
+                                  max={100}
+                                  value={cfg.max === 0 ? '' : cfg.max}
                                   onChange={(e) => {
-                                    const v = Math.max(cfg.min, parseInt(e.target.value) || cfg.min);
-                                    setStakeConfigs(prev => ({
-                                      ...prev,
-                                      [key]: { ...cfg, max: v },
-                                    }));
+                                    const raw = e.target.value;
+                                    const val = raw === '' ? 0 : Math.max(1, parseInt(raw) || 1);
+                                    setStakeConfigs(prev => {
+                                      const current = prev[key] || { min: 2, max: 5, enabled: true };
+                                      return {
+                                        ...prev,
+                                        [key]: { ...current, max: val },
+                                      };
+                                    });
+                                  }}
+                                  onBlur={() => {
+                                    setStakeConfigs(prev => {
+                                      const current = prev[key] || { min: 2, max: 5, enabled: true };
+                                      const safeMin = Math.max(1, current.min || 1);
+                                      const safeMax = Math.max(safeMin, current.max || safeMin);
+                                      return {
+                                        ...prev,
+                                        [key]: { ...current, min: safeMin, max: safeMax },
+                                      };
+                                    });
                                   }}
                                   className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-black text-slate-800 mt-0.5"
                                 />
@@ -1130,14 +1209,29 @@ export default function AdminHdaseBingo() {
                               <input
                                 type="number"
                                 min={1}
-                                max={wCfg.max}
-                                value={wCfg.min}
+                                max={50}
+                                value={wCfg.min === 0 ? '' : wCfg.min}
                                 onChange={(e) => {
-                                  const v = Math.max(1, parseInt(e.target.value) || 1);
-                                  setWaiterStakeConfigs(prev => ({
-                                    ...prev,
-                                    [key]: { ...wCfg, min: v },
-                                  }));
+                                  const raw = e.target.value;
+                                  const val = raw === '' ? 0 : Math.max(1, parseInt(raw) || 1);
+                                  setWaiterStakeConfigs(prev => {
+                                    const current = prev[key] || { min: 1, max: 2, enabled: true };
+                                    return {
+                                      ...prev,
+                                      [key]: { ...current, min: val },
+                                    };
+                                  });
+                                }}
+                                onBlur={() => {
+                                  setWaiterStakeConfigs(prev => {
+                                    const current = prev[key] || { min: 1, max: 2, enabled: true };
+                                    const safeMin = Math.max(1, current.min || 1);
+                                    const safeMax = Math.max(safeMin, current.max || safeMin);
+                                    return {
+                                      ...prev,
+                                      [key]: { ...current, min: safeMin, max: safeMax },
+                                    };
+                                  });
                                 }}
                                 className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-black text-slate-800 mt-0.5"
                               />
@@ -1146,15 +1240,30 @@ export default function AdminHdaseBingo() {
                               <span className="text-[8px] font-bold text-slate-500 uppercase">Max Waiters</span>
                               <input
                                 type="number"
-                                min={wCfg.min}
-                                max={10}
-                                value={wCfg.max}
+                                min={1}
+                                max={50}
+                                value={wCfg.max === 0 ? '' : wCfg.max}
                                 onChange={(e) => {
-                                  const v = Math.max(wCfg.min, parseInt(e.target.value) || wCfg.min);
-                                  setWaiterStakeConfigs(prev => ({
-                                    ...prev,
-                                    [key]: { ...wCfg, max: v },
-                                  }));
+                                  const raw = e.target.value;
+                                  const val = raw === '' ? 0 : Math.max(1, parseInt(raw) || 1);
+                                  setWaiterStakeConfigs(prev => {
+                                    const current = prev[key] || { min: 1, max: 2, enabled: true };
+                                    return {
+                                      ...prev,
+                                      [key]: { ...current, max: val },
+                                    };
+                                  });
+                                }}
+                                onBlur={() => {
+                                  setWaiterStakeConfigs(prev => {
+                                    const current = prev[key] || { min: 1, max: 2, enabled: true };
+                                    const safeMin = Math.max(1, current.min || 1);
+                                    const safeMax = Math.max(safeMin, current.max || safeMin);
+                                    return {
+                                      ...prev,
+                                      [key]: { ...current, min: safeMin, max: safeMax },
+                                    };
+                                  });
                                 }}
                                 className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-black text-slate-800 mt-0.5"
                               />

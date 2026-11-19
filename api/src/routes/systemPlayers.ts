@@ -435,8 +435,9 @@ router.post('/settings', validateTelegramAuth, async (req: AuthRequest, res: Res
       return res.status(500).json({ error: updErr.message });
     }
 
-    // Clean up disabled waiting games and invalidate pools cache
+    // Clean up disabled waiting games, reset cached targets, and invalidate pools cache
     await systemPlayerService.cleanDisabledWaitingGames(targetRoomId);
+    systemPlayerService.invalidateRoomGameTargets(targetRoomId);
     invalidatePoolsCache();
 
     if (wantsToEnable) {

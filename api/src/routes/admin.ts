@@ -2839,14 +2839,16 @@ router.put('/hdase-room', requireAdmin, async (req: AuthRequest, res: Response) 
 
         if (fbErr) throw fbErr;
         await systemPlayerService.cleanDisabledWaitingGames(fallbackUpdated.id || HDASE_ROOM_ID);
+        systemPlayerService.invalidateRoomGameTargets(fallbackUpdated.id || HDASE_ROOM_ID);
         invalidatePoolsCache();
         return res.json({ success: true, room: fallbackUpdated });
       }
       throw uErr;
     }
 
-    // Immediately clean up any waiting games for disabled stakes and invalidate pools cache
+    // Immediately clean up any waiting games for disabled stakes, reset cached targets, and invalidate pools cache
     await systemPlayerService.cleanDisabledWaitingGames(targetRoomId);
+    systemPlayerService.invalidateRoomGameTargets(targetRoomId);
     invalidatePoolsCache();
 
     // Auto-seed bot pool if needed

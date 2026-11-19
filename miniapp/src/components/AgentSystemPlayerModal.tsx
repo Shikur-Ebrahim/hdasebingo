@@ -845,24 +845,54 @@ export default function AgentSystemPlayerModal({
                           <input
                             type="number"
                             min="1"
-                            max="50"
-                            value={cfg.min}
-                            onChange={(e) => setStakeConfigs(prev => ({
-                              ...prev,
-                              [key]: { ...prev[key], min: Number(e.target.value) }
-                            }))}
+                            max="100"
+                            value={cfg.min === 0 ? '' : cfg.min}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              const val = raw === '' ? 0 : Math.max(1, parseInt(raw) || 1);
+                              setStakeConfigs(prev => ({
+                                ...prev,
+                                [key]: { ...prev[key], min: val }
+                              }));
+                            }}
+                            onBlur={() => {
+                              setStakeConfigs(prev => {
+                                const current = prev[key];
+                                const safeMin = Math.max(1, current.min || 1);
+                                const safeMax = Math.max(safeMin, current.max || safeMin);
+                                return {
+                                  ...prev,
+                                  [key]: { ...current, min: safeMin, max: safeMax }
+                                };
+                              });
+                            }}
                             className="w-12 text-center py-1 bg-white border border-slate-200 rounded-lg text-xs font-black text-slate-800"
                           />
                           <span className="text-xs text-slate-400 font-bold">-</span>
                           <input
                             type="number"
                             min="1"
-                            max="50"
-                            value={cfg.max}
-                            onChange={(e) => setStakeConfigs(prev => ({
-                              ...prev,
-                              [key]: { ...prev[key], max: Number(e.target.value) }
-                            }))}
+                            max="100"
+                            value={cfg.max === 0 ? '' : cfg.max}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              const val = raw === '' ? 0 : Math.max(1, parseInt(raw) || 1);
+                              setStakeConfigs(prev => ({
+                                ...prev,
+                                [key]: { ...prev[key], max: val }
+                              }));
+                            }}
+                            onBlur={() => {
+                              setStakeConfigs(prev => {
+                                const current = prev[key];
+                                const safeMin = Math.max(1, current.min || 1);
+                                const safeMax = Math.max(safeMin, current.max || safeMin);
+                                return {
+                                  ...prev,
+                                  [key]: { ...current, min: safeMin, max: safeMax }
+                                };
+                              });
+                            }}
                             className="w-12 text-center py-1 bg-white border border-slate-200 rounded-lg text-xs font-black text-slate-800"
                           />
                         </div>
@@ -1061,24 +1091,54 @@ export default function AgentSystemPlayerModal({
                           <input
                             type="number"
                             min="1"
-                            max="10"
-                            value={cfg.min}
-                            onChange={(e) => setWaiterStakeConfigs(prev => ({
-                              ...prev,
-                              [key]: { ...prev[key], min: Number(e.target.value) }
-                            }))}
+                            max="50"
+                            value={cfg.min === 0 ? '' : cfg.min}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              const val = raw === '' ? 0 : Math.max(1, parseInt(raw) || 1);
+                              setWaiterStakeConfigs(prev => ({
+                                ...prev,
+                                [key]: { ...prev[key], min: val }
+                              }));
+                            }}
+                            onBlur={() => {
+                              setWaiterStakeConfigs(prev => {
+                                const current = prev[key];
+                                const safeMin = Math.max(1, current.min || 1);
+                                const safeMax = Math.max(safeMin, current.max || safeMin);
+                                return {
+                                  ...prev,
+                                  [key]: { ...current, min: safeMin, max: safeMax }
+                                };
+                              });
+                            }}
                             className="w-12 text-center py-1 bg-white border border-slate-200 rounded-lg text-xs font-black text-slate-800"
                           />
                           <span className="text-xs text-slate-400 font-bold">-</span>
                           <input
                             type="number"
                             min="1"
-                            max="10"
-                            value={cfg.max}
-                            onChange={(e) => setWaiterStakeConfigs(prev => ({
-                              ...prev,
-                              [key]: { ...prev[key], max: Number(e.target.value) }
-                            }))}
+                            max="50"
+                            value={cfg.max === 0 ? '' : cfg.max}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              const val = raw === '' ? 0 : Math.max(1, parseInt(raw) || 1);
+                              setWaiterStakeConfigs(prev => ({
+                                ...prev,
+                                [key]: { ...prev[key], max: val }
+                              }));
+                            }}
+                            onBlur={() => {
+                              setWaiterStakeConfigs(prev => {
+                                const current = prev[key];
+                                const safeMin = Math.max(1, current.min || 1);
+                                const safeMax = Math.max(safeMin, current.max || safeMin);
+                                return {
+                                  ...prev,
+                                  [key]: { ...current, min: safeMin, max: safeMax }
+                                };
+                              });
+                            }}
                             className="w-12 text-center py-1 bg-white border border-slate-200 rounded-lg text-xs font-black text-slate-800"
                           />
                         </div>

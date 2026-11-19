@@ -486,6 +486,13 @@ export class SystemPlayerService {
   }
 
   /**
+   * Clear cached targets so updated min/max settings take effect immediately
+   */
+  invalidateRoomGameTargets(roomId?: string): void {
+    gameBotTargets.clear();
+  }
+
+  /**
    * Get target number of bots for this game:
    * 1st stake: 4-15 (default ON)
    * 2nd stake: 3-9  (default ON)
@@ -493,8 +500,8 @@ export class SystemPlayerService {
    * 4th stake: 2-4  (default OFF - Waiter Mode: 2-4 bots)
    *
    * Advanced Schedule Transitions:
-   * - Ramp-Up: starts from minimum player count and ramps up
-   * - Ramp-Down: gradually decreases towards 1 and becomes 0 at end time
+   * - Ramp-Up (Start Time): starts quietly at 2 players even if min is higher, ramping up smoothly to min/max
+   * - Ramp-Down (End Time): gradually reduces below min, scaling down to 2 players before close
    */
   getTargetBotsForGame(
     game: any,
@@ -519,23 +526,38 @@ export class SystemPlayerService {
 
     let target = Math.floor(Math.random() * (max - min + 1)) + min;
 
-    // Advanced Ramp Schedule transitions
+    // Advanced Ramp Schedule transitions (Start time ramp-up & End time ramp-down)
     if (rampInfo && !rampInfo.is24h) {
       if (rampInfo.isRampingDown) {
-        // Approaching schedule end: gradually decrease up to 1 and become 0
+        // Approaching schedule end: smoothly reduce below min, scaling down to 2 players!
         if (rampInfo.remainingMinutes <= 5) {
-          target = 1; // Last 5 mins: 1 bot
+          // Final 5 minutes before close: exactly 2 players
+          target = 2;
         } else if (rampInfo.remainingMinutes <= 15) {
-          target = Math.min(2, min); // 15 to 5 mins: max 2 bots
+          // 15 to 5 mins: between 2 and 3 players (below min even if min is high)
+          target = Math.min(min, Math.floor(Math.random() * 2) + 2); // 2 or 3
         } else {
-          // 30 to 15 mins: scale down to min
-          const factor = Math.max(0, rampInfo.remainingMinutes / 30);
-          target = Math.max(min, Math.round(min + (max - min) * factor * 0.4));
+          // 30 to 15 mins: scale down towards 2-3 players
+          const factor = Math.max(0, (rampInfo.remainingMinutes - 15) / 15); // 0 to 1
+          const rampedTarget = Math.round(2 + (min - 2) * factor * 0.7);
+          target = Math.max(2, Math.min(max, rampedTarget));
         }
       } else if (rampInfo.isRampingUp) {
-        // Start time reached: start from min player amount and ramp up
-        const factor = Math.min(1, rampInfo.elapsedMinutes / 30);
-        target = Math.min(max, Math.round(min + (max - min) * factor * 0.5));
+        // Schedule start reached: start quietly from 2 players and ramp up to min/max!
+        if (rampInfo.elapsedMinutes <= 5) {
+          // First 5 minutes: start with 2 players
+          target = 2;
+        } else if (rampInfo.elapsedMinutes <= 15) {
+          // 5 to 15 minutes: start ramping from 2 towards min
+          const factor = (rampInfo.elapsedMinutes - 5) / 10;
+          const rampedTarget = Math.round(2 + (min - 2) * factor * 0.5);
+          target = Math.max(2, Math.min(min, rampedTarget));
+        } else {
+          // 15 to 30 minutes: reaching min and opening up towards max
+          const factor = (rampInfo.elapsedMinutes - 15) / 15;
+          const rampedTarget = Math.round(min + (max - min) * factor * 0.5);
+          target = Math.max(2, Math.min(max, rampedTarget));
+        }
       }
     }
 
