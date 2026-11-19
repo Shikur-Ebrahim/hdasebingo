@@ -5,11 +5,21 @@ import {
   ArrowDownToLine, ArrowUpFromLine, TrendingUp, Calendar, RefreshCw, 
   Search, Fingerprint, X, Minus, ChevronDown, ChevronUp, ChevronRight, 
   Send, Copy, Check, UploadCloud, ArrowLeft, Building2, Eye, Clock, CheckCircle2, XCircle,
-  Landmark, Smartphone, BarChart3, Activity, ArrowUpRight, ArrowDownRight, Wallet, Table, Layers
+  Landmark, Smartphone, BarChart3, Activity, ArrowUpRight, ArrowDownRight, Wallet, Table, Layers,
+  Scan, PlusCircle, UserCheck, FileText, Sparkles, User
 } from 'lucide-react';
 import WebApp from '@twa-dev/sdk';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+
+interface DepositMethod {
+  id: string;
+  type: string;
+  name: string;
+  account_number?: string;
+  logo_url?: string;
+  min_deposit?: number;
+}
 
 interface ChartDay {
   date: string;
@@ -120,6 +130,23 @@ export default function Worker() {
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [showCustom, setShowCustom] = useState(false);
+
+  // Manual / Direct Deposit by Worker state
+  const [showDirectDepositModal, setShowDirectDepositModal] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userSearchResults, setUserSearchResults] = useState<any[]>([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [manualAmount, setManualAmount] = useState('');
+  const [manualMethodId, setManualMethodId] = useState('');
+  const [manualFtNumber, setManualFtNumber] = useState('');
+  const [manualScreenshotFile, setManualScreenshotFile] = useState<File | null>(null);
+  const [manualScreenshotPreview, setManualScreenshotPreview] = useState<string | null>(null);
+  const [manualNote, setManualNote] = useState('');
+  const [manualSubmitting, setManualSubmitting] = useState(false);
+  const [manualSuccessMsg, setManualSuccessMsg] = useState<string | null>(null);
+  const [manualErrorMsg, setManualErrorMsg] = useState<string | null>(null);
+  const [depositMethods, setDepositMethods] = useState<DepositMethod[]>([]);
 
   const startOf = (d: Date) => {
     const copy = new Date(d);
@@ -389,6 +416,230 @@ export default function Worker() {
     }
   };
 
+  const fetchDepositMethods = async () => {
+    try {
+      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+      const res = await fetch(`${API_URL}/deposit/methods`, {
+        headers: { 'x-telegram-init-data': initData }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDepositMethods(data || []);
+        if (data && data.length > 0 && !manualMethodId) {
+          setManualMethodId(data[0].id);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load deposit methods:', e);
+    }
+  };
+
+  useEffect(() => {
+    if (!showDirectDepositModal) return;
+    const q = userSearchQuery.trim();
+    if (!q) {
+      setUserSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setSearchingUsers(true);
+      try {
+        const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+        const res = await fetch(`${API_URL}/admin/worker-deposits/search-users?q=${encodeURIComponent(q)}`, {
+          headers: { 'x-telegram-init-data': initData }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setUserSearchResults(data.users || []);
+        }
+      } catch (e) {
+        console.error('Failed to search users:', e);
+      } finally {
+        setSearchingUsers(false);
+      }
+    }, 280);
+    return () => clearTimeout(timer);
+  }, [userSearchQuery, showDirectDepositModal]);
+
+  const compressManualImage = (fileToCompress: File): Promise<{ blob: Blob; base64: string }> => {
+    return new Promise((resolve) => {
+      const objectUrl = URL.createObjectURL(fileToCompress);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 1280;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          const reader = new FileReader();
+          reader.onload = () => resolve({ blob: fileToCompress, base64: reader.result as string });
+          reader.readAsDataURL(fileToCompress);
+          return;
+        }
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        const quality = 0.78;
+        const base64 = canvas.toDataURL('image/jpeg', quality);
+        canvas.toBlob(
+          (blob) => {
+            resolve({ blob: blob || fileToCompress, base64 });
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        const reader = new FileReader();
+        reader.onload = () => resolve({ blob: fileToCompress, base64: reader.result as string });
+        reader.readAsDataURL(fileToCompress);
+      };
+      img.src = objectUrl;
+    });
+  };
+
+  const uploadManualScreenshot = async (fileToUpload: File): Promise<string> => {
+    const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+    const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (initData) authHeaders['x-telegram-init-data'] = initData;
+
+    const { blob, base64 } = await compressManualImage(fileToUpload).catch(() => ({ blob: fileToUpload, base64: '' }));
+
+    // Direct upload first
+    try {
+      if (base64) {
+        const directRes = await fetch(`${API_URL}/upload/direct`, {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify({
+            filename: fileToUpload.name.replace(/\.[^/.]+$/, '') + '.jpg',
+            contentType: 'image/jpeg',
+            fileBase64: base64,
+          }),
+        });
+        if (directRes.ok) {
+          const dData = await directRes.json();
+          if (dData.publicUrl || dData.url) return dData.publicUrl || dData.url;
+        }
+      }
+    } catch (e) {
+      console.warn('Direct upload fallback:', e);
+    }
+
+    // Presign fallback
+    const res = await fetch(`${API_URL}/upload/presign`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ filename: fileToUpload.name, contentType: 'image/jpeg' }),
+    });
+    if (!res.ok) throw new Error('Could not get upload link');
+    const { uploadUrl, publicUrl } = await res.json();
+    const putRes = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'image/jpeg' },
+      body: blob,
+    });
+    if (!putRes.ok) throw new Error('Upload to storage failed');
+    return publicUrl;
+  };
+
+  const handleManualFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setManualScreenshotFile(file);
+      setManualScreenshotPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleManualDepositSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setManualErrorMsg(null);
+    setManualSuccessMsg(null);
+
+    if (!selectedUser) {
+      setManualErrorMsg('እባክዎ መጀመሪያ ተጠቃሚ ይምረጡ / Please select a user first.');
+      return;
+    }
+
+    const amt = parseFloat(manualAmount);
+    if (isNaN(amt) || amt <= 0) {
+      setManualErrorMsg('እባክዎ ትክክለኛ የብር መጠን ያስገቡ / Please enter a valid deposit amount.');
+      return;
+    }
+
+    const cleanFt = manualFtNumber.trim();
+    if (!cleanFt && !manualScreenshotFile) {
+      setManualErrorMsg('እባክዎ የደረሰኝ ስክሪንሾት ያያይዙ ወይም የ FT/SMS ቁጥር ያስገቡ / Please provide a receipt screenshot OR FT reference number.');
+      return;
+    }
+
+    setManualSubmitting(true);
+    try {
+      let uploadedUrl = '';
+      if (manualScreenshotFile) {
+        uploadedUrl = await uploadManualScreenshot(manualScreenshotFile);
+      }
+
+      const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+      const res = await fetch(`${API_URL}/admin/worker-deposits/create-and-approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-init-data': initData,
+        },
+        body: JSON.stringify({
+          telegram_id: selectedUser.telegram_id,
+          amount: amt,
+          method_id: manualMethodId || undefined,
+          screenshot_url: uploadedUrl || undefined,
+          ft_number: cleanFt || undefined,
+          note: manualNote.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to credit deposit.');
+      }
+
+      const newBal = data.user?.main_balance ?? (Number(selectedUser.main_balance || 0) + amt);
+      setManualSuccessMsg(`✅ ተቀማጩ በተሳካ ሁኔታ ጸድቆ ገቢ ሆኗል! ${amt.toLocaleString()} ETB for ${selectedUser.first_name || selectedUser.username}. New balance: ${newBal.toLocaleString()} ETB.`);
+
+      // Update local balance of selectedUser for immediate visual feedback
+      setSelectedUser((prev: any) => prev ? { ...prev, main_balance: newBal } : null);
+
+      setTimeout(() => {
+        setSelectedUser(null);
+        setUserSearchQuery('');
+        setManualAmount('');
+        setManualFtNumber('');
+        setManualScreenshotFile(null);
+        setManualScreenshotPreview(null);
+        setManualNote('');
+        fetchPendingCounts();
+        applyPreset(activePreset);
+      }, 2500);
+    } catch (err: any) {
+      setManualErrorMsg(err.message || 'Deposit verification failed');
+    } finally {
+      setManualSubmitting(false);
+    }
+  };
+
   useEffect(() => {
     applyPreset('Today');
     fetchPendingCounts();
@@ -420,42 +671,74 @@ export default function Worker() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          <Link
-            to="/admin/deposits"
-            className={`flex items-center p-3 rounded-2xl transition-all shadow-sm ${perms.deposits ? 'bg-white text-emerald-700 active:scale-95' : 'bg-white/20 text-white/50 pointer-events-none'}`}
-          >
-            <div className={`p-2 rounded-xl mr-3 ${perms.deposits ? 'bg-emerald-100' : 'bg-white/10'}`}>
-              <ArrowDownToLine size={20} />
-            </div>
-            <div className="flex-1">
-              <p className="font-bold text-sm leading-tight">Verify</p>
-              <p className={`text-[11px] ${perms.deposits ? 'text-emerald-600/70' : 'text-white/40'}`}>Deposits</p>
-            </div>
-            {pendingDeposits > 0 && (
-              <span className="ml-auto bg-rose-500 text-white text-[10px] font-black rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center">
-                {pendingDeposits}
-              </span>
-            )}
-          </Link>
+        <div className="space-y-2 mt-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Link
+              to="/admin/deposits"
+              className={`flex items-center p-3 rounded-2xl transition-all shadow-sm ${perms.deposits ? 'bg-white text-emerald-700 active:scale-95' : 'bg-white/20 text-white/50 pointer-events-none'}`}
+            >
+              <div className={`p-2 rounded-xl mr-3 ${perms.deposits ? 'bg-emerald-100' : 'bg-white/10'}`}>
+                <ArrowDownToLine size={20} />
+              </div>
+              <div className="flex-1">
+                <p className="font-bold text-sm leading-tight">Verify</p>
+                <p className={`text-[11px] ${perms.deposits ? 'text-emerald-600/70' : 'text-white/40'}`}>Deposits</p>
+              </div>
+              {pendingDeposits > 0 && (
+                <span className="ml-auto bg-rose-500 text-white text-[10px] font-black rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center">
+                  {pendingDeposits}
+                </span>
+              )}
+            </Link>
 
-          <Link
-            to="/admin/withdrawals"
-            className={`flex items-center p-3 rounded-2xl transition-all shadow-sm ${perms.withdrawals ? 'bg-white text-rose-700 active:scale-95' : 'bg-white/20 text-white/50 pointer-events-none'}`}
-          >
-            <div className={`p-2 rounded-xl mr-3 ${perms.withdrawals ? 'bg-rose-100' : 'bg-white/10'}`}>
-              <ArrowUpFromLine size={20} />
-            </div>
-            <div className="flex-1">
-              <p className="font-bold text-sm leading-tight">Verify</p>
-              <p className={`text-[11px] ${perms.withdrawals ? 'text-rose-600/70' : 'text-white/40'}`}>Withdrawals</p>
-            </div>
-            {pendingWithdrawals > 0 && (
-              <span className="ml-auto bg-rose-500 text-white text-[10px] font-black rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center">
-                {pendingWithdrawals}
-              </span>
-            )}
-          </Link>
+            <Link
+              to="/admin/withdrawals"
+              className={`flex items-center p-3 rounded-2xl transition-all shadow-sm ${perms.withdrawals ? 'bg-white text-rose-700 active:scale-95' : 'bg-white/20 text-white/50 pointer-events-none'}`}
+            >
+              <div className={`p-2 rounded-xl mr-3 ${perms.withdrawals ? 'bg-rose-100' : 'bg-white/10'}`}>
+                <ArrowUpFromLine size={20} />
+              </div>
+              <div className="flex-1">
+                <p className="font-bold text-sm leading-tight">Verify</p>
+                <p className={`text-[11px] ${perms.withdrawals ? 'text-rose-600/70' : 'text-white/40'}`}>Withdrawals</p>
+              </div>
+              {pendingWithdrawals > 0 && (
+                <span className="ml-auto bg-rose-500 text-white text-[10px] font-black rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center">
+                  {pendingWithdrawals}
+                </span>
+              )}
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => { setShowDirectDepositModal(true); fetchDepositMethods(); }}
+              className={`flex items-center p-3 rounded-2xl transition-all shadow-sm ${perms.deposits ? 'bg-white text-emerald-800 hover:bg-emerald-50 active:scale-95' : 'bg-white/20 text-white/50 pointer-events-none'}`}
+            >
+              <div className={`p-2 rounded-xl mr-2.5 ${perms.deposits ? 'bg-emerald-100 text-emerald-700' : 'bg-white/10 text-white/40'}`}>
+                <PlusCircle size={20} />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-black text-xs leading-tight">Direct Deposit</p>
+                <p className={`text-[10px] font-bold ${perms.deposits ? 'text-emerald-600/80' : 'text-white/40'}`}>ተቀማጭ መዝግብ</p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={openBalanceModal}
+              className="flex items-center p-3 rounded-2xl transition-all shadow-sm bg-black/25 hover:bg-black/35 text-white active:scale-95 border border-white/20"
+            >
+              <div className="p-2 rounded-xl mr-2.5 bg-white/20 text-orange-200">
+                <Scan size={20} className="animate-pulse" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-black text-xs leading-tight">Scan Net Profit</p>
+                <p className="text-[10px] font-bold text-orange-100/80">ትርፍና ሂሳብ ፈትሽ</p>
+              </div>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -556,9 +839,20 @@ export default function Worker() {
                   Net Period Profit
                 </span>
               </div>
-              <span className="text-[10px] font-bold bg-white/20 px-2.5 py-1 rounded-full text-white backdrop-blur-xs">
-                {stats.netProfit >= 0 ? 'Profitable' : 'Deficit'}
-              </span>
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={openBalanceModal}
+                  className="flex items-center space-x-1.5 bg-black/30 hover:bg-black/40 active:scale-95 px-3 py-1.5 rounded-full text-white text-[11px] font-black border border-white/25 shadow-sm transition-all"
+                  title="Click scan to view net profit & balance breakdown"
+                >
+                  <Scan size={14} className="text-emerald-300 animate-pulse" />
+                  <span>Scan Net</span>
+                </button>
+                <span className="text-[10px] font-bold bg-white/20 px-2.5 py-1 rounded-full text-white backdrop-blur-xs">
+                  {stats.netProfit >= 0 ? 'Profitable' : 'Deficit'}
+                </span>
+              </div>
             </div>
 
             <div className="pt-2 relative z-10">
@@ -597,6 +891,24 @@ export default function Worker() {
                 <div style={{ width: `${withdrawalPct}%` }} className="bg-rose-300 h-full rounded-r-full transition-all duration-500" />
               </div>
             </div>
+
+            {/* Click scan icon to view net profit and remaining balance */}
+            <button
+              type="button"
+              onClick={openBalanceModal}
+              className="w-full mt-3.5 py-2.5 px-3.5 rounded-2xl bg-black/25 hover:bg-black/35 active:scale-98 transition-all flex items-center justify-between text-xs font-black text-white border border-white/20 shadow-sm"
+            >
+              <div className="flex items-center space-x-2.5">
+                <div className="p-1.5 rounded-xl bg-white/20 text-emerald-300 shadow-xs">
+                  <Scan size={16} />
+                </div>
+                <div className="text-left">
+                  <span className="block leading-tight font-black">Scan Net Remaining Balance Audit</span>
+                  <span className="text-[10px] text-white/75 font-semibold">View gross receipts, reductions & worker transfers</span>
+                </div>
+              </div>
+              <ChevronRight size={16} className="text-white/60 shrink-0" />
+            </button>
           </div>
 
           {/* 2. Dual Inflow (Deposits) & Outflow (Withdrawals) Cards */}
@@ -1365,6 +1677,368 @@ export default function Worker() {
               alt="Receipt Preview" 
               className="w-full max-h-[80vh] object-contain rounded-2xl" 
             />
+          </div>
+        </div>
+      )}
+
+      {/* ── DIRECT DEPOSIT (MANUAL CREDIT) MODAL ──────────────────────── */}
+      {showDirectDepositModal && (
+        <div 
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200"
+          onClick={() => {
+            if (!manualSubmitting) {
+              setShowDirectDepositModal(false);
+              setManualSuccessMsg(null);
+              setManualErrorMsg(null);
+            }
+          }}
+        >
+          <div 
+            className="w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Drawer top bar handle */}
+            <div className="w-12 h-1.5 rounded-full bg-slate-300 mx-auto -mt-1 sm:hidden" />
+
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-md">
+                  <PlusCircle size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 leading-tight">
+                    Direct Deposit / ተቀማጭ መዝግብ
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-semibold">
+                    Credit user with screenshot or FT code
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!manualSubmitting) {
+                    setShowDirectDepositModal(false);
+                    setManualSuccessMsg(null);
+                    setManualErrorMsg(null);
+                  }
+                }}
+                disabled={manualSubmitting}
+                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 active:scale-95 disabled:opacity-40"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Success message banner */}
+            {manualSuccessMsg && (
+              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start space-x-2.5 text-emerald-800 text-xs font-bold animate-in fade-in">
+                <CheckCircle2 size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-black text-emerald-900">Deposit Approved & Credited!</p>
+                  <p className="mt-0.5 leading-snug">{manualSuccessMsg}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Error message banner */}
+            {manualErrorMsg && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-center space-x-2 text-rose-700 text-xs font-bold">
+                <XCircle size={18} className="text-rose-500 shrink-0" />
+                <span>{manualErrorMsg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleManualDepositSubmit} className="space-y-4">
+              {/* Step 1: User selection */}
+              <div>
+                <label className="text-xs font-black text-slate-700 flex items-center justify-between mb-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <User size={14} className="text-emerald-600" />
+                    <span>1. Select User (ተጠቃሚ ምረጥ)</span>
+                  </span>
+                  {selectedUser && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedUser(null)}
+                      className="text-[11px] text-orange-600 font-bold hover:underline"
+                    >
+                      Change User
+                    </button>
+                  )}
+                </label>
+
+                {!selectedUser ? (
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        value={userSearchQuery}
+                        onChange={e => setUserSearchQuery(e.target.value)}
+                        placeholder="Search name, username, Telegram ID, or phone..."
+                        className="w-full bg-slate-50 border-2 border-slate-200 focus:border-emerald-500 rounded-2xl pl-10 pr-10 py-2.5 text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none transition-colors"
+                      />
+                      {searchingUsers && (
+                        <RefreshCw size={14} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 animate-spin" />
+                      )}
+                    </div>
+
+                    {/* Search results list */}
+                    {userSearchResults.length > 0 && (
+                      <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white shadow-lg">
+                        {userSearchResults.map((u) => (
+                          <button
+                            key={u.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedUser(u);
+                              setUserSearchQuery('');
+                              setUserSearchResults([]);
+                            }}
+                            className="w-full p-2.5 flex items-center justify-between text-left hover:bg-slate-50 active:bg-slate-100 transition-colors"
+                          >
+                            <div className="flex items-center space-x-2.5 min-w-0">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-amber-500 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs">
+                                {(u.first_name || u.username || 'U')[0].toUpperCase()}
+                              </div>
+                              <div className="truncate">
+                                <p className="font-black text-xs text-slate-800 truncate">
+                                  {u.first_name || 'No Name'} {u.username ? <span className="text-slate-400 font-medium">(@{u.username})</span> : ''}
+                                </p>
+                                <p className="text-[10px] text-slate-400 font-semibold truncate">
+                                  ID: <span className="text-slate-600">{u.telegram_id}</span>
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0 pl-2">
+                              <span className="text-[11px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+                                {Number(u.main_balance || 0).toLocaleString()} ETB
+                              </span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {userSearchQuery.trim() && !searchingUsers && userSearchResults.length === 0 && (
+                      <p className="text-[11px] text-slate-400 text-center py-2 font-semibold">
+                        No users found matching "{userSearchQuery}".
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  /* Selected user display card */
+                  <div className="p-3 rounded-2xl border-2 border-emerald-500 bg-emerald-50/60 flex items-center justify-between">
+                    <div className="flex items-center space-x-3 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-emerald-600 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-xs">
+                        {(selectedUser.first_name || selectedUser.username || 'U')[0].toUpperCase()}
+                      </div>
+                      <div className="truncate">
+                        <div className="flex items-center space-x-1.5">
+                          <p className="font-black text-xs text-slate-900 truncate">
+                            {selectedUser.first_name || 'No Name'}
+                          </p>
+                          {selectedUser.username && (
+                            <span className="text-[11px] text-emerald-700 font-bold truncate">
+                              @{selectedUser.username}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 font-semibold truncate">
+                          ID: <span className="text-slate-700 font-mono">{selectedUser.telegram_id}</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 pl-2">
+                      <p className="text-[10px] text-slate-400 font-bold">Current Bal</p>
+                      <p className="text-xs font-black text-emerald-700">
+                        {Number(selectedUser.main_balance || 0).toLocaleString()} ETB
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Step 2: Amount input */}
+              <div>
+                <label className="text-xs font-black text-slate-700 flex items-center gap-1.5 mb-1.5">
+                  <Wallet size={14} className="text-emerald-600" />
+                  <span>2. Deposit Amount (የብር መጠን)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="1"
+                    step="any"
+                    value={manualAmount}
+                    onChange={e => setManualAmount(e.target.value)}
+                    placeholder="Enter deposit amount (ETB)"
+                    className="w-full bg-slate-50 border-2 border-slate-200 focus:border-emerald-500 rounded-2xl px-4 py-2.5 text-base font-black text-slate-900 focus:outline-none transition-colors"
+                    required
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 font-black text-xs text-slate-400">
+                    ETB
+                  </span>
+                </div>
+
+                {/* Quick amount chips */}
+                <div className="flex items-center space-x-2 mt-2 overflow-x-auto hide-scrollbar pb-1">
+                  {[50, 100, 200, 500, 1000].map(val => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setManualAmount(String(val))}
+                      className={`px-3 py-1 rounded-xl text-xs font-black border transition-all ${
+                        manualAmount === String(val)
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                          : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200 active:scale-95'
+                      }`}
+                    >
+                      +{val}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Step 3: Deposit Method Selector */}
+              <div>
+                <label className="text-xs font-black text-slate-700 flex items-center gap-1.5 mb-1.5">
+                  <Landmark size={14} className="text-emerald-600" />
+                  <span>3. Payment Method (የክፍያ መንገድ)</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {depositMethods.length > 0 ? (
+                    depositMethods.map(m => {
+                      const isSel = manualMethodId === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setManualMethodId(m.id)}
+                          className={`p-2.5 rounded-xl border text-left flex items-center space-x-2 transition-all ${
+                            isSel
+                              ? 'border-emerald-500 bg-emerald-50/70 text-emerald-900 font-black ring-1 ring-emerald-500'
+                              : 'border-slate-200 bg-slate-50 text-slate-700 font-bold hover:bg-slate-100'
+                          }`}
+                        >
+                          <div className="w-2.5 h-2.5 rounded-full border-2 border-emerald-600 flex items-center justify-center shrink-0">
+                            {isSel && <div className="w-1.5 h-1.5 bg-emerald-600 rounded-full" />}
+                          </div>
+                          <span className="text-xs truncate">{m.name}</span>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="col-span-2 text-xs text-slate-400 font-semibold p-2 bg-slate-50 rounded-xl">
+                      Standard Bank / Telebirr Transfer
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Step 4: Proof (Screenshot OR FT number) */}
+              <div className="space-y-3">
+                <label className="text-xs font-black text-slate-700 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <FileText size={14} className="text-emerald-600" />
+                    <span>4. Payment Proof (FT ወይም ስክሪንሾት)</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-bold">At least 1 required</span>
+                </label>
+
+                {/* FT / Transaction Ref input */}
+                <div>
+                  <input
+                    type="text"
+                    value={manualFtNumber}
+                    onChange={e => setManualFtNumber(e.target.value)}
+                    placeholder="FT Number / Transaction Ref (e.g. FT2611...)"
+                    className="w-full bg-slate-50 border-2 border-slate-200 focus:border-emerald-500 rounded-2xl px-3.5 py-2 text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none"
+                  />
+                </div>
+
+                {/* Screenshot Uploader */}
+                <div>
+                  <label className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer hover:bg-slate-50 active:scale-98 transition-all">
+                    {manualScreenshotPreview ? (
+                      <div className="relative flex items-center space-x-3 w-full">
+                        <img 
+                          src={manualScreenshotPreview} 
+                          alt="Receipt Preview" 
+                          className="w-14 h-14 object-cover rounded-xl shadow-xs border border-slate-200" 
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-black text-slate-800 truncate">
+                            {manualScreenshotFile?.name || 'receipt.jpg'}
+                          </p>
+                          <p className="text-[10px] text-emerald-600 font-bold">
+                            ✓ Screenshot attached (Auto-compressed)
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setManualScreenshotFile(null);
+                            setManualScreenshotPreview(null);
+                          }}
+                          className="w-7 h-7 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center hover:bg-rose-200 active:scale-90 shrink-0"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2 text-slate-500 py-1">
+                        <UploadCloud size={20} className="text-slate-400" />
+                        <span className="text-xs font-bold">Attach receipt photo (Optional if FT entered)</span>
+                      </div>
+                    )}
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleManualFileChange} 
+                      className="hidden" 
+                    />
+                  </label>
+                </div>
+
+                {/* Optional Note */}
+                <div>
+                  <input
+                    type="text"
+                    value={manualNote}
+                    onChange={e => setManualNote(e.target.value)}
+                    placeholder="Worker note (e.g. Sent via Telegram support)"
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 placeholder:text-slate-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={manualSubmitting || !selectedUser || !manualAmount || (!manualScreenshotFile && !manualFtNumber.trim())}
+                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-sm shadow-lg shadow-emerald-600/30 active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all flex items-center justify-center space-x-2"
+                >
+                  {manualSubmitting ? (
+                    <>
+                      <RefreshCw size={16} className="animate-spin text-white" />
+                      <span>Verifying & Crediting Deposit...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={18} />
+                      <span>
+                        Approve & Credit {manualAmount ? `${Number(manualAmount).toLocaleString()} ETB` : 'Deposit'}
+                      </span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -48,6 +48,8 @@ const requireAdmin = async (req: AuthRequest, res: Response, next: NextFunction)
   let allowed = false;
   if (path.startsWith('/stats')) allowed = true; // Allow workers to view stats dashboard
   else if (path.startsWith('/pending-counts')) allowed = true; // Workers always see pending counts
+  else if (path.startsWith('/worker-deposits')) allowed = true; // Allow workers to search users & record direct deposits
+  else if (path.startsWith('/deposit-methods') && req.method === 'GET') allowed = true; // Allow workers to view deposit methods
   else if (path.includes('deposit') && perms.deposits) allowed = true;
   else if (path.includes('withdraw') && perms.withdrawals) allowed = true;
   else if (path.startsWith('/users') && perms.users) allowed = true;
@@ -62,7 +64,7 @@ const requireAdmin = async (req: AuthRequest, res: Response, next: NextFunction)
   // Explicitly deny these to anyone but admin
   if (
     path.startsWith('/workers') || 
-    path.startsWith('/deposit-methods') || 
+    (path.startsWith('/deposit-methods') && req.method !== 'GET') || 
     path.startsWith('/withdrawal-methods')
   ) {
     allowed = false;
@@ -418,6 +420,322 @@ router.delete('/deposits/:id/reject', async (req, res) => {
     return;
   }
   res.json({ success: true });
+});
+
+// Search users for manual deposit credit (name, username, telegram ID, or phone)
+router.get('/worker-deposits/search-users', async (req: AuthRequest, res: Response) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (!q) {
+      res.json({ users: [] });
+      return;
+    }
+
+    const clean = q.replace(/^@/, '');
+    let altPhone = '';
+    if (clean.startsWith('0')) {
+      altPhone = '251' + clean.slice(1);
+    } else if (clean.startsWith('+251')) {
+      altPhone = clean.replace('+', '');
+    } else if (clean.startsWith('251')) {
+      altPhone = '0' + clean.slice(3);
+    }
+
+    let filter = `username.ilike.%${clean}%,first_name.ilike.%${clean}%,telegram_id.ilike.%${clean}%`;
+    if (altPhone) {
+      filter += `,telegram_id.ilike.%${altPhone}%`;
+    }
+
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('id, telegram_id, username, first_name, main_balance, bonus_balance, role')
+      .or(filter)
+      .limit(20);
+
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+
+    res.json({ users: users || [] });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Error searching users' });
+  }
+});
+
+// Create and immediately approve a manual deposit recorded by a worker or admin
+router.post('/worker-deposits/create-and-approve', async (req: AuthRequest, res: Response) => {
+  try {
+    const {
+      telegram_id,
+      amount,
+      method_id,
+      screenshot_url,
+      ft_number,
+      note
+    } = req.body;
+
+    if (!telegram_id) {
+      res.status(400).json({ error: 'telegram_id is required' });
+      return;
+    }
+
+    const depAmount = parseFloat(String(amount));
+    if (isNaN(depAmount) || depAmount <= 0) {
+      res.status(400).json({ error: 'Please enter a valid deposit amount greater than 0.' });
+      return;
+    }
+
+    const cleanTxRef = (ft_number || '').trim();
+    const cleanScreenshotUrl = (screenshot_url || '').trim();
+
+    if (!cleanScreenshotUrl && !cleanTxRef) {
+      res.status(400).json({ error: 'Please provide either a payment receipt screenshot or FT / transaction reference number.' });
+      return;
+    }
+
+    // Fetch user from users table
+    const { data: depRecord, error: userFetchErr } = await supabase
+      .from('users')
+      .select('id, telegram_id, first_name, username, main_balance, bonus_balance, inviter_id')
+      .eq('telegram_id', String(telegram_id))
+      .maybeSingle();
+
+    if (userFetchErr || !depRecord) {
+      res.status(404).json({ error: `User with Telegram ID / Phone ${telegram_id} not found.` });
+      return;
+    }
+
+    // Check prior approved deposit count
+    const { count: approvedCount } = await supabase
+      .from('deposits')
+      .select('*', { count: 'exact', head: true })
+      .eq('telegram_id', String(telegram_id))
+      .eq('status', 'approved');
+
+    const isFirstDeposit = (approvedCount || 0) === 0;
+    const isSecondDeposit = (approvedCount || 0) === 1;
+
+    const currentMain = Number(depRecord.main_balance || 0);
+    const currentBonus = Number(depRecord.bonus_balance || 0);
+
+    let depositorBonus = 0;
+    let inviterBonus = 0;
+    let inviterId: string | null = null;
+    let bonusReason = '';
+
+    // 1. First & Second Deposit Bonus
+    if (isFirstDeposit || isSecondDeposit) {
+      const { data: allSettings } = await supabase.from('settings').select('key, value');
+      const getSetting = (key: string, def: number | string) => {
+        const row = allSettings?.find(s => s.key === key);
+        return row ? row.value : def;
+      };
+
+      const firstDepositPct = parseFloat(getSetting('first_deposit_bonus_pct', '7') as string) / 100;
+      const secondDepositPct = parseFloat(getSetting('second_deposit_bonus_pct', '3') as string) / 100;
+      const invitationPct = parseFloat(getSetting('invitation_reward_pct', '10') as string) / 100;
+
+      if (isFirstDeposit) {
+        depositorBonus = Number((depAmount * firstDepositPct).toFixed(2));
+        bonusReason = 'First Deposit';
+        
+        if (depRecord.inviter_id) {
+          inviterId = depRecord.inviter_id;
+          inviterBonus = Number((depAmount * invitationPct).toFixed(2));
+        }
+      } else if (isSecondDeposit && secondDepositPct > 0) {
+        depositorBonus = Number((depAmount * secondDepositPct).toFixed(2));
+        bonusReason = 'Second Deposit';
+      }
+    }
+
+    // 2. Weekend Bonus
+    let weekendBonus = 0;
+    try {
+      const { data: wkSettings } = await supabase.from('settings').select('key, value')
+        .in('key', ['weekend_bonus_enabled', 'weekend_bonus_days', 'weekend_bonus_pct']);
+      const getWk = (key: string, def: string) => {
+        const row = wkSettings?.find(s => s.key === key);
+        return row ? row.value : def;
+      };
+      const wkEnabled = getWk('weekend_bonus_enabled', 'false') === 'true';
+      if (wkEnabled) {
+        const wkPct = parseFloat(getWk('weekend_bonus_pct', '10')) / 100;
+        let wkDays: number[] = [0, 6];
+        try { wkDays = JSON.parse(getWk('weekend_bonus_days', '[0,6]')); } catch (_) {}
+
+        const EAT_OFFSET_MS = 3 * 60 * 60 * 1000;
+        const nowTime = Date.now();
+        const eatDate = new Date(nowTime + EAT_OFFSET_MS);
+        const dayOfWeek = eatDate.getUTCDay();
+
+        if (wkDays.includes(dayOfWeek) && wkPct > 0) {
+          const year = eatDate.getUTCFullYear();
+          const month = eatDate.getUTCMonth();
+          const day = eatDate.getUTCDate();
+          const startOfDayUTC = new Date(Date.UTC(year, month, day, 0, 0, 0, 0) - EAT_OFFSET_MS);
+          const endOfDayUTC = new Date(startOfDayUTC.getTime() + 24 * 60 * 60 * 1000 - 1);
+
+          const { count: priorDepositsOnDay } = await supabase
+            .from('deposits')
+            .select('*', { count: 'exact', head: true })
+            .eq('telegram_id', String(telegram_id))
+            .eq('status', 'approved')
+            .gte('created_at', startOfDayUTC.toISOString())
+            .lte('created_at', endOfDayUTC.toISOString());
+
+          if ((priorDepositsOnDay || 0) === 0) {
+            weekendBonus = Number((depAmount * wkPct).toFixed(2));
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Weekend bonus calculation error:', err);
+    }
+
+    // 3. Insert deposit into deposits table with status = 'approved'
+    const workerName = req.telegramUser?.first_name || 'Worker';
+    const workerTgId = req.telegramUser?.id || '';
+    const depositNote = note 
+      ? `${note} (Direct entry by worker ${workerName})`
+      : `Direct deposit by worker ${workerName} [${workerTgId}]`;
+
+    const insertPayload: any = {
+      telegram_id: String(telegram_id),
+      amount: depAmount,
+      status: 'approved',
+      screenshot_url: cleanScreenshotUrl || (cleanTxRef ? `ft:${cleanTxRef}` : null),
+      transaction_ref: cleanTxRef || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    if (method_id && typeof method_id === 'string' && method_id.trim()) {
+      insertPayload.method_id = method_id.trim();
+    }
+
+    let { data: newDep, error: insertErr } = await supabase
+      .from('deposits')
+      .insert([insertPayload])
+      .select()
+      .single();
+
+    // Handle missing optional columns if schema differs
+    if (insertErr && (insertErr.message.includes('transaction_ref') || insertErr.message.includes('method_id'))) {
+      const fallbackPayload: any = {
+        telegram_id: String(telegram_id),
+        amount: depAmount,
+        status: 'approved',
+        screenshot_url: cleanScreenshotUrl || (cleanTxRef ? `ft:${cleanTxRef}` : null),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      if (!insertErr.message.includes('method_id') && method_id) {
+        fallbackPayload.method_id = method_id;
+      }
+      const retry = await supabase
+        .from('deposits')
+        .insert([fallbackPayload])
+        .select()
+        .single();
+      newDep = retry.data;
+      insertErr = retry.error;
+    }
+
+    if (insertErr || !newDep) {
+      res.status(500).json({ error: 'Failed to record deposit: ' + (insertErr?.message || 'Database error') });
+      return;
+    }
+
+    // 4. Update user balance in users table
+    const newMainBalance = Number((currentMain + depAmount).toFixed(2));
+    const totalBonusAdded = Number((depositorBonus + weekendBonus).toFixed(2));
+    const newBonusBalance = Number((currentBonus + totalBonusAdded).toFixed(2));
+
+    const { error: balErr } = await supabase
+      .from('users')
+      .update({
+        main_balance: newMainBalance,
+        bonus_balance: newBonusBalance
+      })
+      .eq('telegram_id', String(depRecord.telegram_id));
+
+    if (balErr) {
+      res.status(500).json({ error: 'Failed to update user balance: ' + balErr.message });
+      return;
+    }
+
+    // 5. Update inviter if applicable
+    if (inviterId && inviterBonus > 0) {
+      try {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inviterId);
+        const { data: invRecord } = await (isUuid
+          ? supabase.from('users').select('id, bonus_balance').eq('id', inviterId).maybeSingle()
+          : supabase.from('users').select('id, bonus_balance').eq('telegram_id', String(inviterId)).maybeSingle()
+        );
+        if (invRecord) {
+          const currentInvBonus = Number(invRecord.bonus_balance || 0);
+          await supabase.from('users').update({
+            bonus_balance: Number((currentInvBonus + inviterBonus).toFixed(2))
+          }).eq('id', invRecord.id);
+        }
+      } catch (err) {
+        console.error('Failed to credit inviter bonus:', err);
+      }
+    }
+
+    // 6. Send Telegram Notification to the user
+    try {
+      let msgText = `✅ *Deposit Approved!*\n\n💰 Amount: *${depAmount.toLocaleString('en-US')} ETB* has been added to your balance.`;
+      if (cleanTxRef) {
+        msgText += `\n🧾 Ref: \`${cleanTxRef}\``;
+      }
+      if (depositorBonus > 0) {
+        msgText += `\n\n🎁 *${bonusReason} Bonus!* You received an extra *${depositorBonus.toLocaleString('en-US')} ETB* in your bonus balance!`;
+      }
+      if (weekendBonus > 0) {
+        msgText += `\n\n🎉 *Weekend Bonus!* You also received *${weekendBonus.toLocaleString('en-US')} ETB* weekend bonus in your bonus balance!`;
+      }
+      msgText += `\n\n🎮 Open the Mini App to start playing!`;
+
+      await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: depRecord.telegram_id,
+          text: msgText,
+          parse_mode: 'Markdown',
+        })
+      });
+    } catch (err) {
+      console.error('Failed to notify user on Telegram:', err);
+    }
+
+    // 7. Check auto-post proofs in background
+    checkAndAutoPostProofs('deposit').catch(e => console.error('auto-post deposit error:', e));
+
+    res.json({
+      success: true,
+      deposit: newDep,
+      user: {
+        id: depRecord.id,
+        telegram_id: depRecord.telegram_id,
+        first_name: depRecord.first_name,
+        username: depRecord.username,
+        main_balance: newMainBalance,
+        bonus_balance: newBonusBalance,
+      },
+      depositorBonus,
+      weekendBonus,
+      inviterBonus,
+      isFirstDeposit,
+      isSecondDeposit
+    });
+  } catch (err: any) {
+    console.error('create-and-approve worker deposit error:', err);
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
 });
 
 // Get admin stats (pending counts)
