@@ -183,9 +183,44 @@ import Invite from './pages/Invite';
 import InvitedPeople from './pages/InvitedPeople';
 
 function App() {
-  const { user, fetchUser, fetchRooms, subscribeToBalance, isDarkMode, isBlocked, setProfileOpen } = useGameStore();
+  const { user, fetchUser, fetchRooms, refreshBalance, subscribeToBalance, isDarkMode, isBlocked, setProfileOpen } = useGameStore();
   const [supportUsername, setSupportUsername] = useState<string>('');
   const [isAppInitializing, setIsAppInitializing] = useState(true);
+
+  // Global Realtime Balance Sync & Fast 2.5s Heartbeat
+  useEffect(() => {
+    if (!user?.telegram_id && !user?.id) return;
+
+    // 1. Subscribe to Realtime WebSocket
+    const unsub = subscribeToBalance();
+
+    // 2. Fast Heartbeat Polling (every 2.5s) - updates balance instantly on deposit approval / transfer
+    const heartbeatTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        refreshBalance();
+      }
+    }, 2500);
+
+    // 3. Instant refresh on app focus / tab visibility / network reconnect
+    const handleFocusOrVisible = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        refreshBalance();
+        fetchUser();
+      }
+    };
+
+    window.addEventListener('focus', handleFocusOrVisible);
+    window.addEventListener('online', handleFocusOrVisible);
+    document.addEventListener('visibilitychange', handleFocusOrVisible);
+
+    return () => {
+      unsub();
+      clearInterval(heartbeatTimer);
+      window.removeEventListener('focus', handleFocusOrVisible);
+      window.removeEventListener('online', handleFocusOrVisible);
+      document.removeEventListener('visibilitychange', handleFocusOrVisible);
+    };
+  }, [user?.telegram_id, user?.id, subscribeToBalance, refreshBalance, fetchUser]);
 
   useEffect(() => {
     WebApp.ready();
@@ -311,12 +346,10 @@ function App() {
         console.error('Dashboard prefetch error:', e);
       }
       setIsAppInitializing(false);
-      const unsub = subscribeToBalance();
-      return unsub;
     }).catch(() => {
       setIsAppInitializing(false);
     });
-  }, [fetchUser, fetchRooms, subscribeToBalance]);
+  }, [fetchUser, fetchRooms]);
 
   useEffect(() => {
     if (user?.room_id) {

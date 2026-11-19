@@ -57,6 +57,7 @@ interface GameStore {
   setProfileOpen: (isOpen: boolean) => void;
   toggleDarkMode: () => void;
   fetchUser: () => Promise<void>;
+  refreshBalance: () => Promise<void>;
   subscribeToBalance: () => () => void;
   fetchRooms: () => Promise<void>;
   subscribeToRooms: () => () => void;
@@ -306,14 +307,85 @@ export const useGameStore = create<GameStore>()(
         }
       },
 
-      // Realtime subscription — updates balance instantly when admin approves
-      subscribeToBalance: () => {
-        const telegramId = get().user?.telegram_id;
-        if (!telegramId) return () => {};
+      // Fast lightweight balance fetch (sub-5ms)
+      refreshBalance: async () => {
+        try {
+          const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+          const pwaToken = typeof window !== 'undefined' ? (localStorage.getItem('hdase_pwa_token') || localStorage.getItem('pwa_token')) : null;
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+          if (initData) headers['x-telegram-init-data'] = initData;
+          if (pwaToken) headers['x-pwa-auth'] = pwaToken;
 
-        const channel = supabase
-          .channel(`user-balance-${telegramId}-${Date.now()}`)
-          .on(
+          if (!initData && !pwaToken) return;
+
+          const res = await fetch(`${API_URL}/player/balance`, { headers });
+          if (res.ok) {
+            const data = await res.json();
+            set((state) => {
+              if (!state.user) return state;
+              const newMain = Number(data.main_balance ?? state.user.main_balance);
+              const newBonus = Number(data.bonus_balance ?? state.user.bonus_balance);
+              if (
+                state.user.main_balance === newMain &&
+                state.user.bonus_balance === newBonus
+              ) {
+                return state;
+              }
+              return {
+                user: {
+                  ...state.user,
+                  main_balance: newMain,
+                  bonus_balance: newBonus,
+                }
+              };
+            });
+          }
+        } catch {
+          // silent fallback
+        }
+      },
+
+      // Realtime subscription — updates balance instantly when admin or worker approves or transfers
+      subscribeToBalance: () => {
+        const currentUser = get().user;
+        const telegramId = currentUser?.telegram_id;
+        const userId = currentUser?.id;
+        if (!telegramId && !userId) return () => {};
+
+        const channelName = `user-balance-${telegramId || userId}-${Date.now()}`;
+        let ch = supabase.channel(channelName);
+
+        // 1. Listen on users table by primary key UUID (if present and not temp)
+        if (userId && userId !== 'temp') {
+          ch = ch.on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'users',
+              filter: `id=eq.${userId}`,
+            },
+            (payload) => {
+              const updated = payload.new as any;
+              if (updated) {
+                set((state) => {
+                  if (!state.user) return state;
+                  return {
+                    user: {
+                      ...state.user,
+                      main_balance: Number(updated.main_balance ?? state.user.main_balance),
+                      bonus_balance: Number(updated.bonus_balance ?? state.user.bonus_balance),
+                    }
+                  };
+                });
+              }
+            }
+          );
+        }
+
+        // 2. Listen on users table by telegram_id
+        if (telegramId) {
+          ch = ch.on(
             'postgres_changes',
             {
               event: 'UPDATE',
@@ -322,15 +394,47 @@ export const useGameStore = create<GameStore>()(
               filter: `telegram_id=eq.${telegramId}`,
             },
             (payload) => {
-              const updated = payload.new as User;
-              set((state) => ({
-                user: state.user ? { ...state.user, main_balance: updated.main_balance, bonus_balance: updated.bonus_balance } : state.user,
-              }));
+              const updated = payload.new as any;
+              if (updated) {
+                set((state) => {
+                  if (!state.user) return state;
+                  return {
+                    user: {
+                      ...state.user,
+                      main_balance: Number(updated.main_balance ?? state.user.main_balance),
+                      bonus_balance: Number(updated.bonus_balance ?? state.user.bonus_balance),
+                    }
+                  };
+                });
+              }
             }
           )
-          .subscribe();
+          // 3. Listen on deposits table for instant approval event
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'deposits',
+              filter: `telegram_id=eq.${telegramId}`,
+            },
+            (payload) => {
+              const updated = payload.new as any;
+              if (updated?.status === 'approved') {
+                get().refreshBalance();
+                if (typeof WebApp !== 'undefined') {
+                  WebApp.HapticFeedback?.notificationOccurred('success');
+                }
+              }
+            }
+          );
+        }
 
-        return () => { supabase.removeChannel(channel); };
+        ch.subscribe();
+
+        return () => {
+          supabase.removeChannel(ch);
+        };
       },
     }),
     {

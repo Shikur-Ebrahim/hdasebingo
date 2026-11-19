@@ -12,6 +12,31 @@ router.get('/profile', validateTelegramAuth, async (req: AuthRequest, res) => {
   res.json({ player: data });
 });
 
+// GET /player/balance — ultra-fast real-time balance check for miniapp & PWA
+router.get('/balance', validateTelegramAuth, async (req: AuthRequest, res) => {
+  try {
+    const telegramId = req.telegramUser!.id.toString();
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, telegram_id, main_balance, bonus_balance, status')
+      .eq('telegram_id', telegramId)
+      .maybeSingle();
+
+    if (error || !user) {
+      res.status(404).json({ error: 'Player not found' });
+      return;
+    }
+
+    res.json({
+      main_balance: Number(user.main_balance || 0),
+      bonus_balance: Number(user.bonus_balance || 0),
+      status: user.status || 'active',
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /player/resolve-invite — resolve inviter telegram_id or UUID to get their room_id
 router.get('/resolve-invite', async (req, res) => {
   try {
@@ -437,7 +462,8 @@ router.post('/transfer', validateTelegramAuth, async (req: AuthRequest, res) => 
   res.json({
     success: true,
     recipient_name: recipient.first_name || recipient.username || 'User',
-    amount: transferAmount
+    amount: transferAmount,
+    new_balance: Number((sender.main_balance - transferAmount).toFixed(2))
   });
 });
 

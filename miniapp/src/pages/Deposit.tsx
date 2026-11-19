@@ -69,12 +69,13 @@ type Step = 'list' | 'form' | 'success' | 'pending_status';
 
 export default function Deposit() {
   const navigate = useNavigate();
-  const { language } = useGameStore();
+  const { language, fetchUser, refreshBalance } = useGameStore();
   const [methods, setMethods] = useState<DepositMethod[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<DepositMethod | null>(null);
   const [step, setStep] = useState<Step>('list');
   const [pendingAmount, setPendingAmount] = useState<number | null>(null);
+  const [depositApproved, setDepositApproved] = useState(false);
   const [supportUsername, setSupportUsername] = useState<string | null>(null);
 
   // How to Deposit Video state
@@ -244,6 +245,51 @@ export default function Deposit() {
       setLoading(false);
     }
   };
+
+  // Active fast polling when waiting on a pending deposit (every 2 seconds)
+  useEffect(() => {
+    if (step !== 'pending_status') return;
+
+    let isMounted = true;
+    const checkDepositStatus = async () => {
+      try {
+        const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+        const pwaToken = typeof window !== 'undefined' ? (localStorage.getItem('hdase_pwa_token') || localStorage.getItem('pwa_token')) : null;
+        const headers: Record<string, string> = {};
+        if (initData) headers['x-telegram-init-data'] = initData;
+        if (pwaToken) headers['x-pwa-auth'] = pwaToken;
+
+        const res = await fetch(`${API_URL}/deposit/history`, { headers });
+        if (res.ok && isMounted) {
+          const history = await res.json();
+          const pending = history.find((d: any) => d.status === 'pending');
+          if (!pending) {
+            // Pending deposit is no longer pending! Refresh balance immediately
+            await refreshBalance();
+            await fetchUser();
+
+            const approvedDep = history.find((d: any) => d.status === 'approved');
+            if (approvedDep) {
+              setPendingAmount(approvedDep.amount);
+              setDepositApproved(true);
+              if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.notificationOccurred('success');
+              setTimeout(() => {
+                if (isMounted) navigate('/');
+              }, 2200);
+            } else {
+              setStep('list');
+            }
+          }
+        }
+      } catch {}
+    };
+
+    const timer = setInterval(checkDepositStatus, 2000);
+    return () => {
+      isMounted = false;
+      clearInterval(timer);
+    };
+  }, [step, fetchUser, refreshBalance, navigate]);
 
   const selectMethod = (method: DepositMethod) => {
     setSelected(method);
@@ -588,6 +634,31 @@ export default function Deposit() {
 
   // ── STEP: PENDING STATUS ─────────────────────────────────────────────────────
   if (step === 'pending_status') {
+    if (depositApproved) {
+      return (
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center p-6">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl shadow-lg border border-emerald-100 dark:border-emerald-800/60 p-8 text-center animate-in zoom-in-95 duration-200">
+            <div className="w-20 h-20 bg-emerald-50 dark:bg-emerald-950/40 rounded-full flex items-center justify-center mx-auto mb-5 border-4 border-emerald-100 dark:border-emerald-900/50 shadow-sm">
+              <CheckCircle2 size={44} className="text-emerald-500" />
+            </div>
+            <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100">
+              {language === 'am' ? 'ተቀማጭ ገንዘብ ፀድቋል!' : 'Deposit Approved!'}
+            </h2>
+            <p className="text-emerald-600 dark:text-emerald-400 font-black text-xl mt-2 tracking-wide">
+              +{pendingAmount?.toLocaleString('en-US')} ETB
+            </p>
+            <p className="text-xs text-slate-400 font-medium mt-1">
+              {language === 'am' ? 'ገንዘቡ ወዲያውኑ ወደ ሂሳብዎ ተጨምሯል' : 'Amount has been credited to your balance'}
+            </p>
+            <div className="mt-6 flex items-center justify-center space-x-2 text-xs font-semibold text-slate-400">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+              <span>{language === 'am' ? 'ወደ ጨዋታ ገጽ በመመለስ ላይ...' : 'Redirecting to games...'}</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center p-6">
         <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl shadow-sm border border-gray-100 dark:border-slate-800 p-8 text-center">

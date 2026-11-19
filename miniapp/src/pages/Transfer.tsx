@@ -22,7 +22,7 @@ interface SupportVideo {
 type Step = 'form' | 'confirm' | 'success' | 'error';
 
 export default function Transfer() {
-  const { user, fetchUser, language, setProfileOpen } = useGameStore();
+  const { user, fetchUser, refreshBalance, language, setProfileOpen } = useGameStore();
   const [recipientId, setRecipientId] = useState('');
   const [amount, setAmount] = useState('');
   const [step, setStep] = useState<Step>('form');
@@ -262,11 +262,13 @@ export default function Transfer() {
     setLoading(true);
     try {
       const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+      const pwaToken = typeof window !== 'undefined' ? (localStorage.getItem('hdase_pwa_token') || localStorage.getItem('pwa_token')) : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (initData) headers['x-telegram-init-data'] = initData;
+      if (pwaToken) headers['x-pwa-auth'] = pwaToken;
+
       const res = await fetch(`${API_URL}/player/transfer/lookup?recipient_id=${encodeURIComponent(recipientId.trim())}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-telegram-init-data': initData,
-        },
+        headers,
       });
       const data = await res.json();
       if (!res.ok) {
@@ -291,12 +293,14 @@ export default function Transfer() {
     setErrorMsg('');
     try {
       const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+      const pwaToken = typeof window !== 'undefined' ? (localStorage.getItem('hdase_pwa_token') || localStorage.getItem('pwa_token')) : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (initData) headers['x-telegram-init-data'] = initData;
+      if (pwaToken) headers['x-pwa-auth'] = pwaToken;
+
       const res = await fetch(`${API_URL}/player/transfer`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-telegram-init-data': initData,
-        },
+        headers,
         body: JSON.stringify({ recipient_telegram_id: recipientId.trim(), amount: amt }),
       });
 
@@ -315,6 +319,12 @@ export default function Transfer() {
         setStep('form');
       } else {
         setRecipientName(data.recipient_name || recipientName);
+        if (data.new_balance !== undefined) {
+          useGameStore.setState(state => ({
+            user: state.user ? { ...state.user, main_balance: Number(data.new_balance) } : state.user
+          }));
+        }
+        await refreshBalance();
         await fetchUser(); // refresh balance
         setStep('success');
         if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.notificationOccurred('success');
