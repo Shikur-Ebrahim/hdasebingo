@@ -13,6 +13,9 @@ import {
   RotateCcw,
   X,
   ExternalLink,
+  FileText,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
@@ -24,7 +27,8 @@ interface DepositRequest {
   id: string;
   telegram_id: string;
   amount: number;
-  screenshot_url: string;
+  screenshot_url?: string;
+  transaction_ref?: string;
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
   updated_at?: string;
@@ -271,6 +275,13 @@ export default function AdminDeposits() {
   const [activeTab, setActiveTab] = useState<'pending' | 'approved'>('pending');
   const [timeFilter, setTimeFilter] = useState('all');
   const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
+  const [copiedRefId, setCopiedRefId] = useState<string | null>(null);
+
+  const copyTxRef = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedRefId(id);
+    setTimeout(() => setCopiedRefId(null), 2000);
+  };
 
   const fetchDeposits = useCallback(async () => {
     try {
@@ -561,35 +572,82 @@ export default function AdminDeposits() {
                     </div>
                   </div>
 
+                  {/* FT / Transaction Ref with 1-click copy */}
+                  {(() => {
+                    const txRef = dep.transaction_ref || (dep.screenshot_url?.startsWith('ft:') ? dep.screenshot_url.slice(3) : null);
+                    if (!txRef) return null;
+                    return (
+                      <div className="mt-2.5 bg-amber-50/80 border border-amber-200/90 rounded-xl p-2.5 flex items-center justify-between gap-2 shadow-2xs">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center space-x-1.5 text-amber-800">
+                            <FileText size={12} className="text-amber-600" />
+                            <span className="text-[9.5px] font-black uppercase tracking-wider">FT / Transaction Ref</span>
+                          </div>
+                          <p className="text-xs font-mono font-black text-slate-900 break-all select-all mt-0.5">
+                            {txRef}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => copyTxRef(txRef, dep.id)}
+                          className="px-2.5 py-1 bg-white hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-[10px] font-black shrink-0 flex items-center gap-1 active:scale-95 transition-all cursor-pointer shadow-2xs"
+                        >
+                          {copiedRefId === dep.id ? <Check size={11} strokeWidth={3} className="text-emerald-600" /> : <Copy size={11} />}
+                          <span>{copiedRefId === dep.id ? 'Copied' : 'Copy'}</span>
+                        </button>
+                      </div>
+                    );
+                  })()}
+
                   {/* Expand/Collapse toggle */}
-                  <button
-                    onClick={() => setExpandedId(isExpanded ? null : dep.id)}
-                    className="mt-3 w-full flex items-center justify-center space-x-1 text-xs font-bold text-blue-500 hover:text-blue-600 py-1"
-                  >
-                    <span>{isExpanded ? 'Hide Screenshot' : 'View Screenshot'}</span>
-                    {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                  </button>
+                  {(() => {
+                    const actualScreenshot = dep.screenshot_url && !dep.screenshot_url.startsWith('ft:') ? dep.screenshot_url : null;
+                    return (
+                      <button
+                        onClick={() => setExpandedId(isExpanded ? null : dep.id)}
+                        className="mt-3 w-full flex items-center justify-center space-x-1 text-xs font-bold text-blue-500 hover:text-blue-600 py-1 cursor-pointer"
+                      >
+                        <span>
+                          {isExpanded
+                            ? 'Hide Details'
+                            : actualScreenshot
+                            ? 'View Screenshot & Details'
+                            : 'View Details'}
+                        </span>
+                        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </button>
+                    );
+                  })()}
                 </div>
 
-                {/* Screenshot preview with tap-to-zoom */}
-                {isExpanded && dep.screenshot_url && (
-                  <div className="px-4 pb-3">
-                    <div
-                      onClick={() => setZoomImageUrl(dep.screenshot_url)}
-                      className="relative group rounded-xl overflow-hidden border border-gray-100 cursor-zoom-in bg-slate-900/5 hover:border-yellow-400 transition-colors"
-                    >
-                      <img
-                        src={dep.screenshot_url}
-                        alt="Payment receipt"
-                        className="w-full rounded-xl object-contain max-h-72 transition-transform duration-200 group-hover:scale-[1.01]"
-                      />
-                      <div className="absolute bottom-2 right-2 bg-black/75 hover:bg-black/90 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center space-x-1.5 shadow-lg backdrop-blur-sm">
-                        <ZoomIn size={14} className="text-yellow-400" />
-                        <span>Tap to Zoom</span>
-                      </div>
+                {/* Screenshot preview with tap-to-zoom or FT notice */}
+                {(() => {
+                  if (!isExpanded) return null;
+                  const actualScreenshot = dep.screenshot_url && !dep.screenshot_url.startsWith('ft:') ? dep.screenshot_url : null;
+                  return (
+                    <div className="px-4 pb-3">
+                      {actualScreenshot ? (
+                        <div
+                          onClick={() => setZoomImageUrl(actualScreenshot)}
+                          className="relative group rounded-xl overflow-hidden border border-gray-100 cursor-zoom-in bg-slate-900/5 hover:border-yellow-400 transition-colors"
+                        >
+                          <img
+                            src={actualScreenshot}
+                            alt="Payment receipt"
+                            className="w-full rounded-xl object-contain max-h-72 transition-transform duration-200 group-hover:scale-[1.01]"
+                          />
+                          <div className="absolute bottom-2 right-2 bg-black/75 hover:bg-black/90 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center space-x-1.5 shadow-lg backdrop-blur-sm">
+                            <ZoomIn size={14} className="text-yellow-400" />
+                            <span>Tap to Zoom</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center text-xs font-bold text-slate-500">
+                          No screenshot image uploaded — verified via FT / SMS reference above.
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Action buttons (Only show if pending) */}
                 {activeTab === 'pending' ? (

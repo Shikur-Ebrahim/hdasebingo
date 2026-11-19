@@ -13,6 +13,7 @@ interface Deposit {
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
   screenshot_url?: string;
+  transaction_ref?: string;
   deposit_methods?: {
     type: string;
     name: string;
@@ -138,34 +139,54 @@ export default function DepositHistory() {
                     </div>
                   </div>
 
+                  {/* FT / Transaction Ref badge */}
+                  {(() => {
+                    const txRef = deposit.transaction_ref || (deposit.screenshot_url?.startsWith('ft:') ? deposit.screenshot_url.slice(3) : null);
+                    if (!txRef) return null;
+                    return (
+                      <div className="mx-4 mb-2.5 p-2 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs">
+                        <span className="text-[10px] font-black text-slate-400 uppercase">FT / Ref:</span>
+                        <span className="font-mono font-bold text-slate-800 dark:text-slate-100 select-all">{txRef}</span>
+                      </div>
+                    );
+                  })()}
+
                   {/* VIEW DETAIL BUTTON */}
-                  {deposit.screenshot_url && (
-                    <button
-                      onClick={() => setExpandedId(isExpanded ? null : deposit.id)}
-                      className={`w-full flex items-center justify-center space-x-1.5 py-2.5 border-t ${border} text-xs font-bold transition-colors ${isExpanded ? `${bg} ${color}` : 'text-blue-500 hover:bg-blue-50'}`}
-                    >
-                      <Image size={13} />
-                      <span>{isExpanded ? t[language].depositHistory.hideDetails : t[language].depositHistory.viewReceipt}</span>
-                      {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                    </button>
-                  )}
+                  {(() => {
+                    const actualScreenshot = deposit.screenshot_url && !deposit.screenshot_url.startsWith('ft:') ? deposit.screenshot_url : null;
+                    if (!actualScreenshot) return null;
+                    return (
+                      <button
+                        onClick={() => setExpandedId(isExpanded ? null : deposit.id)}
+                        className={`w-full flex items-center justify-center space-x-1.5 py-2.5 border-t ${border} text-xs font-bold transition-colors ${isExpanded ? `${bg} ${color}` : 'text-blue-500 hover:bg-blue-50'}`}
+                      >
+                        <Image size={13} />
+                        <span>{isExpanded ? t[language].depositHistory.hideDetails : t[language].depositHistory.viewReceipt}</span>
+                        {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                      </button>
+                    );
+                  })()}
 
                   {/* SCREENSHOT PREVIEW */}
-                  {isExpanded && deposit.screenshot_url && (
-                    <div className="px-4 pb-4 pt-2">
-                      <div
-                        className="rounded-xl overflow-hidden border border-gray-100 dark:border-slate-800 cursor-zoom-in"
-                        onClick={() => setLightboxUrl(deposit.screenshot_url!)}
-                      >
-                        <img
-                          src={deposit.screenshot_url}
-                          alt="Payment receipt"
-                          className="w-full object-contain max-h-64"
-                        />
+                  {(() => {
+                    const actualScreenshot = deposit.screenshot_url && !deposit.screenshot_url.startsWith('ft:') ? deposit.screenshot_url : null;
+                    if (!isExpanded || !actualScreenshot) return null;
+                    return (
+                      <div className="px-4 pb-4 pt-2">
+                        <div
+                          className="rounded-xl overflow-hidden border border-gray-100 dark:border-slate-800 cursor-zoom-in"
+                          onClick={() => setLightboxUrl(actualScreenshot)}
+                        >
+                          <img
+                            src={actualScreenshot}
+                            alt="Payment receipt"
+                            className="w-full object-contain max-h-64"
+                          />
+                        </div>
+                        <p className="text-center text-[10px] text-slate-400 font-semibold mt-2">{t[language].depositHistory.viewReceipt}</p>
                       </div>
-                      <p className="text-center text-[10px] text-slate-400 font-semibold mt-2">{t[language].depositHistory.viewReceipt}</p>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
               );
             })}

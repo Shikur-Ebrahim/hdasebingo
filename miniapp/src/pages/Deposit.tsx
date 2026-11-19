@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, ChevronRight, CheckCircle2, UploadCloud, X, Clock, AlertCircle, Copy, Check, MessageCircle, Play, ChevronLeft, Video as VideoIcon, Sparkles, Volume2, VolumeX } from 'lucide-react';
+import { ArrowLeft, ChevronRight, CheckCircle2, UploadCloud, X, Clock, AlertCircle, Copy, Check, MessageCircle, Play, ChevronLeft, Video as VideoIcon, Sparkles, Volume2, VolumeX, FileText } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { useGameStore } from '../store/gameStore';
@@ -91,6 +91,8 @@ export default function Deposit() {
   // Form state
   const [amount, setAmount] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [transactionRef, setTransactionRef] = useState('');
+  const [uploadStatus, setUploadStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
@@ -247,60 +249,221 @@ export default function Deposit() {
     setSelected(method);
     setAmount('');
     setFile(null);
+    setTransactionRef('');
+    setUploadStatus('');
     setError('');
     setStep('form');
   };
 
-  const uploadScreenshot = async (file: File): Promise<string> => {
+  // Client-side image compression: reduces 5MB-10MB mobile phone images down to ~80KB-120KB
+  // Ensures lightning-fast uploads even on slow 2G/3G/4G connections in Ethiopia
+  const compressImage = async (fileToCompress: File): Promise<{ blob: Blob; base64: string }> => {
+    if (!fileToCompress.type.startsWith('image/')) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve({ blob: fileToCompress, base64: reader.result as string });
+        reader.readAsDataURL(fileToCompress);
+      });
+    }
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(fileToCompress);
+
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const maxDim = 1200; // Optimal resolution: all receipt details and FT digits crystal clear
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          const reader = new FileReader();
+          reader.onload = () => resolve({ blob: fileToCompress, base64: reader.result as string });
+          reader.readAsDataURL(fileToCompress);
+          return;
+        }
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const quality = 0.78;
+        const base64 = canvas.toDataURL('image/jpeg', quality);
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve({ blob, base64 });
+            } else {
+              resolve({ blob: fileToCompress, base64 });
+            }
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        const reader = new FileReader();
+        reader.onload = () => resolve({ blob: fileToCompress, base64: reader.result as string });
+        reader.readAsDataURL(fileToCompress);
+      };
+
+      img.src = objectUrl;
+    });
+  };
+
+  // Ultra-reliable dual-path upload: Direct backend upload first (bypasses R2 CORS & carrier proxy blocks)
+  // + Presigned URL fallback
+  const uploadScreenshot = async (fileToUpload: File): Promise<string> => {
     const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
-    const res = await fetch(`${API_URL}/upload/presign`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData },
-      body: JSON.stringify({ filename: file.name, contentType: file.type })
-    });
-    if (!res.ok) throw new Error('Could not get upload URL');
-    const { uploadUrl, publicUrl } = await res.json();
-    const uploadRes = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': file.type },
-      body: file
-    });
-    if (!uploadRes.ok) throw new Error('Screenshot upload failed. Check R2 CORS settings.');
-    return publicUrl;
+    const pwaToken = typeof window !== 'undefined' ? (localStorage.getItem('hdase_pwa_token') || localStorage.getItem('pwa_token')) : null;
+    const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (initData) authHeaders['x-telegram-init-data'] = initData;
+    if (pwaToken) {
+      authHeaders['x-pwa-token'] = pwaToken;
+      authHeaders['x-pwa-auth'] = pwaToken;
+      authHeaders['Authorization'] = `Bearer ${pwaToken}`;
+    }
+
+    setUploadStatus(language === 'am' ? 'ምስሉን እያዘጋጀን ነው...' : 'Compressing screenshot...');
+    const { blob, base64 } = await compressImage(fileToUpload).catch(() => ({ blob: fileToUpload, base64: '' }));
+
+    // Path 1: Direct backend upload with compressed base64 (~80-120KB)
+    // Server handles R2 upload directly with server credentials — immune to client CORS or proxy blocks!
+    try {
+      setUploadStatus(language === 'am' ? 'ደረሰኙን በመጫን ላይ...' : 'Uploading receipt...');
+      if (base64) {
+        const directRes = await fetch(`${API_URL}/upload/direct`, {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify({
+            filename: fileToUpload.name.replace(/\.[^/.]+$/, '') + '.jpg',
+            contentType: 'image/jpeg',
+            fileBase64: base64,
+          }),
+        });
+
+        if (directRes.ok) {
+          const dData = await directRes.json();
+          if (dData.publicUrl || dData.url) {
+            return dData.publicUrl || dData.url;
+          }
+        }
+      }
+    } catch (directErr) {
+      console.warn('Direct upload failed, falling back to presigned upload...', directErr);
+    }
+
+    // Path 2: Presigned upload fallback
+    try {
+      const res = await fetch(`${API_URL}/upload/presign`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ filename: fileToUpload.name, contentType: blob.type || 'image/jpeg' }),
+      });
+      if (res.ok) {
+        const { uploadUrl, publicUrl } = await res.json();
+        const uploadRes = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': blob.type || 'image/jpeg' },
+          body: blob,
+        });
+        if (uploadRes.ok) return publicUrl;
+      }
+    } catch (presignErr) {
+      console.warn('Presigned upload fallback failed:', presignErr);
+    }
+
+    throw new Error(
+      language === 'am'
+        ? 'ስክሪንሾት መጫን አልተሳካም። እባክዎ ኢንተርኔትዎን ይፈትሹ ወይም የ FT ቁጥር / SMS ጽሁፍ አማራጭ ይጠቀሙ።'
+        : 'Screenshot upload failed. Please check your connection or use the FT Number / SMS option.'
+    );
   };
 
   const handleSubmit = async () => {
     if (!selected) return;
     const numAmount = parseFloat(amount);
     if (!amount || isNaN(numAmount) || numAmount <= 0) {
-      setError('Please enter a valid amount.'); return;
+      setError(language === 'am' ? 'እባክዎ ትክክለኛ የብር መጠን ያስገቡ።' : 'Please enter a valid amount.');
+      return;
     }
     if (numAmount < selected.min_deposit) {
-      setError(`Minimum deposit is ${selected.min_deposit.toLocaleString()} ETB`); return;
+      setError(
+        language === 'am'
+          ? `ዝቅተኛው የገንዘብ ማስገቢያ ${selected.min_deposit.toLocaleString()} ብር ነው።`
+          : `Minimum deposit is ${selected.min_deposit.toLocaleString()} ETB`
+      );
+      return;
     }
-    if (!file) {
-      setError('Please upload your payment screenshot.'); return;
+    const cleanRef = transactionRef.trim();
+    if (!file && !cleanRef) {
+      setError(
+        language === 'am'
+          ? 'እባክዎ የክፍያ ስክሪንሾት ያያይዙ ወይም የ FT/SMS ቁጥር ያስገቡ።'
+          : 'Please attach a payment screenshot or enter the FT / Transaction reference.'
+      );
+      return;
     }
+
     setError('');
     setSubmitting(true);
     try {
-      const screenshotUrl = await uploadScreenshot(file);
+      let screenshotUrl: string | undefined = undefined;
+      if (file) {
+        screenshotUrl = await uploadScreenshot(file);
+      }
+
+      setUploadStatus(language === 'am' ? 'ጥያቄዎን በመላክ ላይ...' : 'Submitting deposit request...');
       const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';
+      const pwaToken = typeof window !== 'undefined' ? (localStorage.getItem('hdase_pwa_token') || localStorage.getItem('pwa_token')) : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (initData) headers['x-telegram-init-data'] = initData;
+      if (pwaToken) {
+        headers['x-pwa-token'] = pwaToken;
+        headers['x-pwa-auth'] = pwaToken;
+        headers['Authorization'] = `Bearer ${pwaToken}`;
+      }
+
       const res = await fetch(`${API_URL}/deposit/request`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData },
-        body: JSON.stringify({ method_id: selected.id, amount: numAmount, screenshot_url: screenshotUrl })
+        headers,
+        body: JSON.stringify({
+          method_id: selected.id,
+          amount: numAmount,
+          screenshot_url: screenshotUrl,
+          transaction_ref: cleanRef || undefined,
+          ft_number: cleanRef || undefined,
+        }),
       });
+
       if (res.ok) {
         setStep('success');
       } else {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         setError(err.error || 'Failed to submit.');
       }
     } catch (err: any) {
       setError(err.message || 'Failed to submit. Please try again.');
     } finally {
       setSubmitting(false);
+      setUploadStatus('');
     }
   };
 
@@ -583,58 +746,107 @@ export default function Deposit() {
             </div>
           </div>
 
-          {/* Card 3: Screenshot Upload */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xs border border-slate-200/80 dark:border-slate-800 p-3">
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                {t[language].deposit.paymentScreenshot}
-              </label>
-              <span className="text-[10px] text-slate-400 font-semibold">
-                JPG / PNG
-              </span>
+          {/* Card 3: Payment Proof (Photo OR FT Number) */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xs border border-slate-200/80 dark:border-slate-800 p-3 space-y-3">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                  <span>{language === 'am' ? 'የክፍያ ማረጋገጫ (ስክሪንሾት ወይም FT)' : 'PAYMENT PROOF (PHOTO OR FT NUMBER)'}</span>
+                </label>
+                <span className="text-[9.5px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-full border border-amber-200/50">
+                  {language === 'am' ? 'ፎቶ ወይም FT ቁጥር' : 'Photo OR FT Text'}
+                </span>
+              </div>
+
+              {/* OPTION 1: Payment Screenshot */}
+              {file ? (
+                <div className="h-14 bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 rounded-xl px-3 flex items-center justify-between">
+                  <div className="flex items-center space-x-2.5 overflow-hidden">
+                    <img src={URL.createObjectURL(file)} alt="Receipt" className="w-10 h-10 object-cover rounded-lg border border-emerald-300 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-black text-emerald-800 dark:text-emerald-200 truncate">{file.name}</p>
+                      <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center space-x-1">
+                        <Check size={11} strokeWidth={3} />
+                        <span>{language === 'am' ? 'ስክሪንሾት ተያይዟል' : 'Receipt Attached'}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFile(null)}
+                    className="w-7 h-7 rounded-full bg-rose-100 hover:bg-rose-200 text-rose-600 flex items-center justify-center flex-shrink-0 ml-2"
+                  >
+                    <X size={13} strokeWidth={2.5} />
+                  </button>
+                </div>
+              ) : (
+                <label className="w-full h-14 border border-dashed border-amber-300 dark:border-amber-500/50 bg-amber-50/30 dark:bg-amber-950/20 hover:bg-amber-50/60 rounded-xl px-3.5 flex items-center justify-between cursor-pointer active:scale-[0.99] transition-all">
+                  <div className="flex items-center space-x-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-amber-400/20 text-amber-600 flex items-center justify-center flex-shrink-0">
+                      <UploadCloud size={16} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-black text-slate-700 dark:text-slate-200 leading-tight">
+                        {t[language].deposit.tapToUpload}
+                      </p>
+                      <p className="text-[9.5px] text-slate-400 font-semibold leading-tight">
+                        {language === 'am' ? 'የክፍያ ስክሪንሾት ያያይዙ (አማራጭ)' : 'Attach payment screenshot (optional)'}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50 px-2.5 py-1 rounded-lg">
+                    Browse
+                  </span>
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => { setFile(e.target.files?.[0] || null); setError(''); }} />
+                </label>
+              )}
             </div>
 
-            {file ? (
-              <div className="h-14 bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 rounded-xl px-3 flex items-center justify-between">
-                <div className="flex items-center space-x-2.5 overflow-hidden">
-                  <img src={URL.createObjectURL(file)} alt="Receipt" className="w-10 h-10 object-cover rounded-lg border border-emerald-300 flex-shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-xs font-black text-emerald-800 dark:text-emerald-200 truncate">{file.name}</p>
-                    <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center space-x-1">
-                      <Check size={11} strokeWidth={3} />
-                      <span>Receipt Attached</span>
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setFile(null)}
-                  className="w-7 h-7 rounded-full bg-rose-100 hover:bg-rose-200 text-rose-600 flex items-center justify-center flex-shrink-0 ml-2"
-                >
-                  <X size={13} strokeWidth={2.5} />
-                </button>
-              </div>
-            ) : (
-              <label className="w-full h-14 border border-dashed border-amber-300 dark:border-amber-500/50 bg-amber-50/30 dark:bg-amber-950/20 hover:bg-amber-50/60 rounded-xl px-3.5 flex items-center justify-between cursor-pointer active:scale-[0.99] transition-all">
-                <div className="flex items-center space-x-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-amber-400/20 text-amber-600 flex items-center justify-center flex-shrink-0">
-                    <UploadCloud size={16} />
-                  </div>
-                  <div>
-                    <p className="text-xs font-black text-slate-700 dark:text-slate-200 leading-tight">
-                      {t[language].deposit.tapToUpload}
-                    </p>
-                    <p className="text-[9.5px] text-slate-400 font-semibold leading-tight">
-                      Attach payment screenshot
-                    </p>
-                  </div>
-                </div>
-                <span className="text-[11px] font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50 px-2.5 py-1 rounded-lg">
-                  Browse
+            {/* OR Divider */}
+            <div className="flex items-center my-1 text-slate-300 dark:text-slate-700 text-[10px] font-black uppercase">
+              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
+              <span className="px-2 text-slate-400 font-extrabold">{language === 'am' ? 'ወይም' : 'OR'}</span>
+              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
+            </div>
+
+            {/* OPTION 2: FT Number / Transaction ID / SMS Text */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                  <FileText size={11} className="text-amber-500" />
+                  <span>{language === 'am' ? 'የግብይት ቁጥር / FT NUMBER ወይም SMS' : 'FT NUMBER / TRANSACTION ID / SMS'}</span>
+                </label>
+                <span className="text-[9px] text-slate-400 font-semibold">
+                  {file ? (language === 'am' ? 'አማራጭ' : 'Optional') : (language === 'am' ? 'ያስገቡ' : 'Enter here')}
                 </span>
-                <input type="file" accept="image/*" className="hidden" onChange={(e) => { setFile(e.target.files?.[0] || null); setError(''); }} />
-              </label>
-            )}
+              </div>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={transactionRef}
+                  onChange={(e) => {
+                    setTransactionRef(e.target.value);
+                    setError('');
+                  }}
+                  placeholder={language === 'am' ? 'ለምሳሌ፡ FT24328... ወይም የደረሰዎት የ SMS መልዕክት' : 'e.g. FT24328XXXXX or paste transaction SMS'}
+                  className="w-full h-11 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-3 pr-8 text-xs font-bold outline-none focus:border-amber-400 focus:bg-white dark:focus:bg-slate-900 transition-all text-slate-800 dark:text-slate-100 placeholder:text-slate-400 font-mono"
+                />
+                {transactionRef && (
+                  <button
+                    type="button"
+                    onClick={() => setTransactionRef('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+              <p className="text-[9.5px] text-slate-400 mt-1 font-semibold">
+                {language === 'am'
+                  ? '💡 ስክሪንሾት ወይም የ FT ቁጥር አንዱን ብቻ ማስገባት በቂ ነው። ሁለቱንም ማስገባትም ይችላሉ።'
+                  : '💡 You can upload a screenshot, enter the FT number/SMS, or provide both.'}
+              </p>
+            </div>
           </div>
 
           {/* Error */}
@@ -649,12 +861,12 @@ export default function Deposit() {
           <button
             onClick={handleSubmit}
             disabled={submitting}
-            className="w-full h-12 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-950 font-black rounded-2xl shadow-sm text-base transition-all disabled:opacity-50 flex items-center justify-center space-x-2"
+            className="w-full h-12 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-950 font-black rounded-2xl shadow-sm text-base transition-all disabled:opacity-50 flex items-center justify-center space-x-2 cursor-pointer"
           >
             {submitting ? (
               <div className="flex items-center space-x-2">
                 <div className="w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin" />
-                <span>{t[language].deposit.submitting}</span>
+                <span>{uploadStatus || t[language].deposit.submitting}</span>
               </div>
             ) : (
               <span>{t[language].deposit.submitBtn}</span>
@@ -698,8 +910,8 @@ export default function Deposit() {
                 </span>
                 <p className="text-[11.5px] font-bold text-slate-600 dark:text-slate-300 leading-snug">
                   {language === 'am'
-                    ? 'ክፍያውን ከፈጸሙ በኋላ የደረሰኙን ስክሪንሾት (Screenshot) ያንሱ።'
-                    : 'After paying, take a clear screenshot of the transaction receipt.'}
+                    ? 'ክፍያውን ከፈጸሙ በኋላ የደረሰኙን ስክሪንሾት ያንሱ ወይም የግብይቱን FT/SMS ቁጥር ይያዙ።'
+                    : 'After paying, take a clear screenshot of the receipt or copy the FT / transaction reference number.'}
                 </p>
               </div>
 
@@ -709,8 +921,8 @@ export default function Deposit() {
                 </span>
                 <p className="text-[11.5px] font-bold text-slate-600 dark:text-slate-300 leading-snug">
                   {language === 'am'
-                    ? 'የላኩትን መጠን ከላይ ያስገቡ፣ ስክሪንሾቱን ጭነው "Submit Deposit" ይጫኑ።'
-                    : 'Enter the amount you sent, attach the screenshot image, and tap Submit Deposit.'}
+                    ? 'የላኩትን መጠን ያስገቡ፣ ስክሪንሾቱን በማያያዝ ወይም የ FT ቁጥር በመጻፍ "ገንዘብ አስገባ" ይጫኑ።'
+                    : 'Enter the amount you sent, attach the screenshot or enter FT number, and tap Submit Deposit.'}
                 </p>
               </div>
             </div>

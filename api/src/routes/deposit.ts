@@ -21,10 +21,19 @@ router.get('/methods', async (_req, res) => {
 // POST /api/deposit/request — submit a deposit request
 router.post('/request', async (req: AuthRequest, res) => {
   const telegramId = req.telegramUser!.id.toString();
-  const { method_id, amount, screenshot_url } = req.body;
+  const { method_id, amount, screenshot_url, transaction_ref, ft_number } = req.body;
 
   if (!method_id || !amount) {
     res.status(400).json({ error: 'method_id and amount are required' });
+    return;
+  }
+
+  const cleanTxRef = (transaction_ref || ft_number || '').trim();
+  const cleanScreenshotUrl = (screenshot_url || '').trim();
+
+  // User must provide either a screenshot OR an FT / Transaction reference
+  if (!cleanScreenshotUrl && !cleanTxRef) {
+    res.status(400).json({ error: 'Please provide a payment screenshot or transaction FT number/SMS' });
     return;
   }
 
@@ -34,7 +43,7 @@ router.post('/request', async (req: AuthRequest, res) => {
     .select('id')
     .eq('telegram_id', telegramId)
     .eq('status', 'pending')
-    .single();
+    .maybeSingle();
 
   if (existingPending) {
     res.status(400).json({ error: 'You already have a pending deposit. Please wait for approval.' });
@@ -53,10 +62,35 @@ router.post('/request', async (req: AuthRequest, res) => {
     return;
   }
 
-  const { data, error } = await supabase
+  // Prepare payload
+  const insertPayload: any = {
+    telegram_id: telegramId,
+    method_id,
+    amount,
+    screenshot_url: cleanScreenshotUrl || (cleanTxRef ? `ft:${cleanTxRef}` : null),
+    status: 'pending',
+  };
+  if (cleanTxRef) {
+    insertPayload.transaction_ref = cleanTxRef;
+  }
+
+  let { data, error } = await supabase
     .from('deposits')
-    .insert([{ telegram_id: telegramId, method_id, amount, screenshot_url, status: 'pending' }])
-    .select().single();
+    .insert([insertPayload])
+    .select()
+    .single();
+
+  // Graceful fallback if transaction_ref column does not exist in DB yet
+  if (error && error.message && error.message.includes('transaction_ref')) {
+    delete insertPayload.transaction_ref;
+    const retry = await supabase
+      .from('deposits')
+      .insert([insertPayload])
+      .select()
+      .single();
+    data = retry.data;
+    error = retry.error;
+  }
 
   if (error) { res.status(500).json({ error: error.message }); return; }
 
@@ -82,7 +116,10 @@ router.post('/request', async (req: AuthRequest, res) => {
       const message = `🔔 *New Deposit Request!*\n\n` +
                       `👤 User: @${safeUsername}\n` +
                       `💰 Amount: *${Number(amount).toLocaleString('en-US')} ETB*\n` +
-                      `🏦 Method: *${safeMethodName}*\n\n` +
+                      `🏦 Method: *${safeMethodName}*\n` +
+                      (cleanTxRef ? `🧾 *FT / Ref:* \`${cleanTxRef}\`\n` : '') +
+                      (cleanScreenshotUrl ? `📸 *Screenshot:* Attached\n\n` : `\n`) +
+                      `👇 Please check the Admin Dashboard to approve.`;
                       `👇 Please check the Admin Dashboard to approve.`;
 
       const botToken = process.env.BOT_TOKEN;
