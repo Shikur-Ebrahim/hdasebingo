@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { AuthRequest, validateTelegramAuth } from '../middleware/auth';
 import { supabase } from '../services/supabase';
 import { systemPlayerService, DEFAULT_STAKE_CONFIGS, DEFAULT_WAITER_STAKE_CONFIGS } from '../services/systemPlayerService';
+import { invalidatePoolsCache } from './bingo';
 
 const router = Router();
 
@@ -433,6 +434,10 @@ router.post('/settings', validateTelegramAuth, async (req: AuthRequest, res: Res
     if (updErr) {
       return res.status(500).json({ error: updErr.message });
     }
+
+    // Clean up disabled waiting games and invalidate pools cache
+    await systemPlayerService.cleanDisabledWaitingGames(targetRoomId);
+    invalidatePoolsCache();
 
     if (wantsToEnable) {
       systemPlayerService.seedSystemPlayersPool(targetRoomId, 1000).catch(console.error);

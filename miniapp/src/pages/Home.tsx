@@ -136,26 +136,48 @@ export default function Home() {
     setTimeout(() => setManualRefreshing(false), 500);
   };
 
-  const userDbRoomId = (user as any)?.room_id;
-  const storedRoomId = typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null;
   const HDASE_OFFICIAL_ROOM_ID = 'd7c9114a-e112-426f-8f9b-13c00050279c';
 
+  // Read URL param ?room=... if present
+  const urlRoomId = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    const sp = new URLSearchParams(window.location.search);
+    return sp.get('room') || sp.get('roomId');
+  }, [location.search]);
+
+  // Read explicitly chosen room from Room Selection modal
+  const selectedRoomId = typeof window !== 'undefined' ? localStorage.getItem('hdase_selected_room_id') : null;
+  // Read session room if user entered via a direct invite link this session
+  const sessionRoomId = typeof window !== 'undefined' ? sessionStorage.getItem('hdase_session_room') : null;
+
   const activeRoom = useMemo(() => {
-    // 1. If user explicitly selected or has assigned room in DB/store or localStorage, respect it!
-    const effectiveRoomId = userDbRoomId || storedRoomId;
-    if (effectiveRoomId) {
-      const found = rooms.find(r => r.id === effectiveRoomId);
+    // 1. URL parameter explicitly passed in route
+    if (urlRoomId) {
+      const found = rooms.find(r => r.id === urlRoomId);
       if (found) return found;
     }
-    // 2. Default to official HDASE room
-    const official = rooms.find(r => r.room_name === 'HDASE BINGO' || r.id === HDASE_OFFICIAL_ROOM_ID);
+    // 2. Explicitly selected room from Profile -> Room Selection
+    if (selectedRoomId) {
+      const found = rooms.find(r => r.id === selectedRoomId);
+      if (found) return found;
+    }
+    // 3. Session room from invite link entered during this visit
+    if (sessionRoomId) {
+      const found = rooms.find(r => r.id === sessionRoomId);
+      if (found) return found;
+    }
+    // 4. Default: Official HDASE BINGO room
+    const official = rooms.find(r => r.id === HDASE_OFFICIAL_ROOM_ID || r.room_name?.trim().toUpperCase() === 'HDASE BINGO');
     if (official) return official;
+
     const pinned = rooms.find(r => r.is_pinned);
     if (pinned) return pinned;
+
     return rooms[0] || null;
-  }, [rooms, userDbRoomId, storedRoomId]);
+  }, [rooms, urlRoomId, selectedRoomId, sessionRoomId]);
 
   const activeRoomId = activeRoom?.id || HDASE_OFFICIAL_ROOM_ID;
+  const isOfficialHdase = !activeRoom || activeRoom.id === HDASE_OFFICIAL_ROOM_ID || activeRoom.room_name?.trim().toUpperCase().includes('HDASE');
   const activeStakes = useMemo(() => {
     if (activeRoom && Array.isArray(activeRoom.stakes) && activeRoom.stakes.length === 4) {
       return activeRoom.stakes.map(Number);
@@ -211,7 +233,7 @@ export default function Home() {
         loadedPools.forEach((g: any) => {
           const s = Number(g.stake);
           const pool = Number(g.prize_pool || 0);
-          const players = Number(g.unique_players || 0);
+          const players = Number(g.players !== undefined ? g.players : (g.unique_players !== undefined ? g.unique_players : 0));
           const status = g.status;
 
           if (!p[s]) {
@@ -612,11 +634,35 @@ export default function Home() {
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               LIVE BINGO
             </span>
-            {/* Split color title: HDASE dark, BINGO orange */}
-            <div className="mb-4 flex items-baseline gap-2">
-              <span className="text-slate-900 font-black text-4xl tracking-wide leading-none drop-shadow-xs">HDASE</span>
-              <span className="text-orange-500 font-black text-4xl tracking-wide leading-none drop-shadow-xs">BINGO</span>
-            </div>
+            {/* Split color title: HDASE dark, BINGO orange or Active Room Name */}
+            {isOfficialHdase ? (
+              <div className="mb-4 flex items-baseline gap-2">
+                <span className="text-slate-900 font-black text-4xl tracking-wide leading-none drop-shadow-xs">HDASE</span>
+                <span className="text-orange-500 font-black text-4xl tracking-wide leading-none drop-shadow-xs">BINGO</span>
+              </div>
+            ) : (
+              <div className="mb-2 flex flex-col items-center">
+                <div className="text-slate-900 font-black text-2xl sm:text-3xl tracking-wide leading-tight drop-shadow-xs uppercase">
+                  {activeRoom?.room_name || 'BINGO ROOM'}
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
+                    localStorage.removeItem('hdase_selected_room_id');
+                    localStorage.removeItem('hdase_invited_room_id');
+                    sessionStorage.removeItem('hdase_session_room');
+                    localStorage.setItem('hdase_selected_room_id', HDASE_OFFICIAL_ROOM_ID);
+                    window.location.href = window.location.pathname;
+                  }}
+                  className="mt-1 text-[10px] font-black text-amber-800 bg-amber-100 hover:bg-amber-200 border border-amber-300/80 px-3 py-0.5 rounded-full transition-all flex items-center gap-1 shadow-2xs pointer-events-auto active:scale-95"
+                >
+                  ⚡ ወደ HDASE BINGO ቀይር
+                </button>
+              </div>
+            )}
             <div className="bg-orange-500 hover:bg-orange-600 text-white px-9 py-2.5 rounded-full font-black text-sm shadow-[0_4px_16px_rgba(249,115,22,0.35)] active:scale-95 transition-all">
               PLAY NOW →
             </div>

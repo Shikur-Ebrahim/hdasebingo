@@ -5,6 +5,7 @@ import { getWithdrawalFeeSettings, saveWithdrawalFeeSettings, calculateWithdrawa
 import { getAgencyWithdrawalFeeSettings, saveAgencyWithdrawalFeeSettings, calculateAgencyWithdrawalFee } from '../services/agencyWithdrawalFee';
 import { checkAndAutoPostProofs } from './channelProofs';
 import { systemPlayerService } from '../services/systemPlayerService';
+import { invalidatePoolsCache } from './bingo';
 
 const router = Router();
 
@@ -2763,8 +2764,14 @@ router.put('/hdase-room', requireAdmin, async (req: AuthRequest, res: Response) 
         .single();
 
       if (fbErr) throw fbErr;
+      await systemPlayerService.cleanDisabledWaitingGames(fallbackUpdated.id || HDASE_ROOM_ID);
+      invalidatePoolsCache();
       return res.json({ success: true, room: fallbackUpdated });
     }
+
+    // Immediately clean up any waiting games for disabled stakes and invalidate pools cache
+    await systemPlayerService.cleanDisabledWaitingGames(HDASE_ROOM_ID);
+    invalidatePoolsCache();
 
     // Auto-seed bot pool if needed
     if (updates.system_players_enabled) {

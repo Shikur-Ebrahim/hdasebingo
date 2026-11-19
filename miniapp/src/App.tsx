@@ -248,13 +248,9 @@ function App() {
         }
       }
       if (detectedRoomId) {
-        const HDASE_OFFICIAL_ROOM_ID = 'd7c9114a-e112-426f-8f9b-13c00050279c';
-        const existingStoredRoom = typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null;
-        // Never overwrite an existing stored agent room with the generic default HDASE room!
-        if (detectedRoomId !== HDASE_OFFICIAL_ROOM_ID || !existingStoredRoom) {
-          localStorage.setItem('hdase_invited_room_id', detectedRoomId);
-          syncManifestWithRoom(detectedRoomId, detectedPromoterRef);
-        }
+        sessionStorage.setItem('hdase_session_room', detectedRoomId);
+        localStorage.setItem('hdase_invited_room_id', detectedRoomId);
+        syncManifestWithRoom(detectedRoomId, detectedPromoterRef);
       }
       if (detectedPromoterRef) {
         localStorage.setItem('hdase_promoter_ref', detectedPromoterRef);
@@ -264,6 +260,7 @@ function App() {
           .then(r => r.json())
           .then(data => {
             if (data?.room_id) {
+              sessionStorage.setItem('hdase_session_room', data.room_id);
               localStorage.setItem('hdase_invited_room_id', data.room_id);
               syncManifestWithRoom(data.room_id, detectedPromoterRef);
             }
@@ -324,8 +321,12 @@ function App() {
   useEffect(() => {
     if (user?.room_id) {
       const HDASE_OFFICIAL_ROOM_ID = 'd7c9114a-e112-426f-8f9b-13c00050279c';
-      const existingStoredRoom = typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null;
-      if (user.room_id !== HDASE_OFFICIAL_ROOM_ID || !existingStoredRoom) {
+      if (user.room_id === HDASE_OFFICIAL_ROOM_ID) {
+        const currentSelected = typeof window !== 'undefined' ? localStorage.getItem('hdase_selected_room_id') : null;
+        if (!currentSelected) {
+          localStorage.setItem('hdase_invited_room_id', HDASE_OFFICIAL_ROOM_ID);
+        }
+      } else {
         localStorage.setItem('hdase_invited_room_id', user.room_id);
       }
       syncManifestWithRoom(user.room_id, user.telegram_id || user.id);

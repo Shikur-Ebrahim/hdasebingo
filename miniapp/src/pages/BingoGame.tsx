@@ -163,20 +163,24 @@ export default function BingoGame() {
 
   const urlStake = searchParams.get("stake");
   const urlRoom = searchParams.get("room");
-  const userDbRoomId = (user as any)?.room_id;
-  const storedRoomId = typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null;
   const HDASE_OFFICIAL_ROOM_ID = 'd7c9114a-e112-426f-8f9b-13c00050279c';
 
-  // Determine user's effective room: prioritize user's actual previous/assigned agent room
+  // Determine user's effective room:
   const userRoomId = useMemo(() => {
-    if (urlRoom && urlRoom !== HDASE_OFFICIAL_ROOM_ID) return urlRoom;
-    if (userDbRoomId && userDbRoomId !== HDASE_OFFICIAL_ROOM_ID) return userDbRoomId;
-    if (storedRoomId && storedRoomId !== HDASE_OFFICIAL_ROOM_ID) return storedRoomId;
-    return urlRoom || userDbRoomId || storedRoomId || null;
-  }, [urlRoom, userDbRoomId, storedRoomId]);
+    // 1. If room is in URL, ALWAYS respect it directly!
+    if (urlRoom) return urlRoom;
+    // 2. Explicit user selection
+    const selected = typeof window !== 'undefined' ? localStorage.getItem('hdase_selected_room_id') : null;
+    if (selected) return selected;
+    // 3. Direct invite session room
+    const sessionRoom = typeof window !== 'undefined' ? sessionStorage.getItem('hdase_session_room') : null;
+    if (sessionRoom) return sessionRoom;
+    // 4. Default: official HDASE room
+    return HDASE_OFFICIAL_ROOM_ID;
+  }, [urlRoom]);
 
-  const defaultHdaseRoom = rooms.find(r => r.room_name?.toUpperCase().includes('HDASE')) || rooms.find(r => r.is_pinned) || rooms[0];
-  const effectiveRoomId = userRoomId || defaultHdaseRoom?.id || null;
+  const defaultHdaseRoom = rooms.find(r => r.id === HDASE_OFFICIAL_ROOM_ID) || rooms.find(r => r.room_name?.toUpperCase().includes('HDASE')) || rooms.find(r => r.is_pinned) || rooms[0];
+  const effectiveRoomId = userRoomId || defaultHdaseRoom?.id || HDASE_OFFICIAL_ROOM_ID;
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(effectiveRoomId);
   const [selectedStake, setSelectedStake] = useState<number | null>(urlStake ? Number(urlStake) : null);
   const [roomsRefreshing, setRoomsRefreshing] = useState(false);
@@ -413,7 +417,7 @@ export default function BingoGame() {
         loadedPools.forEach((g: any) => {
           const s = Number(g.stake);
           const pool = Number(g.prize_pool || 0);
-          const players = Number(g.unique_players || 0);
+          const players = Number(g.players !== undefined ? g.players : (g.unique_players !== undefined ? g.unique_players : 0));
           const status = g.status;
 
           if (!p[s]) {

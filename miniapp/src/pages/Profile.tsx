@@ -27,8 +27,9 @@ export default function Profile() {
   const [selectingRoom, setSelectingRoom] = useState(false);
   const [roomSuccessMsg, setRoomSuccessMsg] = useState<string | null>(null);
 
-  const userRoomId = (user as any)?.room_id || (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null);
-  const currentRoom = rooms.find(r => r.id === userRoomId) || rooms.find(r => r.is_pinned) || rooms.find(r => r.room_name?.toUpperCase().includes('HDASE')) || rooms[0];
+  const selectedRoomStored = typeof window !== 'undefined' ? localStorage.getItem('hdase_selected_room_id') : null;
+  const userRoomId = selectedRoomStored || (user as any)?.room_id || (typeof window !== 'undefined' ? localStorage.getItem('hdase_invited_room_id') : null);
+  const currentRoom = rooms.find(r => r.id === userRoomId) || rooms.find(r => r.id === 'd7c9114a-e112-426f-8f9b-13c00050279c') || rooms.find(r => r.room_name?.toUpperCase().includes('HDASE')) || rooms.find(r => r.is_pinned) || rooms[0];
   const currentRoomName = currentRoom?.room_name || 'HDASE BINGO';
 
   // Strictly filter out private rooms (never visible in public dropdown) and sort pinned rooms first with highest priority
@@ -58,6 +59,7 @@ export default function Profile() {
     setSelectingRoom(true);
     try {
       if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
+      localStorage.setItem('hdase_selected_room_id', roomId);
       localStorage.setItem('hdase_invited_room_id', roomId);
       
       const initData = typeof WebApp !== 'undefined' ? WebApp.initData : '';

@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { generateBingoCard } from './BingoEngine';
+import { invalidatePoolsCache } from '../routes/bingo';
 
 // Default stake target ranges: all 4 stakes ON by default when System Players are activated
 export const DEFAULT_STAKE_CONFIGS = {
@@ -602,7 +603,38 @@ export class SystemPlayerService {
     const isWaiterActiveForStake = Boolean(waiterTierConfig.enabled) && (room.waiter_players_enabled !== false);
 
     // If neither Auto-Bustle nor Waiter Player is active for this stake:
-    if (!isAutoBustleActive && !isWaiterActiveForStake) return;
+    if (!isAutoBustleActive && !isWaiterActiveForStake) {
+      // Check if there are orphaned bots with 0 real players that should be cleaned immediately
+      const { data: currentPlayers } = await supabase
+        .from('bingo_players')
+        .select('id, is_system')
+        .eq('game_id', game.id);
+
+      const players = currentPlayers || [];
+      const realPlayers = players.filter(p => !p.is_system);
+      const botPlayers = players.filter(p => p.is_system);
+
+      if (realPlayers.length === 0 && botPlayers.length > 0) {
+        await supabase
+          .from('bingo_players')
+          .delete()
+          .eq('game_id', game.id)
+          .eq('is_system', true);
+
+        await supabase
+          .from('bingo_games')
+          .update({
+            total_players: 0,
+            prize_pool: 0,
+            start_at: new Date(Date.now() + 365 * 86400000).toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', game.id);
+
+        invalidatePoolsCache();
+      }
+      return;
+    }
 
     const startTime = new Date(game.start_at).getTime();
     const now = Date.now();
@@ -858,6 +890,88 @@ export class SystemPlayerService {
     }).eq('id', game.id);
 
     console.log(`🤖 Bot "${chosenBot.first_name}" (${isWaiterMode ? 'WAITER [Agent Backed]' : 'AUTO-BUSTLE'}) bought ${chosenSeats.length} cartela(s) [${chosenSeats.join(',')}] on Game #${game.id.slice(0, 8)} | Stake: ${stakeAmt} | Derash: ${prizePool} ETB | Players: ${realUnique} Real + ${systemUnique} Bots (${waiterUnique} waiter)`);
+  }
+
+  /**
+   * Clean up any orphaned system players in waiting games when bots are disabled
+   * either globally for the room or for specific stakes.
+   */
+  async cleanDisabledWaitingGames(roomId: string): Promise<void> {
+    try {
+      const { data: room, error: rErr } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('id', roomId)
+        .maybeSingle();
+
+      if (rErr || !room) return;
+
+      const scheduleStart = room.system_players_schedule_start || '00:00';
+      const scheduleEnd = room.system_players_schedule_end || '24:00';
+      const ramp = this.getScheduleRampInfo(scheduleStart, scheduleEnd);
+
+      const roomStakes: number[] = Array.isArray(room.stakes) && room.stakes.length === 4
+        ? room.stakes.map(Number)
+        : [5, 10, 20, 35];
+
+      const configs = room.system_players_stake_configs || DEFAULT_STAKE_CONFIGS;
+      const waiterConfigs = room.waiter_players_stake_configs || DEFAULT_WAITER_STAKE_CONFIGS;
+
+      // Fetch all waiting games for this room
+      const { data: waitingGames, error: gErr } = await supabase
+        .from('bingo_games')
+        .select('id, stake, total_players, prize_pool')
+        .eq('room_id', roomId)
+        .eq('status', 'waiting');
+
+      if (gErr || !waitingGames || waitingGames.length === 0) return;
+
+      for (const game of waitingGames) {
+        const stakeIndex = roomStakes.indexOf(Number(game.stake));
+        const tier = stakeIndex >= 0 ? `stake_${stakeIndex + 1}` : 'stake_1';
+
+        const tierConfig = configs[tier] || DEFAULT_STAKE_CONFIGS[tier as keyof typeof DEFAULT_STAKE_CONFIGS] || { enabled: true };
+        const isStakeEnabled = tierConfig.enabled !== undefined ? Boolean(tierConfig.enabled) : true;
+        const isAutoBustleActive = Boolean(room.system_players_enabled) && ramp.isActive && isStakeEnabled;
+
+        const waiterTierConfig = waiterConfigs[tier] || DEFAULT_WAITER_STAKE_CONFIGS[tier as keyof typeof DEFAULT_WAITER_STAKE_CONFIGS] || { enabled: false };
+        const isWaiterActiveForStake = Boolean(waiterTierConfig.enabled) && (room.waiter_players_enabled !== false);
+
+        // If neither Auto-Bustle nor Waiter is active for this stake:
+        if (!isAutoBustleActive && !isWaiterActiveForStake) {
+          const { data: players } = await supabase
+            .from('bingo_players')
+            .select('id, is_system')
+            .eq('game_id', game.id);
+
+          const realCount = (players || []).filter(p => !p.is_system).length;
+          const botCount = (players || []).filter(p => p.is_system).length;
+
+          // If there are bots and 0 real players, purge bots and reset game immediately
+          if (realCount === 0 && botCount > 0) {
+            await supabase
+              .from('bingo_players')
+              .delete()
+              .eq('game_id', game.id)
+              .eq('is_system', true);
+
+            await supabase
+              .from('bingo_games')
+              .update({
+                total_players: 0,
+                prize_pool: 0,
+                start_at: new Date(Date.now() + 365 * 86400000).toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', game.id);
+          }
+        }
+      }
+
+      invalidatePoolsCache();
+    } catch (e) {
+      console.error('Error in cleanDisabledWaitingGames:', e);
+    }
   }
 
   /**

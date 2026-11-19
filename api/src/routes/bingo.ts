@@ -114,7 +114,9 @@ router.get('/pools', async (req, res) => {
       prize_pool: finalDerash,
       start_at: g.start_at,
       status: g.status,
+      players: uCount,
       unique_players: uCount,
+      cartelas: cCount,
       room_id: g.room_id,
     };
   });
