@@ -641,26 +641,10 @@ export default function Home() {
                 <span className="text-orange-500 font-black text-4xl tracking-wide leading-none drop-shadow-xs">BINGO</span>
               </div>
             ) : (
-              <div className="mb-2 flex flex-col items-center">
-                <div className="text-slate-900 font-black text-2xl sm:text-3xl tracking-wide leading-tight drop-shadow-xs uppercase">
+              <div className="mb-4 flex flex-col items-center">
+                <div className="text-slate-900 font-black text-3xl sm:text-4xl tracking-wide leading-tight drop-shadow-xs uppercase">
                   {activeRoom?.room_name || 'BINGO ROOM'}
                 </div>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
-                    localStorage.removeItem('hdase_selected_room_id');
-                    localStorage.removeItem('hdase_invited_room_id');
-                    sessionStorage.removeItem('hdase_session_room');
-                    localStorage.setItem('hdase_selected_room_id', HDASE_OFFICIAL_ROOM_ID);
-                    window.location.href = window.location.pathname;
-                  }}
-                  className="mt-1 text-[10px] font-black text-amber-800 bg-amber-100 hover:bg-amber-200 border border-amber-300/80 px-3 py-0.5 rounded-full transition-all flex items-center gap-1 shadow-2xs pointer-events-auto active:scale-95"
-                >
-                  ⚡ ወደ HDASE BINGO ቀይር
-                </button>
               </div>
             )}
             <div className="bg-orange-500 hover:bg-orange-600 text-white px-9 py-2.5 rounded-full font-black text-sm shadow-[0_4px_16px_rgba(249,115,22,0.35)] active:scale-95 transition-all">

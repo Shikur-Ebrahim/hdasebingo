@@ -168,8 +168,10 @@ export default function AgentSystemPlayerModal({
       setIsProActive(Boolean(data.is_pro_active));
       setDaysRemaining(Number(data.days_remaining || 0));
       setProExpiresAt(data.pro_expires_at);
-      setScheduleStart(data.schedule_start || '00:00');
-      setScheduleEnd(data.schedule_end || '24:00');
+      const rawStart = data.schedule_start || '00:00';
+      const rawEnd = data.schedule_end || '24:00';
+      setScheduleStart(rawStart.includes(':') ? `${rawStart.split(':')[0].padStart(2, '0')}:00` : '00:00');
+      setScheduleEnd(rawEnd === '24:00' || rawEnd === '23:59' ? '24:00' : (rawEnd.includes(':') ? `${rawEnd.split(':')[0].padStart(2, '0')}:00` : '24:00'));
       setRiskPercent(Number(data.risk_percent ?? 25));
       setMonthlyPrice(Number(data.monthly_price ?? 1000));
       setAgentBalance(Number(data.agent_balance || 0));
@@ -691,24 +693,47 @@ export default function AgentSystemPlayerModal({
                 System players only join waiting games during this interval. Default: <b>00:00 to 24:00 (24h)</b>.
               </p>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* 24-Hour Military Format Selectors */}
+              <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="text-[10px] font-black text-slate-600 uppercase">Start Time</label>
-                  <input
-                    type="time"
+                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block mb-1">
+                    Start Time (24h)
+                  </span>
+                  <select
                     value={scheduleStart}
                     onChange={(e) => setScheduleStart(e.target.value)}
-                    className="w-full mt-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-800 focus:outline-none focus:border-indigo-500"
-                  />
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
+                  >
+                    {Array.from({ length: 24 }).map((_, h) => {
+                      const val = `${h.toString().padStart(2, '0')}:00`;
+                      return (
+                        <option key={val} value={val}>
+                          {val} {h === 0 ? '(00:00 Midnight)' : h === 12 ? '(12:00 Noon)' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
                 </div>
+
                 <div>
-                  <label className="text-[10px] font-black text-slate-600 uppercase">End Time</label>
-                  <input
-                    type="time"
+                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block mb-1">
+                    End Time (24h)
+                  </span>
+                  <select
                     value={scheduleEnd}
                     onChange={(e) => setScheduleEnd(e.target.value)}
-                    className="w-full mt-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-800 focus:outline-none focus:border-indigo-500"
-                  />
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
+                  >
+                    <option value="24:00">24:00 (Full 24 Hours / All Day)</option>
+                    {Array.from({ length: 24 }).map((_, h) => {
+                      const val = `${h.toString().padStart(2, '0')}:00`;
+                      return (
+                        <option key={val} value={val}>
+                          {val} {h === 0 ? '(00:00 Midnight)' : h === 12 ? '(12:00 Noon)' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
                 </div>
               </div>
 

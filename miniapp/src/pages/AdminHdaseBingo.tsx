@@ -78,6 +78,11 @@ export default function AdminHdaseBingo() {
   const [reseeding, setReseeding] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // Selected Room & All Rooms List (allows managing ANY room by room_id)
+  const [selectedRoomId, setSelectedRoomId] = useState<string>(HDASE_ROOM_ID);
+  const [allRooms, setAllRooms] = useState<any[]>([]);
+  const [upgradingPro, setUpgradingPro] = useState(false);
+
   // Room data & live metrics
   const [room, setRoom] = useState<any>(null);
   const [botCount, setBotCount] = useState<number>(1000);
@@ -155,11 +160,23 @@ export default function AdminHdaseBingo() {
     return headers;
   };
 
-  // Fetch Room data. Crucial: when isSilent is true, NEVER overwrite form states or toggles!
-  const fetchHdaseRoom = useCallback(async (isSilent = false) => {
+  // Fetch all rooms for selector
+  const fetchAllRooms = async () => {
     try {
+      const res = await fetch(`${API_URL}/admin/rooms/all`, { headers: getAuthHeaders() });
+      if (res.ok) {
+        const d = await res.json();
+        setAllRooms(d.rooms || []);
+      }
+    } catch {}
+  };
+
+  // Fetch Room data. Crucial: when isSilent is true, NEVER overwrite form states or toggles!
+  const fetchHdaseRoom = useCallback(async (isSilent = false, roomIdParam?: string) => {
+    try {
+      const targetRoomId = roomIdParam || selectedRoomId || HDASE_ROOM_ID;
       if (!isSilent && !initialLoadedRef.current) setLoading(true);
-      const res = await fetch(`${API_URL}/admin/hdase-room`, {
+      const res = await fetch(`${API_URL}/admin/hdase-room?roomId=${targetRoomId}`, {
         headers: getAuthHeaders(),
       });
 
@@ -195,21 +212,62 @@ export default function AdminHdaseBingo() {
           initialLoadedRef.current = true;
         }
       } else {
-        if (!isSilent) showToast('error', 'Failed to load HDASE BINGO room details');
+        if (!isSilent) showToast('error', 'Failed to load room details');
       }
     } catch {
       if (!isSilent) showToast('error', 'Network error connecting to server');
     } finally {
       if (!isSilent) setLoading(false);
     }
-  }, []);
+  }, [selectedRoomId]);
+
+  // Handle switching rooms
+  const handleRoomChange = (newRoomId: string) => {
+    triggerHaptic('light');
+    setSelectedRoomId(newRoomId);
+    initialLoadedRef.current = false;
+    fetchHdaseRoom(false, newRoomId);
+    if (activeTab === 'pool') {
+      fetchBots(1, botSearch, newRoomId);
+    }
+  };
+
+  // One-click upgrade room to PRO Level 1
+  const handleUpgradeToPro = async () => {
+    triggerHaptic('heavy');
+    setUpgradingPro(true);
+    try {
+      const res = await fetch(`${API_URL}/admin/hdase-room`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          roomId: selectedRoomId,
+          system_players_pro_level: 1,
+          system_players_pro_expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+        }),
+      });
+      if (res.ok) {
+        showToast('success', `${room?.room_name || 'Room'} upgraded to PRO Level 1 successfully!`);
+        initialLoadedRef.current = false;
+        fetchHdaseRoom(false, selectedRoomId);
+        fetchAllRooms();
+      } else {
+        showToast('error', 'Failed to upgrade room to Pro');
+      }
+    } catch {
+      showToast('error', 'Network error');
+    } finally {
+      setUpgradingPro(false);
+    }
+  };
 
   // Fetch paginated bot pool
-  const fetchBots = useCallback(async (page = 1, search = '') => {
+  const fetchBots = useCallback(async (page = 1, search = '', roomIdParam?: string) => {
     try {
       setLoadingBots(true);
+      const rId = roomIdParam || selectedRoomId || HDASE_ROOM_ID;
       const res = await fetch(
-        `${API_URL}/admin/hdase-room/bots?page=${page}&limit=25&search=${encodeURIComponent(search)}`,
+        `${API_URL}/admin/hdase-room/bots?roomId=${rId}&page=${page}&limit=25&search=${encodeURIComponent(search)}`,
         {
           headers: getAuthHeaders(),
         }
@@ -226,20 +284,21 @@ export default function AdminHdaseBingo() {
     } finally {
       setLoadingBots(false);
     }
-  }, []);
+  }, [selectedRoomId]);
 
   useEffect(() => {
-    fetchHdaseRoom();
+    fetchAllRooms();
+    fetchHdaseRoom(false, selectedRoomId);
 
     // Fast polling for live games monitoring every 3s — isSilent=true ensures form is NEVER overwritten!
     pollIntervalRef.current = setInterval(() => {
-      fetchHdaseRoom(true);
+      fetchHdaseRoom(true, selectedRoomId);
     }, 3000);
 
     return () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };
-  }, [fetchHdaseRoom]);
+  }, [selectedRoomId]);
 
   // Load bot pool when switching to pool tab or page changes
   useEffect(() => {
@@ -257,7 +316,7 @@ export default function AdminHdaseBingo() {
       const res = await fetch(`${API_URL}/admin/hdase-room`, {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ system_players_enabled: nextVal }),
+        body: JSON.stringify({ roomId: selectedRoomId, system_players_enabled: nextVal }),
       });
       if (res.ok) {
         showToast('success', `System players ${nextVal ? 'activated' : 'paused'}`);
@@ -278,7 +337,7 @@ export default function AdminHdaseBingo() {
       const res = await fetch(`${API_URL}/admin/hdase-room`, {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ waiter_players_enabled: nextVal }),
+        body: JSON.stringify({ roomId: selectedRoomId, waiter_players_enabled: nextVal }),
       });
       if (res.ok) {
         showToast('success', `Waiter players ${nextVal ? 'activated' : 'disabled'}`);
@@ -296,6 +355,7 @@ export default function AdminHdaseBingo() {
     setSaving(true);
     try {
       const payload = {
+        roomId: selectedRoomId,
         stakes: stakes.map(Number),
         system_players_enabled: systemEnabled,
         system_players_schedule_start: scheduleStart,
@@ -313,10 +373,10 @@ export default function AdminHdaseBingo() {
       });
 
       if (res.ok) {
-        showToast('success', 'HDASE BINGO room settings saved successfully!');
+        showToast('success', `${room?.room_name || 'Room'} settings saved successfully!`);
         // Update baseline
         initialLoadedRef.current = false;
-        fetchHdaseRoom(false);
+        fetchHdaseRoom(false, selectedRoomId);
       } else {
         const err = await res.json().catch(() => ({}));
         showToast('error', err.error || 'Failed to save settings');
@@ -331,14 +391,14 @@ export default function AdminHdaseBingo() {
   // Handle Re-seed 1,000 Bots
   const handleReseed = async () => {
     const confirmed = window.confirm(
-      'Re-seed 1,000 Ethiopian system players with unique creative handles (@, $, %, emojis) and sequential Telegram IDs (10000000000..)?'
+      `Re-seed 1,000 Ethiopian system players for ${room?.room_name || 'this room'} with unique creative handles (@, $, %, emojis) and sequential Telegram IDs (10000000000..)?`
     );
     if (!confirmed) return;
 
     triggerHaptic('heavy');
     setReseeding(true);
     try {
-      const res = await fetch(`${API_URL}/admin/hdase-room/reseed`, {
+      const res = await fetch(`${API_URL}/admin/hdase-room/reseed?roomId=${selectedRoomId}`, {
         method: 'POST',
         headers: getAuthHeaders(),
       });
@@ -347,7 +407,7 @@ export default function AdminHdaseBingo() {
         setBotCount(d.bot_count || 1000);
         showToast('success', d.message || '1,000 bots seeded successfully!');
         if (activeTab === 'pool') {
-          fetchBots(1, botSearch);
+          fetchBots(1, botSearch, selectedRoomId);
         }
       } else {
         showToast('error', 'Failed to seed bots');
@@ -397,7 +457,7 @@ export default function AdminHdaseBingo() {
       const res = await fetch(`${API_URL}/admin/hdase-room/bots`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ first_name: cleanName }),
+        body: JSON.stringify({ roomId: selectedRoomId, first_name: cleanName }),
       });
       if (res.ok) {
         const d = await res.json();
@@ -405,7 +465,7 @@ export default function AdminHdaseBingo() {
         setNewBotName('');
         setShowAddBotModal(false);
         setBotCount(prev => prev + 1);
-        fetchBots(1, botSearch);
+        fetchBots(1, botSearch, selectedRoomId);
       } else {
         const err = await res.json().catch(() => ({}));
         showToast('error', err.error || 'Failed to add bot');
@@ -475,13 +535,19 @@ export default function AdminHdaseBingo() {
             <div>
               <div className="flex items-center space-x-1.5">
                 <Flame size={16} className="text-amber-500 fill-amber-500" />
-                <h1 className="font-black text-base text-slate-900 tracking-tight">HDASE BINGO</h1>
-                <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 uppercase tracking-wider">
-                  OFFICIAL
-                </span>
+                <h1 className="font-black text-base text-slate-900 tracking-tight">{room?.room_name || 'HDASE BINGO'}</h1>
+                {selectedRoomId === HDASE_ROOM_ID ? (
+                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 uppercase tracking-wider">
+                    OFFICIAL
+                  </span>
+                ) : (
+                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 uppercase tracking-wider">
+                    AGENT ROOM
+                  </span>
+                )}
               </div>
               <p className="text-[10.5px] text-slate-400 font-semibold truncate max-w-[220px]">
-                Room ID: {HDASE_ROOM_ID.slice(0, 8)}... • Platform Managed
+                ID: {selectedRoomId.slice(0, 8)}... • {room?.system_players_pro_level && room.system_players_pro_level >= 1 ? 'PRO ACTIVE' : 'FREE ROOM'}
               </p>
             </div>
           </div>
@@ -490,9 +556,9 @@ export default function AdminHdaseBingo() {
             onClick={() => {
               triggerHaptic('light');
               if (activeTab === 'settings') {
-                fetchHdaseRoom(false);
+                fetchHdaseRoom(false, selectedRoomId);
               } else {
-                fetchBots(botPage, botSearch);
+                fetchBots(botPage, botSearch, selectedRoomId);
               }
             }}
             className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center active:scale-95 transition-transform hover:bg-amber-100"
@@ -500,6 +566,34 @@ export default function AdminHdaseBingo() {
           >
             <RefreshCw size={16} />
           </button>
+        </div>
+
+        {/* ─── ROOM SELECTOR & QUICK PRO UPGRADE ─── */}
+        <div className="mt-2.5 bg-slate-50 border border-slate-200/90 rounded-2xl p-2 flex items-center justify-between gap-2 shadow-2xs">
+          <div className="flex items-center space-x-2 flex-1 min-w-0">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 pl-1 shrink-0">Room:</span>
+            <select
+              value={selectedRoomId}
+              onChange={(e) => handleRoomChange(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 truncate cursor-pointer"
+            >
+              {allRooms.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.room_name} {r.id === HDASE_ROOM_ID ? '★ (Official)' : ''} {r.system_players_pro_level >= 1 ? '⚡ [PRO]' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          {room && (!room.system_players_pro_level || room.system_players_pro_level < 1) && (
+            <button
+              onClick={handleUpgradeToPro}
+              disabled={upgradingPro}
+              className="px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-xs flex items-center gap-1 shrink-0 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+            >
+              <Zap size={11} className={upgradingPro ? 'animate-bounce' : ''} />
+              <span>{upgradingPro ? 'Upgrading...' : 'Upgrade to Pro'}</span>
+            </button>
+          )}
         </div>
 
         {/* ─── TAB NAVIGATION ─── */}
@@ -542,25 +636,60 @@ export default function AdminHdaseBingo() {
       {/* ─── TAB 1: SETTINGS & LIVE MONITOR ─── */}
       {activeTab === 'settings' && (
         <div className="p-4 space-y-4 max-w-xl mx-auto">
-          {/* Official Room Guaranteed Badge Card */}
-          <div className="bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 rounded-3xl p-4 text-white shadow-md relative overflow-hidden">
-            <div className="absolute right-0 top-0 bottom-0 w-32 bg-white/5 rounded-full blur-2xl -mr-8" />
-            <div className="relative z-10 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-200 bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-400/30">
-                  PERMANENT OFFICIAL ROOM
-                </span>
-                <span className="flex items-center space-x-1 text-xs font-black bg-white/20 px-2 py-0.5 rounded-full text-emerald-100 backdrop-blur-xs">
-                  <ShieldCheck size={13} />
-                  <span>PRO ACTIVE ✓</span>
-                </span>
+          {/* Room Badge Card */}
+          {selectedRoomId === HDASE_ROOM_ID ? (
+            <div className="bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 rounded-3xl p-4 text-white shadow-md relative overflow-hidden">
+              <div className="absolute right-0 top-0 bottom-0 w-32 bg-white/5 rounded-full blur-2xl -mr-8" />
+              <div className="relative z-10 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-200 bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-400/30">
+                    PERMANENT OFFICIAL ROOM
+                  </span>
+                  <span className="flex items-center space-x-1 text-xs font-black bg-white/20 px-2 py-0.5 rounded-full text-emerald-100 backdrop-blur-xs">
+                    <ShieldCheck size={13} />
+                    <span>PRO ACTIVE ✓</span>
+                  </span>
+                </div>
+                <h2 className="text-base font-black tracking-tight">Zero Admin Balance Required</h2>
+                <p className="text-[11px] text-emerald-100 leading-relaxed font-medium">
+                  Unlike third-party agent rooms, <strong>HDASE BINGO</strong> never requires monthly Pro upgrades or deposit stakes. Waiter bots and system players operate 24/7 on platform logic — <strong>wins, losses, and joins never deduct or touch the admin wallet balance</strong>.
+                </p>
               </div>
-              <h2 className="text-base font-black tracking-tight">Zero Admin Balance Required</h2>
-              <p className="text-[11px] text-emerald-100 leading-relaxed font-medium">
-                Unlike third-party agent rooms, <strong>HDASE BINGO</strong> never requires monthly Pro upgrades or deposit stakes. Waiter bots and system players operate 24/7 on platform logic — <strong>wins, losses, and joins never deduct or touch the admin wallet balance</strong>.
-              </p>
             </div>
-          </div>
+          ) : (
+            <div className={`rounded-3xl p-4 text-white shadow-md relative overflow-hidden ${
+              room?.system_players_pro_level && room.system_players_pro_level >= 1
+                ? 'bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800'
+                : 'bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900'
+            }`}>
+              <div className="relative z-10 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-indigo-200 bg-black/30 px-2 py-0.5 rounded-full border border-white/20">
+                    AGENT ROOM • {room?.room_name}
+                  </span>
+                  {room?.system_players_pro_level && room.system_players_pro_level >= 1 ? (
+                    <span className="flex items-center space-x-1 text-xs font-black bg-emerald-500/30 text-emerald-300 border border-emerald-400/40 px-2.5 py-0.5 rounded-full backdrop-blur-xs">
+                      <ShieldCheck size={13} />
+                      <span>PRO LEVEL {room.system_players_pro_level} ACTIVE ✓</span>
+                    </span>
+                  ) : (
+                    <button
+                      onClick={handleUpgradeToPro}
+                      disabled={upgradingPro}
+                      className="flex items-center space-x-1 text-xs font-black bg-amber-500 hover:bg-amber-600 text-white px-2.5 py-0.5 rounded-full shadow-xs cursor-pointer active:scale-95 transition-all"
+                    >
+                      <Zap size={12} className={upgradingPro ? 'animate-bounce' : ''} />
+                      <span>{upgradingPro ? 'Upgrading...' : '⚡ Upgrade to Pro Level 1'}</span>
+                    </button>
+                  )}
+                </div>
+                <h2 className="text-base font-black tracking-tight">{room?.room_name} System Players</h2>
+                <p className="text-[11px] text-indigo-100 leading-relaxed font-medium">
+                  System Players and Waiter Bots for <strong>{room?.room_name}</strong> (Room ID: <code className="bg-black/30 px-1 py-0.5 rounded text-[10px] font-mono">{selectedRoomId}</code>) operate strictly on this room's configured 4 stakes and schedule.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* ─── SECTION 1: ROOM STAKES (4 TIERS) ─── */}
           <div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm space-y-3">
@@ -1261,12 +1390,12 @@ export default function AdminHdaseBingo() {
             {saving ? (
               <>
                 <RefreshCw size={18} className="animate-spin" />
-                <span>Saving HDASE BINGO Settings...</span>
+                <span>Saving {room?.room_name || 'Room'} Settings...</span>
               </>
             ) : (
               <>
                 <Save size={18} />
-                <span>Save HDASE BINGO Settings</span>
+                <span>Save {room?.room_name || 'Room'} Settings</span>
               </>
             )}
           </button>

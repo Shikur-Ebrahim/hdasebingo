@@ -2513,20 +2513,36 @@ router.post('/system-pro/requests/:id/review', async (req: AuthRequest, res: Res
   }
 });
 
-// ─── HDASE BINGO OFFICIAL ROOM MANAGEMENT ─────────────────────────────────────
+// ─── HDASE BINGO & ROOM SYSTEM PLAYER MANAGEMENT ─────────────────────────────
 const HDASE_ROOM_ID = 'd7c9114a-e112-426f-8f9b-13c00050279c';
 const HDASE_AGENT_ID = '5b3ac1f4-6a29-4929-9fc4-5043c0118572';
 
-// GET /admin/hdase-room — get HDASE BINGO room details, bot pool, and live games
+// GET /admin/rooms/all — list all rooms for admin room-management switcher
+router.get('/rooms/all', requireAdmin, async (_req: AuthRequest, res: Response) => {
+  try {
+    const { data: allRooms, error } = await supabase
+      .from('rooms')
+      .select('id, room_name, status, is_pinned, stakes, system_players_enabled, system_players_pro_level, system_players_pro_expires_at')
+      .order('is_pinned', { ascending: false })
+      .order('room_name', { ascending: true });
+    if (error) throw error;
+    res.json({ rooms: allRooms || [] });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /admin/hdase-room — get room details, bot pool, and live games by roomId (default: HDASE BINGO)
 router.get('/hdase-room', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
+    const targetRoomId = (req.query.roomId || req.query.room_id || HDASE_ROOM_ID) as string;
     let { data: room, error: rErr } = await supabase
       .from('rooms')
       .select('*')
-      .eq('id', HDASE_ROOM_ID)
+      .eq('id', targetRoomId)
       .maybeSingle();
 
-    if (!room) {
+    if (!room && (targetRoomId === HDASE_ROOM_ID || targetRoomId.toLowerCase().includes('hdase'))) {
       const { data: fallback } = await supabase
         .from('rooms')
         .select('*')
@@ -2536,6 +2552,10 @@ router.get('/hdase-room', requireAdmin, async (req: AuthRequest, res: Response) 
     }
 
     if (!room) {
+      if (targetRoomId !== HDASE_ROOM_ID) {
+        return res.status(404).json({ error: 'Room not found' });
+      }
+
       // Resolve admin user from users table
       const { data: adminUser } = await supabase
         .from('users')
@@ -2571,8 +2591,8 @@ router.get('/hdase-room', requireAdmin, async (req: AuthRequest, res: Response) 
 
       if (createErr) throw createErr;
       room = newRoom;
-    } else {
-      // Ensure agent_id is synced to admin user id from users table
+    } else if (room.id === HDASE_ROOM_ID) {
+      // Ensure agent_id is synced to admin user id for official platform room
       const { data: adminUser } = await supabase
         .from('users')
         .select('id, first_name, username')
@@ -2679,12 +2699,15 @@ router.get('/hdase-room', requireAdmin, async (req: AuthRequest, res: Response) 
   }
 });
 
-// PUT /admin/hdase-room — update HDASE BINGO room stakes and system player / waiter settings
+// PUT /admin/hdase-room — update room stakes, Pro status, and system player / waiter settings by roomId
 router.put('/hdase-room', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
+    const targetRoomId = (req.body.roomId || req.body.room_id || req.query.roomId || req.query.room_id || HDASE_ROOM_ID) as string;
     const {
       stakes,
       system_players_enabled,
+      system_players_pro_level,
+      system_players_pro_expires_at,
       system_players_schedule_start,
       system_players_schedule_end,
       system_players_stake_configs,
@@ -2694,23 +2717,35 @@ router.put('/hdase-room', requireAdmin, async (req: AuthRequest, res: Response) 
       status,
     } = req.body;
 
-    // Ensure agent_id is linked to admin from users table
-    const { data: adminUser } = await supabase
-      .from('users')
-      .select('id, first_name, username')
-      .or(`id.eq.${HDASE_AGENT_ID},role.eq.admin`)
-      .limit(1)
-      .maybeSingle();
-
-    const targetAdminId = adminUser?.id || HDASE_AGENT_ID;
-    const targetAdminName = adminUser?.first_name || adminUser?.username || 'Admin';
-
     const updates: Record<string, any> = {
       updated_at: new Date().toISOString(),
-      agent_id: targetAdminId,
-      agent_name: targetAdminName,
-      system_players_pro_level: 1, // Permanent Pro status
     };
+
+    if (targetRoomId === HDASE_ROOM_ID) {
+      // Ensure agent_id is linked to admin from users table for official room
+      const { data: adminUser } = await supabase
+        .from('users')
+        .select('id, first_name, username')
+        .or(`id.eq.${HDASE_AGENT_ID},role.eq.admin`)
+        .limit(1)
+        .maybeSingle();
+
+      const targetAdminId = adminUser?.id || HDASE_AGENT_ID;
+      const targetAdminName = adminUser?.first_name || adminUser?.username || 'Admin';
+      updates.agent_id = targetAdminId;
+      updates.agent_name = targetAdminName;
+      updates.system_players_pro_level = 1; // Permanent Pro status for official room
+    } else {
+      if (system_players_pro_level !== undefined) {
+        updates.system_players_pro_level = Number(system_players_pro_level);
+        if (Number(system_players_pro_level) >= 1 && !system_players_pro_expires_at) {
+          updates.system_players_pro_expires_at = new Date(Date.now() + 30 * 86400000).toISOString();
+        }
+      }
+      if (system_players_pro_expires_at !== undefined) {
+        updates.system_players_pro_expires_at = system_players_pro_expires_at;
+      }
+    }
 
     if (stakes !== undefined && Array.isArray(stakes)) {
       updates.stakes = stakes.map(Number);
@@ -2750,32 +2785,35 @@ router.put('/hdase-room', requireAdmin, async (req: AuthRequest, res: Response) 
     const { data: updated, error: uErr } = await supabase
       .from('rooms')
       .update(updates)
-      .eq('id', HDASE_ROOM_ID)
+      .eq('id', targetRoomId)
       .select()
       .single();
 
     if (uErr) {
-      // Fallback: try by room_name if ID match failed
-      const { data: fallbackUpdated, error: fbErr } = await supabase
-        .from('rooms')
-        .update(updates)
-        .eq('room_name', 'HDASE BINGO')
-        .select()
-        .single();
+      if (targetRoomId === HDASE_ROOM_ID) {
+        // Fallback: try by room_name if ID match failed
+        const { data: fallbackUpdated, error: fbErr } = await supabase
+          .from('rooms')
+          .update(updates)
+          .eq('room_name', 'HDASE BINGO')
+          .select()
+          .single();
 
-      if (fbErr) throw fbErr;
-      await systemPlayerService.cleanDisabledWaitingGames(fallbackUpdated.id || HDASE_ROOM_ID);
-      invalidatePoolsCache();
-      return res.json({ success: true, room: fallbackUpdated });
+        if (fbErr) throw fbErr;
+        await systemPlayerService.cleanDisabledWaitingGames(fallbackUpdated.id || HDASE_ROOM_ID);
+        invalidatePoolsCache();
+        return res.json({ success: true, room: fallbackUpdated });
+      }
+      throw uErr;
     }
 
     // Immediately clean up any waiting games for disabled stakes and invalidate pools cache
-    await systemPlayerService.cleanDisabledWaitingGames(HDASE_ROOM_ID);
+    await systemPlayerService.cleanDisabledWaitingGames(targetRoomId);
     invalidatePoolsCache();
 
     // Auto-seed bot pool if needed
     if (updates.system_players_enabled) {
-      systemPlayerService.seedSystemPlayersPool(HDASE_ROOM_ID, 1000).catch(console.error);
+      systemPlayerService.seedSystemPlayersPool(targetRoomId, 1000).catch(console.error);
     }
 
     res.json({ success: true, room: updated });
@@ -2784,18 +2822,19 @@ router.put('/hdase-room', requireAdmin, async (req: AuthRequest, res: Response) 
   }
 });
 
-// POST /admin/hdase-room/reseed — force seed 1,000 Ethiopian bots for HDASE BINGO
+// POST /admin/hdase-room/reseed — force seed 1,000 Ethiopian bots for target room
 router.post('/hdase-room/reseed', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    await systemPlayerService.seedSystemPlayersPool(HDASE_ROOM_ID, 1000);
+    const targetRoomId = (req.query.roomId || req.query.room_id || req.body?.roomId || req.body?.room_id || HDASE_ROOM_ID) as string;
+    await systemPlayerService.seedSystemPlayersPool(targetRoomId, 1000);
     const { count } = await supabase
       .from('system_players')
       .select('*', { count: 'exact', head: true })
-      .eq('room_id', HDASE_ROOM_ID);
+      .eq('room_id', targetRoomId);
 
     res.json({
       success: true,
-      message: `Successfully seeded ${count || 1000} system players for HDASE BINGO room`,
+      message: `Successfully seeded ${count || 1000} system players`,
       bot_count: count || 1000,
     });
   } catch (err: any) {
@@ -2803,9 +2842,10 @@ router.post('/hdase-room/reseed', requireAdmin, async (req: AuthRequest, res: Re
   }
 });
 
-// GET /admin/hdase-room/bots — get paginated, searchable bots in HDASE BINGO pool
+// GET /admin/hdase-room/bots — get paginated, searchable bots in target room pool
 router.get('/hdase-room/bots', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
+    const targetRoomId = (req.query.roomId || req.query.room_id || HDASE_ROOM_ID) as string;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.max(1, Math.min(100, parseInt(req.query.limit as string) || 25));
     const search = ((req.query.search as string) || '').trim();
@@ -2814,7 +2854,7 @@ router.get('/hdase-room/bots', requireAdmin, async (req: AuthRequest, res: Respo
     let query = supabase
       .from('system_players')
       .select('id, first_name, telegram_id, total_won, created_at', { count: 'exact' })
-      .eq('room_id', HDASE_ROOM_ID)
+      .eq('room_id', targetRoomId)
       .order('created_at', { ascending: true });
 
     if (search) {
@@ -2829,7 +2869,7 @@ router.get('/hdase-room/bots', requireAdmin, async (req: AuthRequest, res: Respo
       let fbQuery = supabase
         .from('system_players')
         .select('id, first_name, total_won, created_at', { count: 'exact' })
-        .eq('room_id', HDASE_ROOM_ID)
+        .eq('room_id', targetRoomId)
         .order('created_at', { ascending: true });
       if (search) fbQuery = fbQuery.ilike('first_name', `%${search}%`);
       const { data: fbData, count: fbCount, error: fbErr } = await fbQuery.range(offset, offset + limit - 1);
@@ -2845,7 +2885,7 @@ router.get('/hdase-room/bots', requireAdmin, async (req: AuthRequest, res: Respo
 
     const enriched = (data || []).map((bot: any) => ({
       ...bot,
-      telegram_id: bot.telegram_id || systemPlayerService.getBotTelegramId(bot.id, HDASE_ROOM_ID),
+      telegram_id: bot.telegram_id || systemPlayerService.getBotTelegramId(bot.id, targetRoomId),
     }));
 
     res.json({
@@ -2875,7 +2915,6 @@ router.put('/hdase-room/bots/:id', requireAdmin, async (req: AuthRequest, res: R
       .from('system_players')
       .update({ first_name: cleanName })
       .eq('id', botId)
-      .eq('room_id', HDASE_ROOM_ID)
       .select('id, first_name, telegram_id, total_won')
       .single();
 
@@ -2888,7 +2927,7 @@ router.put('/hdase-room/bots/:id', requireAdmin, async (req: AuthRequest, res: R
       message: `System player updated to "${cleanName}"`,
       bot: {
         ...data,
-        telegram_id: data?.telegram_id || systemPlayerService.getBotTelegramId(data?.id || botId, HDASE_ROOM_ID),
+        telegram_id: data?.telegram_id || systemPlayerService.getBotTelegramId(data?.id || botId),
       },
     });
   } catch (err: any) {
@@ -2896,9 +2935,10 @@ router.put('/hdase-room/bots/:id', requireAdmin, async (req: AuthRequest, res: R
   }
 });
 
-// POST /admin/hdase-room/bots — add custom bot to HDASE BINGO pool
+// POST /admin/hdase-room/bots — add custom bot to room pool
 router.post('/hdase-room/bots', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
+    const targetRoomId = (req.body.roomId || req.body.room_id || HDASE_ROOM_ID) as string;
     const { first_name } = req.body;
 
     if (!first_name || !first_name.trim()) {
@@ -2913,7 +2953,7 @@ router.post('/hdase-room/bots', requireAdmin, async (req: AuthRequest, res: Resp
     const { data: insData, error: insErr } = await supabase
       .from('system_players')
       .insert({
-        room_id: HDASE_ROOM_ID,
+        room_id: targetRoomId,
         first_name: cleanName,
         telegram_id: tidStr,
         total_won: 0,
@@ -2925,7 +2965,7 @@ router.post('/hdase-room/bots', requireAdmin, async (req: AuthRequest, res: Resp
       const { data: fbData, error: fbErr } = await supabase
         .from('system_players')
         .insert({
-          room_id: HDASE_ROOM_ID,
+          room_id: targetRoomId,
           first_name: cleanName,
           total_won: 0,
         })
