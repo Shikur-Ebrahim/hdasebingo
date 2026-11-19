@@ -2517,7 +2517,7 @@ router.post('/system-pro/requests/:id/review', async (req: AuthRequest, res: Res
 const HDASE_ROOM_ID = 'd7c9114a-e112-426f-8f9b-13c00050279c';
 const HDASE_AGENT_ID = '5b3ac1f4-6a29-4929-9fc4-5043c0118572';
 
-// GET /admin/rooms/all — list all rooms for admin room-management switcher
+// GET /admin/rooms/all — list all rooms for admin room-management switcher (PRO priority sorted at top)
 router.get('/rooms/all', requireAdmin, async (_req: AuthRequest, res: Response) => {
   try {
     const { data: allRooms, error } = await supabase
@@ -2526,7 +2526,28 @@ router.get('/rooms/all', requireAdmin, async (_req: AuthRequest, res: Response) 
       .order('is_pinned', { ascending: false })
       .order('room_name', { ascending: true });
     if (error) throw error;
-    res.json({ rooms: allRooms || [] });
+
+    // Sort with Official Platform Room & PRO Rooms strictly at the top
+    const sorted = (allRooms || []).sort((a: any, b: any) => {
+      // 1. Official Platform Room first
+      if (a.id === HDASE_ROOM_ID) return -1;
+      if (b.id === HDASE_ROOM_ID) return 1;
+
+      // 2. PRO Rooms (Level 1, Level 2, etc.) top priority
+      const aPro = Number(a.system_players_pro_level || 0);
+      const bPro = Number(b.system_players_pro_level || 0);
+      if (aPro !== bPro) return bPro - aPro;
+
+      // 3. System players active next
+      const aSys = a.system_players_enabled ? 1 : 0;
+      const bSys = b.system_players_enabled ? 1 : 0;
+      if (aSys !== bSys) return bSys - aSys;
+
+      // 4. Alphabetical by room name
+      return (a.room_name || '').localeCompare(b.room_name || '');
+    });
+
+    res.json({ rooms: sorted });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

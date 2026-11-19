@@ -265,18 +265,37 @@ export default function AdminHdaseBingo() {
     }
   };
 
-  // Filtered rooms for room picker modal
-  const filteredRooms = allRooms.filter((r) => {
-    const q = roomSearchQuery.trim().toLowerCase();
-    const nameMatch = (r.room_name || '').toLowerCase().includes(q);
-    const idMatch = (r.id || '').toLowerCase().includes(q);
-    if (q && !nameMatch && !idMatch) return false;
+  // Filtered & PRO-Priority sorted rooms for room picker modal
+  const filteredRooms = allRooms
+    .filter((r) => {
+      const q = roomSearchQuery.trim().toLowerCase();
+      const nameMatch = (r.room_name || '').toLowerCase().includes(q);
+      const idMatch = (r.id || '').toLowerCase().includes(q);
+      if (q && !nameMatch && !idMatch) return false;
 
-    if (roomFilter === 'pro') return r.system_players_pro_level >= 1;
-    if (roomFilter === 'official') return r.id === HDASE_ROOM_ID;
-    if (roomFilter === 'free') return (!r.system_players_pro_level || r.system_players_pro_level < 1) && r.id !== HDASE_ROOM_ID;
-    return true;
-  });
+      if (roomFilter === 'pro') return r.system_players_pro_level >= 1;
+      if (roomFilter === 'official') return r.id === HDASE_ROOM_ID;
+      if (roomFilter === 'free') return (!r.system_players_pro_level || r.system_players_pro_level < 1) && r.id !== HDASE_ROOM_ID;
+      return true;
+    })
+    .sort((a, b) => {
+      // 1. Official Platform Room at very top
+      if (a.id === HDASE_ROOM_ID) return -1;
+      if (b.id === HDASE_ROOM_ID) return 1;
+
+      // 2. PRO Rooms (Level 1, Level 2, etc.) top priority
+      const aPro = Number(a.system_players_pro_level || 0);
+      const bPro = Number(b.system_players_pro_level || 0);
+      if (aPro !== bPro) return bPro - aPro;
+
+      // 3. System players active next
+      const aSys = a.system_players_enabled ? 1 : 0;
+      const bSys = b.system_players_enabled ? 1 : 0;
+      if (aSys !== bSys) return bSys - aSys;
+
+      // 4. Alphabetical by room name
+      return (a.room_name || '').localeCompare(b.room_name || '');
+    });
 
   // Fetch paginated bot pool
   const fetchBots = useCallback(async (page = 1, search = '', roomIdParam?: string) => {
@@ -1687,99 +1706,136 @@ export default function AdminHdaseBingo() {
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
-                    {f === 'all' && `All (${count})`}
-                    {f === 'pro' && `⚡ Pro (${count})`}
+                    {f === 'all' && `All Rooms (${count})`}
+                    {f === 'pro' && `⚡ Pro Priority (${count})`}
                     {f === 'official' && '★ Official'}
-                    {f === 'free' && `Free (${count})`}
+                    {f === 'free' && `Free Rooms (${count})`}
                   </button>
                 );
               })}
             </div>
 
-            {/* Scrollable Room Card List */}
+            {/* Scrollable Room Card List (Pro Priority at Top) */}
             <div className="overflow-y-auto space-y-2 pr-0.5 py-1 flex-1 max-h-[55vh]">
-              {filteredRooms.map((r) => {
+              {filteredRooms.map((r, idx) => {
                 const isSelected = r.id === selectedRoomId;
                 const isOfficial = r.id === HDASE_ROOM_ID;
                 const isPro = r.system_players_pro_level >= 1;
+                const isPriority = isOfficial || isPro;
+
+                // Section divider when viewing 'all' and not searching
+                const showProHeader =
+                  roomFilter === 'all' && !roomSearchQuery.trim() && idx === 0 && isPriority;
+                const prevWasPriority =
+                  idx > 0 &&
+                  (filteredRooms[idx - 1].id === HDASE_ROOM_ID ||
+                    filteredRooms[idx - 1].system_players_pro_level >= 1);
+                const showFreeHeader =
+                  roomFilter === 'all' && !roomSearchQuery.trim() && !isPriority && (idx === 0 || prevWasPriority);
 
                 return (
-                  <div
-                    key={r.id}
-                    onClick={() => {
-                      triggerHaptic('medium');
-                      handleRoomChange(r.id);
-                      setShowRoomPickerModal(false);
-                    }}
-                    className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 active:scale-[0.99] ${
-                      isSelected
-                        ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-400 shadow-xs ring-2 ring-amber-400/30'
-                        : 'bg-white hover:bg-slate-50 border-slate-200/90'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3 min-w-0 flex-1">
-                      {/* Avatar Icon */}
-                      <div
-                        className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 font-bold shadow-2xs ${
-                          isOfficial
-                            ? 'bg-gradient-to-br from-amber-500 to-orange-500 text-white'
-                            : isPro
-                            ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {isOfficial ? (
-                          <Flame size={20} className="fill-white" />
-                        ) : isPro ? (
-                          <Zap size={20} className="fill-white" />
-                        ) : (
-                          <Layers size={18} />
-                        )}
+                  <div key={r.id}>
+                    {showProHeader && (
+                      <div className="flex items-center justify-between px-1.5 pt-1 pb-1.5 text-[10px] font-black uppercase tracking-wider text-amber-700">
+                        <span className="flex items-center gap-1">
+                          <Zap size={12} className="text-amber-500 fill-amber-500" />
+                          <span>Official & PRO Rooms (Top Priority)</span>
+                        </span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-amber-100 text-amber-800">
+                          PRIORITY
+                        </span>
                       </div>
+                    )}
+                    {showFreeHeader && (
+                      <div className="flex items-center justify-between px-1.5 pt-3 pb-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400 border-t border-slate-100 mt-2">
+                        <span className="flex items-center gap-1">
+                          <Layers size={12} />
+                          <span>Standard Rooms (Free)</span>
+                        </span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-slate-100 text-slate-500">
+                          STANDARD
+                        </span>
+                      </div>
+                    )}
 
-                      {/* Room Details */}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center space-x-1.5 flex-wrap">
-                          <span
-                            className={`text-xs font-black truncate max-w-[190px] ${
-                              isSelected ? 'text-amber-950' : 'text-slate-800'
-                            }`}
-                          >
-                            {r.room_name}
-                          </span>
+                    <div
+                      onClick={() => {
+                        triggerHaptic('medium');
+                        handleRoomChange(r.id);
+                        setShowRoomPickerModal(false);
+                      }}
+                      className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 active:scale-[0.99] ${
+                        isSelected
+                          ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-400 shadow-xs ring-2 ring-amber-400/30'
+                          : isPro
+                          ? 'bg-gradient-to-r from-indigo-50/40 to-purple-50/30 hover:bg-indigo-50/70 border-indigo-200/80'
+                          : 'bg-white hover:bg-slate-50 border-slate-200/90'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3 min-w-0 flex-1">
+                        {/* Avatar Icon */}
+                        <div
+                          className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 font-bold shadow-2xs ${
+                            isOfficial
+                              ? 'bg-gradient-to-br from-amber-500 to-orange-500 text-white'
+                              : isPro
+                              ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'
+                              : 'bg-slate-100 text-slate-600'
+                          }`}
+                        >
                           {isOfficial ? (
-                            <span className="text-[8.5px] font-black px-1.5 py-0.2 rounded-md bg-amber-100 text-amber-800 uppercase tracking-wider shrink-0">
-                              OFFICIAL
-                            </span>
+                            <Flame size={20} className="fill-white" />
                           ) : isPro ? (
-                            <span className="text-[8.5px] font-black px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 uppercase tracking-wider shrink-0 flex items-center gap-0.5">
-                              <Zap size={9} />
-                              PRO L1
-                            </span>
+                            <Zap size={20} className="fill-white" />
                           ) : (
-                            <span className="text-[8.5px] font-bold px-1.5 py-0.2 rounded-md bg-slate-100 text-slate-500 uppercase tracking-wider shrink-0">
-                              FREE
-                            </span>
+                            <Layers size={18} />
                           )}
                         </div>
 
-                        <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">
-                          ID: {r.id.slice(0, 14)}...
-                        </p>
-                      </div>
-                    </div>
+                        {/* Room Details */}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center space-x-1.5 flex-wrap">
+                            <span
+                              className={`text-xs font-black truncate max-w-[190px] ${
+                                isSelected ? 'text-amber-950' : 'text-slate-800'
+                              }`}
+                            >
+                              {r.room_name}
+                            </span>
+                            {isOfficial ? (
+                              <span className="text-[8.5px] font-black px-1.5 py-0.2 rounded-md bg-amber-100 text-amber-800 uppercase tracking-wider shrink-0">
+                                OFFICIAL
+                              </span>
+                            ) : isPro ? (
+                              <span className="text-[8.5px] font-black px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 uppercase tracking-wider shrink-0 flex items-center gap-0.5">
+                                <Zap size={9} />
+                                PRO L1
+                              </span>
+                            ) : (
+                              <span className="text-[8.5px] font-bold px-1.5 py-0.2 rounded-md bg-slate-100 text-slate-500 uppercase tracking-wider shrink-0">
+                                FREE
+                              </span>
+                            )}
+                          </div>
 
-                    {/* Checkmark or Selection Arrow */}
-                    <div className="shrink-0 flex items-center space-x-2">
-                      {isSelected ? (
-                        <div className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-xs">
-                          <Check size={14} strokeWidth={3} />
+                          <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">
+                            ID: {r.id.slice(0, 14)}...
+                          </p>
                         </div>
-                      ) : (
-                        <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
-                          <ChevronRight size={14} />
-                        </div>
-                      )}
+                      </div>
+
+                      {/* Checkmark or Selection Arrow */}
+                      <div className="shrink-0 flex items-center space-x-2">
+                        {isSelected ? (
+                          <div className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                            <Check size={14} strokeWidth={3} />
+                          </div>
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
+                            <ChevronRight size={14} />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
