@@ -398,10 +398,25 @@ router.post('/deposits/:id/approve', async (req, res) => {
   res.json({ success: true, isFirstDeposit, isSecondDeposit, depositorBonus, inviterBonus, weekendBonus });
 });
 
-// Reject deposit → permanently delete from DB
+// Reject deposit → mark as rejected and notify user
 router.delete('/deposits/:id/reject', async (req, res) => {
-  const { error } = await supabase.from('deposits').delete().eq('id', req.params.id);
-  if (error) { res.status(500).json({ error: error.message }); return; }
+  const { data: deposit } = await supabase.from('deposits').select('*').eq('id', req.params.id).maybeSingle();
+  if (deposit && deposit.status === 'pending') {
+    await supabase.from('deposits').update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', req.params.id);
+    try {
+      const msg = `❌ *Deposit Rejected*\n\nYour deposit of *${Number(deposit.amount).toLocaleString('en-US')} ETB* could not be verified and has been rejected.\n\nIf you believe this is an error, please contact support with your receipt.`;
+      await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: deposit.telegram_id, text: msg, parse_mode: 'Markdown' })
+      });
+    } catch (e) {
+      console.error('Failed to notify user on deposit rejection:', e);
+    }
+  } else if (!deposit) {
+    res.status(404).json({ error: 'Deposit not found' });
+    return;
+  }
   res.json({ success: true });
 });
 
@@ -570,24 +585,26 @@ router.post('/withdrawals/:id/approve', async (req, res) => {
   res.json({ success: true });
 });
 
-// Reject withdrawal → refund main_balance + delete record + notify user
+// Reject withdrawal → refund main_balance + mark rejected + notify user
 router.delete('/withdrawals/:id/reject', async (req, res) => {
   const { data: withdrawal, error: fetchErr } = await supabase
     .from('withdrawals').select('*').eq('id', req.params.id).single();
   if (fetchErr || !withdrawal) { res.status(404).json({ error: 'Withdrawal not found' }); return; }
 
-  // Refund main_balance
-  const { data: user } = await supabase.from('users').select('main_balance').eq('telegram_id', withdrawal.telegram_id).single();
-  if (user) {
-    await supabase.from('users').update({ main_balance: Number(user.main_balance) + Number(withdrawal.amount) }).eq('telegram_id', withdrawal.telegram_id);
-  }
+  if (withdrawal.status === 'pending') {
+    // Refund main_balance
+    const { data: user } = await supabase.from('users').select('main_balance').eq('telegram_id', withdrawal.telegram_id).single();
+    if (user) {
+      await supabase.from('users').update({ main_balance: Number(user.main_balance) + Number(withdrawal.amount) }).eq('telegram_id', withdrawal.telegram_id);
+    }
 
-  // Delete the record
-  await supabase.from('withdrawals').delete().eq('id', req.params.id);
+    // Mark as rejected
+    await supabase.from('withdrawals').update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', req.params.id);
+  }
 
   // Notify user
   try {
-    const msg = `❌ *Withdrawal Rejected*\n\n💸 Your withdrawal of *${Number(withdrawal.amount).toLocaleString('en-US')} ETB* has been rejected.\n\n💰 Your balance has been refunded. Please contact support for more info.`;
+    const msg = `❌ *Withdrawal Rejected & Refunded*\n\n💸 Your withdrawal of *${Number(withdrawal.amount).toLocaleString('en-US')} ETB* has been rejected.\n\n💰 Your balance has been refunded back to your wallet. Please contact support for more info.`;
     await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

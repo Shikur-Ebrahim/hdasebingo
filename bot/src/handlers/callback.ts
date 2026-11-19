@@ -1,8 +1,35 @@
 import { Context } from 'grammy';
 import { startDeposit, handleMethodSelect, cancelDeposit, handleCopyAccount } from './deposit';
+import { handleDepositAction, handleWithdrawalAction } from './workerActions';
 
 export async function handleCallback(ctx: Context) {
   const data = ctx.callbackQuery?.data || '';
+
+  // ── Worker / Admin Action Handlers ───────────────────────────────────────
+  if (data.startsWith('dep_app_')) {
+    const depositId = data.replace('dep_app_', '');
+    await handleDepositAction(ctx, 'approve', depositId);
+    return;
+  }
+
+  if (data.startsWith('dep_rej_')) {
+    const depositId = data.replace('dep_rej_', '');
+    await handleDepositAction(ctx, 'reject', depositId);
+    return;
+  }
+
+  if (data.startsWith('wd_app_')) {
+    const withdrawalId = data.replace('wd_app_', '');
+    await handleWithdrawalAction(ctx, 'approve', withdrawalId);
+    return;
+  }
+
+  if (data.startsWith('wd_rej_')) {
+    const withdrawalId = data.replace('wd_rej_', '');
+    await handleWithdrawalAction(ctx, 'reject', withdrawalId);
+    return;
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   if (data === 'btn_invite') {
     await ctx.answerCallbackQuery();

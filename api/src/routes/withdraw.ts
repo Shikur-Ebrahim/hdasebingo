@@ -168,28 +168,37 @@ router.post('/request', async (req: AuthRequest, res) => {
     return;
   }
 
-  // 5. Notify workers via Telegram
+  // 5. Notify workers & admins via Telegram
   try {
-    const { data: workers } = await supabase.from('users').select('telegram_id').eq('role', 'worker');
+    const { data: workers } = await supabase.from('users').select('telegram_id').in('role', ['worker', 'admin']);
 
     if (workers && workers.length > 0) {
       const safeUsername = (req.telegramUser?.username || req.telegramUser?.first_name || 'User').replace(/[_*[\]]/g, '\\$&');
       const safeMethodType = (method.type).toUpperCase().replace(/[_*[\]]/g, '\\$&');
-      const safeAccountName = account_name.replace(/[_*[\]]/g, '\\$&');
-      const safeAccountNumber = account_number.replace(/[_*[\]]/g, '\\$&');
+      const safeAccountName = String(account_name || '').replace(/[_*[\]]/g, '\\$&');
+      const safeAccountNumber = String(cleanAccountNumber || '').replace(/[_*[\]]/g, '\\$&');
 
       const feeNotice = fee_amount > 0 
         ? `\n🏷️ Fee (${fee_percent}%): *${fee_amount.toLocaleString('en-US')} ETB*\n💵 *Payout to Send: ${net_amount.toLocaleString('en-US')} ETB*`
         : `\n💵 *Payout to Send: ${Number(amount).toLocaleString('en-US')} ETB* (No Fee)`;
 
       const message = `💸 *New Withdrawal Request!*\n\n` +
-                      `👤 User: @${safeUsername}\n` +
+                      `👤 User: @${safeUsername} (ID: \`${telegramId}\`)\n` +
                       `💰 Requested: *${Number(amount).toLocaleString('en-US')} ETB*` +
                       feeNotice + `\n` +
                       `🏦 Method: *${safeMethodType}*\n` +
                       `📝 Name: *${safeAccountName}*\n` +
                       `🔢 Account: \`${safeAccountNumber}\`\n\n` +
-                      `👇 Please check the Admin Dashboard.`;
+                      `👇 Choose an action below:`;
+
+      const replyMarkup = {
+        inline_keyboard: [
+          [
+            { text: '✅ Approve Payout', callback_data: `wd_app_${withdrawal.id}` },
+            { text: '❌ Reject & Refund', callback_data: `wd_rej_${withdrawal.id}` }
+          ]
+        ]
+      };
 
       const botToken = process.env.BOT_TOKEN;
       if (botToken) {
@@ -198,7 +207,12 @@ router.post('/request', async (req: AuthRequest, res) => {
           await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: worker.telegram_id, text: message, parse_mode: 'Markdown' })
+            body: JSON.stringify({
+              chat_id: worker.telegram_id,
+              text: message,
+              parse_mode: 'Markdown',
+              reply_markup: replyMarkup
+            })
           }).catch(e => console.error('Failed to send to worker:', e));
         }
       }

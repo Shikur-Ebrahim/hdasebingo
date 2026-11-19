@@ -276,13 +276,13 @@ export async function handleDepositScreenshot(ctx: Context) {
     const screenshotUrl = `${process.env.R2_PUBLIC_URL || 'https://pub-44e6a703661947efa8e5748167d79a4d.r2.dev'}/${fileName}`;
 
     // Save deposit to Supabase
-    const { error: depErr } = await supabase.from('deposits').insert([{
+    const { data: depRecord, error: depErr } = await supabase.from('deposits').insert([{
       telegram_id: userId.toString(),
       method_id: session.methodId,
       amount: session.amount,
       screenshot_url: screenshotUrl,
       status: 'pending',
-    }]);
+    }]).select().single();
 
     if (depErr) throw new Error(depErr.message);
 
@@ -293,21 +293,48 @@ export async function handleDepositScreenshot(ctx: Context) {
       const { data: workers } = await supabase
         .from('users')
         .select('telegram_id')
-        .eq('role', 'worker');
+        .in('role', ['worker', 'admin']);
 
-      if (workers && workers.length > 0) {
+      if (workers && workers.length > 0 && depRecord) {
         const safeUsername = (ctx.from?.username || ctx.from?.first_name || 'User').replace(/[_*[\]]/g, '\\$&');
         const safeMethodName = (session.methodName || 'Unknown').replace(/[_*[\]]/g, '\\$&');
         
-        const notifyMsg = `🔔 *New Deposit Request!*\n\n` +
-                          `👤 User: @${safeUsername}\n` +
-                          `💰 Amount: *${Number(session.amount).toLocaleString('en-US')} ETB*\n` +
-                          `🏦 Method: *${safeMethodName}*\n\n` +
-                          `👇 Please check the Admin Dashboard to approve.`;
+        const notifyCaption = `🔔 *New Deposit Request!*\n\n` +
+                              `👤 User: @${safeUsername} (ID: \`${userId}\`)\n` +
+                              `💰 Amount: *${Number(session.amount).toLocaleString('en-US')} ETB*\n` +
+                              `🏦 Method: *${safeMethodName}*\n\n` +
+                              `👇 Choose an action below:`;
+
+        const replyMarkup = {
+          inline_keyboard: [
+            [
+              { text: '✅ Approve Deposit', callback_data: `dep_app_${depRecord.id}` },
+              { text: '❌ Reject Deposit', callback_data: `dep_rej_${depRecord.id}` }
+            ]
+          ]
+        };
 
         for (const worker of workers) {
           if (!worker.telegram_id) continue;
-          await ctx.api.sendMessage(worker.telegram_id, notifyMsg, { parse_mode: 'Markdown' }).catch(e => console.error(e));
+          let photoSent = false;
+          if (screenshotUrl && screenshotUrl.startsWith('http')) {
+            try {
+              await ctx.api.sendPhoto(worker.telegram_id, screenshotUrl, {
+                caption: notifyCaption,
+                parse_mode: 'Markdown',
+                reply_markup: replyMarkup,
+              });
+              photoSent = true;
+            } catch (pErr) {
+              console.warn('sendPhoto to worker failed:', pErr);
+            }
+          }
+          if (!photoSent) {
+            await ctx.api.sendMessage(worker.telegram_id, notifyCaption, {
+              parse_mode: 'Markdown',
+              reply_markup: replyMarkup,
+            }).catch(e => console.error(e));
+          }
         }
       }
     } catch (notifyErr) {

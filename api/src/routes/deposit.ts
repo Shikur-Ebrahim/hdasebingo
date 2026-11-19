@@ -94,12 +94,12 @@ router.post('/request', async (req: AuthRequest, res) => {
 
   if (error) { res.status(500).json({ error: error.message }); return; }
 
-  // Notify workers
+  // Notify workers & admins
   try {
     const { data: workers } = await supabase
       .from('users')
       .select('telegram_id')
-      .eq('role', 'worker');
+      .in('role', ['worker', 'admin']);
 
     if (workers && workers.length > 0) {
       const typeLabels: Record<string, string> = {
@@ -114,27 +114,62 @@ router.post('/request', async (req: AuthRequest, res) => {
       const safeMethodName = methodName.replace(/[_*[\]]/g, '\\$&');
 
       const message = `🔔 *New Deposit Request!*\n\n` +
-                      `👤 User: @${safeUsername}\n` +
+                      `👤 User: @${safeUsername} (ID: \`${telegramId}\`)\n` +
                       `💰 Amount: *${Number(amount).toLocaleString('en-US')} ETB*\n` +
                       `🏦 Method: *${safeMethodName}*\n` +
                       (cleanTxRef ? `🧾 *FT / Ref:* \`${cleanTxRef}\`\n` : '') +
-                      (cleanScreenshotUrl ? `📸 *Screenshot:* Attached\n\n` : `\n`) +
-                      `👇 Please check the Admin Dashboard to approve.`;
-                      `👇 Please check the Admin Dashboard to approve.`;
+                      `\n👇 Choose an action below:`;
+
+      const replyMarkup = {
+        inline_keyboard: [
+          [
+            { text: '✅ Approve Deposit', callback_data: `dep_app_${data.id}` },
+            { text: '❌ Reject Deposit', callback_data: `dep_rej_${data.id}` }
+          ]
+        ]
+      };
 
       const botToken = process.env.BOT_TOKEN;
       if (botToken) {
+        const hasPhotoUrl = cleanScreenshotUrl && cleanScreenshotUrl.startsWith('http');
         for (const worker of workers) {
           if (!worker.telegram_id) continue;
-          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: worker.telegram_id,
-              text: message,
-              parse_mode: 'Markdown'
-            })
-          }).catch(e => console.error('Failed to send to worker:', e));
+          let sentOk = false;
+          if (hasPhotoUrl) {
+            try {
+              const photoRes = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: worker.telegram_id,
+                  photo: cleanScreenshotUrl,
+                  caption: message,
+                  parse_mode: 'Markdown',
+                  reply_markup: replyMarkup
+                })
+              });
+              if (photoRes.ok) sentOk = true;
+            } catch (err) {
+              console.warn('sendPhoto to worker failed:', err);
+            }
+          }
+
+          if (!sentOk) {
+            const fallbackText = hasPhotoUrl
+              ? `${message}\n📸 [View Screenshot](${cleanScreenshotUrl})`
+              : message;
+
+            await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: worker.telegram_id,
+                text: fallbackText,
+                parse_mode: 'Markdown',
+                reply_markup: replyMarkup
+              })
+            }).catch(e => console.error('Failed to send to worker:', e));
+          }
         }
       }
     }
