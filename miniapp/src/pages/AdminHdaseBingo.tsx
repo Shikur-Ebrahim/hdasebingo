@@ -25,6 +25,7 @@ import {
   Plus,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   X,
   Sliders,
   Award
@@ -82,6 +83,9 @@ export default function AdminHdaseBingo() {
   const [selectedRoomId, setSelectedRoomId] = useState<string>(HDASE_ROOM_ID);
   const [allRooms, setAllRooms] = useState<any[]>([]);
   const [upgradingPro, setUpgradingPro] = useState(false);
+  const [showRoomPickerModal, setShowRoomPickerModal] = useState(false);
+  const [roomSearchQuery, setRoomSearchQuery] = useState('');
+  const [roomFilter, setRoomFilter] = useState<'all' | 'pro' | 'official' | 'free'>('all');
 
   // Room data & live metrics
   const [room, setRoom] = useState<any>(null);
@@ -260,6 +264,19 @@ export default function AdminHdaseBingo() {
       setUpgradingPro(false);
     }
   };
+
+  // Filtered rooms for room picker modal
+  const filteredRooms = allRooms.filter((r) => {
+    const q = roomSearchQuery.trim().toLowerCase();
+    const nameMatch = (r.room_name || '').toLowerCase().includes(q);
+    const idMatch = (r.id || '').toLowerCase().includes(q);
+    if (q && !nameMatch && !idMatch) return false;
+
+    if (roomFilter === 'pro') return r.system_players_pro_level >= 1;
+    if (roomFilter === 'official') return r.id === HDASE_ROOM_ID;
+    if (roomFilter === 'free') return (!r.system_players_pro_level || r.system_players_pro_level < 1) && r.id !== HDASE_ROOM_ID;
+    return true;
+  });
 
   // Fetch paginated bot pool
   const fetchBots = useCallback(async (page = 1, search = '', roomIdParam?: string) => {
@@ -568,27 +585,68 @@ export default function AdminHdaseBingo() {
           </button>
         </div>
 
-        {/* ─── ROOM SELECTOR & QUICK PRO UPGRADE ─── */}
-        <div className="mt-2.5 bg-slate-50 border border-slate-200/90 rounded-2xl p-2 flex items-center justify-between gap-2 shadow-2xs">
-          <div className="flex items-center space-x-2 flex-1 min-w-0">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 pl-1 shrink-0">Room:</span>
-            <select
-              value={selectedRoomId}
-              onChange={(e) => handleRoomChange(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 truncate cursor-pointer"
+        {/* ─── ULTRA-ATTRACTIVE MOBILE ROOM SELECTOR & QUICK PRO UPGRADE ─── */}
+        <div className="mt-2.5 bg-gradient-to-r from-slate-50 to-slate-100/90 border border-slate-200/90 rounded-2xl p-2 flex items-center justify-between gap-2 shadow-2xs">
+          <button
+            type="button"
+            onClick={() => {
+              triggerHaptic('light');
+              setShowRoomPickerModal(true);
+            }}
+            className="flex items-center space-x-2.5 min-w-0 flex-1 text-left active:scale-[0.98] transition-transform cursor-pointer bg-white border border-slate-200/80 rounded-xl p-2 shadow-2xs hover:border-amber-400"
+          >
+            <div
+              className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 font-bold shadow-2xs ${
+                selectedRoomId === HDASE_ROOM_ID
+                  ? 'bg-gradient-to-br from-amber-500 to-orange-500 text-white'
+                  : room?.system_players_pro_level >= 1
+                  ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'
+                  : 'bg-slate-100 text-slate-600'
+              }`}
             >
-              {allRooms.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.room_name} {r.id === HDASE_ROOM_ID ? '★ (Official)' : ''} {r.system_players_pro_level >= 1 ? '⚡ [PRO]' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
+              {selectedRoomId === HDASE_ROOM_ID ? (
+                <Flame size={16} className="fill-white" />
+              ) : room?.system_players_pro_level >= 1 ? (
+                <Zap size={16} className="fill-white" />
+              ) : (
+                <Layers size={16} />
+              )}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center space-x-1.5">
+                <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-400">Current Room</span>
+                {selectedRoomId === HDASE_ROOM_ID ? (
+                  <span className="text-[8px] font-black px-1.5 py-0.2 rounded-md bg-amber-100 text-amber-800 uppercase">
+                    OFFICIAL
+                  </span>
+                ) : room?.system_players_pro_level >= 1 ? (
+                  <span className="text-[8px] font-black px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 uppercase">
+                    PRO L1
+                  </span>
+                ) : (
+                  <span className="text-[8px] font-bold px-1.5 py-0.2 rounded-md bg-slate-100 text-slate-500 uppercase">
+                    FREE
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center justify-between pr-1">
+                <span className="text-xs font-black text-slate-900 truncate max-w-[170px]">
+                  {room?.room_name || 'Select Room...'}
+                </span>
+                <span className="text-[10px] font-bold text-amber-600 flex items-center gap-0.5 shrink-0 bg-amber-50 px-1.5 py-0.5 rounded-lg border border-amber-200/60">
+                  <span>Change</span>
+                  <ChevronDown size={11} />
+                </span>
+              </div>
+            </div>
+          </button>
+
           {room && (!room.system_players_pro_level || room.system_players_pro_level < 1) && (
             <button
               onClick={handleUpgradeToPro}
               disabled={upgradingPro}
-              className="px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-xs flex items-center gap-1 shrink-0 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
+              className="px-2.5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shadow-xs flex items-center gap-1 shrink-0 active:scale-95 transition-all disabled:opacity-50 cursor-pointer"
             >
               <Zap size={11} className={upgradingPro ? 'animate-bounce' : ''} />
               <span>{upgradingPro ? 'Upgrading...' : 'Upgrade to Pro'}</span>
@@ -1533,6 +1591,206 @@ export default function AdminHdaseBingo() {
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── ULTRA-ATTRACTIVE MOBILE ROOM PICKER BOTTOM SHEET MODAL ─── */}
+      {showRoomPickerModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex flex-col justify-end sm:justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+          {/* Backdrop click to dismiss */}
+          <div
+            className="absolute inset-0"
+            onClick={() => {
+              triggerHaptic('light');
+              setShowRoomPickerModal(false);
+            }}
+          />
+
+          {/* Modal / Bottom Sheet Container */}
+          <div className="relative z-10 bg-white rounded-t-[32px] sm:rounded-3xl p-4 sm:p-5 w-full max-w-lg mx-auto shadow-2xl max-h-[85vh] flex flex-col animate-in slide-in-from-bottom duration-250">
+            {/* Mobile Drag Indicator Bar */}
+            <div className="w-12 h-1.5 rounded-full bg-slate-300 mx-auto mb-3 shrink-0 sm:hidden" />
+
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center font-black">
+                  <Layers size={18} />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-900">Select Bingo Room</h3>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    {allRooms.length} Registered Rooms • Switch to manage settings
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  triggerHaptic('light');
+                  setShowRoomPickerModal(false);
+                }}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors active:scale-95 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Search Input Bar */}
+            <div className="pt-3 pb-2 shrink-0">
+              <div className="relative">
+                <Search size={15} className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={roomSearchQuery}
+                  onChange={(e) => setRoomSearchQuery(e.target.value)}
+                  placeholder="Search room name or ID..."
+                  className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  autoFocus
+                />
+                {roomSearchQuery && (
+                  <button
+                    onClick={() => setRoomSearchQuery('')}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="flex items-center space-x-1.5 pb-2.5 overflow-x-auto no-scrollbar shrink-0">
+              {(['all', 'pro', 'official', 'free'] as const).map((f) => {
+                const count =
+                  f === 'all'
+                    ? allRooms.length
+                    : f === 'pro'
+                    ? allRooms.filter((r) => r.system_players_pro_level >= 1).length
+                    : f === 'official'
+                    ? 1
+                    : allRooms.filter(
+                        (r) => (!r.system_players_pro_level || r.system_players_pro_level < 1) && r.id !== HDASE_ROOM_ID
+                      ).length;
+
+                return (
+                  <button
+                    key={f}
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setRoomFilter(f);
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-[10.5px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+                      roomFilter === f
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {f === 'all' && `All (${count})`}
+                    {f === 'pro' && `⚡ Pro (${count})`}
+                    {f === 'official' && '★ Official'}
+                    {f === 'free' && `Free (${count})`}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Scrollable Room Card List */}
+            <div className="overflow-y-auto space-y-2 pr-0.5 py-1 flex-1 max-h-[55vh]">
+              {filteredRooms.map((r) => {
+                const isSelected = r.id === selectedRoomId;
+                const isOfficial = r.id === HDASE_ROOM_ID;
+                const isPro = r.system_players_pro_level >= 1;
+
+                return (
+                  <div
+                    key={r.id}
+                    onClick={() => {
+                      triggerHaptic('medium');
+                      handleRoomChange(r.id);
+                      setShowRoomPickerModal(false);
+                    }}
+                    className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 active:scale-[0.99] ${
+                      isSelected
+                        ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-400 shadow-xs ring-2 ring-amber-400/30'
+                        : 'bg-white hover:bg-slate-50 border-slate-200/90'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3 min-w-0 flex-1">
+                      {/* Avatar Icon */}
+                      <div
+                        className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 font-bold shadow-2xs ${
+                          isOfficial
+                            ? 'bg-gradient-to-br from-amber-500 to-orange-500 text-white'
+                            : isPro
+                            ? 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {isOfficial ? (
+                          <Flame size={20} className="fill-white" />
+                        ) : isPro ? (
+                          <Zap size={20} className="fill-white" />
+                        ) : (
+                          <Layers size={18} />
+                        )}
+                      </div>
+
+                      {/* Room Details */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center space-x-1.5 flex-wrap">
+                          <span
+                            className={`text-xs font-black truncate max-w-[190px] ${
+                              isSelected ? 'text-amber-950' : 'text-slate-800'
+                            }`}
+                          >
+                            {r.room_name}
+                          </span>
+                          {isOfficial ? (
+                            <span className="text-[8.5px] font-black px-1.5 py-0.2 rounded-md bg-amber-100 text-amber-800 uppercase tracking-wider shrink-0">
+                              OFFICIAL
+                            </span>
+                          ) : isPro ? (
+                            <span className="text-[8.5px] font-black px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 uppercase tracking-wider shrink-0 flex items-center gap-0.5">
+                              <Zap size={9} />
+                              PRO L1
+                            </span>
+                          ) : (
+                            <span className="text-[8.5px] font-bold px-1.5 py-0.2 rounded-md bg-slate-100 text-slate-500 uppercase tracking-wider shrink-0">
+                              FREE
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">
+                          ID: {r.id.slice(0, 14)}...
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Checkmark or Selection Arrow */}
+                    <div className="shrink-0 flex items-center space-x-2">
+                      {isSelected ? (
+                        <div className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                          <Check size={14} strokeWidth={3} />
+                        </div>
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
+                          <ChevronRight size={14} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {filteredRooms.length === 0 && (
+                <div className="py-8 text-center space-y-1">
+                  <p className="text-xs font-bold text-slate-500">No rooms match your filter</p>
+                  <p className="text-[10px] text-slate-400">Try adjusting your search query or tab</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
