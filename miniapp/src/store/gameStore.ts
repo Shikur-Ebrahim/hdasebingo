@@ -34,6 +34,8 @@ export interface Room {
   commission_rate?: number;
   is_pinned?: boolean;
   is_private?: boolean;
+  system_players_pro_level?: number;
+  system_players_enabled?: boolean;
   stakes?: number[];
   created_at?: string;
 }

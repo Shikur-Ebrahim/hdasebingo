@@ -5,7 +5,8 @@ import {
   Wallet, Gift, PlusCircle, ArrowDownToLine, Share2, 
   ArrowRightLeft, History, Users, Globe, Headphones, Megaphone,
   ChevronRight, X, Moon, Copy, Check, BookOpen, Bot, Sparkles, Download, LogOut,
-  KeyRound, Lock, Eye, EyeOff, AlertCircle, CheckCircle2, DoorOpen, Search
+  KeyRound, Lock, Eye, EyeOff, AlertCircle, CheckCircle2, DoorOpen, Search,
+  Zap, Flame
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
@@ -32,26 +33,40 @@ export default function Profile() {
   const currentRoom = rooms.find(r => r.id === userRoomId) || rooms.find(r => r.id === 'd7c9114a-e112-426f-8f9b-13c00050279c') || rooms.find(r => r.room_name?.toUpperCase().includes('HDASE')) || rooms.find(r => r.is_pinned) || rooms[0];
   const currentRoomName = currentRoom?.room_name || 'HDASE BINGO';
 
-  // Strictly filter out private rooms (never visible in public dropdown) and sort pinned rooms first with highest priority
+  const HDASE_ROOM_ID = 'd7c9114a-e112-426f-8f9b-13c00050279c';
+
+  // Strictly filter out private rooms (never visible in public dropdown) and sort smartly:
+  // 1. HDASE BINGO room is ALWAYS #1 at the absolute top!
+  // 2. Currently selected room next
+  // 3. PRO rooms next (system_players_pro_level >= 1)
+  // 4. Higher active players count
+  // 5. Alphabetical by name
   const filteredRooms = [...rooms]
     .filter(r => !Boolean(r.is_private))
     .filter(r => !roomSearch.trim() || r.room_name.toLowerCase().includes(roomSearch.toLowerCase()))
     .sort((a, b) => {
-      // 1. Pinned rooms ALWAYS come first (Pin is highest priority)
-      const aPinned = Boolean(a.is_pinned);
-      const bPinned = Boolean(b.is_pinned);
-      if (aPinned !== bPinned) return bPinned ? 1 : -1;
+      // 1. HDASE BINGO is ALWAYS #1 at the absolute top!
+      const aIsHdase = a.id === HDASE_ROOM_ID || a.room_name?.toUpperCase().includes('HDASE');
+      const bIsHdase = b.id === HDASE_ROOM_ID || b.room_name?.toUpperCase().includes('HDASE');
+      if (aIsHdase && !bIsHdase) return -1;
+      if (!aIsHdase && bIsHdase) return 1;
 
       // 2. Currently selected room next
       const aSelected = a.id === userRoomId;
       const bSelected = b.id === userRoomId;
-      if (aSelected !== bSelected) return bSelected ? 1 : -1;
+      if (aSelected && !bSelected) return -1;
+      if (!aSelected && bSelected) return 1;
 
-      // 3. Higher player count
+      // 3. PRO rooms next
+      const aPro = Number(a.system_players_pro_level || 0) >= 1 ? 1 : 0;
+      const bPro = Number(b.system_players_pro_level || 0) >= 1 ? 1 : 0;
+      if (aPro !== bPro) return bPro - aPro;
+
+      // 4. Higher player count
       const playerDiff = (b.total_players || 0) - (a.total_players || 0);
       if (playerDiff !== 0) return playerDiff;
 
-      // 4. Room name
+      // 5. Room name alphabetical
       return a.room_name.localeCompare(b.room_name);
     });
 
@@ -692,6 +707,10 @@ export default function Profile() {
               ) : (
                 filteredRooms.map((r) => {
                   const isSelected = r.id === userRoomId;
+                  const isHdase = r.id === HDASE_ROOM_ID || r.room_name?.toUpperCase().includes('HDASE');
+                  const isPro = Number(r.system_players_pro_level || 0) >= 1;
+                  const hasPlayers = Number(r.total_players || 0) > 0;
+
                   return (
                     <button
                       key={r.id}
@@ -699,43 +718,79 @@ export default function Profile() {
                       onClick={() => handleSelectRoom(r.id)}
                       className={`w-full p-3 rounded-2xl border text-left flex items-center justify-between transition-all active:scale-[0.98] ${
                         isSelected
-                          ? 'bg-amber-500/10 border-amber-400 dark:border-amber-500/50 shadow-xs'
-                          : 'bg-white dark:bg-slate-800/70 border-slate-100 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                          ? 'bg-amber-500/10 border-amber-400 dark:border-amber-500/60 shadow-xs ring-1 ring-amber-400/40'
+                          : 'bg-white dark:bg-slate-800/80 border-slate-100 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-2xs'
                       }`}
                     >
-                      <div className="flex items-center space-x-3 min-w-0">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                      <div className="flex items-center space-x-3 min-w-0 flex-1 pr-2">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform ${
                           isSelected
-                            ? 'bg-amber-500 text-white shadow-xs'
+                            ? 'bg-gradient-to-tr from-amber-500 to-amber-400 text-white shadow-sm'
+                            : isHdase
+                            ? 'bg-gradient-to-tr from-amber-500 to-orange-500 text-white shadow-xs'
+                            : isPro
+                            ? 'bg-gradient-to-tr from-yellow-500/20 to-amber-500/20 border border-amber-400/40 text-amber-600 dark:text-amber-400'
                             : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
                         }`}>
-                          <DoorOpen size={18} />
+                          {isHdase ? (
+                            <Flame size={20} className="animate-pulse" />
+                          ) : isPro ? (
+                            <Zap size={18} />
+                          ) : (
+                            <DoorOpen size={18} />
+                          )}
                         </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <p className="font-black text-xs text-slate-800 dark:text-white truncate">
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="font-black text-xs text-slate-800 dark:text-white truncate max-w-[150px] sm:max-w-[200px]">
                               {r.room_name}
                             </p>
-                            {r.is_pinned && (
-                              <span className="text-[8px] bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-black px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5 border border-amber-300/40 shrink-0">
-                                📌 {language === 'am' ? 'ይፋዊ (Pinned)' : 'Pinned'}
+                            {isHdase && (
+                              <span className="text-[9px] bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5 shadow-2xs shrink-0">
+                                <Flame size={10} />
+                                <span>OFFICIAL</span>
+                              </span>
+                            )}
+                            {isPro && !isHdase && (
+                              <span className="text-[9px] bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-900 font-black px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5 shadow-2xs border border-amber-300 shrink-0">
+                                <Zap size={10} className="fill-slate-900" />
+                                <span>PRO</span>
                               </span>
                             )}
                           </div>
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold mt-0.5">
-                            <Users size={10} className="inline mr-1 -mt-0.5" />
-                            {r.total_players || 0} {language === 'am' ? 'ተጫዋቾች' : 'players'}
-                          </p>
+
+                          {/* Live Players Horizontal Section */}
+                          <div className="mt-1 flex items-center gap-2">
+                            {hasPlayers ? (
+                              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 dark:bg-emerald-950/60 dark:border-emerald-700/50 shadow-2xs">
+                                <span className="relative flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                </span>
+                                <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 tracking-wide">
+                                  {r.total_players} {language === 'am' ? 'እየተጫወቱ ነው' : 'playing'}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="inline-flex items-center gap-1 text-[10px] text-slate-400 dark:text-slate-500 font-semibold">
+                                <Users size={11} className="text-slate-400" />
+                                <span>0 {language === 'am' ? 'ተጫዋቾች' : 'players'}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
+
+                      {/* Select / Checked Button */}
                       {isSelected ? (
-                        <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs shrink-0">
-                          <Check size={14} />
+                        <div className="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs shrink-0 ring-2 ring-emerald-200 dark:ring-emerald-900">
+                          <Check size={15} strokeWidth={3} />
                         </div>
                       ) : (
-                        <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 hover:text-amber-600 shrink-0">
+                        <div className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-700/60 hover:bg-amber-500 hover:text-white dark:hover:bg-amber-500 text-slate-500 dark:text-slate-400 text-[10px] font-black transition-colors shrink-0">
                           {language === 'am' ? 'ምረጥ' : 'Select'}
-                        </span>
+                        </div>
                       )}
                     </button>
                   );

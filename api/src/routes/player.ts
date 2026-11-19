@@ -652,6 +652,8 @@ router.get('/rooms', async (req, res) => {
         : DEFAULT_ROOM_STAKES,
       is_pinned: Boolean(room.is_pinned),
       is_private: Boolean(room.is_private),
+      system_players_pro_level: Number(room.system_players_pro_level || 0),
+      system_players_enabled: Boolean(room.system_players_enabled),
       commission_rate: room.commission_rate ?? 7,
       total_players: roomPlayersMap[room.id] || 0,
       total_games: Number(room.total_games || 0),
@@ -660,19 +662,32 @@ router.get('/rooms', async (req, res) => {
     }));
 
     // ── Smart Sort Priority (server-side) ───────────────────────────────────
-    // 1. Pinned rooms always first
-    // 2. Within non-pinned: sort by commission_24h DESC → active_players DESC → total_games DESC
+    // 1. HDASE BINGO (Official platform room) is ALWAYS #1 at the absolute top!
+    // 2. PRO rooms next
+    // 3. Rooms with active players (higher player count first)
+    // 4. Higher 24h commission
+    // 5. Total games
+    const HDASE_ROOM_ID = 'd7c9114a-e112-426f-8f9b-13c00050279c';
     enrichedRooms.sort((a, b) => {
-      const aPinned = Boolean(a.is_pinned);
-      const bPinned = Boolean(b.is_pinned);
-      if (aPinned !== bPinned) return aPinned ? -1 : 1;
-      // Higher 24h commission first
-      const commDiff = (b.commission_24h || 0) - (a.commission_24h || 0);
-      if (Math.abs(commDiff) > 0.001) return commDiff;
-      // Then most active players
+      const aIsHdase = a.id === HDASE_ROOM_ID || (a.room_name && a.room_name.toUpperCase().includes('HDASE'));
+      const bIsHdase = b.id === HDASE_ROOM_ID || (b.room_name && b.room_name.toUpperCase().includes('HDASE'));
+      if (aIsHdase && !bIsHdase) return -1;
+      if (!aIsHdase && bIsHdase) return 1;
+
+      // PRO rooms next
+      const aPro = Number(a.system_players_pro_level || 0);
+      const bPro = Number(b.system_players_pro_level || 0);
+      if (aPro !== bPro) return bPro - aPro;
+
+      // Higher active players
       const playerDiff = (b.total_players || 0) - (a.total_players || 0);
       if (playerDiff !== 0) return playerDiff;
-      // Then most total games
+
+      // Higher 24h commission
+      const commDiff = (b.commission_24h || 0) - (a.commission_24h || 0);
+      if (Math.abs(commDiff) > 0.001) return commDiff;
+
+      // Total games
       return (b.total_games || 0) - (a.total_games || 0);
     });
 
