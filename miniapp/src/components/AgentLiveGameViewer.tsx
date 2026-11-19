@@ -11,6 +11,7 @@
  */
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import WebApp from '@twa-dev/sdk';
+import { getFixedCartelaMatrix } from '../lib/cartela';
 import {
   ArrowLeft,
   Trophy,
@@ -495,7 +496,7 @@ export default function AgentLiveGameViewer({
           ) {
             celebratedGamesRef.current.add(fg.id);
             const winnerMatrix: number[][] | null =
-              fg.winner_matrix ?? matrices[fg.winner_cartela] ?? null;
+              fg.winner_matrix ?? matrices[fg.winner_cartela] ?? (fg.winner_cartela ? getFixedCartelaMatrix(fg.winner_cartela) : null);
             triggerCelebration({
               winner_name: fg.winner_first_name || 'Winner',
               winner_cartela: fg.winner_cartela,
@@ -512,7 +513,7 @@ export default function AgentLiveGameViewer({
           ) {
             celebratedGamesRef.current.add(g.id);
             const winnerMatrix: number[][] | null =
-              matrices[g.winner_cartela] ?? null;
+              matrices[g.winner_cartela] ?? (g.winner_cartela ? getFixedCartelaMatrix(g.winner_cartela) : null);
             triggerCelebration({
               winner_name: g.winner_first_name || 'Winner',
               winner_cartela: g.winner_cartela,
@@ -661,7 +662,7 @@ export default function AgentLiveGameViewer({
       const num = Number(numStr);
       return {
         cartela_number: num,
-        card_matrix: matrix,
+        card_matrix: matrix || getFixedCartelaMatrix(num),
         player: cartelaPlayers[num] || null,
       };
     });

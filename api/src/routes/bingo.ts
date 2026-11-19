@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { AuthRequest, validateTelegramAuth, optionalTelegramAuth } from '../middleware/auth';
 import { supabase } from '../services/supabase';
-import { generateBingoCard, checkBingo, engine } from '../services/BingoEngine';
+import { generateBingoCard, getFixedCartelaMatrix, checkBingo, engine } from '../services/BingoEngine';
 import { getSettings } from './adminSettings';
 
 const router = Router();
@@ -384,27 +384,8 @@ router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
 
     if (deductErr) { res.status(400).json({ error: 'Payment failed — please try again' }); return; }
 
-    // Validate or generate card_matrix
-    let card_matrix = req.body.card_matrix;
-    if (!card_matrix || !Array.isArray(card_matrix) || card_matrix.length !== 5) {
-      card_matrix = generateBingoCard();
-    } else {
-      // Basic validation to prevent obvious cheating
-      let valid = true;
-      const zones = [[1,15],[16,30],[31,45],[46,60],[61,75]];
-      for (let c=0; c<5; c++) {
-        const [lo, hi] = zones[c];
-        const seen = new Set();
-        for (let r=0; r<5; r++) {
-          if (c===2 && r===2) continue; // Free space
-          const val = card_matrix[r][c];
-          if (typeof val !== 'number' || val < lo || val > hi || seen.has(val)) valid = false;
-          seen.add(val);
-        }
-      }
-      if (!valid) card_matrix = generateBingoCard();
-      card_matrix[2][2] = 0; // Ensure free space
-    }
+    // Use the canonical fixed 300-cartela matrix for this cartela number (seat)
+    const card_matrix = getFixedCartelaMatrix(seat);
 
     const { error: insertErr } = await supabase.from('bingo_players').insert({
       game_id: game.id,

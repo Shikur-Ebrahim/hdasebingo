@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { generateBingoCard } from './BingoEngine';
+import { generateBingoCard, getFixedCartelaMatrix } from './BingoEngine';
 import { invalidatePoolsCache } from '../routes/bingo';
 
 // Default stake target ranges: all 4 stakes ON by default when System Players are activated
@@ -858,7 +858,7 @@ export class SystemPlayerService {
       telegram_id: botTelegramId,
       first_name: chosenBot.first_name,
       cartela_number: seat,
-      card_matrix: generateBingoCard(),
+      card_matrix: getFixedCartelaMatrix(seat),
       is_system: true,
       is_waiter: isWaiterMode,
       waiter_agent_id: isOfficialHdaseRoom ? null : agentUserId,

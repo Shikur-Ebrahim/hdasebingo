@@ -5,6 +5,7 @@ import WebApp from "@twa-dev/sdk";
 import { supabase } from "../lib/supabase";
 import { useGameStore, Room } from "../store/gameStore";
 import { t } from '../lib/translations';
+import { getFixedCartelaMatrix } from "../lib/cartela";
 
 const API = import.meta.env.VITE_API_URL || "/api";
 
@@ -923,7 +924,7 @@ export default function BingoGame() {
       const iWon = finGame.winner_telegram_id === String(user?.telegram_id);
       const localCard = myCartelas.find(c => c.cartela_number === finGame.winner_cartela)?.card_matrix;
       const cachedCard = finGame.winner_matrix || (finGame.winner_cartela ? cartelaMatricesRef.current[finGame.winner_cartela] : null);
-      const winningMatrix = localCard || cachedCard || null;
+      const winningMatrix = localCard || cachedCard || (finGame.winner_cartela ? getFixedCartelaMatrix(finGame.winner_cartela) : null);
 
       // 6. NOW show the celebration popup!
       const celObj = {
@@ -984,7 +985,10 @@ export default function BingoGame() {
         if (d.my_cartelas) {
           setMyCartelas(prev => {
             const serverMap = new Map<number, any>(d.my_cartelas.map((c: any) => [c.cartela_number, c]));
-            const merged = [...d.my_cartelas];
+            const merged = d.my_cartelas.map((c: any) => ({
+              cartela_number: c.cartela_number,
+              card_matrix: c.card_matrix || getFixedCartelaMatrix(c.cartela_number)
+            }));
             for (const local of prev) {
               if (!serverMap.has(local.cartela_number) && pendingPurchasesRef.current.has(local.cartela_number)) {
                 merged.push(local);
@@ -1195,19 +1199,9 @@ export default function BingoGame() {
     };
   }, []);
 
-  // Generate matrix client-side for preview
-  const generateBingoCard = () => {
-    const zones: [number, number][] = [[1, 15], [16, 30], [31, 45], [46, 60], [61, 75]];
-    const card: number[][] = Array.from({ length: 5 }, () => Array(5).fill(0));
-    for (let col = 0; col < 5; col++) {
-      const [lo, hi] = zones[col];
-      const chosen = new Set<number>();
-      while (chosen.size < 5) chosen.add(Math.floor(Math.random() * (hi - lo + 1)) + lo);
-      const nums = Array.from(chosen);
-      for (let row = 0; row < 5; row++) card[row][col] = nums[row];
-    }
-    card[2][2] = 0;
-    return card;
+  // Fixed standard 300-cartela matrix generator
+  const generateBingoCard = (seat: number = 1) => {
+    return getFixedCartelaMatrix(seat);
   };
 
   const handleQuickBuy = (seat: number) => {
@@ -1237,7 +1231,7 @@ export default function BingoGame() {
     }
     setErrMsg('');
     pendingPurchasesRef.current.add(seat);
-    const matrix = generateBingoCard();
+    const matrix = getFixedCartelaMatrix(seat);
     joinGame(seat, matrix);
   };
 
