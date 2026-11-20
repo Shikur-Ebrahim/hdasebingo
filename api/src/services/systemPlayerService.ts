@@ -494,14 +494,8 @@ export class SystemPlayerService {
 
   /**
    * Get target number of bots for this game:
-   * 1st stake: 4-15 (default ON)
-   * 2nd stake: 3-9  (default ON)
-   * 3rd stake: 2-5  (default OFF - Waiter Mode: 2-4 bots)
-   * 4th stake: 2-4  (default OFF - Waiter Mode: 2-4 bots)
-   *
-   * Advanced Schedule Transitions:
-   * - Ramp-Up (Start Time): starts quietly at 2 players even if min is higher, ramping up smoothly to min/max
-   * - Ramp-Down (End Time): gradually reduces below min, scaling down to 2 players before close
+   * Strictly respects the room's configured [min, max] range per stake tier.
+   * Invariant: The returned target is NEVER less than min and NEVER greater than max.
    */
   getTargetBotsForGame(
     game: any,
@@ -510,57 +504,33 @@ export class SystemPlayerService {
     tierConfig?: { min: number; max: number; enabled?: boolean },
     rampInfo?: { is24h: boolean; isRampingUp: boolean; isRampingDown: boolean; remainingMinutes: number; elapsedMinutes: number }
   ): number {
-    if (gameBotTargets.has(game.id)) {
-      return gameBotTargets.get(game.id)!;
-    }
-
-    // Waiter Mode: 2 to 4 waiter bots join
+    // Waiter Mode: waiter bots count configured in waiter configs
     if (isWaiterMode) {
-      const target = Math.floor(Math.random() * 3) + 2; // 2, 3, or 4
+      const minW = Math.max(1, Number(tierConfig?.min ?? 1));
+      const maxW = Math.max(minW, Number(tierConfig?.max ?? 2));
+      const cached = gameBotTargets.get(game.id);
+      if (cached !== undefined && cached >= minW && cached <= maxW) {
+        return cached;
+      }
+      const target = Math.floor(Math.random() * (maxW - minW + 1)) + minW;
       gameBotTargets.set(game.id, target);
       return target;
     }
 
+    // Auto-Bustle Mode:
     const min = Math.max(1, Number(tierConfig?.min ?? 2));
-    const max = Math.max(min, Number(tierConfig?.max ?? 5));
+    const max = Math.max(min, Number(tierConfig?.max ?? Math.max(min, 5)));
 
-    let target = Math.floor(Math.random() * (max - min + 1)) + min;
-
-    // Advanced Ramp Schedule transitions (Start time ramp-up & End time ramp-down)
-    if (rampInfo && !rampInfo.is24h) {
-      if (rampInfo.isRampingDown) {
-        // Approaching schedule end: smoothly reduce below min, scaling down to 2 players!
-        if (rampInfo.remainingMinutes <= 5) {
-          // Final 5 minutes before close: exactly 2 players
-          target = 2;
-        } else if (rampInfo.remainingMinutes <= 15) {
-          // 15 to 5 mins: between 2 and 3 players (below min even if min is high)
-          target = Math.min(min, Math.floor(Math.random() * 2) + 2); // 2 or 3
-        } else {
-          // 30 to 15 mins: scale down towards 2-3 players
-          const factor = Math.max(0, (rampInfo.remainingMinutes - 15) / 15); // 0 to 1
-          const rampedTarget = Math.round(2 + (min - 2) * factor * 0.7);
-          target = Math.max(2, Math.min(max, rampedTarget));
-        }
-      } else if (rampInfo.isRampingUp) {
-        // Schedule start reached: start quietly from 2 players and ramp up to min/max!
-        if (rampInfo.elapsedMinutes <= 5) {
-          // First 5 minutes: start with 2 players
-          target = 2;
-        } else if (rampInfo.elapsedMinutes <= 15) {
-          // 5 to 15 minutes: start ramping from 2 towards min
-          const factor = (rampInfo.elapsedMinutes - 5) / 10;
-          const rampedTarget = Math.round(2 + (min - 2) * factor * 0.5);
-          target = Math.max(2, Math.min(min, rampedTarget));
-        } else {
-          // 15 to 30 minutes: reaching min and opening up towards max
-          const factor = (rampInfo.elapsedMinutes - 15) / 15;
-          const rampedTarget = Math.round(min + (max - min) * factor * 0.5);
-          target = Math.max(2, Math.min(max, rampedTarget));
-        }
-      }
+    const cached = gameBotTargets.get(game.id);
+    if (cached !== undefined && cached >= min && cached <= max) {
+      return cached;
     }
 
+    // Pick a random target within [min, max]
+    let target = Math.floor(Math.random() * (max - min + 1)) + min;
+
+    // Strict clamp: NEVER fall below min and NEVER exceed max
+    target = Math.max(min, Math.min(max, target));
     gameBotTargets.set(game.id, target);
     return target;
   }
@@ -692,8 +662,8 @@ export class SystemPlayerService {
     }
 
     const remainingSec = (startTime - now) / 1000;
-    // Don't join in the final 2.5 seconds to lock the board before calling
-    if (remainingSec <= 2.5 || remainingSec > 35) return;
+    // Don't join in the final 1.0 second to cleanly transition into calling
+    if (remainingSec <= 1.0 || remainingSec > 35) return;
 
     // Determine active mode for this tick:
     let isWaiterMode = false;
@@ -709,18 +679,13 @@ export class SystemPlayerService {
       return;
     }
 
-    // Throttle joins: join at natural intervals (every 2.5 to 4 seconds)
-    const lastJoin = gameLastBotJoinTime.get(game.id) || 0;
-    const timeSinceLastJoin = now - lastJoin;
-    if (timeSinceLastJoin < 2500) return;
-
     // Check how many bots should join this game
     let targetBots = 0;
     if (isWaiterMode) {
       const minW = Math.max(1, Number(waiterTierConfig.min || 1));
       const maxW = Math.max(minW, Number(waiterTierConfig.max || 2));
       const cached = gameBotTargets.get(game.id);
-      if (cached) {
+      if (cached !== undefined && cached >= minW && cached <= maxW) {
         targetBots = cached;
       } else {
         targetBots = Math.floor(Math.random() * (maxW - minW + 1)) + minW;
@@ -743,16 +708,28 @@ export class SystemPlayerService {
     const currentBotCount = existingSystemPlayerIds.size;
     if (currentBotCount >= targetBots) return;
 
-    // Smoothly distribute remaining bots over remaining seconds
-    const remainingBots = targetBots - currentBotCount;
-    const intervalSec = Math.max(1, remainingSec - 2.5);
-    const joinProbability = Math.min(1, (remainingBots * 2.5) / intervalSec);
+    const needed = targetBots - currentBotCount;
+    const lastJoin = gameLastBotJoinTime.get(game.id) || 0;
+    const timeSinceLastJoin = now - lastJoin;
 
-    if (Math.random() > joinProbability && timeSinceLastJoin < 5000) {
-      return; // Wait for next tick to look natural
+    // Available seconds to join before cutoff (at 1.0s)
+    const availableSec = Math.max(0.5, remainingSec - 1.0);
+
+    let countToAdd = 1;
+    if (remainingSec <= 3.5) {
+      // Final stretch: ensure all needed bots join immediately so the game NEVER starts below target!
+      countToAdd = needed;
+    } else {
+      // Calculate pacing interval: naturally spread bots every 0.8s to 2.2s
+      const targetIntervalMs = Math.max(800, Math.min(2200, Math.floor((availableSec * 1000) / Math.max(1, needed))));
+      if (timeSinceLastJoin < targetIntervalMs) return;
+
+      const intervalsRemaining = Math.max(1, Math.floor((availableSec * 1000) / targetIntervalMs));
+      const botsPerJoin = Math.max(1, Math.min(4, Math.ceil(needed / intervalsRemaining)));
+      countToAdd = Math.min(needed, botsPerJoin);
     }
 
-    // Pick a random system player from the room pool who hasn't joined this game yet
+    // Pick system players from the room pool who haven't joined this game yet
     let poolBots: any[] | null = null;
     const { data: botsWithTid, error: poolErr } = await supabase
       .from('system_players')
@@ -782,54 +759,18 @@ export class SystemPlayerService {
     const availableBots = poolBots.filter(b => !existingSystemPlayerIds.has(b.id));
     if (availableBots.length === 0) return;
 
-    const chosenBot = availableBots[Math.floor(Math.random() * availableBots.length)];
+    // Shuffle and pick up to countToAdd distinct bots
+    const chosenBots: any[] = [];
+    const poolCopy = [...availableBots];
+    const actualToAdd = Math.min(countToAdd, poolCopy.length);
 
-    // Waiter Player selects exactly 1 cartela by default; Auto-Bustle uses normal distribution
-    const cartelaCount = isWaiterMode ? 1 : this.decideCartelaCount(false);
-
-    // If Waiter Mode: verify Agent has sufficient main_balance to back this bot
-    let agentUserId: string | null = null;
-    const stakeAmt = Number(game.stake || 5);
-    const totalBotCost = stakeAmt * cartelaCount;
-    const isOfficialHdaseRoom =
-      room.id === 'd7c9114a-e112-426f-8f9b-13c00050279c' ||
-      room.room_name === 'HDASE BINGO' ||
-      room.agent_id === '5b3ac1f4-6a29-4929-9fc4-5043c0118572';
-
-    if (isWaiterMode) {
-      if (!isOfficialHdaseRoom) {
-        if (!room.agent_id) return;
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(room.agent_id);
-        const agentQuery = isUuid
-          ? supabase.from('users').select('id, main_balance').eq('id', room.agent_id)
-          : supabase.from('users').select('id, main_balance').eq('telegram_id', room.agent_id);
-
-        const { data: agentUser } = await agentQuery.maybeSingle();
-        if (!agentUser) {
-          console.warn(`[Waiter Player] Agent ${room.agent_id} not found.`);
-          return;
-        }
-
-        const agentBal = Number(agentUser.main_balance || 0);
-        if (agentBal < totalBotCost) {
-          console.warn(`[Waiter Player] Agent ${agentUser.id} balance insufficient (${agentBal} < ${totalBotCost} ETB). Waiter bot paused.`);
-          return;
-        }
-        agentUserId = agentUser.id;
-
-        // Deduct stake from agent's main_balance
-        const newBal = Math.max(0, agentBal - totalBotCost);
-        const { error: balErr } = await supabase.from('users').update({ main_balance: newBal }).eq('id', agentUserId);
-        if (balErr) {
-          console.error('[Waiter Player] Failed to deduct agent balance:', balErr);
-          return;
-        }
-        console.log(`💳 [Waiter Player Joined] Agent ${agentUserId} balance deducted -${totalBotCost} ETB (${agentBal} -> ${newBal} ETB) for bot "${chosenBot.first_name}"`);
-      } else {
-        // HDASE BINGO official platform room: waiter bots are platform-managed, never touch admin balance!
-        agentUserId = null;
-      }
+    for (let i = 0; i < actualToAdd; i++) {
+      const idx = Math.floor(Math.random() * poolCopy.length);
+      chosenBots.push(poolCopy[idx]);
+      poolCopy.splice(idx, 1);
     }
+
+    if (chosenBots.length === 0) return;
 
     // Find available seats (1 to 300)
     const maxSeat = Math.min(300, cfg.max_players || 300);
@@ -842,35 +783,88 @@ export class SystemPlayerService {
 
     if (availableSeats.length === 0) return;
 
-    // Pick random seats for this bot uniformly across the 1-300 board
-    const chosenSeats: number[] = [];
-    for (let i = 0; i < cartelaCount && availableSeats.length > 0; i++) {
-      const idx = Math.floor(Math.random() * availableSeats.length);
-      chosenSeats.push(availableSeats[idx]);
-      availableSeats.splice(idx, 1);
+    const stakeAmt = Number(game.stake || 5);
+    const isOfficialHdaseRoom =
+      room.id === 'd7c9114a-e112-426f-8f9b-13c00050279c' ||
+      room.room_name === 'HDASE BINGO' ||
+      room.agent_id === '5b3ac1f4-6a29-4929-9fc4-5043c0118572';
+
+    // If Waiter Mode & not platform room: check agent balance
+    let agentUserId: string | null = null;
+    let agentCurrentBalance = 0;
+    if (isWaiterMode && !isOfficialHdaseRoom) {
+      if (!room.agent_id) return;
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(room.agent_id);
+      const agentQuery = isUuid
+        ? supabase.from('users').select('id, main_balance').eq('id', room.agent_id)
+        : supabase.from('users').select('id, main_balance').eq('telegram_id', room.agent_id);
+
+      const { data: agentUser } = await agentQuery.maybeSingle();
+      if (!agentUser) return;
+      agentUserId = agentUser.id;
+      agentCurrentBalance = Number(agentUser.main_balance || 0);
     }
 
-    // Insert cartelas for this bot
-    const botTelegramId = (chosenBot as any).telegram_id || this.getBotTelegramId(chosenBot.id, room.id);
+    const allBotRows: any[] = [];
+    let totalDeductedForBatch = 0;
 
-    const botRows = chosenSeats.map(seat => ({
-      game_id: game.id,
-      telegram_id: botTelegramId,
-      first_name: chosenBot.first_name,
-      cartela_number: seat,
-      card_matrix: getFixedCartelaMatrix(seat),
-      is_system: true,
-      is_waiter: isWaiterMode,
-      waiter_agent_id: isOfficialHdaseRoom ? null : agentUserId,
-      waiter_stake_deducted: isOfficialHdaseRoom ? 0 : (isWaiterMode ? stakeAmt : 0),
-      system_player_id: chosenBot.id,
-      bonus_used: 0,
-      main_used: isOfficialHdaseRoom ? 0 : (isWaiterMode ? stakeAmt : 0),
-    }));
+    for (const bot of chosenBots) {
+      if (availableSeats.length === 0) break;
 
-    const { error: insErr } = await supabase.from('bingo_players').insert(botRows);
+      const cartelaCount = isWaiterMode ? 1 : this.decideCartelaCount(false);
+      const neededSeats = Math.min(cartelaCount, availableSeats.length);
+      if (neededSeats <= 0) break;
+
+      const totalCost = stakeAmt * neededSeats;
+
+      if (isWaiterMode && !isOfficialHdaseRoom) {
+        if (agentCurrentBalance < totalCost) {
+          // Agent ran out of balance
+          break;
+        }
+        agentCurrentBalance -= totalCost;
+        totalDeductedForBatch += totalCost;
+      }
+
+      const botSeats: number[] = [];
+      for (let c = 0; c < neededSeats; c++) {
+        const sIdx = Math.floor(Math.random() * availableSeats.length);
+        const seat = availableSeats[sIdx];
+        botSeats.push(seat);
+        takenSeats.add(seat);
+        availableSeats.splice(sIdx, 1);
+      }
+
+      const botTelegramId = (bot as any).telegram_id || this.getBotTelegramId(bot.id, room.id);
+
+      for (const seat of botSeats) {
+        allBotRows.push({
+          game_id: game.id,
+          telegram_id: botTelegramId,
+          first_name: bot.first_name,
+          cartela_number: seat,
+          card_matrix: getFixedCartelaMatrix(seat),
+          is_system: true,
+          is_waiter: isWaiterMode,
+          waiter_agent_id: isOfficialHdaseRoom ? null : agentUserId,
+          waiter_stake_deducted: isOfficialHdaseRoom ? 0 : (isWaiterMode ? stakeAmt : 0),
+          system_player_id: bot.id,
+          bonus_used: 0,
+          main_used: isOfficialHdaseRoom ? 0 : (isWaiterMode ? stakeAmt : 0),
+        });
+      }
+    }
+
+    if (allBotRows.length === 0) return;
+
+    // Deduct agent balance if applicable
+    if (isWaiterMode && !isOfficialHdaseRoom && agentUserId && totalDeductedForBatch > 0) {
+      await supabase.from('users').update({ main_balance: agentCurrentBalance }).eq('id', agentUserId);
+    }
+
+    const { error: insErr } = await supabase.from('bingo_players').insert(allBotRows);
     if (insErr) {
-      console.error(`Failed to insert bot cartelas:`, insErr);
+      console.error('Failed to insert bot cartelas:', insErr);
       return;
     }
 
@@ -887,7 +881,6 @@ export class SystemPlayerService {
 
     const realPlayers = allP.filter(p => !p.is_system);
     const realUnique = new Set(realPlayers.map(p => p.telegram_id)).size;
-    const realCartelas = realPlayers.length;
 
     const systemPlayers = allP.filter(p => p.is_system);
     const systemUnique = new Set(systemPlayers.map(p => p.telegram_id)).size;
@@ -911,7 +904,9 @@ export class SystemPlayerService {
       updated_at: new Date().toISOString(),
     }).eq('id', game.id);
 
-    console.log(`🤖 Bot "${chosenBot.first_name}" (${isWaiterMode ? 'WAITER [Agent Backed]' : 'AUTO-BUSTLE'}) bought ${chosenSeats.length} cartela(s) [${chosenSeats.join(',')}] on Game #${game.id.slice(0, 8)} | Stake: ${stakeAmt} | Derash: ${prizePool} ETB | Players: ${realUnique} Real + ${systemUnique} Bots (${waiterUnique} waiter)`);
+    invalidatePoolsCache();
+
+    console.log(`🤖 [Bots Joined] +${chosenBots.length} bot(s) on Game #${game.id.slice(0, 8)} | Stake: ${stakeAmt} | Derash: ${prizePool} ETB | Players: ${realUnique} Real + ${systemUnique} Bots (${targetBots} target)`);
   }
 
   /**
@@ -983,6 +978,41 @@ export class SystemPlayerService {
                 total_players: 0,
                 prize_pool: 0,
                 start_at: new Date(Date.now() + 365 * 86400000).toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', game.id);
+          }
+        } else {
+          // If stake IS active, check if current bot count exceeds newly updated max
+          const maxBots = Math.max(1, Number(tierConfig.max || 5));
+          const { data: players } = await supabase
+            .from('bingo_players')
+            .select('id, telegram_id, is_system, cartela_number')
+            .eq('game_id', game.id);
+
+          const realPlayers = (players || []).filter(p => !p.is_system);
+          const botPlayers = (players || []).filter(p => p.is_system);
+          const botUnique = new Set(botPlayers.map(p => p.telegram_id));
+
+          if (realPlayers.length === 0 && botUnique.size > maxBots) {
+            // Trim excess bots down to maxBots so settings apply immediately
+            const excessBots = Array.from(botUnique).slice(maxBots);
+            await supabase
+              .from('bingo_players')
+              .delete()
+              .eq('game_id', game.id)
+              .in('telegram_id', excessBots);
+
+            const remainingBots = botPlayers.filter(p => !excessBots.includes(p.telegram_id));
+            const stakeAmt = Number(game.stake || 5);
+            const prizePool = Math.floor((remainingBots.length * stakeAmt * 80) / 100);
+
+            await supabase
+              .from('bingo_games')
+              .update({
+                total_players: maxBots,
+                system_players_count: maxBots,
+                prize_pool: prizePool,
                 updated_at: new Date().toISOString(),
               })
               .eq('id', game.id);
