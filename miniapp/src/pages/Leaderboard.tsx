@@ -119,38 +119,38 @@ export default function Leaderboard() {
   const myTelegramId = user?.telegram_id;
 
   return (
-    <div className="min-h-screen bg-white pb-24">
+    <div className="min-h-screen bg-white dark:bg-[#070b14] pb-24">
       {/* ── HEADER ── */}
-      <div className="bg-white px-4 pt-5 pb-3 border-b border-gray-100">
+      <div className="bg-white dark:bg-[#0b1020]/95 backdrop-blur-md px-4 pt-5 pb-3 border-b border-gray-100 dark:border-slate-800/80">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-2">
-            <div className="w-9 h-9 rounded-xl bg-yellow-50 flex items-center justify-center">
-              <Trophy size={20} className="text-yellow-500" />
+            <div className="w-9 h-9 rounded-xl bg-yellow-50 dark:bg-amber-950/40 border border-yellow-200/50 dark:border-amber-500/30 flex items-center justify-center">
+              <Trophy size={20} className="text-yellow-500 dark:text-amber-400" />
             </div>
             <div>
-              <h1 className="text-lg font-black text-slate-800">{t[language].leaderboard.title}</h1>
-              <p className="text-xs text-slate-400 font-medium">
+              <h1 className="text-lg font-black text-slate-800 dark:text-white">{t[language].leaderboard.title}</h1>
+              <p className="text-xs text-slate-400 dark:text-slate-400 font-medium">
                 {totalCount > 0 ? `${totalCount} All-Time Ranked Players` : t[language].leaderboard.subtitle}
               </p>
             </div>
           </div>
           <button
             onClick={handleRefresh}
-            className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center active:scale-90 transition-all hover:bg-slate-100"
+            className="w-9 h-9 rounded-xl bg-slate-50 dark:bg-[#12192c] border border-transparent dark:border-slate-700/80 flex items-center justify-center active:scale-90 transition-all hover:bg-slate-100 dark:hover:bg-[#18233d]"
             title="Refresh Leaderboard"
           >
-            <RefreshCw size={16} className={`text-slate-500 ${refreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw size={16} className={`text-slate-500 dark:text-slate-400 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
         </div>
 
         {/* Tab Toggle */}
-        <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
+        <div className="flex bg-slate-100 dark:bg-[#0c1222] border border-transparent dark:border-slate-800 rounded-xl p-1 gap-1">
           <button
             onClick={() => handleTab('players')}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
               tab === 'players'
-                ? 'bg-white text-yellow-600 shadow-sm'
-                : 'text-slate-400 hover:text-slate-600'
+                ? 'bg-white dark:bg-[#162035] text-yellow-600 dark:text-amber-400 shadow-sm dark:shadow-[0_2px_8px_rgba(0,0,0,0.5)]'
+                : 'text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
             }`}
           >
             <Trophy size={13} />
@@ -160,8 +160,8 @@ export default function Leaderboard() {
             onClick={() => handleTab('inviters')}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${
               tab === 'inviters'
-                ? 'bg-white text-purple-600 shadow-sm'
-                : 'text-slate-400 hover:text-slate-600'
+                ? 'bg-white dark:bg-[#162035] text-purple-600 dark:text-purple-400 shadow-sm dark:shadow-[0_2px_8px_rgba(0,0,0,0.5)]'
+                : 'text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
             }`}
           >
             <UserPlus size={13} />
@@ -173,15 +173,15 @@ export default function Leaderboard() {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20">
           <div className="w-10 h-10 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin mb-3" />
-          <p className="text-slate-400 text-sm font-medium">{t[language].leaderboard.loading}</p>
+          <p className="text-slate-400 dark:text-slate-400 text-sm font-medium">{t[language].leaderboard.loading}</p>
         </div>
       ) : list.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-          <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mb-4">
-            <Trophy size={32} className="text-slate-300" />
+          <div className="w-16 h-16 bg-slate-50 dark:bg-[#0c1222] border border-transparent dark:border-slate-800 rounded-2xl flex items-center justify-center mb-4 shadow-sm">
+            <Trophy size={32} className="text-slate-300 dark:text-slate-600" />
           </div>
-          <p className="font-black text-slate-600 text-base">{t[language].leaderboard.noData}</p>
-          <p className="text-slate-400 text-sm mt-1">{t[language].leaderboard.noDataDesc}</p>
+          <p className="font-black text-slate-600 dark:text-slate-200 text-base">{t[language].leaderboard.noData}</p>
+          <p className="text-slate-400 dark:text-slate-400 text-sm mt-1">{t[language].leaderboard.noDataDesc}</p>
         </div>
       ) : (
         <>
@@ -198,10 +198,10 @@ export default function Leaderboard() {
                     <div key={ri} className={`flex-1 flex flex-col items-center ${isCenter ? '-mb-1' : ''}`}>
                       {/* Crown for #1 */}
                       {isCenter && (
-                        <Crown size={18} className="text-yellow-400 mb-1 drop-shadow" />
+                        <Crown size={18} className="text-yellow-400 dark:text-amber-300 mb-1 drop-shadow" />
                       )}
                       {/* Avatar */}
-                      <div className={`relative ${isCenter ? 'w-16 h-16' : 'w-12 h-12'} rounded-full ${getAvatarColor(p.telegram_id)} flex items-center justify-center mb-1 shadow-md ${isMine ? 'ring-2 ring-yellow-400' : ''}`}>
+                      <div className={`relative ${isCenter ? 'w-16 h-16' : 'w-12 h-12'} rounded-full ${getAvatarColor(p.telegram_id)} flex items-center justify-center mb-1 shadow-md ${isMine ? 'ring-2 ring-yellow-400 dark:ring-amber-400' : ''}`}>
                         <span className={`text-white font-black ${isCenter ? 'text-base' : 'text-sm'}`}>
                           {getInitials(p.first_name)}
                         </span>
@@ -214,16 +214,16 @@ export default function Leaderboard() {
                         </div>
                       </div>
                       {/* Name */}
-                      <p className={`font-black text-slate-800 text-center leading-tight ${isCenter ? 'text-xs' : 'text-[10px]'} max-w-[80px] truncate`}>
+                      <p className={`font-black text-slate-800 dark:text-white text-center leading-tight ${isCenter ? 'text-xs' : 'text-[10px]'} max-w-[80px] truncate`}>
                         {p.first_name}
                       </p>
-                      <p className={`font-bold text-center mt-0.5 ${isCenter ? 'text-yellow-600 text-xs' : 'text-slate-500 text-[10px]'}`}>
+                      <p className={`font-bold text-center mt-0.5 ${isCenter ? 'text-yellow-600 dark:text-amber-400 text-xs' : 'text-slate-500 dark:text-slate-400 text-[10px]'}`}>
                         {tab === 'players'
                           ? `${(p as Player).wins} ${t[language].leaderboard.wins}`
                           : `${(p as Inviter).invites} ${t[language].leaderboard.invites}`}
                       </p>
                       {/* Podium bar */}
-                      <div className={`w-full mt-2 ${PODIUM_HEIGHTS[ri]} bg-gradient-to-b ${PODIUM_BG[ri]} rounded-t-xl opacity-80`} />
+                      <div className={`w-full mt-2 ${PODIUM_HEIGHTS[ri]} bg-gradient-to-b ${PODIUM_BG[ri]} rounded-t-xl opacity-85 shadow-md`} />
                     </div>
                   );
                 })}
@@ -233,14 +233,14 @@ export default function Leaderboard() {
 
           {/* ── MY RANK BANNER ── */}
           {myRank && myRank > 3 && (
-            <div className="mx-4 my-3 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-2.5 flex items-center justify-between shadow-2xs">
+            <div className="mx-4 my-3 bg-yellow-50 dark:bg-[#131b2e] border border-yellow-200 dark:border-amber-500/30 rounded-xl px-4 py-2.5 flex items-center justify-between shadow-2xs">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-full bg-yellow-400 flex items-center justify-center shadow-xs">
+                <div className="w-7 h-7 rounded-full bg-yellow-400 dark:bg-amber-500 flex items-center justify-center shadow-xs">
                   <span className="text-white font-black text-xs">#{myRank}</span>
                 </div>
-                <span className="text-yellow-700 font-bold text-sm">{t[language].leaderboard.yourRank}</span>
+                <span className="text-yellow-700 dark:text-amber-300 font-bold text-sm">{t[language].leaderboard.yourRank}</span>
               </div>
-              <span className="text-yellow-600 text-xs font-black">
+              <span className="text-yellow-600 dark:text-amber-400 text-xs font-black">
                 {tab === 'players'
                   ? `${players.find(p => p.telegram_id === myTelegramId)?.wins || 0} ${t[language].leaderboard.wins}`
                   : `${inviters.find(p => p.telegram_id === myTelegramId)?.invites || 0} ${t[language].leaderboard.invites}`}
@@ -249,12 +249,12 @@ export default function Leaderboard() {
           )}
 
           {/* ── FULL 50-ROW RANKED LIST ── */}
-          <div className="mx-4 mt-3 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="mx-4 mt-3 bg-white dark:bg-[#0c1222] rounded-2xl border border-gray-100 dark:border-slate-800/80 shadow-sm dark:shadow-[0_4px_20px_rgba(0,0,0,0.4)] overflow-hidden">
             {/* Header */}
-            <div className="flex items-center px-4 py-2.5 bg-slate-50 border-b border-gray-100">
-              <span className="w-10 text-[10px] font-black text-slate-400 uppercase">{t[language].leaderboard.rank}</span>
-              <span className="flex-1 text-[10px] font-black text-slate-400 uppercase">{t[language].leaderboard.player}</span>
-              <span className="text-[10px] font-black text-slate-400 uppercase text-right">
+            <div className="flex items-center px-4 py-2.5 bg-slate-50 dark:bg-[#080d19] border-b border-gray-100 dark:border-slate-800/80">
+              <span className="w-10 text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase">{t[language].leaderboard.rank}</span>
+              <span className="flex-1 text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase">{t[language].leaderboard.player}</span>
+              <span className="text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase text-right">
                 {tab === 'players' ? t[language].leaderboard.wins : t[language].leaderboard.invites}
               </span>
             </div>
@@ -268,8 +268,8 @@ export default function Leaderboard() {
               return (
                 <div
                   key={`${p.telegram_id}_${p.rank}`}
-                  className={`flex items-center px-4 py-3 border-b border-gray-50 last:border-0 transition-colors ${
-                    isMine ? 'bg-yellow-50/80' : 'hover:bg-slate-50/50'
+                  className={`flex items-center px-4 py-3 border-b border-gray-50 dark:border-slate-800/60 last:border-0 transition-colors ${
+                    isMine ? 'bg-yellow-50/80 dark:bg-amber-950/30' : 'hover:bg-slate-50/50 dark:hover:bg-[#12192c]'
                   }`}
                 >
                   {/* Rank badge */}
@@ -282,7 +282,7 @@ export default function Leaderboard() {
                         {p.rank}
                       </div>
                     ) : (
-                      <span className="text-xs font-black text-slate-400">#{p.rank}</span>
+                      <span className="text-xs font-black text-slate-400 dark:text-slate-400">#{p.rank}</span>
                     )}
                   </div>
 
@@ -293,10 +293,10 @@ export default function Leaderboard() {
 
                   {/* Name */}
                   <div className="flex-1 min-w-0 pr-2">
-                    <p className={`font-black text-xs truncate flex items-center gap-1.5 ${isMine ? 'text-yellow-700' : 'text-slate-800'}`}>
+                    <p className={`font-black text-xs truncate flex items-center gap-1.5 ${isMine ? 'text-yellow-700 dark:text-amber-300' : 'text-slate-800 dark:text-white'}`}>
                       <span>{p.first_name}</span>
                       {isMine && (
-                        <span className="text-[9px] font-black bg-yellow-200 text-yellow-800 px-1.5 py-0.2 rounded">
+                        <span className="text-[9px] font-black bg-yellow-200 dark:bg-amber-500/20 text-yellow-800 dark:text-amber-300 px-1.5 py-0.2 rounded">
                           {t[language].leaderboard.you}
                         </span>
                       )}
@@ -305,10 +305,10 @@ export default function Leaderboard() {
 
                   {/* Wins / Invites count */}
                   <div className="text-right shrink-0">
-                    <p className={`font-black text-sm ${isTop3OnPage1 ? 'text-yellow-600' : 'text-slate-700'}`}>
+                    <p className={`font-black text-sm ${isTop3OnPage1 ? 'text-yellow-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-200'}`}>
                       {tab === 'players' ? (p as Player).wins : (p as Inviter).invites}
                     </p>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase">
+                    <p className="text-[9px] text-slate-400 dark:text-slate-400 font-bold uppercase">
                       {tab === 'players' ? t[language].leaderboard.wins : t[language].leaderboard.invites}
                     </p>
                   </div>
@@ -319,7 +319,7 @@ export default function Leaderboard() {
 
           {/* ── PAGINATION CONTROLS (Next / Prev) ── */}
           {totalPages > 1 && (
-            <div className="mx-4 mt-4 mb-4 flex items-center justify-between p-3 rounded-2xl bg-white border border-gray-100 shadow-sm">
+            <div className="mx-4 mt-4 mb-4 flex items-center justify-between p-3 rounded-2xl bg-white dark:bg-[#0c1222] border border-gray-100 dark:border-slate-800/80 shadow-sm">
               <button
                 type="button"
                 onClick={() => {
@@ -329,17 +329,17 @@ export default function Leaderboard() {
                   }
                 }}
                 disabled={page <= 1}
-                className="flex items-center gap-1 px-3.5 py-2 rounded-xl text-xs font-black bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 transition-all"
+                className="flex items-center gap-1 px-3.5 py-2 rounded-xl text-xs font-black bg-slate-100 dark:bg-[#12192c] hover:bg-slate-200 dark:hover:bg-[#1a243e] text-slate-700 dark:text-slate-200 border border-transparent dark:border-slate-700/80 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 transition-all"
               >
                 <ChevronLeft size={16} />
                 <span>Previous</span>
               </button>
 
               <div className="text-center">
-                <span className="text-xs font-black text-slate-800">
-                  Page <span className="text-yellow-600">{page}</span> of {totalPages}
+                <span className="text-xs font-black text-slate-800 dark:text-white">
+                  Page <span className="text-yellow-600 dark:text-amber-400">{page}</span> of {totalPages}
                 </span>
-                <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                <p className="text-[10px] text-slate-400 dark:text-slate-400 font-bold mt-0.5">
                   Showing {(page - 1) * 50 + 1} - {Math.min(page * 50, totalCount)} of {totalCount}
                 </p>
               </div>
@@ -353,7 +353,7 @@ export default function Leaderboard() {
                   }
                 }}
                 disabled={page >= totalPages}
-                className="flex items-center gap-1 px-3.5 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-white shadow-xs disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 transition-all"
+                className="flex items-center gap-1 px-3.5 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-yellow-400 to-amber-500 dark:from-amber-500 dark:to-yellow-500 hover:from-yellow-500 hover:to-amber-600 text-white shadow-xs disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 transition-all"
               >
                 <span>Next</span>
                 <ChevronRight size={16} />

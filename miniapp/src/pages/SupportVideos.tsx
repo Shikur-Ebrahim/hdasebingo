@@ -19,12 +19,12 @@ interface SupportVideo {
 }
 
 const CATEGORIES = [
-  { id: 'how_to_play', label: 'How to Play',     emoji: '🎮', gradient: 'from-emerald-500 to-teal-600',   bg: 'bg-emerald-50 border-emerald-200',  text: 'text-emerald-700' },
-  { id: 'deposit',     label: 'Deposit',          emoji: '💰', gradient: 'from-yellow-400 to-amber-500',   bg: 'bg-yellow-50 border-yellow-200',    text: 'text-yellow-700' },
-  { id: 'withdraw',    label: 'Withdraw',         emoji: '💸', gradient: 'from-rose-500 to-pink-600',      bg: 'bg-rose-50 border-rose-200',         text: 'text-rose-700' },
-  { id: 'how_to_use',  label: 'How to Use App',   emoji: '📱', gradient: 'from-blue-500 to-indigo-600',    bg: 'bg-blue-50 border-blue-200',         text: 'text-blue-700' },
-  { id: 'invite',      label: 'How to Invite',    emoji: '🤝', gradient: 'from-purple-500 to-violet-600',  bg: 'bg-purple-50 border-purple-200',     text: 'text-purple-700' },
-  { id: 'transfer',    label: 'How to Transfer',  emoji: '🔄', gradient: 'from-indigo-500 to-blue-600',    bg: 'bg-indigo-50 border-indigo-200',     text: 'text-indigo-700' },
+  { id: 'how_to_play', label: 'How to Play',     emoji: '🎮', gradient: 'from-emerald-500 to-teal-600',   bg: 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-500/30',  text: 'text-emerald-700 dark:text-emerald-300' },
+  { id: 'deposit',     label: 'Deposit',          emoji: '💰', gradient: 'from-yellow-400 to-amber-500',   bg: 'bg-yellow-50 dark:bg-amber-950/40 border-yellow-200 dark:border-amber-500/30',    text: 'text-yellow-700 dark:text-amber-300' },
+  { id: 'withdraw',    label: 'Withdraw',         emoji: '💸', gradient: 'from-rose-500 to-pink-600',      bg: 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-500/30',         text: 'text-rose-700 dark:text-rose-300' },
+  { id: 'how_to_use',  label: 'How to Use App',   emoji: '📱', gradient: 'from-blue-500 to-indigo-600',    bg: 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-500/30',         text: 'text-blue-700 dark:text-blue-300' },
+  { id: 'invite',      label: 'How to Invite',    emoji: '🤝', gradient: 'from-purple-500 to-violet-600',  bg: 'bg-purple-50 dark:bg-purple-950/40 border-purple-200 dark:border-purple-500/30',     text: 'text-purple-700 dark:text-purple-300' },
+  { id: 'transfer',    label: 'How to Transfer',  emoji: '🔄', gradient: 'from-indigo-500 to-blue-600',    bg: 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-500/30',     text: 'text-indigo-700 dark:text-indigo-300' },
 ];
 
 export default function SupportVideos() {
@@ -238,24 +238,24 @@ export default function SupportVideos() {
   const renderSupportContactHub = () => (
     <div 
       ref={contactHubRef}
-      className="mt-5 mb-4 bg-white border border-slate-200/90 rounded-3xl p-3.5 shadow-md space-y-2.5 select-none relative overflow-hidden"
+      className="mt-5 mb-4 bg-white dark:bg-[#0c1222] border border-slate-200/90 dark:border-slate-800/80 rounded-3xl p-3.5 shadow-md dark:shadow-[0_4px_24px_rgba(0,0,0,0.5)] space-y-2.5 select-none relative overflow-hidden"
     >
       {/* Subtle light ambient glow */}
-      <div className="absolute top-0 right-0 w-44 h-44 bg-violet-100/60 rounded-full blur-2xl pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-36 h-36 bg-amber-50/80 rounded-full blur-2xl pointer-events-none" />
+      <div className="absolute top-0 right-0 w-44 h-44 bg-violet-100/60 dark:bg-violet-900/20 rounded-full blur-2xl pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-36 h-36 bg-amber-50/80 dark:bg-amber-950/20 rounded-full blur-2xl pointer-events-none" />
 
       {/* Ethiopia Call Card */}
       <div className="z-10 relative mb-1">
         {/* Ethiopia Support Card */}
-        <div className="bg-slate-50/80 hover:bg-slate-50 border border-slate-200/80 rounded-2xl p-3 flex flex-col justify-between transition-colors shadow-2xs">
+        <div className="bg-slate-50/80 dark:bg-[#080d19] hover:bg-slate-50 dark:hover:bg-[#0c1424] border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3 flex flex-col justify-between transition-colors shadow-2xs">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center space-x-2.5 min-w-0">
               <span className="text-2xl shrink-0" role="img" aria-label="Ethiopia">🇪🇹</span>
               <div className="min-w-0">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">
+                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider truncate">
                   {language === 'am' ? 'የኢትዮጵያ ቀጥታ መስመር' : 'Ethiopia Direct Line'}
                 </p>
-                <p className="font-mono font-black text-[13px] text-slate-900 tracking-wide truncate">
+                <p className="font-mono font-black text-[13px] text-slate-900 dark:text-white tracking-wide truncate">
                   {formatEthPhone(contact.support_phone_eth)}
                 </p>
               </div>
@@ -271,9 +271,9 @@ export default function SupportVideos() {
             </button>
             <button
               onClick={() => handleCopy(contact.support_phone_eth, 'eth')}
-              className="py-2 px-3 rounded-xl bg-white hover:bg-slate-100 active:scale-95 text-slate-700 text-xs font-bold flex items-center justify-center space-x-1.5 border border-slate-200/80 shadow-2xs transition-transform"
+              className="py-2 px-3 rounded-xl bg-white dark:bg-[#12192c] hover:bg-slate-100 dark:hover:bg-[#1a243e] active:scale-95 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center justify-center space-x-1.5 border border-slate-200/80 dark:border-slate-700 shadow-2xs transition-transform"
             >
-              {copiedType === 'eth' ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} className="text-slate-500" />}
+              {copiedType === 'eth' ? <Check size={13} className="text-emerald-600 dark:text-emerald-400" /> : <Copy size={13} className="text-slate-500 dark:text-slate-400" />}
               <span>{copiedType === 'eth' ? (language === 'am' ? 'ተቀድቷል!' : 'Copied!') : (language === 'am' ? 'ቅዳ' : 'Copy')}</span>
             </button>
           </div>
@@ -308,22 +308,22 @@ export default function SupportVideos() {
         {/* Telegram Official Group */}
         <button
           onClick={handleOpenChannel}
-          className="w-full bg-violet-50/80 hover:bg-violet-100/70 active:scale-[0.98] border border-violet-200/70 text-violet-950 p-3 rounded-2xl flex items-center justify-between transition-transform shadow-2xs"
+          className="w-full bg-violet-50/80 dark:bg-violet-950/40 hover:bg-violet-100/70 dark:hover:bg-violet-900/50 active:scale-[0.98] border border-violet-200/70 dark:border-violet-500/30 text-violet-950 dark:text-violet-100 p-3 rounded-2xl flex items-center justify-between transition-transform shadow-2xs"
         >
           <div className="flex items-center space-x-2.5 min-w-0">
             <div className="w-8 h-8 rounded-xl bg-violet-600 text-white flex items-center justify-center shrink-0 shadow-xs">
               <MessageCircle size={15} />
             </div>
             <div className="text-left min-w-0">
-              <p className="font-black text-xs text-violet-950 leading-tight truncate">
+              <p className="font-black text-xs text-violet-950 dark:text-white leading-tight truncate">
                 {language === 'am' ? 'ይፋዊ ቴሌግራም ግሩፕ' : 'Official Telegram Group'}
               </p>
-              <p className="text-[10.5px] text-violet-700/80 font-medium truncate">
+              <p className="text-[10.5px] text-violet-700/80 dark:text-violet-300 font-medium truncate">
                 {language === 'am' ? 'ተቀላቅለው ከማህበረሰቡ ጋር ይወያዩ' : 'Join our official community'}
               </p>
             </div>
           </div>
-          <span className="text-[10px] font-black uppercase px-2 py-1 rounded-lg bg-white border border-violet-200 text-violet-700 shrink-0 ml-2 shadow-2xs">
+          <span className="text-[10px] font-black uppercase px-2 py-1 rounded-lg bg-white dark:bg-[#12192c] border border-violet-200 dark:border-violet-500/40 text-violet-700 dark:text-violet-300 shrink-0 ml-2 shadow-2xs">
             {language === 'am' ? 'ተቀላቀል' : 'Join'} →
           </span>
         </button>
@@ -332,30 +332,30 @@ export default function SupportVideos() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pb-8">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-[#070b14] dark:via-[#090e1c] dark:to-[#070b14] pb-8">
       {/* Header */}
-      <div className="sticky top-0 z-20 bg-white border-b border-gray-100 px-4 py-3 flex items-center space-x-3 shadow-sm">
+      <div className="sticky top-0 z-20 bg-white dark:bg-[#0b1020]/95 backdrop-blur-md border-b border-gray-100 dark:border-slate-800/80 px-4 py-3 flex items-center space-x-3 shadow-sm">
         <button
           onClick={() => selectedCategory ? setSelectedCategory(null) : navigate(-1)}
-          className="p-2 rounded-xl hover:bg-slate-100 text-slate-600 active:scale-90 transition-all"
+          className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 active:scale-90 transition-all"
         >
           <ChevronLeft size={22} />
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="font-black text-slate-800 text-base">Help & Tutorials</h1>
+          <h1 className="font-black text-slate-800 dark:text-white text-base">Help & Tutorials</h1>
           {selectedCategory ? (
-            <p className="text-xs text-slate-500 font-medium truncate">
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate">
               {selectedCategory === 'all' ? '🗂 All Tutorials' : `${activeCat?.emoji || ''} ${activeCat?.label || ''}`}
             </p>
           ) : (
-            <p className="text-xs text-slate-500 font-medium">Video Guides</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Video Guides</p>
           )}
         </div>
         <button
           onClick={handleSupport}
-          className="flex items-center space-x-1.5 text-xs font-bold text-violet-700 bg-violet-50 hover:bg-violet-100 active:scale-95 px-3 py-1.5 rounded-xl border border-violet-200 transition-all shadow-xs"
+          className="flex items-center space-x-1.5 text-xs font-bold text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/40 hover:bg-violet-100 dark:hover:bg-violet-900/40 active:scale-95 px-3 py-1.5 rounded-xl border border-violet-200 dark:border-violet-500/30 transition-all shadow-xs"
         >
-          <Headphones size={13} className="text-violet-600" />
+          <Headphones size={13} className="text-violet-600 dark:text-violet-400" />
           <span>Support</span>
         </button>
       </div>
@@ -370,12 +370,12 @@ export default function SupportVideos() {
               <button
                 key={cat.id}
                 onClick={() => selectCategory(cat.id)}
-                className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col items-center space-y-2.5 shadow-sm hover:shadow-md active:scale-95 transition-all text-center"
+                className="bg-white dark:bg-[#0c1222] border border-gray-200 dark:border-slate-800/80 rounded-2xl p-4 flex flex-col items-center space-y-2.5 shadow-sm dark:shadow-[0_4px_16px_rgba(0,0,0,0.4)] hover:shadow-md hover:dark:border-slate-700 active:scale-95 transition-all text-center"
               >
                 <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${cat.gradient} flex items-center justify-center shadow-md`}>
                   <span className="text-2xl">{cat.emoji}</span>
                 </div>
-                <span className="font-bold text-slate-700 text-xs leading-tight">{cat.label}</span>
+                <span className="font-bold text-slate-700 dark:text-slate-200 text-xs leading-tight">{cat.label}</span>
               </button>
             ))}
           </div>
@@ -393,7 +393,7 @@ export default function SupportVideos() {
               className={`flex-shrink-0 px-3 py-1.5 rounded-full font-bold text-xs border transition-all ${
                 selectedCategory === 'all'
                   ? 'bg-violet-600 text-white border-violet-600 shadow-sm'
-                  : 'bg-white text-slate-600 border-gray-200'
+                  : 'bg-white dark:bg-[#0c1222] text-slate-600 dark:text-slate-300 border-gray-200 dark:border-slate-800'
               }`}
             >
               🗂 All
@@ -405,7 +405,7 @@ export default function SupportVideos() {
                 className={`flex-shrink-0 px-3 py-1.5 rounded-full font-bold text-xs border transition-all ${
                   selectedCategory === cat.id
                     ? 'bg-violet-600 text-white border-violet-600 shadow-sm'
-                    : 'bg-white text-slate-600 border-gray-200'
+                    : 'bg-white dark:bg-[#0c1222] text-slate-600 dark:text-slate-300 border-gray-200 dark:border-slate-800'
                 }`}
               >
                 {cat.emoji} {cat.label}
@@ -418,10 +418,10 @@ export default function SupportVideos() {
               <Loader2 size={28} className="animate-spin text-violet-500" />
             </div>
           ) : videos.length === 0 ? (
-            <div className="text-center py-16 bg-white rounded-2xl border border-gray-100 p-6">
-              <VideoIcon size={40} className="mx-auto text-slate-300 mb-3" />
-              <p className="text-slate-600 font-bold text-sm">No videos in this category</p>
-              <p className="text-slate-400 text-xs mt-1">Check back soon for new guides</p>
+            <div className="text-center py-16 bg-white dark:bg-[#0c1222] rounded-2xl border border-gray-100 dark:border-slate-800 p-6 shadow-sm">
+              <VideoIcon size={40} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+              <p className="text-slate-600 dark:text-slate-200 font-bold text-sm">No videos in this category</p>
+              <p className="text-slate-400 dark:text-slate-400 text-xs mt-1">Check back soon for new guides</p>
               <button
                 onClick={handleSupport}
                 className="mt-4 inline-flex items-center space-x-1.5 bg-violet-600 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-sm"
@@ -438,7 +438,7 @@ export default function SupportVideos() {
                   <button
                     key={v.id}
                     onClick={() => openVideoAt(idx, videos)}
-                    className="w-full bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md active:scale-[0.98] transition-all text-left"
+                    className="w-full bg-white dark:bg-[#0c1222] border border-gray-200 dark:border-slate-800/80 rounded-2xl overflow-hidden shadow-sm dark:shadow-[0_4px_16px_rgba(0,0,0,0.4)] hover:shadow-md hover:dark:border-slate-700 active:scale-[0.98] transition-all text-left"
                   >
                     <div className="flex items-center space-x-3 p-3">
                       {/* Video Thumbnail with Play Badge */}
@@ -462,15 +462,15 @@ export default function SupportVideos() {
 
                       <div className="flex-1 min-w-0">
                         {selectedCategory === 'all' && itemCat && (
-                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 inline-block mb-1">
+                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-[#12192c] text-slate-600 dark:text-slate-300 inline-block mb-1">
                             {itemCat.emoji} {itemCat.label}
                           </span>
                         )}
-                        <p className="font-bold text-slate-800 text-sm leading-tight line-clamp-2">{v.title}</p>
+                        <p className="font-bold text-slate-800 dark:text-white text-sm leading-tight line-clamp-2">{v.title}</p>
                         {v.description && (
-                          <p className="text-xs text-slate-500 mt-1 line-clamp-1 font-medium">{v.description}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-1 font-medium">{v.description}</p>
                         )}
-                        <div className="flex items-center space-x-1 mt-1.5 text-violet-600">
+                        <div className="flex items-center space-x-1 mt-1.5 text-violet-600 dark:text-violet-400">
                           <Play size={10} fill="currentColor" />
                           <span className="text-[10px] font-bold">Watch Video (Swipeable)</span>
                         </div>
@@ -487,17 +487,17 @@ export default function SupportVideos() {
         </div>
       )}
 
-      {/* FULL-SCREEN REELS/SHORTS-STYLE SWIPEABLE VIDEO PLAYER (CLEAN WHITE THEME) */}
+      {/* FULL-SCREEN REELS/SHORTS-STYLE SWIPEABLE VIDEO PLAYER */}
       {isPlayerOpen && currentVideo && (
         <div
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onWheel={handleWheel}
-          className="fixed inset-0 z-50 bg-white flex flex-col justify-between select-none touch-none"
+          className="fixed inset-0 z-50 bg-white dark:bg-[#070b14] flex flex-col justify-between select-none touch-none"
         >
-          {/* Top Bar - Clean White */}
-          <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-slate-100 z-20 shrink-0">
+          {/* Top Bar */}
+          <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-[#0b1020] border-b border-slate-100 dark:border-slate-800 z-20 shrink-0">
             <div className="flex-1 min-w-0 pr-3">
               <div className="flex items-center space-x-2 mb-1">
                 {currentVideoCat && (
@@ -505,24 +505,24 @@ export default function SupportVideos() {
                     {currentVideoCat.emoji} {currentVideoCat.label}
                   </span>
                 )}
-                <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-[#12192c] px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
                   {activeVideoIndex + 1} of {playerPlaylist.length}
                 </span>
               </div>
-              <p className="font-black text-slate-900 text-sm truncate">{currentVideo.title}</p>
+              <p className="font-black text-slate-900 dark:text-white text-sm truncate">{currentVideo.title}</p>
             </div>
             
             <div className="flex items-center space-x-2">
               <button
                 onClick={handleSupport}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center active:scale-90 transition-all border border-slate-200"
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-[#12192c] hover:bg-slate-200 dark:hover:bg-[#1a243e] text-slate-600 dark:text-slate-300 flex items-center justify-center active:scale-90 transition-all border border-slate-200 dark:border-slate-700"
                 title="Support"
               >
                 <MessageCircle size={16} />
               </button>
               <button 
                 onClick={closeVideoPlayer} 
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center active:scale-90 transition-all border border-slate-200"
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-[#12192c] hover:bg-slate-200 dark:hover:bg-[#1a243e] text-slate-600 dark:text-slate-300 flex items-center justify-center active:scale-90 transition-all border border-slate-200 dark:border-slate-700"
                 title="Close"
               >
                 <X size={18} />
@@ -530,8 +530,8 @@ export default function SupportVideos() {
             </div>
           </div>
 
-          {/* Main Video Viewport - Pure White Canvas */}
-          <div className="flex-1 min-h-0 relative flex items-center justify-center bg-white overflow-hidden p-3">
+          {/* Main Video Viewport */}
+          <div className="flex-1 min-h-0 relative flex items-center justify-center bg-white dark:bg-[#070b14] overflow-hidden p-3">
             <video
               key={currentVideo.id} // Reload video smoothly when index changes
               ref={videoRef}
@@ -539,25 +539,25 @@ export default function SupportVideos() {
               controls
               autoPlay
               playsInline
-              className="w-full max-h-full object-contain bg-white rounded-2xl shadow-lg border border-slate-100"
+              className="w-full max-h-full object-contain bg-black rounded-2xl shadow-lg border border-slate-100 dark:border-slate-800"
               style={{ maxHeight: 'calc(100vh - 160px)' }}
             >
               Your browser does not support video playback.
             </video>
 
-            {/* Floating Navigation Controls on the Right Edge (TikTok / Shorts style - White Theme) */}
+            {/* Floating Navigation Controls on the Right Edge (TikTok / Shorts style) */}
             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col items-center space-y-3 z-30">
               {/* Prev Video Button (▲) */}
               <button
                 onClick={(e) => { e.stopPropagation(); goToPrevVideo(); }}
-                className="w-10 h-10 rounded-full bg-white/95 hover:bg-white text-slate-700 backdrop-blur-md border border-slate-200 shadow-xl flex items-center justify-center active:scale-90 transition-all"
+                className="w-10 h-10 rounded-full bg-white/95 dark:bg-[#0c1222]/95 hover:bg-white dark:hover:bg-[#18233d] text-slate-700 dark:text-slate-200 backdrop-blur-md border border-slate-200 dark:border-slate-700 shadow-xl flex items-center justify-center active:scale-90 transition-all"
                 title="Previous Video (Swipe Down)"
               >
                 <ChevronUp size={20} />
               </button>
 
               {/* Progress counter pill */}
-              <div className="px-2.5 py-1 rounded-full bg-white/95 border border-slate-200 shadow-md text-[10px] font-black text-slate-800">
+              <div className="px-2.5 py-1 rounded-full bg-white/95 dark:bg-[#0c1222]/95 border border-slate-200 dark:border-slate-700 shadow-md text-[10px] font-black text-slate-800 dark:text-slate-200">
                 {activeVideoIndex + 1}/{playerPlaylist.length}
               </div>
 
@@ -572,25 +572,25 @@ export default function SupportVideos() {
             </div>
           </div>
 
-          {/* Bottom Info & Swipe Hint Overlay - Clean White Dock */}
-          <div className="p-4 bg-white border-t border-slate-100 z-20 space-y-2 shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.04)]">
+          {/* Bottom Info & Swipe Hint Overlay */}
+          <div className="p-4 bg-white dark:bg-[#0b1020] border-t border-slate-100 dark:border-slate-800 z-20 space-y-2 shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.04)]">
             {currentVideo.description && (
-              <p className="text-xs text-slate-600 font-medium line-clamp-2 leading-relaxed">
+              <p className="text-xs text-slate-600 dark:text-slate-300 font-medium line-clamp-2 leading-relaxed">
                 {currentVideo.description}
               </p>
             )}
 
             {/* Swipe instruction helper */}
             <div className="flex items-center justify-between pt-0.5">
-              <div className="flex items-center space-x-1.5 text-[11px] font-bold text-slate-500">
-                <span className="inline-block animate-bounce text-violet-600">↕</span>
+              <div className="flex items-center space-x-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                <span className="inline-block animate-bounce text-violet-600 dark:text-violet-400">↕</span>
                 <span>{language === 'am' ? 'ቪዲዮ ለመቀየር ወደ ላይ ወይም ወደ ታች ይጎትቱ' : 'Swipe up or down for next video'}</span>
               </div>
               <button
                 onClick={handleSupport}
-                className="text-[11px] font-black text-violet-700 bg-violet-50 hover:bg-violet-100 px-3 py-1 rounded-full border border-violet-200 transition-colors flex items-center space-x-1 shadow-2xs"
+                className="text-[11px] font-black text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/40 hover:bg-violet-100 dark:hover:bg-violet-900/40 px-3 py-1 rounded-full border border-violet-200 dark:border-violet-500/30 transition-colors flex items-center space-x-1 shadow-2xs"
               >
-                <Headphones size={12} className="text-violet-600" />
+                <Headphones size={12} className="text-violet-600 dark:text-violet-400" />
                 <span>{language === 'am' ? 'እርዳታ ጠይቅ' : 'Ask Admin Help'}</span>
               </button>
             </div>
