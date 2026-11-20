@@ -97,6 +97,8 @@ class BingoEngine {
   private busy = false;
   private playerManualModes = new Map<string, boolean>();
   private gameLastCallTime = new Map<string, number>();
+  private lastWaitingSweepTime = 0;
+  private lastWatchdogTime = 0;
 
   setPlayerMode(telegramId: string, gameId?: string, isManual?: boolean) {
     if (isManual === undefined) return;
@@ -198,6 +200,11 @@ class BingoEngine {
       await supabase.from('bingo_games').update({ status: 'finished' }).in('id', duplicateWaitersToClean);
     }
 
+    // Separate games by operational state for decoupled, priority-based execution
+    const callingGames: any[] = [];
+    const waitingGames: { game: any; room: any }[] = [];
+    const missingGames: { roomId: string; stake: number }[] = [];
+
     for (const room of rooms) {
       const roomStakes: number[] = (Array.isArray((room as any).stakes) && (room as any).stakes.length === 4)
         ? (room as any).stakes.map(Number)
@@ -208,13 +215,95 @@ class BingoEngine {
         const game = gamesMap.get(key);
 
         if (!game) {
-          await this.createGame(room.id, stake);
-        } else if (game.status === 'waiting') {
-          await this.handleWaiting(game, room);
+          missingGames.push({ roomId: room.id, stake });
         } else if (game.status === 'calling') {
-          await this.handleCalling(game);
+          callingGames.push(game);
+        } else if (game.status === 'waiting') {
+          waitingGames.push({ game, room });
         }
       }
+    }
+
+    // ── STEP A: PRIORITY 1 — LIVE CALLING GAMES ──────────────────────────────
+    // Calling games execute concurrently and with top priority.
+    // Each calling game checks its exact interval without waiting for other rooms/stakes!
+    if (callingGames.length > 0) {
+      await Promise.allSettled(callingGames.map(cg => this.handleCalling(cg)));
+    }
+
+    // ── STEP B: MISSING GAMES CREATION ────────────────────────────────────────
+    if (missingGames.length > 0) {
+      await Promise.allSettled(missingGames.map(m => this.createGame(m.roomId, m.stake)));
+    }
+
+    // ── STEP C: WAITING GAMES (THROTTLED EVERY ~800ms) ────────────────────────
+    // Bot joins and countdown checks run every ~800ms rather than every 300ms.
+    // This reduces Supabase connection load by ~70% while keeping countdown completely smooth.
+    const now = Date.now();
+    if (now - this.lastWaitingSweepTime >= 800) {
+      this.lastWaitingSweepTime = now;
+      if (waitingGames.length > 0) {
+        await Promise.allSettled(waitingGames.map(wg => this.handleWaiting(wg.game, wg.room)));
+      }
+    }
+
+    // ── STEP D: ENGINE WATCHDOG (EVERY 20 SECONDS) ────────────────────────────
+    if (now - this.lastWatchdogTime >= 20000) {
+      this.lastWatchdogTime = now;
+      await this.runEngineWatchdog(rooms);
+    }
+  }
+
+  /**
+   * Engine Watchdog: Automatically identifies and unsticks frozen/zombie games:
+   * 1. Calling games older than 5 minutes (max 75 calls = 225s; any game calling > 5m is stuck).
+   * 2. Waiting games with start_at expired > 90s ago that failed to transition.
+   */
+  private async runEngineWatchdog(rooms: any[]) {
+    try {
+      const now = Date.now();
+      const cutoff5m = new Date(now - 300000).toISOString();
+
+      // 1. Terminate stuck calling games (> 5 mins old)
+      const { data: stuckCalling } = await supabase
+        .from('bingo_games')
+        .select('id, room_id, stake, created_at, updated_at')
+        .eq('status', 'calling')
+        .lt('created_at', cutoff5m);
+
+      for (const sg of stuckCalling || []) {
+        console.warn(`🚨 [Watchdog] Detected stuck calling game #${formatGameId(sg.id)} (Stake: ${sg.stake}). Force finishing.`);
+        this.gameLastCallTime.delete(sg.id);
+        systemPlayerService.cleanupGame(sg.id);
+        await supabase.from('bingo_games').update({
+          status: 'finished',
+          winner_first_name: 'Time Limit Expired',
+          winner_prize: 0,
+          finished_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq('id', sg.id);
+
+        this.scheduleFinishedGameCleanup(sg.id);
+        if (sg.room_id) {
+          await this.createGame(sg.room_id, Number(sg.stake));
+        }
+      }
+
+      // 2. Resolve waiting games with start_at expired > 90s ago
+      const cutoff90s = new Date(now - 90000).toISOString();
+      const { data: stuckWaiting } = await supabase
+        .from('bingo_games')
+        .select('id, room_id, stake, start_at')
+        .eq('status', 'waiting')
+        .lt('start_at', cutoff90s);
+
+      for (const sw of stuckWaiting || []) {
+        console.warn(`⚠️ [Watchdog] Detected stuck waiting game #${formatGameId(sw.id)} (Stake: ${sw.stake}, start_at expired). Resolving.`);
+        const room = rooms.find(r => r.id === sw.room_id);
+        await this.handleWaiting(sw, room);
+      }
+    } catch (wErr) {
+      console.warn('[BingoEngine Watchdog] Error running watchdog:', wErr);
     }
   }
 
@@ -318,7 +407,11 @@ class BingoEngine {
     const prizePercent = uniquePlayers >= 3 ? Number(cfg.prize_percent || 80) : 100;
     const prizePool = Math.floor((rawPot * prizePercent) / 100);
 
-    this.gameLastCallTime.set(game.id, Date.now());
+    const callIntervalMs = Number(cfg.call_interval_ms || 3000);
+    // CRITICAL FIX: Set gameLastCallTime so Ball #1 is called in ~600ms!
+    // Eliminates awkward 3-4s dead wait after the 30-second countdown reaches 0!
+    this.gameLastCallTime.set(game.id, Date.now() - callIntervalMs + 600);
+
     await supabase.from('bingo_games').update({
       status: 'calling',
       called_numbers: [],
@@ -326,7 +419,7 @@ class BingoEngine {
       total_players: uniquePlayers,
       updated_at: new Date().toISOString(),
     }).eq('id', game.id);
-    console.log(`🎰 Game #${formatGameId(game.id)} started with ${uniquePlayers} unique players (min: ${minPlayers})! Stake: ${game.stake} ETB | Derash: ${prizePool} ETB | First call in ~3s.`);
+    console.log(`🎰 Game #${formatGameId(game.id)} started with ${uniquePlayers} unique players (min: ${minPlayers})! Stake: ${game.stake} ETB | Derash: ${prizePool} ETB | First ball in ~0.6s.`);
   }
 
   private async refundAndResetGame(game: any) {
@@ -448,61 +541,65 @@ class BingoEngine {
   }
 
   private async handleCalling(game: any) {
-    const called: number[] = (game.called_numbers || []).map(Number);
-    const cfg = await getSettings();
+    try {
+      const called: number[] = (game.called_numbers || []).map(Number);
+      const cfg = await getSettings();
 
-    // Check if interval has passed since last called ball
-    const callIntervalMs = Number(cfg.call_interval_ms || 3000);
-    const lastCalledTime = this.gameLastCallTime.get(game.id) || (game.updated_at ? new Date(game.updated_at).getTime() : 0);
-    const timeSinceLastCall = Date.now() - lastCalledTime;
+      // Check if interval has passed since last called ball
+      const callIntervalMs = Number(cfg.call_interval_ms || 3000);
+      const lastCalledTime = this.gameLastCallTime.get(game.id) || (game.updated_at ? new Date(game.updated_at).getTime() : 0);
+      const timeSinceLastCall = Date.now() - lastCalledTime;
 
-    if (lastCalledTime > 0 && timeSinceLastCall < callIntervalMs) {
-      return;
-    }
-
-    if (called.length >= 75) {
-      // All 75 numbers called — finish with no winner
-      console.log(`🎰 Game #${formatGameId(game.id)} finished: all 75 numbers called with no winner.`);
-      this.gameLastCallTime.delete(game.id);
-      await supabase.from('bingo_games').update({
-        status: 'finished',
-        winner_first_name: 'No Winner',
-        winner_prize: 0,
-        finished_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }).eq('id', game.id);
-      systemPlayerService.cleanupGame(game.id);
-      this.scheduleFinishedGameCleanup(game.id);
-      await this.incrementRoomGames(game.room_id);
-      if (game.room_id) {
-        await this.createGame(game.room_id, game.stake);
+      if (lastCalledTime > 0 && timeSinceLastCall < callIntervalMs) {
+        return;
       }
-      return;
+
+      if (called.length >= 75) {
+        // All 75 numbers called — finish with no winner
+        console.log(`🎰 Game #${formatGameId(game.id)} finished: all 75 numbers called with no winner.`);
+        this.gameLastCallTime.delete(game.id);
+        await supabase.from('bingo_games').update({
+          status: 'finished',
+          winner_first_name: 'No Winner',
+          winner_prize: 0,
+          finished_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq('id', game.id);
+        systemPlayerService.cleanupGame(game.id);
+        this.scheduleFinishedGameCleanup(game.id);
+        await this.incrementRoomGames(game.room_id);
+        if (game.room_id) {
+          await this.createGame(game.room_id, game.stake);
+        }
+        return;
+      }
+
+      // Pick next uncalled number
+      const calledSet = new Set(called);
+      const uncalled: number[] = [];
+      for (let i = 1; i <= 75; i++) {
+        if (!calledSet.has(i)) uncalled.push(i);
+      }
+      const nextNumber = uncalled[Math.floor(Math.random() * uncalled.length)];
+      const newCalled = [...called, nextNumber];
+
+      const { error: updErr } = await supabase.from('bingo_games').update({
+        called_numbers: newCalled,
+        updated_at: new Date().toISOString(),
+      }).eq('id', game.id).eq('status', 'calling');
+
+      if (updErr) {
+        console.error(`❌ Failed to update called numbers for Game #${formatGameId(game.id)}:`, updErr);
+        return;
+      }
+
+      this.gameLastCallTime.set(game.id, Date.now());
+
+      // Check winners after calling this number
+      await this.checkWinners(game.id, newCalled, game.prize_pool, game.stake, game.room_id);
+    } catch (err) {
+      console.error(`❌ Error in handleCalling for Game #${formatGameId(game.id)}:`, err);
     }
-
-    // Pick next uncalled number
-    const calledSet = new Set(called);
-    const uncalled: number[] = [];
-    for (let i = 1; i <= 75; i++) {
-      if (!calledSet.has(i)) uncalled.push(i);
-    }
-    const nextNumber = uncalled[Math.floor(Math.random() * uncalled.length)];
-    const newCalled = [...called, nextNumber];
-
-    const { error: updErr } = await supabase.from('bingo_games').update({
-      called_numbers: newCalled,
-      updated_at: new Date().toISOString(),
-    }).eq('id', game.id).eq('status', 'calling');
-
-    if (updErr) {
-      console.error(`❌ Failed to update called numbers for Game #${formatGameId(game.id)}:`, updErr);
-      return;
-    }
-
-    this.gameLastCallTime.set(game.id, Date.now());
-
-    // Check winners after calling this number
-    await this.checkWinners(game.id, newCalled, game.prize_pool, game.stake, game.room_id);
   }
 
   private async checkWinners(
@@ -512,12 +609,33 @@ class BingoEngine {
     stake: number,
     roomId?: string,
   ) {
-    const { data: players } = await supabase
-      .from('bingo_players')
-      .select('id, telegram_id, cartela_number, card_matrix, first_name, is_system, is_waiter, waiter_agent_id, system_player_id')
-      .eq('game_id', gameId);
+    try {
+      const { data: players, error: plErr } = await supabase
+        .from('bingo_players')
+        .select('id, telegram_id, cartela_number, card_matrix, first_name, is_system, is_waiter, waiter_agent_id, system_player_id')
+        .eq('game_id', gameId);
 
-    if (!players || players.length === 0) return;
+      if (plErr) {
+        console.error(`❌ Error fetching players for Game #${formatGameId(gameId)}:`, plErr);
+        return;
+      }
+
+      if (!players || players.length === 0) {
+        // If a calling game has 0 players, don't keep calling 75 balls for ghost!
+        console.warn(`⚠️ Game #${formatGameId(gameId)} has 0 players in calling status. Finishing ghost game.`);
+        this.gameLastCallTime.delete(gameId);
+        systemPlayerService.cleanupGame(gameId);
+        await supabase.from('bingo_games').update({
+          status: 'finished',
+          winner_first_name: 'No Players',
+          winner_prize: 0,
+          finished_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq('id', gameId);
+        this.scheduleFinishedGameCleanup(gameId);
+        if (roomId) await this.createGame(roomId, stake);
+        return;
+      }
 
     // System bots check automatically. Real players check automatically ONLY if auto mode is on.
     const autoPlayers = players.filter(p => p.is_system || !this.isPlayerManual(p.telegram_id, gameId, (p as any).is_manual));
@@ -862,6 +980,9 @@ class BingoEngine {
 
     if (roomId) {
       await this.createGame(roomId, stake);
+    }
+    } catch (err) {
+      console.error(`❌ Error in checkWinners for Game #${formatGameId(gameId)}:`, err);
     }
   }
 

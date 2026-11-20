@@ -210,6 +210,7 @@ router.get('/current', optionalTelegramAuth, async (req: AuthRequest, res) => {
 
   // Find if a game recently finished (< 15s ago) so celebration is guaranteed to display
   let last_finished_game: any = null;
+  let last_finished_game_participated = false;
   let finishedQuery = supabase
     .from('bingo_games')
     .select('*')
@@ -226,6 +227,19 @@ router.get('/current', optionalTelegramAuth, async (req: AuthRequest, res) => {
     const msSince = Date.now() - new Date(recentFinished.finished_at).getTime();
     if (msSince < 15000) {
       last_finished_game = recentFinished;
+      if (telegramId) {
+        if (recentFinished.winner_telegram_id === telegramId) {
+          last_finished_game_participated = true;
+        } else {
+          const { data: pCheck } = await supabase.from('bingo_players')
+            .select('id')
+            .eq('game_id', recentFinished.id)
+            .eq('telegram_id', telegramId)
+            .limit(1)
+            .maybeSingle();
+          last_finished_game_participated = Boolean(pCheck && pCheck.id);
+        }
+      }
       if (recentFinished.winner_cartela) {
         const { data: wp } = await supabase.from('bingo_players')
           .select('card_matrix')
@@ -278,6 +292,7 @@ router.get('/current', optionalTelegramAuth, async (req: AuthRequest, res) => {
   res.json({
     game,
     last_finished_game,
+    last_finished_game_participated,
     cartela_matrices,
     cartela_players,
     taken_cartelas,

@@ -1002,16 +1002,33 @@ export default function BingoGame() {
           cartelaMatricesRef.current = { ...cartelaMatricesRef.current, ...d.cartela_matrices };
         }
         
-        // Guarantee celebration popup fires even if WebSocket was delayed or dropped!
+        // Guarantee celebration popup fires even if WebSocket was delayed or dropped,
+        // but ONLY if the user was actively watching this game or participated/won in it!
+        // Never hijack new visitors navigating from Home or another room!
         if (d.last_finished_game && !celebratedGamesRef.current.has(d.last_finished_game.id)) {
-          triggerCelebration(d.last_finished_game);
-          return;
+          const isActivelyWatching = Boolean(gameIdRef.current && gameIdRef.current === d.last_finished_game.id);
+          const userWon = Boolean(user?.telegram_id && String(d.last_finished_game.winner_telegram_id) === String(user.telegram_id));
+          const userParticipated = Boolean(d.last_finished_game_participated || userWon);
+
+          if (isActivelyWatching || userParticipated) {
+            triggerCelebration(d.last_finished_game);
+            return;
+          } else {
+            // Player just arrived from Home/another room to pick cartelas: suppress celebration modal
+            celebratedGamesRef.current.add(d.last_finished_game.id);
+          }
         }
 
         if (d.game) {
           if (d.game.status === 'finished' && !celebratedGamesRef.current.has(d.game.id)) {
-            triggerCelebration(d.game);
-            return;
+            const isActivelyWatching = Boolean(gameIdRef.current && gameIdRef.current === d.game.id);
+            const userWon = Boolean(user?.telegram_id && String(d.game.winner_telegram_id) === String(user.telegram_id));
+            if (isActivelyWatching || userWon) {
+              triggerCelebration(d.game);
+              return;
+            } else {
+              celebratedGamesRef.current.add(d.game.id);
+            }
           }
           setGame(d.game);
           setTaken(d.taken_cartelas ?? []);

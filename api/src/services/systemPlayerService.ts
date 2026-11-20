@@ -128,6 +128,51 @@ export const SYSTEM_PLAYER_STARTING_TELEGRAM_ID = 10000000000n;
 
 export class SystemPlayerService {
   private botTelegramIdCache = new Map<string, string>();
+  private roomBotsCache = new Map<string, { time: number; bots: any[] }>();
+
+  /**
+   * Cached fetch of room system players pool (60s cache).
+   * Drastically reduces repeated heavy 1000-row network roundtrips to Supabase.
+   */
+  async getRoomPoolBots(roomId: string): Promise<any[]> {
+    const cached = this.roomBotsCache.get(roomId);
+    if (cached && Date.now() - cached.time < 60000 && cached.bots.length > 0) {
+      return cached.bots;
+    }
+
+    let poolBots: any[] | null = null;
+    const { data: botsWithTid, error: poolErr } = await supabase
+      .from('system_players')
+      .select('id, first_name, telegram_id')
+      .eq('room_id', roomId)
+      .limit(1000);
+
+    if (poolErr && poolErr.code === '42703') {
+      const { data: fallbackBots } = await supabase
+        .from('system_players')
+        .select('id, first_name')
+        .eq('room_id', roomId)
+        .limit(1000);
+      poolBots = fallbackBots;
+    } else {
+      poolBots = botsWithTid;
+    }
+
+    if (poolBots && poolBots.length > 0) {
+      this.roomBotsCache.set(roomId, { time: Date.now(), bots: poolBots });
+      this.registerRoomBots(roomId, poolBots);
+      return poolBots;
+    }
+    return [];
+  }
+
+  invalidateRoomBotsCache(roomId?: string) {
+    if (roomId) {
+      this.roomBotsCache.delete(roomId);
+    } else {
+      this.roomBotsCache.clear();
+    }
+  }
 
   /**
    * Determine the next available global system player telegram_id
@@ -333,6 +378,7 @@ export class SystemPlayerService {
       }
 
       console.log(`🤖 Seeded ${inserted} stylized system players for room ${roomId} (total pool: ${existingCount + inserted})`);
+      this.invalidateRoomBotsCache(roomId);
       return existingCount + inserted;
     } catch (e) {
       console.error(`Failed to seed system players for room ${roomId}:`, e);
@@ -377,6 +423,7 @@ export class SystemPlayerService {
       }
 
       console.log(`🤖 Reseeded ${inserted} fresh unique stylized system players for room ${roomId} (starting Telegram ID: ${startTelegramId})`);
+      this.invalidateRoomBotsCache(roomId);
       return inserted;
     } catch (e) {
       console.error(`Failed to reseed system players for room ${roomId}:`, e);
@@ -808,32 +855,14 @@ export class SystemPlayerService {
       countToAdd = Math.min(needed, botsPerJoin);
     }
 
-    // Pick system players from the room pool who haven't joined this game yet
-    let poolBots: any[] | null = null;
-    const { data: botsWithTid, error: poolErr } = await supabase
-      .from('system_players')
-      .select('id, first_name, telegram_id')
-      .eq('room_id', room.id)
-      .limit(1000);
-
-    if (poolErr && poolErr.code === '42703') {
-      const { data: fallbackBots } = await supabase
-        .from('system_players')
-        .select('id, first_name')
-        .eq('room_id', room.id)
-        .limit(1000);
-      poolBots = fallbackBots;
-    } else {
-      poolBots = botsWithTid;
-    }
+    // Pick system players from the room pool who haven't joined this game yet (uses 60s in-memory cache)
+    const poolBots = await this.getRoomPoolBots(room.id);
 
     if (!poolBots || poolBots.length === 0) {
       // Pool empty? Auto-seed the 1,000 pool in the background!
       this.seedSystemPlayersPool(room.id, 1000).catch(console.error);
       return;
     }
-
-    this.registerRoomBots(room.id, poolBots);
 
     const availableBots = poolBots.filter(b => !existingSystemPlayerIds.has(b.id));
     if (availableBots.length === 0) return;
