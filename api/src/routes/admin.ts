@@ -6,6 +6,7 @@ import { getAgencyWithdrawalFeeSettings, saveAgencyWithdrawalFeeSettings, calcul
 import { checkAndAutoPostProofs } from './channelProofs';
 import { systemPlayerService } from '../services/systemPlayerService';
 import { invalidatePoolsCache } from './bingo';
+import { removeBotNotificationButtons, deleteBotNotificationMessages } from '../services/botNotifications';
 
 const router = Router();
 
@@ -352,6 +353,9 @@ router.post('/deposits/:id/approve', async (req, res) => {
   // Mark deposit as approved
   await supabase.from('deposits').update({ status: 'approved', updated_at: new Date() }).eq('id', req.params.id);
 
+  // Remove buttons from Telegram bot notification messages sent to workers
+  removeBotNotificationButtons('deposit', req.params.id).catch(e => console.error('bot buttons removal error:', e));
+
   // Send Telegram Notification to the depositor
   try {
     let msgText = `✅ *Deposit Approved!*\n\n💰 Amount: *${Number(deposit.amount).toLocaleString('en-US')} ETB* has been added to your balance.`;
@@ -405,6 +409,10 @@ router.delete('/deposits/:id/reject', async (req, res) => {
   const { data: deposit } = await supabase.from('deposits').select('*').eq('id', req.params.id).maybeSingle();
   if (deposit && deposit.status === 'pending') {
     await supabase.from('deposits').update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', req.params.id);
+
+    // Completely delete the notification message from the Telegram bot for all workers
+    deleteBotNotificationMessages('deposit', req.params.id).catch(e => console.error('bot message delete error:', e));
+
     try {
       const msg = `❌ *Deposit Rejected*\n\nYour deposit of *${Number(deposit.amount).toLocaleString('en-US')} ETB* could not be verified and has been rejected.\n\nIf you believe this is an error, please contact support with your receipt.`;
       await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
@@ -877,6 +885,9 @@ router.post('/withdrawals/:id/approve', async (req, res) => {
 
   await supabase.from('withdrawals').update({ status: 'approved', updated_at: new Date() }).eq('id', req.params.id);
 
+  // Remove buttons from Telegram bot notification messages sent to workers
+  removeBotNotificationButtons('withdraw', req.params.id).catch(e => console.error('bot buttons removal error:', e));
+
   // Notify user
   try {
     const feeSettings = await getWithdrawalFeeSettings();
@@ -918,6 +929,9 @@ router.delete('/withdrawals/:id/reject', async (req, res) => {
 
     // Mark as rejected
     await supabase.from('withdrawals').update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', req.params.id);
+
+    // Completely delete the notification message from the Telegram bot for all workers
+    deleteBotNotificationMessages('withdraw', req.params.id).catch(e => console.error('bot message delete error:', e));
   }
 
   // Notify user

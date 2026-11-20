@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { AuthRequest, validateTelegramAuth } from '../middleware/auth';
 import { supabase } from '../services/supabase';
+import { trackBotNotification, StoredBotMessage } from '../services/botNotifications';
 
 const router = Router();
 
@@ -94,12 +95,12 @@ router.post('/request', async (req: AuthRequest, res) => {
 
   if (error) { res.status(500).json({ error: error.message }); return; }
 
-  // Notify workers & admins
+  // Notify workers only (not admin)
   try {
     const { data: workers } = await supabase
       .from('users')
-      .select('telegram_id')
-      .in('role', ['worker', 'admin']);
+      .select('telegram_id, permissions')
+      .eq('role', 'worker');
 
     if (workers && workers.length > 0) {
       const typeLabels: Record<string, string> = {
@@ -132,8 +133,11 @@ router.post('/request', async (req: AuthRequest, res) => {
       const botToken = process.env.BOT_TOKEN;
       if (botToken) {
         const hasPhotoUrl = cleanScreenshotUrl && cleanScreenshotUrl.startsWith('http');
+        const sentMessages: StoredBotMessage[] = [];
+
         for (const worker of workers) {
           if (!worker.telegram_id) continue;
+          if (worker.permissions && worker.permissions.deposits === false) continue;
           let sentOk = false;
           if (hasPhotoUrl) {
             try {
@@ -148,7 +152,13 @@ router.post('/request', async (req: AuthRequest, res) => {
                   reply_markup: replyMarkup
                 })
               });
-              if (photoRes.ok) sentOk = true;
+              if (photoRes.ok) {
+                const pData: any = await photoRes.json();
+                if (pData.ok && pData.result?.message_id) {
+                  sentMessages.push({ chat_id: worker.telegram_id, message_id: pData.result.message_id });
+                }
+                sentOk = true;
+              }
             } catch (err) {
               console.warn('sendPhoto to worker failed:', err);
             }
@@ -159,17 +169,31 @@ router.post('/request', async (req: AuthRequest, res) => {
               ? `${message}\n📸 [View Screenshot](${cleanScreenshotUrl})`
               : message;
 
-            await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                chat_id: worker.telegram_id,
-                text: fallbackText,
-                parse_mode: 'Markdown',
-                reply_markup: replyMarkup
-              })
-            }).catch(e => console.error('Failed to send to worker:', e));
+            try {
+              const msgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: worker.telegram_id,
+                  text: fallbackText,
+                  parse_mode: 'Markdown',
+                  reply_markup: replyMarkup
+                })
+              });
+              if (msgRes.ok) {
+                const mData: any = await msgRes.json();
+                if (mData.ok && mData.result?.message_id) {
+                  sentMessages.push({ chat_id: worker.telegram_id, message_id: mData.result.message_id });
+                }
+              }
+            } catch (e) {
+              console.error('Failed to send to worker:', e);
+            }
           }
+        }
+
+        if (sentMessages.length > 0) {
+          await trackBotNotification('deposit', data.id, sentMessages);
         }
       }
     }

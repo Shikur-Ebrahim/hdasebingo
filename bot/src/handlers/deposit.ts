@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase';
 import { getDynamicBotSettings } from '../services/settings';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import fetch from 'node-fetch';
+import { trackBotNotification, StoredBotMessage } from '../services/botNotifications';
 
 // R2 client
 const r2 = new S3Client({
@@ -288,12 +289,12 @@ export async function handleDepositScreenshot(ctx: Context) {
 
     clearDepositSession(userId);
 
-    // ── Notify Workers ────────────────────────────────────────────────────────
+    // ── Notify Workers Only (not admin) ──────────────────────────────────────
     try {
       const { data: workers } = await supabase
         .from('users')
         .select('telegram_id')
-        .in('role', ['worker', 'admin']);
+        .eq('role', 'worker');
 
       if (workers && workers.length > 0 && depRecord) {
         const safeUsername = (ctx.from?.username || ctx.from?.first_name || 'User').replace(/[_*[\]]/g, '\\$&');
@@ -314,27 +315,43 @@ export async function handleDepositScreenshot(ctx: Context) {
           ]
         };
 
+        const sentMessages: StoredBotMessage[] = [];
+
         for (const worker of workers) {
           if (!worker.telegram_id) continue;
           let photoSent = false;
           if (screenshotUrl && screenshotUrl.startsWith('http')) {
             try {
-              await ctx.api.sendPhoto(worker.telegram_id, screenshotUrl, {
+              const res = await ctx.api.sendPhoto(worker.telegram_id, screenshotUrl, {
                 caption: notifyCaption,
                 parse_mode: 'Markdown',
                 reply_markup: replyMarkup,
               });
+              if (res?.message_id) {
+                sentMessages.push({ chat_id: worker.telegram_id, message_id: res.message_id });
+              }
               photoSent = true;
             } catch (pErr) {
               console.warn('sendPhoto to worker failed:', pErr);
             }
           }
           if (!photoSent) {
-            await ctx.api.sendMessage(worker.telegram_id, notifyCaption, {
-              parse_mode: 'Markdown',
-              reply_markup: replyMarkup,
-            }).catch(e => console.error(e));
+            try {
+              const res = await ctx.api.sendMessage(worker.telegram_id, notifyCaption, {
+                parse_mode: 'Markdown',
+                reply_markup: replyMarkup,
+              });
+              if (res?.message_id) {
+                sentMessages.push({ chat_id: worker.telegram_id, message_id: res.message_id });
+              }
+            } catch (e) {
+              console.error(e);
+            }
           }
+        }
+
+        if (sentMessages.length > 0) {
+          await trackBotNotification('deposit', depRecord.id, sentMessages);
         }
       }
     } catch (notifyErr) {

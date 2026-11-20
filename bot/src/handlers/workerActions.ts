@@ -1,5 +1,6 @@
 import { Context } from 'grammy';
 import { supabase } from '../services/supabase';
+import { removeBotNotificationButtons, deleteBotNotificationMessages } from '../services/botNotifications';
 
 /**
  * Handle worker/admin deposit approval or rejection directly from Telegram
@@ -81,11 +82,15 @@ export async function handleDepositAction(ctx: Context, action: 'approve' | 'rej
       console.error('Failed to notify user on deposit rejection:', e);
     }
 
-    await ctx.answerCallbackQuery({ text: '❌ Deposit rejected.' });
+    await ctx.answerCallbackQuery({ text: '❌ Deposit rejected and removed.' });
 
-    // Update Telegram message to reflect rejection & remove buttons
-    const badge = `\n\n❌ *REJECTED* by ${workerName} at ${nowEAT} (EAT)`;
-    await updateWorkerMessage(ctx, badge);
+    // Delete Telegram message completely
+    try {
+      await ctx.deleteMessage();
+    } catch (_) {}
+
+    // Delete message for other workers
+    await deleteBotNotificationMessages('deposit', depositId, ctx.from?.id);
     return;
   }
 
@@ -260,6 +265,7 @@ export async function handleDepositAction(ctx: Context, action: 'approve' | 'rej
   // 7. Update worker message
   const badge = `\n\n✅ *APPROVED* by ${workerName} at ${nowEAT} (EAT)`;
   await updateWorkerMessage(ctx, badge);
+  await removeBotNotificationButtons('deposit', depositId, badge, ctx.from?.id);
 }
 
 /**
@@ -355,11 +361,15 @@ export async function handleWithdrawalAction(ctx: Context, action: 'approve' | '
       console.error('Failed to notify user on withdrawal rejection:', e);
     }
 
-    await ctx.answerCallbackQuery({ text: '❌ Withdrawal rejected and refunded to user wallet.' });
+    await ctx.answerCallbackQuery({ text: '❌ Withdrawal rejected, refunded, and removed.' });
 
-    // 4. Update worker Telegram message
-    const badge = `\n\n❌ *REJECTED & REFUNDED* by ${workerName} at ${nowEAT} (EAT)`;
-    await updateWorkerMessage(ctx, badge);
+    // Delete message completely
+    try {
+      await ctx.deleteMessage();
+    } catch (_) {}
+
+    // Delete message for other workers
+    await deleteBotNotificationMessages('withdraw', withdrawalId, ctx.from?.id);
     return;
   }
 
@@ -391,6 +401,7 @@ export async function handleWithdrawalAction(ctx: Context, action: 'approve' | '
   // Update worker message
   const badge = `\n\n✅ *APPROVED & SENT* by ${workerName} at ${nowEAT} (EAT)`;
   await updateWorkerMessage(ctx, badge);
+  await removeBotNotificationButtons('withdraw', withdrawalId, badge, ctx.from?.id);
 }
 
 /**

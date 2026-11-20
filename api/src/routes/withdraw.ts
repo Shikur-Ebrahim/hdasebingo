@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { AuthRequest, validateTelegramAuth } from '../middleware/auth';
 import { supabase } from '../services/supabase';
 import { getWithdrawalFeeSettings, calculateWithdrawalFee } from '../services/withdrawalFee';
+import { trackBotNotification, StoredBotMessage } from '../services/botNotifications';
 
 const router = Router();
 
@@ -168,9 +169,12 @@ router.post('/request', async (req: AuthRequest, res) => {
     return;
   }
 
-  // 5. Notify workers & admins via Telegram
+  // 5. Notify workers only (not admin) via Telegram
   try {
-    const { data: workers } = await supabase.from('users').select('telegram_id').in('role', ['worker', 'admin']);
+    const { data: workers } = await supabase
+      .from('users')
+      .select('telegram_id, permissions')
+      .eq('role', 'worker');
 
     if (workers && workers.length > 0) {
       const safeUsername = (req.telegramUser?.username || req.telegramUser?.first_name || 'User').replace(/[_*[\]]/g, '\\$&');
@@ -202,18 +206,33 @@ router.post('/request', async (req: AuthRequest, res) => {
 
       const botToken = process.env.BOT_TOKEN;
       if (botToken) {
+        const sentMessages: StoredBotMessage[] = [];
         for (const worker of workers) {
           if (!worker.telegram_id) continue;
-          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: worker.telegram_id,
-              text: message,
-              parse_mode: 'Markdown',
-              reply_markup: replyMarkup
-            })
-          }).catch(e => console.error('Failed to send to worker:', e));
+          if (worker.permissions && worker.permissions.withdrawals === false) continue;
+          try {
+            const msgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: worker.telegram_id,
+                text: message,
+                parse_mode: 'Markdown',
+                reply_markup: replyMarkup
+              })
+            });
+            if (msgRes.ok) {
+              const mData: any = await msgRes.json();
+              if (mData.ok && mData.result?.message_id) {
+                sentMessages.push({ chat_id: worker.telegram_id, message_id: mData.result.message_id });
+              }
+            }
+          } catch (e) {
+            console.error('Failed to send to worker:', e);
+          }
+        }
+        if (sentMessages.length > 0) {
+          await trackBotNotification('withdraw', withdrawal.id, sentMessages);
         }
       }
     }
