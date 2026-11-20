@@ -3,6 +3,7 @@ import { AuthRequest, validateTelegramAuth, optionalTelegramAuth } from '../midd
 import { supabase } from '../services/supabase';
 import { generateBingoCard, getFixedCartelaMatrix, checkBingo, engine } from '../services/BingoEngine';
 import { getSettings } from './adminSettings';
+import { calculateWaitingDuration } from '../services/systemPlayerService';
 
 const router = Router();
 
@@ -425,9 +426,33 @@ router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
     const prizePool = Math.floor((rawPool * prizePercent) / 100);
 
     let newStartAt = game.start_at;
-    // Trigger countdown from settings waiting_period_s when first player joins
+    // Trigger countdown when first player joins: dynamically scale duration by max bots
     if (new Date(game.start_at).getTime() > Date.now() + 86400000) {
-      newStartAt = new Date(Date.now() + Math.min(30, cfg.waiting_period_s || 30) * 1000).toISOString();
+      let targetBots = 15;
+      if (selectedRoomId) {
+        const { data: roomData } = await supabase
+          .from('rooms')
+          .select('stakes, system_players_enabled, system_players_stake_configs, waiter_players_enabled, waiter_players_stake_configs')
+          .eq('id', selectedRoomId)
+          .maybeSingle();
+
+        if (roomData) {
+          const roomStakes: number[] = Array.isArray(roomData.stakes) && roomData.stakes.length === 4
+            ? roomData.stakes.map(Number)
+            : [5, 10, 20, 35];
+          const sIdx = roomStakes.indexOf(Number(game.stake));
+          const tier = sIdx >= 0 ? `stake_${sIdx + 1}` : 'stake_1';
+
+          const sysConfigs = (roomData.system_players_stake_configs || {}) as any;
+          const waiterConfigs = (roomData.waiter_players_stake_configs || {}) as any;
+
+          const sysMax = Number(sysConfigs[tier]?.max || 0);
+          const waiterMax = Number(waiterConfigs[tier]?.max || 0);
+          targetBots = Math.max(targetBots, sysMax, waiterMax);
+        }
+      }
+      const waitingSec = calculateWaitingDuration(targetBots, cfg.waiting_period_s || 30);
+      newStartAt = new Date(Date.now() + waitingSec * 1000).toISOString();
     }
 
     await supabase.from('bingo_games').update({

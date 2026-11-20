@@ -18,6 +18,23 @@ export const DEFAULT_WAITER_STAKE_CONFIGS = {
   stake_4: { enabled: false, min: 1, max: 2 },
 };
 
+/**
+ * Calculate dynamic waiting countdown duration based on target/max bot count.
+ * - Standard pool (<= 15 bots): 30s (default quick start)
+ * - Medium pool (16-30 bots): 40s
+ * - Busy pool (31-60 bots): 55s
+ * - Large pool (61-100 bots): 75s
+ * - Giant pool (> 100 bots): up to 90s - 120s
+ */
+export function calculateWaitingDuration(targetBots: number, configuredWaitingSec = 30): number {
+  const base = Math.max(25, Number(configuredWaitingSec) || 30);
+  if (targetBots <= 15) return base;
+  if (targetBots <= 30) return Math.max(base, 40);
+  if (targetBots <= 60) return Math.max(base, 55);
+  if (targetBots <= 100) return Math.max(base, 75);
+  return Math.min(120, Math.max(base, Math.round(35 + targetBots * 0.4)));
+}
+
 // Modern authentic player handles pool (featuring @, $, %, ., emojis, gaming tags, and non-repeated Ethiopian nicknames)
 const BOT_ROOTS = [
   'miki', 'dani', 'alex', 'robel', 'natty', 'sami', 'yoni', 'teddy', 'bini', 'abdu',
@@ -649,21 +666,22 @@ export class SystemPlayerService {
       // (Waiter bots only join after a real human buys a cartela, they never kickstart empty far-future tables)
       if (!isAutoBustleActive) return;
 
-      // Auto-Bustle active: kickstart 30-second waiting countdown to keep table bustling
-      const waitingSec = Math.min(30, cfg.waiting_period_s || 30);
+      // Calculate target bots & dynamic waiting countdown duration
+      const targetBots = this.getTargetBotsForGame(game, room, false, tierConfig, ramp);
+      const waitingSec = calculateWaitingDuration(targetBots, cfg.waiting_period_s || 30);
       const newStartAt = new Date(now + waitingSec * 1000).toISOString();
       await supabase.from('bingo_games').update({
         start_at: newStartAt,
         updated_at: new Date().toISOString(),
       }).eq('id', game.id);
       game.start_at = newStartAt;
-      console.log(`🤖 Room ${room.room_name || room.id} (Stake: ${game.stake}): System Player kickstarted 30s waiting countdown`);
+      console.log(`🤖 Room ${room.room_name || room.id} (Stake: ${game.stake}): System Player kickstarted ${waitingSec}s waiting countdown (Target: ${targetBots} bots)`);
       return;
     }
 
     const remainingSec = (startTime - now) / 1000;
-    // Don't join in the final 1.0 second to cleanly transition into calling
-    if (remainingSec <= 1.0 || remainingSec > 35) return;
+    // Don't join in the final 1.0 second to cleanly transition into calling (support up to 130s countdowns)
+    if (remainingSec <= 1.0 || remainingSec > 130) return;
 
     // Determine active mode for this tick:
     let isWaiterMode = false;
@@ -715,17 +733,29 @@ export class SystemPlayerService {
     // Available seconds to join before cutoff (at 1.0s)
     const availableSec = Math.max(0.5, remainingSec - 1.0);
 
+    // If target is high (>= 25 bots) and remaining countdown is too short (e.g. settings updated mid-game), extend countdown
+    if (needed >= 20 && remainingSec < 15) {
+      const neededDuration = calculateWaitingDuration(targetBots, cfg.waiting_period_s || 30);
+      const adjustedStartAt = new Date(now + neededDuration * 1000).toISOString();
+      await supabase.from('bingo_games').update({
+        start_at: adjustedStartAt,
+        updated_at: new Date().toISOString(),
+      }).eq('id', game.id);
+      game.start_at = adjustedStartAt;
+      console.log(`⏱️ Room ${room.room_name || room.id}: Waiting countdown dynamically extended to ${neededDuration}s for ${targetBots} target bots`);
+    }
+
     let countToAdd = 1;
     if (remainingSec <= 3.5) {
       // Final stretch: ensure all needed bots join immediately so the game NEVER starts below target!
       countToAdd = needed;
     } else {
-      // Calculate pacing interval: naturally spread bots every 0.8s to 2.2s
-      const targetIntervalMs = Math.max(800, Math.min(2200, Math.floor((availableSec * 1000) / Math.max(1, needed))));
+      // Calculate pacing interval: naturally spread bots every 0.6s to 2.2s based on target/max count
+      const targetIntervalMs = Math.max(600, Math.min(2200, Math.floor((availableSec * 1000) / Math.max(1, needed * 1.2))));
       if (timeSinceLastJoin < targetIntervalMs) return;
 
       const intervalsRemaining = Math.max(1, Math.floor((availableSec * 1000) / targetIntervalMs));
-      const botsPerJoin = Math.max(1, Math.min(4, Math.ceil(needed / intervalsRemaining)));
+      const botsPerJoin = Math.max(1, Math.min(8, Math.ceil(needed / intervalsRemaining)));
       countToAdd = Math.min(needed, botsPerJoin);
     }
 
