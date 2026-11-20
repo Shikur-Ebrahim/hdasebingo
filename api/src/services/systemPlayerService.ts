@@ -412,7 +412,15 @@ export class SystemPlayerService {
    * - Ramp-down (last 30m of schedule): tapers down gradually to 1 and becomes 0 at end time
    * (Uses UTC+3 East Africa Time / Ethiopia)
    */
-  getScheduleRampInfo(scheduleStart?: string, scheduleEnd?: string): {
+  /**
+   * Get schedule ramp info for smooth realistic transition:
+   * - Standard Operating Schedule: 06:00 to 24:00 (East Africa Time / UTC+3).
+   * - Platform Night Rest: 00:00 to 05:59 is strictly OFF for system players across all rooms unless admin-unlocked.
+   * - Waiter bots operate 24 hours continuously without any schedule restriction.
+   * - Ramp-up (first 30m of schedule): starts at 2 players and scales up to target
+   * - Ramp-down (last 30m of schedule): tapers down gradually to 2 players, reaches 0 at end time
+   */
+  getScheduleRampInfo(scheduleStart?: string, scheduleEnd?: string, room?: any): {
     isActive: boolean;
     is24h: boolean;
     isRampingUp: boolean;
@@ -420,36 +428,47 @@ export class SystemPlayerService {
     remainingMinutes: number;
     elapsedMinutes: number;
   } {
-    const rawStart = (scheduleStart || '00:00').trim();
+    const rawStart = (scheduleStart || '06:00').trim();
     const rawEnd = (scheduleEnd || '24:00').trim();
 
-    const start = rawStart || '00:00';
-    const end = rawEnd || '24:00';
-
-    // 24/7 Always Active check:
-    // If start is 00:00 and end is 24:00, 23:59, 00:00, or start === end -> 24 Hours non-stop
-    if (
-      (start === '00:00' && (end === '24:00' || end === '23:59' || end === '00:00')) ||
-      (start === '24:00' && end === '24:00') ||
-      start === end ||
-      !scheduleStart ||
-      !scheduleEnd
-    ) {
-      return {
-        isActive: true,
-        is24h: true,
-        isRampingUp: false,
-        isRampingDown: false,
-        remainingMinutes: 1440,
-        elapsedMinutes: 1440,
-      };
-    }
+    let start = rawStart || '06:00';
+    let end = rawEnd || '24:00';
 
     const now = new Date();
     // UTC+3 for Ethiopian local time
     const etHour = (now.getUTCHours() + 3) % 24;
     const etMinute = now.getUTCMinutes();
     const currentMinutes = etHour * 60 + etMinute;
+
+    // Platform Night Rest: 00:00 - 05:59 (minutes 0 to 359).
+    // System players are strictly OFF during this interval across all rooms,
+    // unless explicitly unlocked by Admin.
+    const isNightRestInterval = currentMinutes >= 0 && currentMinutes < 6 * 60; // 00:00 to 05:59
+    const isNightUnlocked = Boolean(room?.system_players_night_unlocked);
+
+    if (isNightRestInterval && !isNightUnlocked) {
+      return {
+        isActive: false,
+        is24h: false,
+        isRampingUp: false,
+        isRampingDown: false,
+        remainingMinutes: 0,
+        elapsedMinutes: 0,
+      };
+    }
+
+    // Unless unlocked by Admin, start time cannot be before 06:00
+    if (!isNightUnlocked) {
+      const [sH] = start.split(':').map(Number);
+      if (sH === undefined || sH < 6) {
+        start = '06:00';
+      }
+    }
+
+    // End time cannot exceed 24:00
+    if (end === '00:00' || end > '24:00') {
+      end = '24:00';
+    }
 
     const [sH, sM] = start.split(':').map(Number);
     const startMinutes = (sH || 0) * 60 + (sM || 0);
@@ -465,31 +484,35 @@ export class SystemPlayerService {
     let remainingMinutes = 0;
 
     if (startMinutes <= endMinutes) {
-      // Normal day window e.g. 08:00 to 22:00
+      // Normal operating window e.g. 06:00 to 24:00, or 07:00 to 22:00
       isActive = currentMinutes >= startMinutes && currentMinutes <= endMinutes;
       if (isActive) {
         elapsedMinutes = currentMinutes - startMinutes;
         remainingMinutes = endMinutes - currentMinutes;
       }
     } else {
-      // Overnight window e.g. 20:00 to 04:00
-      isActive = currentMinutes >= startMinutes || currentMinutes <= endMinutes;
-      if (isActive) {
-        if (currentMinutes >= startMinutes) {
-          elapsedMinutes = currentMinutes - startMinutes;
-          remainingMinutes = (24 * 60 - currentMinutes) + endMinutes;
-        } else {
-          elapsedMinutes = (24 * 60 - startMinutes) + currentMinutes;
-          remainingMinutes = endMinutes - currentMinutes;
+      // Overnight window (only active if night hours are admin-unlocked)
+      if (isNightUnlocked) {
+        isActive = currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+        if (isActive) {
+          if (currentMinutes >= startMinutes) {
+            elapsedMinutes = currentMinutes - startMinutes;
+            remainingMinutes = (24 * 60 - currentMinutes) + endMinutes;
+          } else {
+            elapsedMinutes = (24 * 60 - startMinutes) + currentMinutes;
+            remainingMinutes = endMinutes - currentMinutes;
+          }
         }
+      } else {
+        isActive = false;
       }
     }
 
     return {
       isActive,
       is24h: false,
-      isRampingUp: isActive && elapsedMinutes <= 30, // First 30 mins after start
-      isRampingDown: isActive && remainingMinutes <= 30, // Last 30 mins before end
+      isRampingUp: isActive && elapsedMinutes <= 30, // First 30 mins after start (e.g. 06:00 - 06:30)
+      isRampingDown: isActive && remainingMinutes <= 30, // Last 30 mins before end (e.g. 23:30 - 24:00)
       remainingMinutes,
       elapsedMinutes,
     };
@@ -498,8 +521,8 @@ export class SystemPlayerService {
   /**
    * Check if the current time falls within the room's configured 24h schedule
    */
-  isScheduleActive(scheduleStart?: string, scheduleEnd?: string): boolean {
-    return this.getScheduleRampInfo(scheduleStart, scheduleEnd).isActive;
+  isScheduleActive(scheduleStart?: string, scheduleEnd?: string, room?: any): boolean {
+    return this.getScheduleRampInfo(scheduleStart, scheduleEnd, room).isActive;
   }
 
   /**
@@ -617,7 +640,7 @@ export class SystemPlayerService {
     if (!this.isRoomProActive(room)) return;
 
     // Resolve schedule ramp & active window (UTC+3 East Africa Time)
-    const ramp = this.getScheduleRampInfo(room.system_players_schedule_start, room.system_players_schedule_end);
+    const ramp = this.getScheduleRampInfo(room.system_players_schedule_start, room.system_players_schedule_end, room);
 
     // Resolve stake tier and whether it is enabled (3rd & 4th stakes are default OFF)
     const roomStakes: number[] = Array.isArray(room.stakes) && room.stakes.length === 4
@@ -979,9 +1002,9 @@ export class SystemPlayerService {
 
       if (rErr || !room) return;
 
-      const scheduleStart = room.system_players_schedule_start || '00:00';
+      const scheduleStart = room.system_players_schedule_start || '06:00';
       const scheduleEnd = room.system_players_schedule_end || '24:00';
-      const ramp = this.getScheduleRampInfo(scheduleStart, scheduleEnd);
+      const ramp = this.getScheduleRampInfo(scheduleStart, scheduleEnd, room);
 
       const roomStakes: number[] = Array.isArray(room.stakes) && room.stakes.length === 4
         ? room.stakes.map(Number)

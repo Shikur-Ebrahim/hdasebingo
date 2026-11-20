@@ -111,8 +111,9 @@ export default function AdminHdaseBingo() {
 
   // Form states: Auto-Bustle System Players
   const [systemEnabled, setSystemEnabled] = useState(true);
-  const [scheduleStart, setScheduleStart] = useState('00:00');
+  const [scheduleStart, setScheduleStart] = useState('06:00');
   const [scheduleEnd, setScheduleEnd] = useState('24:00');
+  const [nightUnlocked, setNightUnlocked] = useState(false);
   const [riskPercent, setRiskPercent] = useState<number>(25);
   const [stakeConfigs, setStakeConfigs] = useState<Record<string, StakeConfig>>({
     stake_1: { min: 2, max: 5, enabled: true },
@@ -211,10 +212,15 @@ export default function AdminHdaseBingo() {
             setStakes(r.stakes.map(Number));
           }
           setSystemEnabled(r.system_players_enabled !== undefined ? Boolean(r.system_players_enabled) : true);
-          const rawStart = (r.system_players_schedule_start || '00:00').trim();
+          setNightUnlocked(Boolean(r.system_players_night_unlocked));
+          const rawStart = (r.system_players_schedule_start || '06:00').trim();
           let rawEnd = (r.system_players_schedule_end || '24:00').trim();
-          if (rawEnd === '00:00' && rawStart === '00:00') rawEnd = '24:00';
-          setScheduleStart(rawStart || '00:00');
+          if (rawEnd === '00:00' || rawEnd > '24:00') rawEnd = '24:00';
+          let parsedStart = rawStart || '06:00';
+          if (!r.system_players_night_unlocked && parsedStart < '06:00') {
+            parsedStart = '06:00';
+          }
+          setScheduleStart(parsedStart);
           setScheduleEnd(rawEnd || '24:00');
           setRiskPercent(Number(r.system_players_risk_percent ?? 25));
 
@@ -416,6 +422,7 @@ export default function AdminHdaseBingo() {
         roomId: selectedRoomId,
         stakes: stakes.map(Number),
         system_players_enabled: systemEnabled,
+        system_players_night_unlocked: nightUnlocked,
         system_players_schedule_start: scheduleStart,
         system_players_schedule_end: scheduleEnd,
         system_players_stake_configs: stakeConfigs,
@@ -439,7 +446,8 @@ export default function AdminHdaseBingo() {
             setStakes(updatedRoom.stakes.map(Number));
           }
           setSystemEnabled(updatedRoom.system_players_enabled !== undefined ? Boolean(updatedRoom.system_players_enabled) : true);
-          setScheduleStart(updatedRoom.system_players_schedule_start || '00:00');
+          setNightUnlocked(Boolean(updatedRoom.system_players_night_unlocked));
+          setScheduleStart(updatedRoom.system_players_schedule_start || '06:00');
           setScheduleEnd(updatedRoom.system_players_schedule_end || '24:00');
           setRiskPercent(Number(updatedRoom.system_players_risk_percent ?? 25));
 
@@ -571,11 +579,11 @@ export default function AdminHdaseBingo() {
     });
   };
 
-  const set24Hours = () => {
+  const setDefaultSchedule = () => {
     triggerHaptic('light');
-    setScheduleStart('00:00');
+    setScheduleStart('06:00');
     setScheduleEnd('24:00');
-    showToast('success', '24/7 Always Active selected (00:00 - 24:00)');
+    showToast('success', 'Default operating schedule selected (06:00 - 24:00)');
   };
 
   if (loading) {
@@ -920,27 +928,49 @@ export default function AdminHdaseBingo() {
                   <div className="flex items-center justify-between">
                     <span className="font-black text-xs text-slate-800 flex items-center gap-1.5">
                       <Clock size={14} className="text-amber-500" />
-                      24h Schedule Interval
+                      Operating Schedule (06:00 – 24:00)
                     </span>
                     <button
                       type="button"
-                      onClick={set24Hours}
+                      onClick={setDefaultSchedule}
                       className={`text-[10px] font-black px-2.5 py-1 rounded-xl transition-all cursor-pointer flex items-center gap-1 ${
-                        scheduleStart === '00:00' && (scheduleEnd === '24:00' || scheduleEnd === '23:59')
+                        scheduleStart === '06:00' && (scheduleEnd === '24:00' || scheduleEnd === '23:59')
                           ? 'bg-emerald-600 text-white shadow-xs'
                           : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
                       }`}
                     >
                       <Sparkles size={11} />
-                      <span>{scheduleStart === '00:00' && (scheduleEnd === '24:00' || scheduleEnd === '23:59') ? '24/7 ON ✓' : 'Set 24/7 (00:00 - 24:00)'}</span>
+                      <span>{scheduleStart === '06:00' && (scheduleEnd === '24:00' || scheduleEnd === '23:59') ? 'Default (06:00 - 24:00) ✓' : 'Set Default (06:00 - 24:00)'}</span>
                     </button>
+                  </div>
+
+                  {/* Night Rest Indicator & Admin Unlock Toggle */}
+                  <div className="p-2.5 rounded-xl bg-amber-50/90 border border-amber-200/90 text-[11px] text-amber-950 font-medium flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm">🌙</span>
+                      <div>
+                        <p className="font-bold leading-tight">Night Rest (00:00 – 05:59): System Players OFF</p>
+                        <p className="text-[10px] text-amber-800/80 leading-tight">Waiter bots remain active 24/7 for real players continuously.</p>
+                      </div>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer self-start sm:self-auto shrink-0 bg-white/80 px-2 py-1 rounded-lg border border-amber-300/80 shadow-2xs">
+                      <input
+                        type="checkbox"
+                        checked={nightUnlocked}
+                        onChange={(e) => setNightUnlocked(e.target.checked)}
+                        className="rounded text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 cursor-pointer"
+                      />
+                      <span className="text-[10px] font-black text-slate-800">
+                        {nightUnlocked ? 'Night Unlocked 🔓' : 'Unlock Night (Admin)'}
+                      </span>
+                    </label>
                   </div>
 
                   {/* 24-Hour Military Format Selectors */}
                   <div className="grid grid-cols-2 gap-2.5">
                     <div>
                       <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block mb-1">
-                        Start Time (24h)
+                        Start Time (Min: 06:00)
                       </span>
                       <select
                         value={scheduleStart}
@@ -949,9 +979,17 @@ export default function AdminHdaseBingo() {
                       >
                         {Array.from({ length: 24 }).map((_, h) => {
                           const val = `${h.toString().padStart(2, '0')}:00`;
+                          const isNight = h < 6;
+                          if (isNight && !nightUnlocked) {
+                            return (
+                              <option key={val} value={val} disabled>
+                                {val} 🔒 (Night Rest - Admin Unlock Required)
+                              </option>
+                            );
+                          }
                           return (
                             <option key={val} value={val}>
-                              {val} {h === 0 ? '(00:00 Midnight)' : h === 12 ? '(12:00 Noon)' : ''}
+                              {val} {h === 6 ? '(06:00 Default Start)' : h === 12 ? '(12:00 Noon)' : isNight ? '(Admin Unlocked)' : ''}
                             </option>
                           );
                         })}
@@ -960,19 +998,20 @@ export default function AdminHdaseBingo() {
 
                     <div>
                       <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block mb-1">
-                        End Time (24h)
+                        End Time (Max: 24:00)
                       </span>
                       <select
                         value={scheduleEnd}
                         onChange={(e) => setScheduleEnd(e.target.value)}
                         className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2 text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
                       >
-                        <option value="24:00">24:00 (Full 24 Hours / All Day)</option>
-                        {Array.from({ length: 24 }).map((_, h) => {
+                        <option value="24:00">24:00 (Midnight Close / All Day)</option>
+                        {Array.from({ length: 18 }).map((_, i) => {
+                          const h = i + 6;
                           const val = `${h.toString().padStart(2, '0')}:00`;
                           return (
                             <option key={val} value={val}>
-                              {val} {h === 0 ? '(00:00 Midnight)' : h === 12 ? '(12:00 Noon)' : ''}
+                              {val} {h === 12 ? '(12:00 Noon)' : ''}
                             </option>
                           );
                         })}
@@ -982,17 +1021,10 @@ export default function AdminHdaseBingo() {
 
                   {/* 24-Hour Active Indicator Banner */}
                   <div className="p-2.5 rounded-xl bg-amber-50/80 border border-amber-200/90 text-[10.5px] text-amber-950 font-medium">
-                    {scheduleStart === '00:00' && (scheduleEnd === '24:00' || scheduleEnd === '23:59' || scheduleEnd === '00:00') ? (
-                      <span className="flex items-center gap-1.5 text-emerald-800 font-bold">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                        <span><strong>24/7 Mode Active:</strong> System players join all games around the clock (00:00 - 24:00) every day.</span>
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1.5 text-slate-700">
-                        <Clock size={13} className="text-amber-600 shrink-0" />
-                        <span>Active window: <strong>{scheduleStart}</strong> to <strong>{scheduleEnd}</strong> (24h Ethiopian time UTC+3).</span>
-                      </span>
-                    )}
+                    <span className="flex items-center gap-1.5 text-slate-700">
+                      <Clock size={13} className="text-amber-600 shrink-0" />
+                      <span>System Players active: <strong>{scheduleStart}</strong> to <strong>{scheduleEnd}</strong>. (Waiter bots work 24/7).</span>
+                    </span>
                   </div>
                 </div>
 

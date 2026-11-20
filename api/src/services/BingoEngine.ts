@@ -146,7 +146,7 @@ class BingoEngine {
     // 1. Fetch all active rooms with their custom stakes & system player settings
     const { data: activeRooms } = await supabase
       .from('rooms')
-      .select('id, stakes, room_name, agent_id, commission_rate, promoter_id, promoter_commission_rate, system_players_enabled, system_players_pro_level, system_players_pro_expires_at, system_players_schedule_start, system_players_schedule_end, system_players_stake_configs, system_players_risk_percent, waiter_players_enabled, waiter_players_stake_configs')
+      .select('id, stakes, room_name, agent_id, commission_rate, promoter_id, promoter_commission_rate, system_players_enabled, system_players_pro_level, system_players_pro_expires_at, system_players_schedule_start, system_players_schedule_end, system_players_stake_configs, system_players_risk_percent, waiter_players_enabled, waiter_players_stake_configs, system_players_night_unlocked')
       .eq('status', 'active');
 
     const rooms = activeRooms || [];

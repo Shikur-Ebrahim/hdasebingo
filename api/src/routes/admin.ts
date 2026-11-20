@@ -3123,13 +3123,21 @@ router.put('/hdase-room', requireAdmin, async (req: AuthRequest, res: Response) 
     if (system_players_enabled !== undefined) {
       updates.system_players_enabled = Boolean(system_players_enabled);
     }
+    if (req.body.system_players_night_unlocked !== undefined) {
+      updates.system_players_night_unlocked = Boolean(req.body.system_players_night_unlocked);
+    }
     if (system_players_schedule_start !== undefined) {
-      const s = String(system_players_schedule_start || '00:00').trim();
+      let s = String(system_players_schedule_start || '06:00').trim();
+      const [sH] = s.split(':').map(Number);
+      // Unless admin explicitly unlocks night hours, start time cannot be before 06:00
+      if ((sH === undefined || sH < 6) && !updates.system_players_night_unlocked) {
+        s = '06:00';
+      }
       updates.system_players_schedule_start = s;
     }
     if (system_players_schedule_end !== undefined) {
       let e = String(system_players_schedule_end || '24:00').trim();
-      if (e === '00:00' && (updates.system_players_schedule_start === '00:00' || !updates.system_players_schedule_start)) {
+      if (e === '00:00' || e > '24:00') {
         e = '24:00';
       }
       updates.system_players_schedule_end = e;

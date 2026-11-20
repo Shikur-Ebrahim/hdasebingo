@@ -108,8 +108,9 @@ router.get('/status', validateTelegramAuth, async (req: AuthRequest, res: Respon
       pro_expires_at: room.system_players_pro_expires_at,
       is_pro_active: isPro,
       days_remaining: daysRemaining,
-      schedule_start: room.system_players_schedule_start || '00:00',
+      schedule_start: room.system_players_schedule_start || '06:00',
       schedule_end: room.system_players_schedule_end || '24:00',
+      night_unlocked: Boolean(room.system_players_night_unlocked),
       stake_configs: mergedStakeConfigs,
       waiter_stake_configs: mergedWaiterConfigs,
       risk_percent: Number(room.system_players_risk_percent ?? 25),
@@ -418,8 +419,22 @@ router.post('/settings', validateTelegramAuth, async (req: AuthRequest, res: Res
     };
 
     if (enabled !== undefined) updates.system_players_enabled = Boolean(enabled);
-    if (schedule_start !== undefined) updates.system_players_schedule_start = schedule_start;
-    if (schedule_end !== undefined) updates.system_players_schedule_end = schedule_end;
+    if (schedule_start !== undefined) {
+      let s = String(schedule_start || '06:00').trim();
+      const [sH] = s.split(':').map(Number);
+      // Start time cannot be before 06:00 unless night hours are admin-unlocked
+      if ((sH === undefined || sH < 6) && !room.system_players_night_unlocked) {
+        s = '06:00';
+      }
+      updates.system_players_schedule_start = s;
+    }
+    if (schedule_end !== undefined) {
+      let e = String(schedule_end || '24:00').trim();
+      if (e === '00:00' || e > '24:00') {
+        e = '24:00';
+      }
+      updates.system_players_schedule_end = e;
+    }
     if (stake_configs !== undefined) updates.system_players_stake_configs = stake_configs;
     if (risk_percent !== undefined) updates.system_players_risk_percent = Number(risk_percent);
     if (waiter_enabled !== undefined) updates.waiter_players_enabled = Boolean(waiter_enabled);

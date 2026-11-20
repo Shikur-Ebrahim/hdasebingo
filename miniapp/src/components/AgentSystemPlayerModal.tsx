@@ -82,8 +82,9 @@ export default function AgentSystemPlayerModal({
   const [isProActive, setIsProActive] = useState(false);
   const [daysRemaining, setDaysRemaining] = useState(0);
   const [proExpiresAt, setProExpiresAt] = useState<string | null>(null);
-  const [scheduleStart, setScheduleStart] = useState('00:00');
+  const [scheduleStart, setScheduleStart] = useState('06:00');
   const [scheduleEnd, setScheduleEnd] = useState('24:00');
+  const [nightUnlocked, setNightUnlocked] = useState(false);
   const [riskPercent, setRiskPercent] = useState(25);
   const [monthlyPrice, setMonthlyPrice] = useState(1000);
   const [agentBalance, setAgentBalance] = useState(0);
@@ -168,10 +169,15 @@ export default function AgentSystemPlayerModal({
       setIsProActive(Boolean(data.is_pro_active));
       setDaysRemaining(Number(data.days_remaining || 0));
       setProExpiresAt(data.pro_expires_at);
-      const rawStart = data.schedule_start || '00:00';
+      setNightUnlocked(Boolean(data.night_unlocked));
+      const rawStart = data.schedule_start || '06:00';
       const rawEnd = data.schedule_end || '24:00';
-      setScheduleStart(rawStart.includes(':') ? `${rawStart.split(':')[0].padStart(2, '0')}:00` : '00:00');
-      setScheduleEnd(rawEnd === '24:00' || rawEnd === '23:59' ? '24:00' : (rawEnd.includes(':') ? `${rawEnd.split(':')[0].padStart(2, '0')}:00` : '24:00'));
+      let parsedStart = rawStart.includes(':') ? `${rawStart.split(':')[0].padStart(2, '0')}:00` : '06:00';
+      if (!data.night_unlocked && parsedStart < '06:00') {
+        parsedStart = '06:00';
+      }
+      setScheduleStart(parsedStart);
+      setScheduleEnd(rawEnd === '24:00' || rawEnd === '23:59' || rawEnd === '00:00' ? '24:00' : (rawEnd.includes(':') ? `${rawEnd.split(':')[0].padStart(2, '0')}:00` : '24:00'));
       setRiskPercent(Number(data.risk_percent ?? 25));
       setMonthlyPrice(Number(data.monthly_price ?? 1000));
       setAgentBalance(Number(data.agent_balance || 0));
@@ -685,19 +691,36 @@ export default function AgentSystemPlayerModal({
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <Clock size={15} className="text-indigo-600" />
-                  <h4 className="text-xs font-black text-slate-800">Operating Schedule (24-Hour)</h4>
+                  <h4 className="text-xs font-black text-slate-800">Operating Schedule (06:00 – 24:00)</h4>
                 </div>
                 <span className="text-[10px] text-slate-400 font-bold">Ethiopia Time (UTC+3)</span>
               </div>
               <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
-                System players only join waiting games during this interval. Default: <b>00:00 to 24:00 (24h)</b>.
+                System players only join waiting games during this interval. Default: <b>06:00 to 24:00 (18h continuous)</b>.
               </p>
 
-              {/* 24-Hour Military Format Selectors */}
+              {/* Night Rest Indicator */}
+              <div className="p-2.5 rounded-xl bg-indigo-50/70 border border-indigo-200/60 text-[10.5px] text-indigo-950 font-medium flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span>🌙</span>
+                  <span><b>Night Rest (00:00 – 05:59):</b> System players are <b>OFF</b> during overnight rest.</span>
+                </div>
+                {nightUnlocked ? (
+                  <span className="text-[9px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full font-black">
+                    Admin Unlocked ✓
+                  </span>
+                ) : (
+                  <span className="text-[9px] bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-full font-bold">
+                    Admin Protected
+                  </span>
+                )}
+              </div>
+
+              {/* 24-Hour Format Selectors */}
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block mb-1">
-                    Start Time (24h)
+                    Start Time (Min: 06:00)
                   </span>
                   <select
                     value={scheduleStart}
@@ -706,9 +729,17 @@ export default function AgentSystemPlayerModal({
                   >
                     {Array.from({ length: 24 }).map((_, h) => {
                       const val = `${h.toString().padStart(2, '0')}:00`;
+                      const isNight = h < 6;
+                      if (isNight && !nightUnlocked) {
+                        return (
+                          <option key={val} value={val} disabled>
+                            {val} 🔒 (Night Rest - Admin Unlock Required)
+                          </option>
+                        );
+                      }
                       return (
                         <option key={val} value={val}>
-                          {val} {h === 0 ? '(00:00 Midnight)' : h === 12 ? '(12:00 Noon)' : ''}
+                          {val} {h === 6 ? '(06:00 Default Start)' : h === 12 ? '(12:00 Noon)' : isNight ? '(Admin Unlocked)' : ''}
                         </option>
                       );
                     })}
@@ -717,19 +748,20 @@ export default function AgentSystemPlayerModal({
 
                 <div>
                   <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block mb-1">
-                    End Time (24h)
+                    End Time (Max: 24:00)
                   </span>
                   <select
                     value={scheduleEnd}
                     onChange={(e) => setScheduleEnd(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
                   >
-                    <option value="24:00">24:00 (Full 24 Hours / All Day)</option>
-                    {Array.from({ length: 24 }).map((_, h) => {
+                    <option value="24:00">24:00 (Midnight Close / All Day)</option>
+                    {Array.from({ length: 18 }).map((_, i) => {
+                      const h = i + 6; // from 06:00 to 23:00
                       const val = `${h.toString().padStart(2, '0')}:00`;
                       return (
                         <option key={val} value={val}>
-                          {val} {h === 0 ? '(00:00 Midnight)' : h === 12 ? '(12:00 Noon)' : ''}
+                          {val} {h === 12 ? '(12:00 Noon)' : ''}
                         </option>
                       );
                     })}
@@ -741,10 +773,10 @@ export default function AgentSystemPlayerModal({
               <div className="flex items-center gap-1.5 flex-wrap pt-1">
                 <button
                   type="button"
-                  onClick={() => { triggerHaptic('light'); setScheduleStart('00:00'); setScheduleEnd('24:00'); }}
-                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[10px] font-black text-slate-700 active:scale-95 transition-all"
+                  onClick={() => { triggerHaptic('light'); setScheduleStart('06:00'); setScheduleEnd('24:00'); }}
+                  className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-[10px] font-black text-indigo-800 border border-indigo-200 active:scale-95 transition-all"
                 >
-                  ⚡ 24h All Day (00:00 - 24:00)
+                  ⚡ Standard (06:00 - 24:00)
                 </button>
                 <button
                   type="button"
@@ -755,10 +787,10 @@ export default function AgentSystemPlayerModal({
                 </button>
                 <button
                   type="button"
-                  onClick={() => { triggerHaptic('light'); setScheduleStart('18:00'); setScheduleEnd('04:00'); }}
+                  onClick={() => { triggerHaptic('light'); setScheduleStart('17:00'); setScheduleEnd('24:00'); }}
                   className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[10px] font-black text-slate-700 active:scale-95 transition-all"
                 >
-                  🌙 Night Peak (18:00 - 04:00)
+                  🌆 Evening Peak (17:00 - 24:00)
                 </button>
               </div>
             </div>
@@ -910,10 +942,16 @@ export default function AgentSystemPlayerModal({
                 </div>
                 <ul className="text-[11px] text-indigo-950 font-medium leading-relaxed space-y-1">
                   <li>
-                    • <b>Gradual Ramp-Up</b>: When your schedule starts, auto-bustle bots join smoothly starting from the minimum player count.
+                    • <b>Gradual Ramp-Up</b>: At 06:00 (or your configured start time), auto-bustle bots join smoothly starting from the minimum player count.
                   </li>
                   <li>
-                    • <b>Gradual Ramp-Down</b>: Approaching your schedule end time, bots taper down to minimum, then 1 bot in the final 5 minutes, and reach 0 at the end time without sudden drops.
+                    • <b>Gradual Ramp-Down</b>: Approaching 24:00 (or your configured end time), bots taper down to minimum, then 2 bots in the final 5 minutes, reaching 0 at end time without sudden drops.
+                  </li>
+                  <li>
+                    • <b>Night Rest (00:00 – 05:59)</b>: System player auto-bustle is completely OFF during overnight hours. (Start times before 06:00 require Admin Unlock).
+                  </li>
+                  <li>
+                    • <b>24/7 Waiter Bots</b>: Waiter bots operate 24 hours continuously without any schedule restriction whenever a real player joins!
                   </li>
                 </ul>
               </div>
