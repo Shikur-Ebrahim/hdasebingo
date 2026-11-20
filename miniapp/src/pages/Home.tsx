@@ -395,10 +395,10 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-screen pb-4 space-y-3">
 
-      {/* HOME VIDEO GUIDE FULLSCREEN POPUP (CLEAN WHITE THEME) */}
+      {/* HOME VIDEO GUIDE FULLSCREEN POPUP */}
       {showVideoPopup && homePopupVideo && (
         <div 
-          className={`fixed inset-0 z-50 bg-white flex flex-col justify-between overflow-hidden transition-all duration-300 ${
+          className={`fixed inset-0 z-50 bg-white dark:bg-[#070b14] flex flex-col justify-between overflow-hidden transition-all duration-300 ${
             isClosingVideo ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100 animate-fadeIn'
           }`}
           onClick={() => handleCloseVideoPopup(false)}
@@ -420,16 +420,16 @@ export default function Home() {
 
             <button
               onClick={() => handleCloseVideoPopup(false)}
-              className="pointer-events-auto w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 text-slate-700 flex items-center justify-center shadow-md border border-slate-200/80 transition-all"
+              className="pointer-events-auto w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-90 text-slate-700 dark:text-slate-200 flex items-center justify-center shadow-md border border-slate-200/80 dark:border-slate-700 transition-all"
               aria-label="Close"
             >
               <X size={18} />
             </button>
           </div>
 
-          {/* Full Screen Video Container - Clean White Background */}
+          {/* Full Screen Video Container */}
           <div 
-            className="flex-1 min-h-0 relative w-full h-full flex items-center justify-center bg-white overflow-hidden p-1 pt-12 pb-2"
+            className="flex-1 min-h-0 relative w-full h-full flex items-center justify-center bg-white dark:bg-[#070b14] overflow-hidden p-1 pt-12 pb-2"
             onClick={(e) => {
               e.stopPropagation();
               if (videoRef.current && videoRef.current.muted) {
@@ -447,7 +447,7 @@ export default function Home() {
               playsInline
               autoPlay
               onEnded={() => handleCloseVideoPopup(true)}
-              className="w-full h-full object-contain bg-white rounded-xl"
+              className="w-full h-full object-contain bg-black rounded-xl"
             >
               Your browser does not support video playback.
             </video>
@@ -455,7 +455,7 @@ export default function Home() {
 
           {/* Middle / Center Attractive Action Button (No Icon) */}
           <div 
-            className="p-4 pt-2 pb-6 bg-white flex items-center justify-center shrink-0 z-20"
+            className="p-4 pt-2 pb-6 bg-white dark:bg-[#070b14] flex items-center justify-center shrink-0 z-20"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -505,17 +505,17 @@ export default function Home() {
       )}
 
       {/* HEADER */}
-      <div className="bg-white dark:bg-slate-900 px-3.5 py-1.5 shadow-2xs border-b border-gray-100 dark:border-slate-800 flex items-center justify-between shrink-0 transition-colors">
+      <div className="bg-white dark:bg-[#0b1020]/95 backdrop-blur-md px-3.5 py-1.5 shadow-2xs border-b border-gray-100 dark:border-slate-800/80 flex items-center justify-between shrink-0 transition-colors">
         <div className="flex items-center space-x-2.5">
-          <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-black text-sm shadow-xs">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white font-black text-sm shadow-[0_0_10px_rgba(16,185,129,0.35)]">
             {initial}
           </div>
           <div>
-            <p className="font-black text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200 leading-tight">
+            <p className="font-black text-xs uppercase tracking-wider text-slate-800 dark:text-white leading-tight">
               {user?.first_name || 'USER'}
             </p>
             {user?.role !== 'user' && (
-              <span className="text-[9px] bg-blue-100 text-blue-600 px-1.5 py-0.2 rounded-full font-bold">
+              <span className="text-[9px] bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-300 px-1.5 py-0.2 rounded-full font-bold">
                 {user?.role}
               </span>
             )}
@@ -523,14 +523,14 @@ export default function Home() {
         </div>
         <div className="flex items-center space-x-3 text-right">
           <div className="flex flex-col items-center">
-            <div className="flex items-center space-x-0.5 text-purple-500 mb-0.2">
+            <div className="flex items-center space-x-0.5 text-purple-500 dark:text-purple-400 mb-0.2">
               <Gift size={12} />
             </div>
-            <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{formatMoney(user?.bonus_balance)} ETB</p>
+            <p className="text-[11px] font-bold text-slate-700 dark:text-purple-300">{formatMoney(user?.bonus_balance)} ETB</p>
           </div>
           <div className="flex flex-col items-end">
-            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{t[language].home.wallet}</p>
-            <p className="text-xs font-black text-emerald-600 dark:text-emerald-400">{formatMoney(user?.main_balance)} ETB</p>
+            <p className="text-[9px] text-slate-400 dark:text-slate-400 font-bold uppercase tracking-wider">{t[language].home.wallet}</p>
+            <p className="text-xs font-black text-emerald-600 dark:text-emerald-400 drop-shadow-[0_0_8px_rgba(16,185,129,0.25)]">{formatMoney(user?.main_balance)} ETB</p>
           </div>
         </div>
       </div>
@@ -545,9 +545,9 @@ export default function Home() {
               setAuthModalOpen(true);
             }
           }}
-          className="flex flex-col items-center justify-center space-y-0.5 bg-yellow-400 hover:bg-yellow-500 active:scale-95 text-yellow-950 py-1.5 rounded-xl font-black text-[10.5px] shadow-2xs transition-transform"
+          className="flex flex-col items-center justify-center space-y-0.5 bg-gradient-to-br from-amber-400 via-amber-500 to-yellow-500 hover:from-amber-300 hover:to-yellow-400 active:scale-95 text-slate-950 py-2 rounded-xl font-black text-[10.5px] shadow-[0_4px_14px_rgba(245,158,11,0.3)] border border-amber-300/40 transition-all"
         >
-          <PlusCircle size={16} />
+          <PlusCircle size={16} className="text-slate-950 stroke-[2.5]" />
           <span>{t[language].home.deposit}</span>
         </Link>
         <Link
@@ -558,60 +558,58 @@ export default function Home() {
               setAuthModalOpen(true);
             }
           }}
-          className="flex flex-col items-center justify-center space-y-0.5 bg-white border border-gray-200 hover:bg-gray-50 active:scale-95 text-slate-700 py-1.5 rounded-xl font-black text-[10.5px] shadow-2xs transition-transform"
+          className="flex flex-col items-center justify-center space-y-0.5 bg-white dark:bg-[#0f172a] border border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-[#1a253e] dark:hover:border-cyan-500/40 active:scale-95 text-slate-700 dark:text-slate-100 py-2 rounded-xl font-black text-[10.5px] shadow-2xs dark:shadow-xs transition-all"
         >
-          <ArrowDownToLine size={16} />
+          <ArrowDownToLine size={16} className="text-cyan-600 dark:text-cyan-400 stroke-[2.2]" />
           <span>{t[language].home.withdraw}</span>
         </Link>
         <button
           onClick={handleInvite}
-          className="flex flex-col items-center justify-center space-y-0.5 bg-white border border-gray-200 hover:bg-gray-50 active:scale-95 text-slate-700 py-1.5 rounded-xl font-black text-[10.5px] shadow-2xs transition-transform"
+          className="flex flex-col items-center justify-center space-y-0.5 bg-white dark:bg-[#0f172a] border border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-[#1a253e] dark:hover:border-purple-500/40 active:scale-95 text-slate-700 dark:text-slate-100 py-2 rounded-xl font-black text-[10.5px] shadow-2xs dark:shadow-xs transition-all"
         >
-          <Share2 size={16} />
+          <Share2 size={16} className="text-purple-600 dark:text-purple-400 stroke-[2.2]" />
           <span>{t[language].home.invite}</span>
         </button>
         <div className="relative">
           <Link
             to="/help-videos"
-            className="relative flex flex-col items-center justify-center space-y-0.5 bg-black hover:bg-slate-900 active:scale-95 text-white py-1.5 rounded-xl font-black text-[10.5px] shadow-2xs transition-transform border border-slate-800"
+            className="relative flex flex-col items-center justify-center space-y-0.5 bg-slate-950 dark:bg-[#0f172a] hover:bg-slate-900 dark:hover:bg-[#1a253e] active:scale-95 text-white py-2 rounded-xl font-black text-[10.5px] shadow-2xs dark:shadow-xs transition-all border border-slate-800 dark:border-slate-800 dark:hover:border-rose-500/40"
           >
-            <span className="absolute -top-1 -right-1 bg-gradient-to-r from-amber-400 to-rose-500 text-white text-[7px] font-black px-1 rounded-full shadow-2xs tracking-wider uppercase">
+            <span className="absolute -top-1 -right-1 bg-gradient-to-r from-amber-400 to-rose-500 text-white text-[7px] font-black px-1.5 py-0.2 rounded-full shadow-[0_0_8px_rgba(244,63,94,0.5)] tracking-wider uppercase">
               Guide
             </span>
-            <Clapperboard size={16} className="text-white" />
+            <Clapperboard size={16} className="text-rose-500 dark:text-rose-400 stroke-[2.2]" />
             <span>Videos</span>
           </Link>
         </div>
       </div>
 
-      {/* HERO LIVE BINGO BANNER (Spacious Image 2 design) */}
+      {/* HERO LIVE BINGO BANNER */}
       <div className="px-4 shrink-0">
         <Link
           to={`/bingo/live?room=${activeRoomId}`}
           onClick={() => {
             if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
           }}
-          className="block relative rounded-2xl overflow-hidden shadow-md h-48 sm:h-52 flex flex-col items-center justify-center border border-amber-100 cursor-pointer active:scale-[0.99] transition-transform"
+          className="block relative rounded-2xl overflow-hidden shadow-xl h-48 sm:h-52 flex flex-col items-center justify-center border border-amber-200/50 dark:border-amber-500/25 cursor-pointer active:scale-[0.99] transition-transform"
         >
-          {/* Light gradient background — matches loading screen */}
-          <div className="absolute inset-0 pointer-events-none" style={{
-            background: 'linear-gradient(135deg, #fffbf0 0%, #fef3c7 40%, #fff8e8 70%, #fffbf0 100%)',
-          }} />
+          {/* Light mode warm champagne, dark mode luxury midnight blue */}
+          <div className="absolute inset-0 pointer-events-none bg-gradient-to-br from-[#fffbf0] via-[#fef3c7] to-[#fffbf0] dark:from-[#090e1c] dark:via-[#131b2e] dark:to-[#0c1224]" />
+          
           {/* Subtle radial glow in center */}
-          <div className="absolute inset-0 pointer-events-none" style={{
-            background: 'radial-gradient(ellipse at 50% 60%, rgba(251,191,36,0.18) 0%, transparent 70%)',
-          }} />
-          {/* Top border accent */}
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-400 pointer-events-none" />
+          <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_50%_60%,rgba(251,191,36,0.18)_0%,transparent_70%)] dark:bg-[radial-gradient(ellipse_at_50%_50%,rgba(245,158,11,0.22)_0%,rgba(249,115,22,0.12)_45%,transparent_70%)]" />
+          
+          {/* Top border neon accent */}
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-amber-400 dark:from-amber-500 dark:via-orange-500 dark:to-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.4)] pointer-events-none" />
 
           {/* Scrolling marquee strip — live room names */}
-          <div className="absolute top-1 left-0 right-0 overflow-hidden py-1.5 bg-amber-50/80 border-b border-amber-200/60 pointer-events-none" style={{ top: '4px' }}>
+          <div className="absolute top-1 left-0 right-0 overflow-hidden py-1.5 bg-amber-50/80 dark:bg-[#080d19]/85 border-b border-amber-200/60 dark:border-amber-500/20 pointer-events-none" style={{ top: '4px' }}>
             {(() => {
               const publicOrUserRooms = rooms.filter(r => !r.is_private || (activeRoomId && r.id === activeRoomId));
               return publicOrUserRooms.length > 0 ? (
                 <div className="flex whitespace-nowrap animate-marquee">
                   {[...publicOrUserRooms, ...publicOrUserRooms].map((room, i) => (
-                    <span key={i} className="text-amber-700 font-black text-[10px] uppercase tracking-[0.2em] px-4 shrink-0 flex items-center gap-1">
+                    <span key={i} className="text-amber-700 dark:text-amber-300 font-black text-[10px] uppercase tracking-[0.2em] px-4 shrink-0 flex items-center gap-1">
                       🚪 {room.room_name} &nbsp;·&nbsp;
                     </span>
                   ))}
@@ -619,7 +617,7 @@ export default function Home() {
               ) : (
                 <div className="flex whitespace-nowrap animate-marquee">
                   {Array.from({ length: 6 }).map((_, i) => (
-                    <span key={i} className="text-amber-700 font-black text-[10px] uppercase tracking-[0.25em] px-5 shrink-0">
+                    <span key={i} className="text-amber-700 dark:text-amber-300 font-black text-[10px] uppercase tracking-[0.25em] px-5 shrink-0">
                       🚪 {activeRoom?.room_name || 'HDASE BINGO'} &nbsp;·&nbsp; 🏆 Live Rooms &nbsp;·&nbsp; 🔥 Play Now &nbsp;·&nbsp;
                     </span>
                   ))}
@@ -630,31 +628,31 @@ export default function Home() {
 
           {/* Main content: LIVE BINGO, HDASE BINGO, PLAY NOW button */}
           <div className="relative z-10 flex flex-col items-center text-center px-4 pt-6 pb-4">
-            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+            <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5 dark:bg-emerald-950/60 dark:border dark:border-emerald-500/30 dark:px-2.5 dark:py-0.5 dark:rounded-full dark:shadow-[0_0_10px_rgba(16,185,129,0.3)]">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               LIVE BINGO
             </span>
             {/* Split color title: HDASE dark, BINGO orange or Active Room Name */}
             {isOfficialHdase ? (
               <div className="mb-4 flex items-baseline gap-2">
-                <span className="text-slate-900 font-black text-4xl tracking-wide leading-none drop-shadow-xs">HDASE</span>
-                <span className="text-orange-500 font-black text-4xl tracking-wide leading-none drop-shadow-xs">BINGO</span>
+                <span className="text-slate-900 dark:text-white font-black text-4xl tracking-wide leading-none drop-shadow-xs dark:drop-shadow-[0_2px_12px_rgba(255,255,255,0.2)]">HDASE</span>
+                <span className="text-orange-500 font-black text-4xl tracking-wide leading-none drop-shadow-xs dark:drop-shadow-[0_2px_14px_rgba(249,115,22,0.5)]">BINGO</span>
               </div>
             ) : (
               <div className="mb-4 flex flex-col items-center">
-                <div className="text-slate-900 font-black text-3xl sm:text-4xl tracking-wide leading-tight drop-shadow-xs uppercase">
+                <div className="text-slate-900 dark:text-white font-black text-3xl sm:text-4xl tracking-wide leading-tight drop-shadow-xs uppercase">
                   {activeRoom?.room_name || 'BINGO ROOM'}
                 </div>
               </div>
             )}
-            <div className="bg-orange-500 hover:bg-orange-600 text-white px-9 py-2.5 rounded-full font-black text-sm shadow-[0_4px_16px_rgba(249,115,22,0.35)] active:scale-95 transition-all">
+            <div className="bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 hover:from-orange-600 hover:to-amber-600 text-white px-9 py-2.5 rounded-full font-black text-sm shadow-[0_4px_18px_rgba(249,115,22,0.45)] border border-amber-300/30 active:scale-95 transition-all">
               PLAY NOW →
             </div>
           </div>
 
           {/* ── Support & Ethiopia phone numbers — bottom corners ── */}
           <div className="absolute bottom-1.5 left-2 right-2 flex justify-between items-center pointer-events-none z-20">
-            {/* SUPPORT button — bottom left (in place of USA phone) */}
+            {/* SUPPORT button — bottom left */}
             <button
               type="button"
               onClick={e => {
@@ -669,7 +667,7 @@ export default function Home() {
                   window.open(tgUrl, '_blank');
                 }
               }}
-              className="pointer-events-auto flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-cyan-400 via-cyan-400 to-teal-400 text-slate-900 border border-cyan-200/90 shadow-2xs active:scale-95 transition-all select-none shrink-0"
+              className="pointer-events-auto flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-cyan-400 via-cyan-400 to-teal-400 text-slate-950 border border-cyan-200/90 dark:border-cyan-300/40 shadow-xs active:scale-95 transition-all select-none shrink-0"
             >
               <Headphones size={11} className="stroke-[2.5]" />
               <span className="text-[9.5px] font-black tracking-widest uppercase leading-none">
@@ -686,7 +684,7 @@ export default function Home() {
                 if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
                 window.location.href = `tel:${formatEthPhone(supportPhoneEth).replace(/[\s()\-]/g, '')}`;
               }}
-              className="pointer-events-auto flex items-center gap-1 p-0.5 rounded text-black active:scale-95 active:opacity-75 transition-all shrink-0"
+              className="pointer-events-auto flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/5 dark:bg-slate-900/80 border border-transparent dark:border-slate-700/60 text-slate-900 dark:text-slate-200 active:scale-95 active:opacity-75 transition-all shrink-0"
             >
               <span className="text-[14px] leading-none" role="img" aria-label="Ethiopia">🇪🇹</span>
               <span className="text-[10.5px] font-black leading-none tracking-tight">{formatEthPhone(supportPhoneEth)}</span>
@@ -699,19 +697,20 @@ export default function Home() {
       <div className="px-3 pb-2">
         {/* Section title: SELECT MEDEB */}
         <div className="flex items-center justify-between mb-2 px-0.5">
-          <h2 className="text-xs font-black text-slate-800 tracking-wider uppercase">
-            SELECT MEDEB
+          <h2 className="text-xs font-black text-slate-800 dark:text-white tracking-wider uppercase flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)] inline-block" />
+            <span>SELECT MEDEB</span>
           </h2>
           <button
             onClick={() => handleManualRefresh()}
-            className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 border border-slate-200/60 text-slate-500 flex items-center justify-center active:scale-95 transition-all"
+            className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-[#131b2e] dark:hover:bg-[#1c2742] border border-slate-200/60 dark:border-slate-700/70 text-slate-500 dark:text-slate-300 flex items-center justify-center active:scale-95 transition-all"
             title="Refresh"
           >
             <RefreshCw size={11} className={manualRefreshing ? 'animate-spin text-amber-500' : ''} />
           </button>
         </div>
 
-        {/* 4 Live Stake Tables Grid - Snug, compact, exactly matches reference screenshot */}
+        {/* 4 Live Stake Tables Grid */}
         <div className="grid grid-cols-2 gap-2.5">
           {activeStakes.map((stake, idx) => {
             const hg = homeGames[stake];
@@ -725,10 +724,10 @@ export default function Home() {
             const displayPool = pool > 0 ? pool : (players >= 2 ? Math.floor(players * stake * (players >= 3 ? 0.8 : 1)) : 0);
 
             const THEMES = [
-              { gradient: 'from-[#2979ff] to-[#1565c0]' }, // Blue
-              { gradient: 'from-[#00c853] to-[#009624]' }, // Green
-              { gradient: 'from-[#ab47bc] to-[#7b1fa2]' }, // Purple
-              { gradient: 'from-[#ff2a55] to-[#d50000]' }, // Red
+              { gradient: 'from-[#1e40af] via-[#2563eb] to-[#3b82f6]' }, // Blue
+              { gradient: 'from-[#047857] via-[#059669] to-[#10b981]' }, // Green
+              { gradient: 'from-[#7e22ce] via-[#9333ea] to-[#a855f7]' }, // Purple
+              { gradient: 'from-[#b91c1c] via-[#dc2626] to-[#ef4444]' }, // Red
             ];
 
             const theme = THEMES[idx % THEMES.length];
@@ -742,35 +741,35 @@ export default function Home() {
               <div
                 key={stake}
                 onClick={handleJoin}
-                className="bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] border border-slate-100/90 overflow-hidden flex flex-col cursor-pointer active:scale-[0.98] transition-all"
+                className="bg-white dark:bg-[#0c1222] rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.45)] border border-slate-100/90 dark:border-slate-800/80 dark:hover:border-slate-700 overflow-hidden flex flex-col cursor-pointer active:scale-[0.98] transition-all"
               >
                 {/* Header with vibrant gradient (exact height ~64px, snug & centered) - Displays DERASH */}
                 <div
                   className={`h-16 bg-gradient-to-r ${theme.gradient} flex items-center justify-center relative rounded-t-2xl`}
                 >
-                  <span className="text-white font-black text-3xl tracking-tight drop-shadow-xs select-none">
+                  <span className="text-white font-black text-3xl tracking-tight drop-shadow-[0_2px_6px_rgba(0,0,0,0.4)] select-none">
                     {displayPool || 0}
                   </span>
-                  <div className="absolute top-2 right-2 bg-white/25 backdrop-blur-xs text-white text-[8.5px] font-black px-1.5 py-0.5 rounded tracking-wider select-none">
+                  <div className="absolute top-2 right-2 bg-white/25 dark:bg-black/35 backdrop-blur-xs text-white text-[8.5px] font-black px-1.5 py-0.5 rounded tracking-wider border border-white/20 select-none">
                     ETB
                   </div>
                 </div>
 
                 {/* 2-Column Stats Row: PLAYERS and STATUS (Clickable as part of the card) */}
-                <div className="px-3 py-2 flex items-center justify-around text-center border-b border-slate-50 bg-white select-none">
+                <div className="px-3 py-2 flex items-center justify-around text-center border-b border-slate-50 dark:border-slate-800/80 bg-white dark:bg-[#080d19] select-none">
                   <div className="flex-1 flex flex-col items-center">
-                    <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider">PLAYERS</span>
-                    <span className="text-[11px] font-black text-emerald-500 mt-0.5">{players}</span>
+                    <span className="text-[8.5px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">PLAYERS</span>
+                    <span className="text-[11px] font-black text-emerald-500 dark:text-emerald-400 drop-shadow-[0_0_6px_rgba(16,185,129,0.35)] mt-0.5">{players}</span>
                   </div>
-                  <div className="w-px h-6 bg-slate-100" />
+                  <div className="w-px h-6 bg-slate-100 dark:bg-slate-800/80" />
                   <div className="flex-1 flex flex-col items-center">
-                    <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider">STATUS</span>
+                    <span className="text-[8.5px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">STATUS</span>
                     <span className={`text-[11px] font-black mt-0.5 ${
                       isLiveCalling
-                        ? 'text-emerald-500 animate-pulse'
+                        ? 'text-emerald-500 dark:text-emerald-400 animate-pulse drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]'
                         : isCountingDown
-                        ? 'text-amber-500'
-                        : 'text-orange-400'
+                        ? 'text-amber-500 dark:text-amber-400 drop-shadow-[0_0_6px_rgba(245,158,11,0.35)]'
+                        : 'text-orange-400 dark:text-amber-500/80 font-bold'
                     }`}>
                       {isLiveCalling ? 'Calling...' : isCountingDown ? `${timeLeft}s...` : 'Waiting...'}
                     </span>
@@ -778,10 +777,10 @@ export default function Home() {
                 </div>
 
                 {/* Bottom Action Button: Displays STAKE amount */}
-                <div className="p-2 pt-1.5 bg-white">
+                <div className="p-2 pt-1.5 bg-white dark:bg-[#080d19]">
                   <button
                     type="button"
-                    className="w-full bg-[#eef3f9] hover:bg-[#e2eaf5] text-slate-800 font-black py-2 rounded-xl text-xs transition-all shadow-2xs border border-slate-200/60 flex items-center justify-center pointer-events-none"
+                    className="w-full bg-[#eef3f9] hover:bg-[#e2eaf5] dark:bg-[#12192c] dark:hover:bg-[#19233d] text-slate-800 dark:text-slate-100 font-black py-2 rounded-xl text-xs transition-all shadow-2xs dark:shadow-xs border border-slate-200/60 dark:border-slate-700/80 flex items-center justify-center pointer-events-none"
                   >
                     {stake} ETB
                   </button>

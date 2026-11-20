@@ -81,7 +81,7 @@ function Navigation() {
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800 pb-safe z-40 transition-colors">
+    <div className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-[#090e1c]/95 backdrop-blur-lg border-t border-gray-200 dark:border-slate-800/80 pb-safe z-40 transition-colors">
       <div className="flex justify-around items-center h-16">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -519,7 +519,7 @@ function App() {
       <PWAInstallPrompt />
       <PWAAuthModal />
       <TelegramBackButton />
-      <div className="min-h-screen bg-slate-50 pb-20 font-sans text-slate-800">
+      <div className="min-h-screen bg-slate-50 dark:bg-[#070b14] pb-20 font-sans text-slate-800 dark:text-slate-100 transition-colors">
         <ErrorBoundary><Routes>
           <Route path="/" element={<RoleRouter />} />
           <Route path="/join" element={<RoomJoinLanding />} />
