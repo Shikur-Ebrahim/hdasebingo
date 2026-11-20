@@ -88,22 +88,22 @@ export default function SupportPage() {
   const showQuickQuestions = messages.length <= 2 && !loading;
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50" style={{ maxHeight: '100dvh' }}>
+    <div className="flex flex-col h-screen bg-slate-50 dark:bg-[#070b14] text-slate-800 dark:text-slate-100 transition-colors" style={{ maxHeight: '100dvh' }}>
       {/* Header - Native Style */}
-      <div className="bg-white px-3 py-3 flex items-center gap-3 flex-shrink-0 shadow-[0_2px_10px_rgba(0,0,0,0.05)] z-30 relative">
+      <div className="bg-white dark:bg-[#0b1020]/95 backdrop-blur-md px-3 py-3 flex items-center gap-3 flex-shrink-0 shadow-[0_2px_10px_rgba(0,0,0,0.05)] dark:shadow-md border-b border-transparent dark:border-slate-800/80 z-30 relative transition-colors">
         <button
           onClick={() => navigate(-1)}
-          className="w-10 h-10 -ml-1 rounded-full flex items-center justify-center active:bg-slate-100 transition-colors flex-shrink-0 text-slate-700"
+          className="w-10 h-10 -ml-1 rounded-full flex items-center justify-center active:bg-slate-100 dark:active:bg-slate-800 transition-colors flex-shrink-0 text-slate-700 dark:text-slate-200"
         >
           <ArrowLeft size={22} />
         </button>
-        <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center flex-shrink-0 relative">
-          <Bot size={22} className="text-violet-600" />
-          <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
+        <div className="w-10 h-10 rounded-full bg-violet-100 dark:bg-violet-950/80 border border-transparent dark:border-violet-500/30 flex items-center justify-center flex-shrink-0 relative shadow-[0_0_12px_rgba(139,92,246,0.3)]">
+          <Bot size={22} className="text-violet-600 dark:text-violet-400" />
+          <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-[#0b1020] rounded-full shadow-[0_0_8px_rgba(16,185,129,0.8)]"></div>
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-slate-900 font-bold text-[17px] leading-tight">{t[language].support.title}</p>
-          <p className="text-emerald-600 text-[13px] font-medium leading-tight">{t[language].support.online}</p>
+          <p className="text-slate-900 dark:text-white font-bold text-[17px] leading-tight">{t[language].support.title}</p>
+          <p className="text-emerald-600 dark:text-emerald-400 text-[13px] font-medium leading-tight">{t[language].support.online}</p>
         </div>
         <VideoGuideButton category="how_to_use" compact />
       </div>
@@ -114,8 +114,8 @@ export default function SupportPage() {
           <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
             <div className={`max-w-[85%] px-4 py-2.5 text-[15px] leading-relaxed shadow-sm ${
               msg.role === 'user'
-                ? 'bg-violet-600 text-white rounded-[20px] rounded-br-[4px] whitespace-pre-wrap'
-                : 'bg-white text-slate-800 rounded-[20px] rounded-bl-[4px] border border-slate-100 prose prose-sm prose-slate prose-p:my-1 prose-strong:text-violet-900 prose-ul:my-1 prose-li:my-0 prose-ul:pl-4 max-w-none'
+                ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-[20px] rounded-br-[4px] whitespace-pre-wrap shadow-[0_2px_12px_rgba(124,58,237,0.3)]'
+                : 'bg-white dark:bg-[#0c1222] text-slate-800 dark:text-slate-100 rounded-[20px] rounded-bl-[4px] border border-slate-100 dark:border-slate-800/90 shadow-xs dark:shadow-[0_4px_16px_rgba(0,0,0,0.4)] prose prose-sm prose-slate dark:prose-invert prose-p:my-1 prose-strong:text-violet-900 dark:prose-strong:text-amber-400 prose-ul:my-1 prose-li:my-0 prose-ul:pl-4 max-w-none'
             }`}>
               {msg.role === 'assistant' ? (
                 <ReactMarkdown>{msg.content}</ReactMarkdown>
@@ -129,10 +129,10 @@ export default function SupportPage() {
         {/* Typing indicator */}
         {loading && (
           <div className="flex flex-col items-start">
-            <div className="bg-white shadow-sm border border-slate-100 rounded-[20px] rounded-bl-[4px] px-5 py-3.5 flex gap-1.5 items-center">
-              <span className="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-              <span className="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-              <span className="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            <div className="bg-white dark:bg-[#0c1222] shadow-sm dark:shadow-md border border-slate-100 dark:border-slate-800/90 rounded-[20px] rounded-bl-[4px] px-5 py-3.5 flex gap-1.5 items-center">
+              <span className="w-2 h-2 bg-violet-400 dark:bg-violet-400 rounded-full animate-bounce shadow-[0_0_6px_rgba(167,139,250,0.6)]" style={{ animationDelay: '0ms' }} />
+              <span className="w-2 h-2 bg-violet-400 dark:bg-violet-400 rounded-full animate-bounce shadow-[0_0_6px_rgba(167,139,250,0.6)]" style={{ animationDelay: '150ms' }} />
+              <span className="w-2 h-2 bg-violet-400 dark:bg-violet-400 rounded-full animate-bounce shadow-[0_0_6px_rgba(167,139,250,0.6)]" style={{ animationDelay: '300ms' }} />
             </div>
           </div>
         )}
@@ -141,14 +141,14 @@ export default function SupportPage() {
 
       {/* Quick Questions */}
       {showQuickQuestions && (
-        <div className="fixed left-0 right-0 bg-white border-t border-slate-100 px-3 py-3 flex flex-col gap-2 z-10" style={{ bottom: 'calc(64px + 68px + env(safe-area-inset-bottom, 0px))' }}>
-          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">{t[language].support.quickQuestions}</p>
+        <div className="fixed left-0 right-0 bg-white/95 dark:bg-[#0b1020]/95 backdrop-blur-md border-t border-slate-100 dark:border-slate-800/80 px-3 py-3 flex flex-col gap-2 z-10 transition-colors" style={{ bottom: 'calc(64px + 68px + env(safe-area-inset-bottom, 0px))' }}>
+          <p className="text-slate-400 dark:text-slate-400 text-[10px] font-bold uppercase tracking-widest">{t[language].support.quickQuestions}</p>
           <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
             {QUICK_QUESTIONS.map(q => (
               <button
                 key={q}
                 onClick={() => sendMessage(q)}
-                className="flex-shrink-0 px-3 py-1.5 bg-violet-50 border border-violet-200 text-violet-700 text-[11px] font-bold rounded-full active:scale-95 transition-all whitespace-nowrap"
+                className="flex-shrink-0 px-3 py-1.5 bg-violet-50 dark:bg-violet-950/60 border border-violet-200 dark:border-violet-700/60 text-violet-700 dark:text-violet-300 hover:dark:bg-violet-900/60 text-[11px] font-bold rounded-full active:scale-95 transition-all whitespace-nowrap shadow-xs"
               >
                 {q}
               </button>
@@ -158,7 +158,7 @@ export default function SupportPage() {
       )}
 
       {/* Input Bar */}
-      <div className="fixed left-0 right-0 px-3 py-3 bg-white border-t border-slate-100 flex gap-2 items-center shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-20" style={{ bottom: 'calc(64px + env(safe-area-inset-bottom, 0px))' }}>
+      <div className="fixed left-0 right-0 px-3 py-3 bg-white/95 dark:bg-[#0b1020]/95 backdrop-blur-md border-t border-slate-100 dark:border-slate-800/80 flex gap-2 items-center shadow-[0_-4px_20px_rgba(0,0,0,0.05)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.5)] z-20 transition-colors" style={{ bottom: 'calc(64px + env(safe-area-inset-bottom, 0px))' }}>
         <input
           ref={inputRef}
           value={input}
@@ -166,12 +166,12 @@ export default function SupportPage() {
           onKeyDown={handleKeyDown}
           placeholder={t[language].support.placeholder}
           disabled={loading}
-          className="flex-1 bg-slate-100 rounded-full px-4 py-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-60 border border-slate-200"
+          className="flex-1 bg-slate-100 dark:bg-[#12192c] rounded-full px-4 py-3 text-sm text-slate-800 dark:text-slate-100 outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500 disabled:opacity-60 border border-slate-200 dark:border-slate-700/80 focus:border-violet-500 dark:focus:border-violet-500 transition-colors"
         />
         <button
           onClick={() => sendMessage(input)}
           disabled={!input.trim() || loading}
-          className="w-11 h-11 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center active:scale-90 transition-all disabled:opacity-40 shadow-md flex-shrink-0"
+          className="w-11 h-11 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 flex items-center justify-center active:scale-90 transition-all disabled:opacity-40 shadow-[0_2px_12px_rgba(124,58,237,0.4)] flex-shrink-0"
         >
           <Send size={18} className="text-white translate-x-[1px]" />
         </button>
