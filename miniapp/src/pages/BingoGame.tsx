@@ -938,7 +938,10 @@ export default function BingoGame() {
         return;
       }
 
-      const iWon = finGame.winner_telegram_id === String(user?.telegram_id);
+      const uidStr = String(user?.telegram_id || '');
+      const isWinnerById = Boolean(finGame.winner_telegram_id && finGame.winner_telegram_id.split(',').includes(uidStr));
+      const isWinnerByName = Boolean(finGame.winner_first_name && user?.first_name && finGame.winner_first_name.includes(user.first_name));
+      const iWon = isWinnerById || isWinnerByName;
       const localCard = myCartelasRef.current.find(c => c.cartela_number === finGame.winner_cartela)?.card_matrix;
       const cachedCard = finGame.winner_matrix || (finGame.winner_cartela ? cartelaMatricesRef.current[finGame.winner_cartela] : null);
       const winningMatrix = localCard || cachedCard || (finGame.winner_cartela ? getFixedCartelaMatrix(finGame.winner_cartela) : null);
@@ -955,14 +958,23 @@ export default function BingoGame() {
       setCelebration(celObj);
       celebrationRef.current = celObj;
 
-      // If 2-way tie, fetch winners list in background
+      // If tie (2, 3, or 4 winners), fetch full winners list in background
       if (finGame.winner_first_name && finGame.winner_first_name.includes(' & ')) {
         fetch(`${API}/bingo/winners?game_id=${finGame.id}`, { headers: hdrs() })
           .then(r => r.json())
           .then(data => {
             if (data?.winners) {
               setCelebration(prev => {
-                const next = prev ? { ...prev, winners_list: data.winners } : prev;
+                if (!prev) return prev;
+                const wonInTie = data.winners.some((w: any) =>
+                  myCartelasRef.current.some(c => c.cartela_number === w.cartela_number) ||
+                  w.first_name === user?.first_name
+                );
+                const next = {
+                  ...prev,
+                  winners_list: data.winners,
+                  iWon: prev.iWon || wonInTie,
+                };
                 celebrationRef.current = next;
                 return next;
               });

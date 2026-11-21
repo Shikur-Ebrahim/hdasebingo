@@ -864,11 +864,12 @@ class BingoEngine {
       return;
     }
 
-    // ── CASE 2: Exactly 2 winners — split prize ───────────────────────────────
-    if (winners.length === 2) {
-      const splitPrize = Math.floor(prize / 2);
+    // ── CASE 2: 2 to 4 winners — split prize equally ─────────────────────────
+    if (winners.length >= 2 && winners.length <= 4) {
+      const splitPrize = Math.floor(prize / winners.length);
       const w1 = winners[0];
-      const w2 = winners[1];
+      const winnerNames = winners.map(w => w.first_name).join(' & ');
+      const winnerTelegramIds = winners.map(w => w.telegram_id).join(',');
 
       let totalRoomOwnerRisk = 0;
       const isOfficialHdaseRoom2 = roomId === 'd7c9114a-e112-426f-8f9b-13c00050279c';
@@ -901,8 +902,8 @@ class BingoEngine {
         status:             'finished',
         called_numbers:     called,
         prize_pool:         prize,
-        winner_telegram_id: w1.telegram_id,
-        winner_first_name:  `${w1.first_name} & ${w2.first_name}`,
+        winner_telegram_id: winnerTelegramIds,
+        winner_first_name:  winnerNames,
         winner_cartela:     w1.cartela_number,
         winner_prize:       splitPrize,
         room_owner_risk_amount: totalRoomOwnerRisk,
@@ -959,18 +960,17 @@ class BingoEngine {
           }
           await notify(
             w.telegram_id,
-            `🎉 BINGO! You tied with another player! You each won ${splitPrize} ETB on Cartela #${w.cartela_number}!`
+            `🎉 BINGO! You tied with ${winners.length - 1} other player(s)! You each won ${splitPrize} ETB on Cartela #${w.cartela_number}!`
           );
         }
       }
 
-      console.log(`🤝 Game #${formatGameId(gameId)}: 2-way tie — ${w1.first_name} & ${w2.first_name} — ${splitPrize} ETB each`);
+      console.log(`🤝 Game #${formatGameId(gameId)}: ${winners.length}-way tie — ${winnerNames} — ${splitPrize} ETB each`);
       await this.awardAgentCommission(roomId, realCartelasCount, stake, gameId, realUniqueCount);
       await this.incrementRoomGames(roomId);
       systemPlayerService.cleanupGame(gameId);
       systemPlayerService.recordGameFinished(roomId, Number(stake));
       this.gameLastCallTime.delete(gameId);
-    this.gamePlayersCache.delete(gameId);
       this.gamePlayersCache.delete(gameId);
       this.scheduleFinishedGameCleanup(gameId);
 
@@ -980,8 +980,8 @@ class BingoEngine {
       return;
     }
 
-    // ── CASE 3: 3 or more winners — REMATCH ──────────────────────────────────
-    console.log(`🔄 Game #${formatGameId(gameId)}: ${winners.length}-way tie — triggering REMATCH`);
+    // ── CASE 3: 5 or more winners — REMATCH ──────────────────────────────────
+    console.log(`🔄 Game #${formatGameId(gameId)}: ${winners.length}-way tie (5+ players) — triggering REMATCH`);
 
     const { data: claim, error: claimErr } = await supabase.from('bingo_games').update({
       status:            'finished',
