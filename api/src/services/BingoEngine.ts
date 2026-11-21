@@ -98,6 +98,7 @@ class BingoEngine {
   private busy = false;
   private playerManualModes = new Map<string, boolean>();
   private gameLastCallTime = new Map<string, number>();
+  private gamePlayersCache = new Map<string, any[]>();
   private lastWaitingSweepTime = 0;
   private lastWatchdogTime = 0;
 
@@ -284,6 +285,7 @@ class BingoEngine {
       for (const sg of stuckCalling || []) {
         console.warn(`🚨 [Watchdog] Detected stuck calling game #${formatGameId(sg.id)} (Stake: ${sg.stake}). Force finishing.`);
         this.gameLastCallTime.delete(sg.id);
+        this.gamePlayersCache.delete(sg.id);
         systemPlayerService.cleanupGame(sg.id);
         systemPlayerService.recordGameFinished(sg.room_id, Number(sg.stake));
         await supabase.from('bingo_games').update({
@@ -371,7 +373,7 @@ class BingoEngine {
 
     const { data: pRows } = await supabase
       .from('bingo_players')
-      .select('id, telegram_id, cartela_number, created_at, bonus_used, main_used, is_system')
+      .select('id, telegram_id, cartela_number, created_at, bonus_used, main_used, is_system, card_matrix, first_name, is_waiter, waiter_agent_id, system_player_id')
       .eq('game_id', game.id)
       .order('created_at', { ascending: true });
     
@@ -418,10 +420,11 @@ class BingoEngine {
     const prizePercent = uniquePlayers >= 3 ? Number(cfg.prize_percent || 80) : 100;
     const prizePool = Math.floor((rawPot * prizePercent) / 100);
 
-    const callIntervalMs = Number(cfg.call_interval_ms || 3000);
-    // CRITICAL FIX: Set gameLastCallTime so Ball #1 is called in ~600ms!
-    // Eliminates awkward 3-4s dead wait after the 30-second countdown reaches 0!
-    this.gameLastCallTime.set(game.id, Date.now() - callIntervalMs + 600);
+    // Cache players in memory for instant, zero-database win checks during calling
+    this.gamePlayersCache.set(game.id, players);
+
+    // Ball #1 is called immediately (0ms delay) on the next tick!
+    this.gameLastCallTime.set(game.id, 0);
 
     game.status = 'calling';
     const { error: startErr } = await supabase.from('bingo_games').update({
@@ -555,6 +558,7 @@ class BingoEngine {
 
     systemPlayerService.cleanupGame(game.id);
     this.gameLastCallTime.delete(game.id);
+    this.gamePlayersCache.delete(game.id);
   }
 
   private async handleCalling(game: any) {
@@ -564,10 +568,11 @@ class BingoEngine {
 
       // Check if interval has passed since last called ball
       const callIntervalMs = Number(cfg.call_interval_ms || 3000);
-      const lastCalledTime = this.gameLastCallTime.get(game.id) || (game.updated_at ? new Date(game.updated_at).getTime() : 0);
+      const lastCalledTime = this.gameLastCallTime.get(game.id) || 0;
       const timeSinceLastCall = Date.now() - lastCalledTime;
 
-      if (lastCalledTime > 0 && timeSinceLastCall < callIntervalMs) {
+      // FIRST BALL FIX: If called is empty (ball #1), call immediately with 0 delay!
+      if (called.length > 0 && lastCalledTime > 0 && timeSinceLastCall < callIntervalMs) {
         return;
       }
 
@@ -575,6 +580,7 @@ class BingoEngine {
         // All 75 numbers called — finish with no winner
         console.log(`🎰 Game #${formatGameId(game.id)} finished: all 75 numbers called with no winner.`);
         this.gameLastCallTime.delete(game.id);
+    this.gamePlayersCache.delete(game.id);
         await supabase.from('bingo_games').update({
           status: 'finished',
           winner_first_name: 'No Winner',
@@ -628,20 +634,27 @@ class BingoEngine {
     roomId?: string,
   ) {
     try {
-      const { data: players, error: plErr } = await supabase
-        .from('bingo_players')
-        .select('id, telegram_id, cartela_number, card_matrix, first_name, is_system, is_waiter, waiter_agent_id, system_player_id')
-        .eq('game_id', gameId);
+      let players = this.gamePlayersCache.get(gameId);
+      if (!players || players.length === 0) {
+        const { data: pData, error: plErr } = await supabase
+          .from('bingo_players')
+          .select('id, telegram_id, cartela_number, card_matrix, first_name, is_system, is_waiter, waiter_agent_id, system_player_id')
+          .eq('game_id', gameId);
 
-      if (plErr) {
-        console.error(`❌ Error fetching players for Game #${formatGameId(gameId)}:`, plErr);
-        return;
+        if (plErr) {
+          console.error(`❌ Error fetching players for Game #${formatGameId(gameId)}:`, plErr);
+          return;
+        }
+        players = pData || [];
+        this.gamePlayersCache.set(gameId, players);
       }
 
       if (!players || players.length === 0) {
         // If a calling game has 0 players, don't keep calling 75 balls for ghost!
         console.warn(`⚠️ Game #${formatGameId(gameId)} has 0 players in calling status. Finishing ghost game.`);
         this.gameLastCallTime.delete(gameId);
+    this.gamePlayersCache.delete(gameId);
+      this.gamePlayersCache.delete(gameId);
         systemPlayerService.cleanupGame(gameId);
         systemPlayerService.recordGameFinished(roomId, Number(stake));
         await supabase.from('bingo_games').update({
@@ -838,6 +851,8 @@ class BingoEngine {
       systemPlayerService.cleanupGame(gameId);
       systemPlayerService.recordGameFinished(roomId, Number(stake));
       this.gameLastCallTime.delete(gameId);
+    this.gamePlayersCache.delete(gameId);
+      this.gamePlayersCache.delete(gameId);
       this.scheduleFinishedGameCleanup(gameId);
 
       if (roomId) {
@@ -952,6 +967,8 @@ class BingoEngine {
       systemPlayerService.cleanupGame(gameId);
       systemPlayerService.recordGameFinished(roomId, Number(stake));
       this.gameLastCallTime.delete(gameId);
+    this.gamePlayersCache.delete(gameId);
+      this.gamePlayersCache.delete(gameId);
       this.scheduleFinishedGameCleanup(gameId);
 
       if (roomId) {
@@ -998,6 +1015,7 @@ class BingoEngine {
     systemPlayerService.cleanupGame(gameId);
     systemPlayerService.recordGameFinished(roomId, Number(stake));
     this.gameLastCallTime.delete(gameId);
+    this.gamePlayersCache.delete(gameId);
     this.scheduleFinishedGameCleanup(gameId);
 
     if (roomId) {
@@ -1285,6 +1303,7 @@ class BingoEngine {
     systemPlayerService.cleanupGame(gameId);
     systemPlayerService.recordGameFinished(game.room_id, Number(stake));
     this.gameLastCallTime.delete(gameId);
+    this.gamePlayersCache.delete(gameId);
     this.scheduleFinishedGameCleanup(gameId);
 
     if (game.room_id) {

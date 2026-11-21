@@ -788,6 +788,9 @@ export default function BingoGame() {
   const finishedCartelasRef = useRef<MyCard[]>([]);
   const [isFinishing, setIsFinishing] = useState(false);
   const cartelaMatricesRef = useRef<Record<number, number[][]>>({});
+  const myCartelasRef = useRef(myCartelas);
+  myCartelasRef.current = myCartelas;
+  const triggerCelebrationRef = useRef<(g: any) => void>(() => {});
   const fetchStateRef = useRef<() => void>(() => {});
   const refreshUserRef = useRef<() => void>(() => {});
 
@@ -866,8 +869,8 @@ export default function BingoGame() {
     finishingGameRef.current = finGame;
 
     // Preserve the user's cartelas so they remain on screen with marked numbers!
-    if (myCartelas && myCartelas.length > 0) {
-      finishedCartelasRef.current = myCartelas;
+    if (myCartelasRef.current && myCartelasRef.current.length > 0) {
+      finishedCartelasRef.current = myCartelasRef.current;
     }
 
     // 1. Ensure game state is updated with this finished game's final called numbers & state
@@ -931,7 +934,7 @@ export default function BingoGame() {
       }
 
       const iWon = finGame.winner_telegram_id === String(user?.telegram_id);
-      const localCard = myCartelas.find(c => c.cartela_number === finGame.winner_cartela)?.card_matrix;
+      const localCard = myCartelasRef.current.find(c => c.cartela_number === finGame.winner_cartela)?.card_matrix;
       const cachedCard = finGame.winner_matrix || (finGame.winner_cartela ? cartelaMatricesRef.current[finGame.winner_cartela] : null);
       const winningMatrix = localCard || cachedCard || (finGame.winner_cartela ? getFixedCartelaMatrix(finGame.winner_cartela) : null);
 
@@ -975,7 +978,8 @@ export default function BingoGame() {
           }).catch(() => {});
       }
     }, 3000);
-  }, [user?.telegram_id, myCartelas, playSpecial, playCallAudio, dismissCelebration]);
+  }, [user?.telegram_id, playSpecial, playCallAudio, dismissCelebration]);
+  triggerCelebrationRef.current = triggerCelebration;
 
 
   const fetchState = useCallback(async () => {
@@ -1012,15 +1016,13 @@ export default function BingoGame() {
         }
         
         // Guarantee celebration popup fires even if WebSocket was delayed or dropped,
-        // but ONLY if the user was actively watching this game or participated/won in it!
-        // Never hijack new visitors navigating from Home or another room!
+        // but ONLY if the user was actively watching this game live on screen!
+        // Never hijack visitors navigating from Home or who already left!
         if (d.last_finished_game && !celebratedGamesRef.current.has(d.last_finished_game.id)) {
           const isActivelyWatching = Boolean(gameIdRef.current && gameIdRef.current === d.last_finished_game.id);
-          const userWon = Boolean(user?.telegram_id && String(d.last_finished_game.winner_telegram_id) === String(user.telegram_id));
-          const userParticipated = Boolean(d.last_finished_game_participated || userWon);
 
-          if (isActivelyWatching || userParticipated) {
-            triggerCelebration(d.last_finished_game);
+          if (isActivelyWatching) {
+            triggerCelebrationRef.current(d.last_finished_game);
             return;
           } else {
             // Player just arrived from Home/another room to pick cartelas: suppress celebration modal
@@ -1031,9 +1033,8 @@ export default function BingoGame() {
         if (d.game) {
           if (d.game.status === 'finished' && !celebratedGamesRef.current.has(d.game.id)) {
             const isActivelyWatching = Boolean(gameIdRef.current && gameIdRef.current === d.game.id);
-            const userWon = Boolean(user?.telegram_id && String(d.game.winner_telegram_id) === String(user.telegram_id));
-            if (isActivelyWatching || userWon) {
-              triggerCelebration(d.game);
+            if (isActivelyWatching) {
+              triggerCelebrationRef.current(d.game);
               return;
             } else {
               celebratedGamesRef.current.add(d.game.id);
@@ -1075,7 +1076,7 @@ export default function BingoGame() {
         }
       }
     } catch { } finally { setLoading(false); }
-  }, [selectedStake, selectedRoomId, triggerCelebration]);
+  }, [selectedStake, selectedRoomId]);
   fetchStateRef.current = fetchState;
   refreshUserRef.current = refreshUser;
 
@@ -1095,15 +1096,16 @@ export default function BingoGame() {
             return;
           }
           if (bg.status === 'finished') {
-            triggerCelebration(bg);
+            triggerCelebrationRef.current(bg);
             return;
           }
+          if (gameIdRef.current && bg.id !== gameIdRef.current) return;
           setGame(bg);
         }
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "bingo_games" }, () => {
         if (isFinishingRef.current || celebrationRef.current) return;
-        fetchState();
+        fetchStateRef.current();
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "bingo_players" }, ({ new: p }) => {
         if (isFinishingRef.current || celebrationRef.current) return;
@@ -1113,17 +1115,11 @@ export default function BingoGame() {
             cartelaMatricesRef.current[np.cartela_number] = np.card_matrix;
           }
           setTaken(prev => prev.includes(np.cartela_number) ? prev : [...prev, np.cartela_number]);
-          // Re-fetch only for OTHER players' joins, NOT our own!
-          // Refetching on our own insert causes the cartela to flash / release and re-mark.
-          const myTid = user?.telegram_id?.toString();
-          if (np.telegram_id !== myTid) {
-            setUniquePlayers(prev => prev + 1);
-            fetchState();
-          }
+          setUniquePlayers(prev => prev + 1);
         }
       }).subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [selectedStake, selectedRoomId, fetchState, triggerCelebration]);
+  }, [selectedStake, selectedRoomId]);
 
   useEffect(() => {
     if (!game || game.status !== "waiting") return;
@@ -1665,6 +1661,11 @@ export default function BingoGame() {
               const handleSelect = () => {
                 if (typeof WebApp !== 'undefined') WebApp.HapticFeedback?.impactOccurred('medium');
                 initWebAudio();
+                gameIdRef.current = null;
+                setCelebration(null);
+                celebrationRef.current = null;
+                setIsFinishing(false);
+                isFinishingRef.current = false;
                 setSelectedStake(opt.value);
                 setSearchParams(params => {
                   params.set('stake', String(opt.value));
