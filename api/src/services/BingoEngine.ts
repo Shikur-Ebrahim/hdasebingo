@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { getSettings } from '../routes/adminSettings';
 import { systemPlayerService } from './systemPlayerService';
+import { invalidatePoolsCache } from '../routes/bingo';
 
 const TICK_MS = 300; // 300ms responsive tick for exact call_interval_ms execution
 export const DEFAULT_ROOM_STAKES = [5, 10, 20, 35];
@@ -127,13 +128,13 @@ class BingoEngine {
     this.timer = setInterval(() => this.tick(), TICK_MS);
     console.log('🎰 BingoEngine running — auto-game loop active');
 
-    // Run initial startup sweep of old finished games
-    this.purgeStaleFinishedGames(60);
+    // Run initial startup sweep of old finished games (5 minutes retention)
+    this.purgeStaleFinishedGames(300);
 
-    // Continuous background sweep: purge any finished games older than 60s
+    // Continuous background sweep: purge finished games older than 5 minutes (300s)
     setInterval(() => {
-      this.purgeStaleFinishedGames(60);
-    }, 60000);
+      this.purgeStaleFinishedGames(300);
+    }, 120000);
   }
 
   private async tick() {
@@ -236,14 +237,23 @@ class BingoEngine {
       await Promise.allSettled(missingGames.map(m => this.createGame(m.roomId, m.stake)));
     }
 
-    // ── STEP C: WAITING GAMES (THROTTLED EVERY ~800ms) ────────────────────────
-    // Bot joins and countdown checks run every ~800ms rather than every 300ms.
-    // This reduces Supabase connection load by ~70% while keeping countdown completely smooth.
+    // ── STEP C: WAITING GAMES (READY GAMES INSTANTLY, BOT JOINS ~800ms) ──────────
     const now = Date.now();
+    // If any waiting game's 30s countdown has reached 0: process IMMEDIATELY with 0ms delay!
+    const dueWaitingGames = waitingGames.filter(wg => {
+      const sTime = new Date(wg.game.start_at).getTime();
+      return sTime <= now && sTime < now + 86400000;
+    });
+
+    if (dueWaitingGames.length > 0) {
+      await Promise.allSettled(dueWaitingGames.map(wg => this.handleWaiting(wg.game, wg.room)));
+    }
+
     if (now - this.lastWaitingSweepTime >= 800) {
       this.lastWaitingSweepTime = now;
-      if (waitingGames.length > 0) {
-        await Promise.allSettled(waitingGames.map(wg => this.handleWaiting(wg.game, wg.room)));
+      const otherWaiting = waitingGames.filter(wg => !dueWaitingGames.includes(wg));
+      if (otherWaiting.length > 0) {
+        await Promise.allSettled(otherWaiting.map(wg => this.handleWaiting(wg.game, wg.room)));
       }
     }
 
@@ -382,9 +392,9 @@ class BingoEngine {
 
       const firstJoinedTime = new Date(players[0].created_at).getTime();
       const waitingDurationSec = (Date.now() - firstJoinedTime) / 1000;
-      const releaseTimeoutSec = cfg.release_time_s || 60;
+      const releaseTimeoutSec = cfg.release_time_s || 300; // 5 minutes (300s)
 
-      // Has the release time (default 60s) expired?
+      // Has the release time (default 5 minutes / 300s) expired?
       if (waitingDurationSec >= releaseTimeoutSec) {
         console.log(`⏰ Game #${formatGameId(game.id)} (Stake: ${game.stake}): Release time reached (${Math.round(waitingDurationSec)}s >= ${releaseTimeoutSec}s). Refunding cartelas and releasing player.`);
         await this.refundAndResetGame(game);
@@ -412,13 +422,19 @@ class BingoEngine {
     // Eliminates awkward 3-4s dead wait after the 30-second countdown reaches 0!
     this.gameLastCallTime.set(game.id, Date.now() - callIntervalMs + 600);
 
-    await supabase.from('bingo_games').update({
+    game.status = 'calling';
+    const { error: startErr } = await supabase.from('bingo_games').update({
       status: 'calling',
       called_numbers: [],
       prize_pool: prizePool,
       total_players: uniquePlayers,
       updated_at: new Date().toISOString(),
     }).eq('id', game.id);
+
+    if (startErr) {
+      console.error(`❌ Error starting Game #${formatGameId(game.id)}:`, startErr);
+    }
+    invalidatePoolsCache();
     console.log(`🎰 Game #${formatGameId(game.id)} started with ${uniquePlayers} unique players (min: ${minPlayers})! Stake: ${game.stake} ETB | Derash: ${prizePool} ETB | First ball in ~0.6s.`);
   }
 
@@ -1276,11 +1292,11 @@ class BingoEngine {
   }
 
   /**
-   * Schedule automatic permanent deletion of a finished game after a 60-second grace window.
+   * Schedule automatic permanent deletion of a finished game after a 5-minute (300s) grace window.
    * Gives players time to enjoy the celebration popup & view the winning cartela,
    * then completely removes the game row and all bulky player JSON cartela matrices.
    */
-  private scheduleFinishedGameCleanup(gameId: string, delayMs: number = 60000) {
+  private scheduleFinishedGameCleanup(gameId: string, delayMs: number = 300000) {
     if (!gameId) return;
     setTimeout(async () => {
       try {
@@ -1297,10 +1313,10 @@ class BingoEngine {
   }
 
   /**
-   * Periodic sweep: removes any finished games older than maxAgeSeconds (default 60s).
+   * Periodic sweep: removes any finished games older than maxAgeSeconds (default 300s / 5 minutes).
    * Catches any games left behind after server restarts or network anomalies.
    */
-  public async purgeStaleFinishedGames(maxAgeSeconds: number = 60) {
+  public async purgeStaleFinishedGames(maxAgeSeconds: number = 300) {
     try {
       const cutoff = new Date(Date.now() - maxAgeSeconds * 1000).toISOString();
       const { data: finishedGames, error: fetchErr } = await supabase

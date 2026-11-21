@@ -798,8 +798,8 @@ export class SystemPlayerService {
     } else if (isWaiterActiveForStake) {
       // Waiter mode: only joins after at least 1 real player has bought a cartela!
       if (initialRealUnique === 0) return;
-      // Waiter bots wait 10 seconds before joining (remainingSec <= 20s):
-      if (remainingSec > 20) return;
+      // Waiter bots join promptly (within 2s, remainingSec <= 28s) so table has 2+ players immediately!
+      if (remainingSec > 28) return;
       isWaiterMode = true;
     } else {
       return;
@@ -842,7 +842,10 @@ export class SystemPlayerService {
     const availableSec = Math.max(0.5, remainingSec - 1.0);
 
     let countToAdd = 1;
-    if (remainingSec <= 3.5) {
+    if (isWaiterMode && currentBotCount === 0) {
+      // Waiter bot mode: First opponent bot joins IMMEDIATELY with zero delay so 2+ players are ready!
+      countToAdd = 1;
+    } else if (remainingSec <= 3.5) {
       // Final stretch: ensure all needed bots join immediately so the game NEVER starts below target!
       countToAdd = needed;
     } else {

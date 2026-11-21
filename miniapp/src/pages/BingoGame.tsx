@@ -476,7 +476,7 @@ export default function BingoGame() {
         const next: Record<number, number> = {};
         for (const [stake, g] of Object.entries(homeGames)) {
           const pCount = Number(g.players || 0);
-          if (g.status === 'waiting' && g.start_at && pCount >= 2) {
+          if (g.status === 'waiting' && g.start_at && pCount >= 1) {
             const diff = Math.ceil((new Date(g.start_at).getTime() - Date.now()) / 1000);
             if (diff > 0 && diff <= 120) {
               next[Number(stake)] = diff;
@@ -1496,12 +1496,12 @@ export default function BingoGame() {
   const initial = user?.first_name ? user.first_name.charAt(0).toUpperCase() : "U";
   let statusTxt = "Finished", statusCls = "text-slate-400";
   if (game?.status === "waiting") {
-    if (timeLeft > 86400 || (uniquePlayers < 2 && (game.total_players || 0) < 2)) {
+    if (timeLeft > 86400) {
       statusTxt = "Waiting..."; 
       statusCls = "text-orange-400"; 
     } else if (timeLeft === 0) { 
-      statusTxt = "Calling..."; 
-      statusCls = "text-emerald-400 animate-pulse"; 
+      statusTxt = (uniquePlayers >= 2 || (game.total_players || 0) >= 2 || myCartelas.length > 0) ? "Ready..." : "Waiting..."; 
+      statusCls = "text-emerald-400 animate-pulse font-black"; 
     } else { 
       statusTxt = `${timeLeft}s`; 
       statusCls = "text-amber-500 font-black"; 
@@ -1510,6 +1510,13 @@ export default function BingoGame() {
     statusTxt = "Calling"; 
     statusCls = "text-emerald-500 animate-pulse font-black"; 
   }
+
+  const isCallingBoardVisible = Boolean(
+    game?.status === 'calling' ||
+    isFinishing ||
+    celebration ||
+    (game?.status === 'waiting' && timeLeft === 0 && (uniquePlayers >= 2 || (game?.total_players || 0) >= 2 || myCartelas.length > 0))
+  );
 
   const Header = () => (
     <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800/80 bg-white dark:bg-[#0b1020]/95 backdrop-blur-md shadow-2xs flex items-center justify-between shrink-0 transition-colors">
@@ -1633,10 +1640,10 @@ export default function BingoGame() {
               const players = hg?.players || 0;
               const isCalling = hg?.status === 'calling';
               const tl = homeTimeLeft[opt.value] || 0;
-              const isCountingDown = hg?.status === 'waiting' && players >= 2 && tl > 0 && tl <= 120;
-              const isStarting = hg?.status === 'waiting' && players >= 2 && tl === 0 && hg?.start_at && (new Date(hg.start_at).getTime() <= Date.now() + 4000);
+              const isCountingDown = hg?.status === 'waiting' && tl > 0 && tl <= 120;
+              const isStarting = hg?.status === 'waiting' && tl === 0 && hg?.start_at && (new Date(hg.start_at).getTime() <= Date.now() + 4000);
               const isLiveCalling = isCalling || isStarting;
-              const displayPool = pool > 0 ? pool : (players >= 2 ? Math.floor(players * opt.value * (players >= 3 ? 0.8 : 1)) : 0);
+              const displayPool = pool > 0 ? pool : (players >= 1 ? Math.floor(players * opt.value * (players >= 3 ? 0.8 : 1)) : 0);
 
               const THEMES = [
                 { gradient: 'from-[#1e40af] via-[#2563eb] to-[#3b82f6]' }, // Blue
@@ -1902,7 +1909,7 @@ export default function BingoGame() {
               {/* Amharic Voice Word - Positioned ABOVE the 5 mini balls */}
               <div className="w-full">
                 <span className="text-amber-950 dark:text-amber-300 font-black text-xs sm:text-sm tracking-wide drop-shadow-[0_0.5px_0_rgba(255,255,255,0.9)] dark:drop-shadow-none truncate block leading-tight">
-                  {lastNum ? (AMHARIC_NUM[lastNum] || '') : (isFinishing || celebration ? 'ቢንጎ ተጠናቋል!' : 'በመጠባበቅ ላይ...')}
+                  {lastNum ? (AMHARIC_NUM[lastNum] || '') : (isFinishing || celebration ? (language === 'am' ? 'ቢንጎ ተጠናቋል!' : 'Bingo Finished!') : (language === 'am' ? 'ዝግጁ! ጨዋታው ሊጀምር ነው...' : 'Ready! Game Starting...'))}
                 </span>
               </div>
 
@@ -2224,7 +2231,7 @@ export default function BingoGame() {
     <div className="fixed inset-x-0 top-0 bottom-16 w-full bg-gradient-to-b from-[#fffbf0] via-[#fef3c7]/30 to-[#fffbf0] dark:from-[#070b14] dark:via-[#090e1c] dark:to-[#070b14] flex flex-col select-none overflow-hidden" onClick={initWebAudio}>
       <div className="sticky top-0 z-40 bg-white dark:bg-[#0b1020]/95 shadow-2xs border-b border-amber-100/80 dark:border-slate-800/80 flex flex-col shrink-0">
         <Header />
-        {game.status !== 'calling' && !isFinishing && !celebration && (
+        {!isCallingBoardVisible && (
           <div className="bg-gradient-to-r from-amber-50/90 via-yellow-50/60 to-amber-50/90 dark:from-[#0b1020] dark:via-[#0f172a] dark:to-[#0b1020] border-b border-amber-200/70 dark:border-slate-800/80 px-3 pt-3 pb-3">
             <div className="flex items-center gap-1.5 mb-2">
               <button 
@@ -2400,14 +2407,14 @@ export default function BingoGame() {
       </div>
 
       {errMsg && (
-        <div className={`mx-3 mt-2 px-3 py-2 ${(game.status === 'calling' || isFinishing || celebration) ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'bg-red-50 border-red-200 text-red-600'} border rounded-xl flex items-center justify-between z-10 shrink-0`}>
+        <div className={`mx-3 mt-2 px-3 py-2 ${isCallingBoardVisible ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'bg-red-50 border-red-200 text-red-600'} border rounded-xl flex items-center justify-between z-10 shrink-0`}>
           <p className="text-xs font-bold">{errMsg}</p>
           <button onClick={() => setErrMsg("")} className="text-base leading-none ml-2 p-1 hover:bg-red-200/50 rounded-full transition-colors"><X size={14} /></button>
         </div>
       )}
 
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        {(game.status === 'calling' || isFinishing || celebration) ? renderCallingBoard() : renderCartelaPicker()}
+        {isCallingBoardVisible ? renderCallingBoard() : renderCartelaPicker()}
       </div>
 
       {/* Winner Celebration */}

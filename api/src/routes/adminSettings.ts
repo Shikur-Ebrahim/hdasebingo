@@ -9,7 +9,7 @@ router.use(validateTelegramAuth);
 export const DEFAULT_SETTINGS = {
   call_interval_ms:  3000,
   waiting_period_s:  60,
-  release_time_s:    60,   // seconds before solo player's cartela is released and refunded
+  release_time_s:    300,   // 5 minutes (300s) before solo player's cartela is released and refunded
   min_players:       2,
   max_players:       300,
   prize_percent:     80,   // % of total stakes (for 3+ players)
