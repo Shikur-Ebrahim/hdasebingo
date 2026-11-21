@@ -285,6 +285,7 @@ class BingoEngine {
         console.warn(`🚨 [Watchdog] Detected stuck calling game #${formatGameId(sg.id)} (Stake: ${sg.stake}). Force finishing.`);
         this.gameLastCallTime.delete(sg.id);
         systemPlayerService.cleanupGame(sg.id);
+        systemPlayerService.recordGameFinished(sg.room_id, Number(sg.stake));
         await supabase.from('bingo_games').update({
           status: 'finished',
           winner_first_name: 'Time Limit Expired',
@@ -582,6 +583,7 @@ class BingoEngine {
           updated_at: new Date().toISOString(),
         }).eq('id', game.id);
         systemPlayerService.cleanupGame(game.id);
+        systemPlayerService.recordGameFinished(game.room_id, Number(game.stake));
         this.scheduleFinishedGameCleanup(game.id);
         await this.incrementRoomGames(game.room_id);
         if (game.room_id) {
@@ -641,6 +643,7 @@ class BingoEngine {
         console.warn(`⚠️ Game #${formatGameId(gameId)} has 0 players in calling status. Finishing ghost game.`);
         this.gameLastCallTime.delete(gameId);
         systemPlayerService.cleanupGame(gameId);
+        systemPlayerService.recordGameFinished(roomId, Number(stake));
         await supabase.from('bingo_games').update({
           status: 'finished',
           winner_first_name: 'No Players',
@@ -833,6 +836,7 @@ class BingoEngine {
       await this.awardAgentCommission(roomId, realCartelasCount, stake, gameId, realUniqueCount);
       await this.incrementRoomGames(roomId);
       systemPlayerService.cleanupGame(gameId);
+      systemPlayerService.recordGameFinished(roomId, Number(stake));
       this.gameLastCallTime.delete(gameId);
       this.scheduleFinishedGameCleanup(gameId);
 
@@ -946,6 +950,7 @@ class BingoEngine {
       await this.awardAgentCommission(roomId, realCartelasCount, stake, gameId, realUniqueCount);
       await this.incrementRoomGames(roomId);
       systemPlayerService.cleanupGame(gameId);
+      systemPlayerService.recordGameFinished(roomId, Number(stake));
       this.gameLastCallTime.delete(gameId);
       this.scheduleFinishedGameCleanup(gameId);
 
@@ -991,6 +996,7 @@ class BingoEngine {
 
     await this.incrementRoomGames(roomId);
     systemPlayerService.cleanupGame(gameId);
+    systemPlayerService.recordGameFinished(roomId, Number(stake));
     this.gameLastCallTime.delete(gameId);
     this.scheduleFinishedGameCleanup(gameId);
 
@@ -1277,6 +1283,7 @@ class BingoEngine {
     await this.awardAgentCommission(game.room_id, realCartelasCount, stake, gameId, realUniqueCount);
     await this.incrementRoomGames(game.room_id);
     systemPlayerService.cleanupGame(gameId);
+    systemPlayerService.recordGameFinished(game.room_id, Number(stake));
     this.gameLastCallTime.delete(gameId);
     this.scheduleFinishedGameCleanup(gameId);
 

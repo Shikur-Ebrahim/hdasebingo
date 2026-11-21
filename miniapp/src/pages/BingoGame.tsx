@@ -828,7 +828,16 @@ export default function BingoGame() {
     setTaken([]);
     setManuallyMarked(new Set());
     setBingoLockSeconds(0);
-    setGame(prev => prev ? { ...prev, status: 'waiting', called_numbers: [], total_players: 0, prize_pool: 0 } : prev);
+    setUniquePlayers(0);
+    setTimeLeft(30);
+    setGame(prev => prev ? {
+      ...prev,
+      status: 'waiting',
+      called_numbers: [],
+      total_players: 0,
+      prize_pool: 0,
+      start_at: new Date(Date.now() + 30000).toISOString()
+    } : null);
     fetchStateRef.current();
     refreshUserRef.current();
   }, []);
@@ -1515,7 +1524,7 @@ export default function BingoGame() {
     game?.status === 'calling' ||
     isFinishing ||
     celebration ||
-    (game?.status === 'waiting' && timeLeft === 0 && (uniquePlayers >= 2 || (game?.total_players || 0) >= 2 || myCartelas.length > 0))
+    (game?.status === 'waiting' && timeLeft === 0 && myCartelas.length > 0)
   );
 
   const Header = () => (

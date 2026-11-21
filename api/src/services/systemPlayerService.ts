@@ -124,6 +124,9 @@ const gameBotTargets = new Map<string, number>();
 // In-memory throttle to avoid firing bot inserts faster than interval (2-3s)
 const gameLastBotJoinTime = new Map<string, number>();
 
+// In-memory tracking of when a game finishes per room & stake to synchronize celebration window
+const roomStakeLastFinishTime = new Map<string, number>();
+
 export const SYSTEM_PLAYER_STARTING_TELEGRAM_ID = 10000000000n;
 
 export class SystemPlayerService {
@@ -775,6 +778,14 @@ export class SystemPlayerService {
       // (Waiter bots only join after a real human buys a cartela, they never kickstart empty far-future tables)
       if (!isAutoBustleActive) return;
 
+      // If a previous game in this room & stake just finished: hold kickstart for ~8.5 seconds
+      // so players finish viewing the winning ball & celebration modal before the 30s countdown starts!
+      const lastFinished = roomStakeLastFinishTime.get(`${room.id}:${game.stake}`) || 0;
+      const msSinceFinish = now - lastFinished;
+      if (lastFinished > 0 && msSinceFinish < 8500) {
+        return;
+      }
+
       // Auto-Bustle active: kickstart 30-second waiting countdown (strictly 30s)
       const waitingSec = Math.min(30, cfg.waiting_period_s || 30);
       const newStartAt = new Date(now + waitingSec * 1000).toISOString();
@@ -1143,6 +1154,24 @@ export class SystemPlayerService {
   cleanupGame(gameId: string) {
     gameBotTargets.delete(gameId);
     gameLastBotJoinTime.delete(gameId);
+  }
+
+  /**
+   * Record when a game finished in a room & stake so Auto-Bustle waits for players
+   * to view the winning celebration before kickstarting the next 30s countdown.
+   */
+  recordGameFinished(roomId?: string, stake?: number) {
+    if (!roomId || !stake) return;
+    roomStakeLastFinishTime.set(`${roomId}:${stake}`, Date.now());
+  }
+
+  /**
+   * If a real player joins early (e.g. skips celebration), clear the grace hold
+   * so system players/waiter bots can join promptly.
+   */
+  clearFinishGrace(roomId?: string, stake?: number) {
+    if (!roomId || !stake) return;
+    roomStakeLastFinishTime.delete(`${roomId}:${stake}`);
   }
 }
 

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { AuthRequest, validateTelegramAuth, optionalTelegramAuth } from '../middleware/auth';
 import { supabase } from '../services/supabase';
 import { generateBingoCard, getFixedCartelaMatrix, checkBingo, engine } from '../services/BingoEngine';
+import { systemPlayerService } from '../services/systemPlayerService';
 import { getSettings } from './adminSettings';
 
 const router = Router();
@@ -443,6 +444,7 @@ router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
     // Trigger countdown from settings waiting_period_s (strictly 30s) when first player joins
     if (new Date(game.start_at).getTime() > Date.now() + 86400000) {
       newStartAt = new Date(Date.now() + Math.min(30, cfg.waiting_period_s || 30) * 1000).toISOString();
+      systemPlayerService.clearFinishGrace(game.room_id, Number(game.stake));
     }
 
     await supabase.from('bingo_games').update({
