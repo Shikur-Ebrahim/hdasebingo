@@ -342,8 +342,19 @@ router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
     const userQuery = supabase.from('users').select('main_balance, bonus_balance, first_name').eq('telegram_id', telegramId).single();
 
     const [gameRes, userRes] = await Promise.all([gameQuery, userQuery]);
-    const game = (gameRes as any)?.data;
+    let game = (gameRes as any)?.data;
     const user = (userRes as any)?.data;
+
+    // Fallback: If targetGameId wasn't found or was no longer waiting, find newest waiting game for this room & stake
+    if (!game) {
+      const { data: fallbackGame } = await query.order('created_at', { ascending: false }).limit(1).maybeSingle();
+      game = fallbackGame;
+    }
+
+    // If still no waiting game, auto-create one immediately so player can always buy
+    if (!game && selectedRoomId) {
+      game = await engine.createGame(selectedRoomId, Number(requestedStake));
+    }
 
     if (!game) {
       res.status(400).json({ error: 'No game accepting players for this stake right now.' }); return;
@@ -441,9 +452,14 @@ router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
     const prizePool = Math.floor((rawPool * prizePercent) / 100);
 
     let newStartAt = game.start_at;
-    // Trigger countdown from settings waiting_period_s (strictly 30s) when first player joins
-    if (new Date(game.start_at).getTime() > Date.now() + 86400000) {
-      newStartAt = new Date(Date.now() + Math.min(30, cfg.waiting_period_s || 30) * 1000).toISOString();
+    const currentStartMs = new Date(game.start_at || 0).getTime();
+
+    // Trigger fresh 30s countdown:
+    // 1) If game was waiting with far-future start_at
+    // 2) If start_at had already expired or reached <= now
+    // 3) If this is the only player (unique_players <= 1)
+    if (currentStartMs > Date.now() + 86400000 || currentStartMs <= Date.now() || unique_players <= 1) {
+      newStartAt = new Date(Date.now() + 30000).toISOString();
       systemPlayerService.clearFinishGrace(game.room_id, Number(game.stake));
     }
 
@@ -466,6 +482,7 @@ router.post('/join', validateTelegramAuth, async (req: AuthRequest, res) => {
       start_at: newStartAt,
       prize_pool: prizePool,
       total_players: unique_players,
+      game_id: game.id,
     });
   });
 });

@@ -817,6 +817,11 @@ export default function BingoGame() {
       clearTimeout(finishingDelayTimerRef.current);
       finishingDelayTimerRef.current = null;
     }
+    const lastId = finishingGameRef.current?.id || game?.id;
+    if (lastId) {
+      celebratedGamesRef.current.add(lastId);
+    }
+    gameIdRef.current = null;
     setIsFinishing(false);
     isFinishingRef.current = false;
     finishingGameRef.current = null;
@@ -1095,11 +1100,12 @@ export default function BingoGame() {
             }
             return;
           }
+          // Strictly ignore updates (including finished) from different games than what player is in!
+          if (gameIdRef.current && bg.id !== gameIdRef.current) return;
           if (bg.status === 'finished') {
             triggerCelebrationRef.current(bg);
             return;
           }
-          if (gameIdRef.current && bg.id !== gameIdRef.current) return;
           setGame(bg);
         }
       })
@@ -1467,10 +1473,14 @@ export default function BingoGame() {
         if (d.card_matrix) {
           setMyCartelas(prev => prev.map(c => c.cartela_number === seat ? { ...c, card_matrix: d.card_matrix } : c));
         }
+        if (d.game_id) {
+          gameIdRef.current = d.game_id;
+        }
         if (d.unique_players !== undefined) setUniquePlayers(Number(d.unique_players));
-        if (d.start_at || d.prize_pool) {
+        if (d.start_at || d.prize_pool || d.game_id) {
           setGame(prev => prev ? {
             ...prev,
+            id: d.game_id || prev.id,
             start_at: d.start_at ?? prev.start_at,
             prize_pool: d.prize_pool !== undefined ? Number(d.prize_pool) : prev.prize_pool,
             total_players: d.total_players !== undefined ? Number(d.total_players) : prev.total_players,

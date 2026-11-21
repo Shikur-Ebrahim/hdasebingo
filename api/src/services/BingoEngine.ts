@@ -199,7 +199,9 @@ class BingoEngine {
     }
 
     if (duplicateWaitersToClean.length > 0) {
-      await supabase.from('bingo_games').update({ status: 'finished' }).in('id', duplicateWaitersToClean);
+      // Clean up orphaned empty duplicate games by deleting them instead of marking 'finished',
+      // preventing clients from receiving false 'finished' events that shut down active countdowns!
+      await supabase.from('bingo_games').delete().in('id', duplicateWaitersToClean);
     }
 
     // Separate games by operational state for decoupled, priority-based execution
@@ -393,19 +395,20 @@ class BingoEngine {
         return;
       }
 
-      const firstJoinedTime = new Date(players[0].created_at).getTime();
+      const realPlayers = players.filter((p: any) => !p.is_system);
+      const firstJoinedTime = new Date((realPlayers.length > 0 ? realPlayers[0] : players[0]).created_at).getTime();
       const waitingDurationSec = (Date.now() - firstJoinedTime) / 1000;
-      const releaseTimeoutSec = cfg.release_time_s || 300; // 5 minutes (300s)
+      const releaseTimeoutSec = Math.max(300, Number(cfg.release_time_s || 300)); // strictly at least 5 minutes (300s)
 
-      // Has the release time (default 5 minutes / 300s) expired?
+      // Has the release time (strictly 5 minutes / 300s) expired?
       if (waitingDurationSec >= releaseTimeoutSec) {
         console.log(`⏰ Game #${formatGameId(game.id)} (Stake: ${game.stake}): Release time reached (${Math.round(waitingDurationSec)}s >= ${releaseTimeoutSec}s). Refunding cartelas and releasing player.`);
         await this.refundAndResetGame(game);
         return;
       }
 
-      // Still within release time: extend timer by 15s (or remaining time until releaseTimeoutSec)
-      const remainingSec = Math.max(5, Math.min(15, Math.ceil(releaseTimeoutSec - waitingDurationSec)));
+      // Still within release time: extend timer smoothly by 30s
+      const remainingSec = Math.min(30, Math.ceil(releaseTimeoutSec - waitingDurationSec));
       await supabase.from('bingo_games').update({
         start_at: new Date(Date.now() + remainingSec * 1000).toISOString(),
         updated_at: new Date().toISOString(),
